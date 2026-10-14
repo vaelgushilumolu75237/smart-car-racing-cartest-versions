@@ -18,6 +18,13 @@
 #ifndef CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE
 #define CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE 10u
 #endif
+#ifndef CARTEST_FOLLOW_TURN_PROFILE_COMPILED
+#define CARTEST_FOLLOW_TURN_PROFILE_COMPILED 0
+#endif
+#if CARTEST_FOLLOW_TURN_PROFILE_COMPILED && \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700u)
+#error "FollowTurn slope assist requires the 700-permille normal output cap."
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +32,8 @@ extern "C" {
 
 enum {
     CAR_FOLLOW_BASE_TARGET_PERMILLE = 500u,
+    CAR_FOLLOW_SLOPE_ASSIST_TARGET_PERMILLE = 700u,
+    CAR_FOLLOW_SLOPE_ASSIST_STRAIGHT_U_MAX_PERMILLE = 100u,
     CAR_FOLLOW_NORMAL_MAX_PERMILLE = CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE,
     CAR_FOLLOW_HARD_MAX_PERMILLE = 700u,
     CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE = 200u,
@@ -56,8 +65,31 @@ typedef struct {
     uint32_t last_ramp_ms;
     uint8_t have_ramp_time;
     uint8_t startup_qualified;
+    /* Latched command state; hold preserves it with the frozen output. */
+    uint8_t slope_assist_active;
     uint8_t phase;
 } car_follow_output_state_t;
+
+/* Main-loop eligibility snapshot. This is transient state, not a log/wire ABI. */
+typedef struct {
+    uint8_t follow_running;
+    uint8_t manual_run_request;
+    uint8_t follow_session_active;
+    uint8_t road_drive_allowed;
+    uint8_t fault_or_stop;
+    uint8_t trusted_slope_hint;
+    uint8_t vision_valid;
+    uint8_t vision_fresh;
+    uint8_t startup_qualified;
+    uint8_t servo_output_active;
+    uint8_t servo_frame_ready;
+    uint8_t motor_outputs_active;
+    uint8_t applied_outputs_nonzero;
+    int16_t trusted_vision_error_norm;
+} car_follow_slope_assist_gate_t;
+
+uint8_t car_follow_output_slope_assist_request(
+    const car_follow_slope_assist_gate_t *gate);
 
 void car_follow_output_reset(car_follow_output_state_t *state);
 
@@ -88,6 +120,27 @@ uint8_t car_follow_output_update(
     uint8_t motor_outputs_active,
     uint16_t left_applied_permille,
     uint16_t right_applied_permille,
+    uint16_t *left_command_permille,
+    uint16_t *right_command_permille);
+
+/* FollowTurn-only overload. The helper independently enforces startup,
+   software-servo straightness, profile cap, and the fixed 700 hard ceiling. */
+uint8_t car_follow_output_update_with_slope_assist(
+    car_follow_output_state_t *state,
+    uint32_t now_ms,
+    uint16_t base_target_permille,
+    uint16_t outer_differential_permille,
+    uint16_t inner_differential_permille,
+    uint16_t servo_applied_us,
+    uint16_t servo_center_us,
+    uint16_t servo_left_endpoint_us,
+    uint16_t servo_right_endpoint_us,
+    uint8_t servo_output_active,
+    uint8_t servo_frame_ready,
+    uint8_t motor_outputs_active,
+    uint16_t left_applied_permille,
+    uint16_t right_applied_permille,
+    uint8_t slope_assist_requested,
     uint16_t *left_command_permille,
     uint16_t *right_command_permille);
 

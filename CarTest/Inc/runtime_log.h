@@ -69,7 +69,11 @@ enum {
     CAR_RUNTIME_LOG_VISION_TIMEOUT = 1u << 2,
     CAR_RUNTIME_LOG_VISION_LATEST_FRAME_PRESENT = 1u << 3,
     CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE = 1u << 4,
-    CAR_RUNTIME_LOG_VISION_HOLD_EXPIRED = 1u << 5
+    CAR_RUNTIME_LOG_VISION_HOLD_EXPIRED = 1u << 5,
+    /* Latest CRC/format-accepted RX bit; it does not imply trusted/fresh. */
+    CAR_RUNTIME_LOG_VISION_LATEST_SLOPE_HINT = 1u << 6,
+    /* Current FollowTurn assist command; remains set while its output is held. */
+    CAR_RUNTIME_LOG_VISION_SLOPE_ASSIST_COMMANDED = 1u << 7
 };
 
 #if defined(_MSC_VER)
@@ -174,6 +178,8 @@ typedef struct {
     uint8_t follow_session_active;
     uint8_t hard_fault_latched;
     uint8_t manual_run_request;
+    /* In-memory policy input for start-counter reconciliation; not serialized. */
+    uint8_t follow_profile_compiled;
     uint32_t button_start_event_count;
     uint32_t button_stop_generation;
     uint8_t vision_hold_active;

@@ -24,7 +24,7 @@ OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "CACHED_WIDTH_TURNRESPONSE_20261014"
+BUILD_ID = "CACHED_WIDTH_RING_20261014"
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
@@ -55,6 +55,10 @@ STEERING_SPLIT_GRID_Y = 18
 STEERING_FAR_WEIGHT = 0.20
 STEERING_NEAR_WEIGHT = 0.80
 TURN_RESPONSE_VERSION = "LOWER70_UPPER30_V1"
+# Ring entry ports may be within a 5% viewport inset (4 cells on the 80-cell
+# grid). This margin is only a crop-side connection tolerance; it is unrelated
+# to the 80/20 steering weights and does not relax road/clearance checks.
+RING_PORT_INSET_MARGIN_CELLS = 4
 
 # Frame-local Otsu starting values. Blocks span the whole road width and stay
 # inside the geometry ROI; each block's trust bit becomes a separate known mask.

@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
-  "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+  "package_id": "CACHED_WIDTH_RING_20261014",
+  "build_id": "CACHED_WIDTH_RING_20261014",
   "release_status": "HOST_TESTED_OPENMV_BOARD_VALIDATION_PENDING",
   "runtime_api": {
     "v7_fast_pipeline": 7,
@@ -13,7 +13,7 @@
       "value": true
     }
   },
-  "runtime_file_count": 17,
+  "runtime_file_count": 18,
   "runtime_files": [
     {
       "name": "adaptive_detector.py",
@@ -33,16 +33,16 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15197,
-      "sha256": "49C0FF64555612688E551D11F5B2F95B8F0F0B224CB3DC3D9AE1D84BF629C551",
+      "size_bytes": 15452,
+      "sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
       "baseline_v7_sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
     },
     {
       "name": "fast_boundary.py",
-      "size_bytes": 49880,
-      "sha256": "3AE5A2A8375A713A2A8F2943867E29FB5905958314962E16A5A9F4DB0144DFFE",
+      "size_bytes": 51180,
+      "sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
       "baseline_v7_sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
@@ -62,6 +62,11 @@
       "baseline_v7_sha256": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
+    },
+    {
+      "name": "fast_ring_slope.py",
+      "size_bytes": 57986,
+      "sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46"
     },
     {
       "name": "fast_single_edge.py",
@@ -97,8 +102,8 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 120022,
-      "sha256": "984C0EF101CDF6BB811BD36F0934AE3D9F71ECFC55A84AB6FE191B87B8F6682C",
+      "size_bytes": 129600,
+      "sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
       "baseline_v7_sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
@@ -145,8 +150,8 @@
     },
     {
       "name": "vision_protocol.py",
-      "size_bytes": 2601,
-      "sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+      "size_bytes": 3130,
+      "sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
       "baseline_v7_sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
@@ -158,7 +163,9 @@
     "fast_gray.py",
     "fast_path.py",
     "fast_boundary.py",
-    "fast_single_edge.py"
+    "fast_single_edge.py",
+    "fast_ring_slope.py",
+    "vision_protocol.py"
   ],
   "upload_rule": "Copy every declared top-level runtime .py file together to the OpenMV filesystem root; do not mix versions.",
   "observation_protocol": {
@@ -249,21 +256,45 @@
       "tests_run": 7,
       "passed": 7,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
-      "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log",
+      "log_sha256": "FC7B1377F461CCB334791F7B738A8D9A00DEB1074F0163014D6D7B1FF9E59252",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log.exitcode"
+    },
+    {
+      "key": "ring_slope_host",
+      "test_scope": "ring_geometry_and_slope_fit_module_compatibility",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_ring_slope_host.py",
+      "exit_code": 0,
+      "tests_run": 19,
+      "passed": 19,
+      "skipped": 0,
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log",
+      "log_sha256": "B507CCB6A25114E3807C76335AE3BBD20F02F347405C37C023AC0D38703258EF",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log.exitcode"
+    },
+    {
+      "key": "main_integration_ring_slope",
+      "test_scope": "ring_wire_and_slope_disabled_main_acceptance",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_main_ring_slope.py",
+      "exit_code": 0,
+      "tests_run": 2,
+      "passed": 2,
+      "skipped": 0,
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log",
+      "log_sha256": "A8B594E4F0B5772DEE2321D1C6FB089CFA09EA8E3CE6B680482A534DF145444D",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log.exitcode"
     },
     {
       "key": "protocol",
       "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
       "exit_code": 0,
-      "tests_run": 6,
-      "passed": 6,
+      "tests_run": 8,
+      "passed": 8,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
-      "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-protocol.log",
+      "log_sha256": "1267103497CF28516F9A4C7251355D2EE13DBFA46122EA01F42B0C02413246DB",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-protocol.log.exitcode"
     },
     {
       "key": "reverse_control",
@@ -273,9 +304,9 @@
       "tests_run": 9,
       "passed": 9,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
-      "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log",
+      "log_sha256": "11A29B4505A60E474D85D30CB3099B81151EA951793F2F9892BC6D7DCCA4EDCA",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log.exitcode"
     },
     {
       "key": "single_edge_13",
@@ -285,9 +316,9 @@
       "tests_run": 13,
       "passed": 13,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
-      "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log",
+      "log_sha256": "C66FD16B6C883732B418A950DE653326DD0EAA13DA12321F3C8D2D37C2D601BB",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log.exitcode"
     },
     {
       "key": "main_integration_7",
@@ -297,9 +328,9 @@
       "tests_run": 7,
       "passed": 7,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
-      "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log",
+      "log_sha256": "334715DFA1915C32B160F23A932F076310975E3075B4639B2A56B4352A800888",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log.exitcode"
     },
     {
       "key": "two_routes",
@@ -309,9 +340,9 @@
       "tests_run": 12,
       "passed": 12,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
-      "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-two_routes.log",
+      "log_sha256": "CE5191943373383F941B7D65D588055B4A133630B7CA91B7D0D842B00B2D4AE9",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-two_routes.log.exitcode"
     },
     {
       "key": "v7_overlay_each_frame",
@@ -321,9 +352,9 @@
       "tests_run": 2,
       "passed": 2,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log",
       "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
     },
     {
       "key": "v7_overlay_accounting",
@@ -333,9 +364,9 @@
       "tests_run": 3,
       "passed": 3,
       "skipped": 0,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log",
       "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
     },
     {
       "key": "frozen_v7",
@@ -345,9 +376,9 @@
       "tests_run": 79,
       "passed": 78,
       "skipped": 1,
-      "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
-      "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
-      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
+      "raw_log": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log",
+      "log_sha256": "B0CC97C58C8980D4B276E5C531427726F1148BDA418CBEB2739254BEFDB2A326",
+      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log.exitcode"
     }
   ],
   "preserved_failed_attempts": [
@@ -408,11 +439,11 @@
     "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
     "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
     "target_architecture": "armv7em",
-    "runtime_sources_per_variant": 17,
+    "runtime_sources_per_variant": 18,
     "variants": [
       {
         "route_mode": "cached_width",
-        "source_count": 17,
+        "source_count": 18,
         "source_names": [
           "adaptive_detector.py",
           "boundary_evidence.py",
@@ -420,6 +451,7 @@
           "fast_boundary.py",
           "fast_gray.py",
           "fast_path.py",
+          "fast_ring_slope.py",
           "fast_single_edge.py",
           "fast_topology.py",
           "grayscale_adapter.py",
@@ -432,17 +464,199 @@
           "thresholding.py",
           "vision_protocol.py"
         ],
-        "compiled": 17,
+        "compiled": 18,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
-        "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+        "log_sha256": "1AEBA11BCE894C0E674BB748C63777E46A091CB6D72FFF8413ED7CCEB0D22C55",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode",
+        "compiled_files": [
+          {
+            "source": "adaptive_detector.py",
+            "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.mpy",
+            "output_bytes": 13987,
+            "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.exitcode"
+          },
+          {
+            "source": "boundary_evidence.py",
+            "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.mpy",
+            "output_bytes": 5745,
+            "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.exitcode"
+          },
+          {
+            "source": "config.py",
+            "source_sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.mpy",
+            "output_bytes": 9111,
+            "output_sha256": "98514B99F06D410E5FA858AC7301DE9AD979F1460D1930A4D47AA6E7B6D5BD0C",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.exitcode"
+          },
+          {
+            "source": "fast_boundary.py",
+            "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.mpy",
+            "output_bytes": 28464,
+            "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.exitcode"
+          },
+          {
+            "source": "fast_gray.py",
+            "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.mpy",
+            "output_bytes": 14063,
+            "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.exitcode"
+          },
+          {
+            "source": "fast_path.py",
+            "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.mpy",
+            "output_bytes": 23240,
+            "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.exitcode"
+          },
+          {
+            "source": "fast_ring_slope.py",
+            "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.mpy",
+            "output_bytes": 17126,
+            "output_sha256": "E9BFEC8324EB69C4A16549113CA39716C06C8C14B4FD632A907B76AC51D1C3A9",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.exitcode"
+          },
+          {
+            "source": "fast_single_edge.py",
+            "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.mpy",
+            "output_bytes": 27022,
+            "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.exitcode"
+          },
+          {
+            "source": "fast_topology.py",
+            "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.mpy",
+            "output_bytes": 14981,
+            "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.exitcode"
+          },
+          {
+            "source": "grayscale_adapter.py",
+            "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.mpy",
+            "output_bytes": 2242,
+            "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.exitcode"
+          },
+          {
+            "source": "line_detector.py",
+            "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.mpy",
+            "output_bytes": 4137,
+            "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.exitcode"
+          },
+          {
+            "source": "main.py",
+            "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.mpy",
+            "output_bytes": 43738,
+            "output_sha256": "6192C3E0849004847E7683C68197D76CB97714759853871B3AA34C7FE1344386",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.exitcode"
+          },
+          {
+            "source": "reverse_control.py",
+            "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.mpy",
+            "output_bytes": 2585,
+            "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.exitcode"
+          },
+          {
+            "source": "road_detector.py",
+            "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.mpy",
+            "output_bytes": 8430,
+            "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.exitcode"
+          },
+          {
+            "source": "source_selector.py",
+            "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.mpy",
+            "output_bytes": 2830,
+            "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.exitcode"
+          },
+          {
+            "source": "surface_detector.py",
+            "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.mpy",
+            "output_bytes": 11942,
+            "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.exitcode"
+          },
+          {
+            "source": "thresholding.py",
+            "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.mpy",
+            "output_bytes": 3680,
+            "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.exitcode"
+          },
+          {
+            "source": "vision_protocol.py",
+            "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.mpy",
+            "output_bytes": 1375,
+            "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.exitcode"
+          }
+        ]
       },
       {
         "route_mode": "clipped_midpoint",
-        "source_count": 17,
+        "source_count": 18,
         "source_names": [
           "adaptive_detector.py",
           "boundary_evidence.py",
@@ -450,6 +664,7 @@
           "fast_boundary.py",
           "fast_gray.py",
           "fast_path.py",
+          "fast_ring_slope.py",
           "fast_single_edge.py",
           "fast_topology.py",
           "grayscale_adapter.py",
@@ -462,41 +677,223 @@
           "thresholding.py",
           "vision_protocol.py"
         ],
-        "compiled": 17,
+        "compiled": 18,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-        "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+        "log_sha256": "377ED328A873CA15E5F56B30C7E2D758EFC10D95185894DF69420E2017A6024F",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode",
+        "compiled_files": [
+          {
+            "source": "adaptive_detector.py",
+            "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.mpy",
+            "output_bytes": 14004,
+            "output_sha256": "7F6BB7117C4DB78AD9B0A99DF09B99487D27D2FFFEAA8A5973E38BB7E172AF43",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.exitcode"
+          },
+          {
+            "source": "boundary_evidence.py",
+            "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.mpy",
+            "output_bytes": 5762,
+            "output_sha256": "F9BAE92812529CAC0350F0B028E01A125E4D69D5E8FFFA9EE2D583D7C68328FD",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.exitcode"
+          },
+          {
+            "source": "config.py",
+            "source_sha256": "780DA0A6E3BD01E6004919C389A2D0EE36D4427E67C1C434B5AA201E6B7DF31B",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.mpy",
+            "output_bytes": 9136,
+            "output_sha256": "63F2EBAE851295D149A0930B95A8CF7838ABC3B8327AD368FCFED4FA0064C91D",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.exitcode"
+          },
+          {
+            "source": "fast_boundary.py",
+            "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.mpy",
+            "output_bytes": 28481,
+            "output_sha256": "376EA3EB9D19CA21B926E8E875DFD933D845E3A25D92BE4A312EA5F22B1AF287",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.exitcode"
+          },
+          {
+            "source": "fast_gray.py",
+            "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.mpy",
+            "output_bytes": 14080,
+            "output_sha256": "08EC81B3AB2BEC76098C606A055A05AB9C57FE47968F71345907A8FADB9FE245",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.exitcode"
+          },
+          {
+            "source": "fast_path.py",
+            "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.mpy",
+            "output_bytes": 23257,
+            "output_sha256": "F7660D6A740E1394CBEE246F56E1D4D594FB0A072EB10ABFD6BE36D9ECF38930",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.exitcode"
+          },
+          {
+            "source": "fast_ring_slope.py",
+            "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.mpy",
+            "output_bytes": 17143,
+            "output_sha256": "66987C59D4B2CD08133D8166358E231C6E40D927E1B81BC5A83A3340CB8CDE0F",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.exitcode"
+          },
+          {
+            "source": "fast_single_edge.py",
+            "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.mpy",
+            "output_bytes": 27039,
+            "output_sha256": "D7363EEDA37304585CDE94801CFD22A41F89D44C3CD1A9FCA4A158E96F217D87",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.exitcode"
+          },
+          {
+            "source": "fast_topology.py",
+            "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.mpy",
+            "output_bytes": 14998,
+            "output_sha256": "6BDE7DD0DE24BB2280B4A36D4734E9F8C36AB0A3D305FF419D85F7E9E7AB6E7C",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.exitcode"
+          },
+          {
+            "source": "grayscale_adapter.py",
+            "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.mpy",
+            "output_bytes": 2259,
+            "output_sha256": "9F3692BEB60F7980BFA5198C6396BD85B28B627B34FD909B41B15570978CBECB",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.exitcode"
+          },
+          {
+            "source": "line_detector.py",
+            "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.mpy",
+            "output_bytes": 4154,
+            "output_sha256": "01525B465D783BFC4898573BD381E97D7C79CCBD5CDC47D623F5BA3ADCEFD5CE",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.exitcode"
+          },
+          {
+            "source": "main.py",
+            "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.mpy",
+            "output_bytes": 43755,
+            "output_sha256": "88823840882C8F347281435A4892A7397CDC1413694965ECAE006F7184C06C55",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.exitcode"
+          },
+          {
+            "source": "reverse_control.py",
+            "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.mpy",
+            "output_bytes": 2602,
+            "output_sha256": "59225710650530C166F470CB08BC204EBE84B9A1A5D903009293ECB599AEE0CA",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.exitcode"
+          },
+          {
+            "source": "road_detector.py",
+            "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.mpy",
+            "output_bytes": 8447,
+            "output_sha256": "B873E2F2F161250F3E756EB98875A4DAD6C8B56404E16AFB346815CD71551815",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.exitcode"
+          },
+          {
+            "source": "source_selector.py",
+            "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.mpy",
+            "output_bytes": 2847,
+            "output_sha256": "8D3A3C13155A50F53AC2A721FE2EF427C919627E31AC9A687B20511520E32DED",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.exitcode"
+          },
+          {
+            "source": "surface_detector.py",
+            "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.mpy",
+            "output_bytes": 11959,
+            "output_sha256": "FFB7A689F66DF7057BAA8E16E7CF858FAEA374646BB5BEB0B3E2E04F870F798A",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.exitcode"
+          },
+          {
+            "source": "thresholding.py",
+            "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.mpy",
+            "output_bytes": 3697,
+            "output_sha256": "5E01E40775A34B7FC85C3AEA1FDA612C7E4C1C6F3C01C59B1A95533EF4F8B08E",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.exitcode"
+          },
+          {
+            "source": "vision_protocol.py",
+            "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.mpy",
+            "output_bytes": 1392,
+            "output_sha256": "C1ACD2C7208B26CF75B784DAE47C95170EC47F1326B104766DEF70627A697535",
+            "exit_code": 0,
+            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.log",
+            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.exitcode"
+          }
+        ]
       }
     ],
     "all_variants_exit_zero": true,
     "target_micro_python_v1_28_compiled": false,
     "micro_python_v1_28_compiler_available_in_ide": false,
     "target_board_runtime_tested": false,
-    "evidence_report": "../test-data/turn-response-20261014/vision/REPORT.json",
-    "evidence_report_sha256": "CC0B4F622F16F5F58A5B6B70723A39D7AB68E1ECF07637E705DD91D1FFE31191"
+    "evidence_report": "../test-data/speed-ring-20261014/vision/REPORT.json",
+    "evidence_report_sha256": "58FD5FCFAE74796AF48DFDE9F902E18483B7CFD917C9654BC1CAC9365D0273A1"
   },
   "default_vision_backend": "fast",
   "fast_path_scope": "Confidence is diagnostic-only and single-edge fallback applies to the current fast real-time path. compare/legacy remain historical comparison baselines and are outside this delivery control path.",
-  "readme_sha256": "52A6395284509950D625682F0DAA33A9FA681F1CD64536D15709932590577190",
+  "readme_sha256": "47F2855263041A4C0DBC2B46A3DC910BDA30487B77F45CDF7207A234EE18C8D6",
   "route_mode": "cached_width",
   "single_edge_routes": {
     "default_formal_route": "cached_width",
     "supported_build_pairs": [
       {
         "route_mode": "cached_width",
-        "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014"
+        "build_id": "CACHED_WIDTH_RING_20261014"
       },
       {
         "route_mode": "clipped_midpoint",
-        "build_id": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
+        "build_id": "CLIPPED_MIDPOINT_RING_20261014"
       }
     ],
     "selected_package": {
       "mode": "cached_width",
-      "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+      "build_id": "CACHED_WIDTH_RING_20261014",
       "singleedge_runtime_api": 2,
       "requirements": [
         "current-frame dark-to-white observed side is matched to a validated bilateral width cache",
@@ -515,6 +912,22 @@
         "missing_group_renormalization": true,
         "observation_filter_alpha": 0.7,
         "safety_reference_is_separate_from_virtual_weighted_center": true
+      },
+      "ring_and_slope": {
+        "runtime_module": "fast_ring_slope.py",
+        "runtime_api_version": 1,
+        "ring_requires_current_supported_arc_and_connected_white_port": true,
+        "ring_seed_uses_nearest_safe_supported_row_within_four_grid_rows": true,
+        "ring_port_inset_margin_cells": 4,
+        "ring_port_inset_margin_percent_of_viewport": 5,
+        "ring_port_margin_is_steering_weight": false,
+        "ring_port_retains_known_white_two_cell_clearance": true,
+        "ring_entry_fresh_keep_frames": 3,
+        "ring_exit_requires_current_inner_edge_disappearance_and_forward_bilateral_frames": 3,
+        "slope_classifier_runtime_enabled": false,
+        "slope_hint_always_zero": true,
+        "slope_hint_flag_bit": 1,
+        "optional_slope_protocol_bit_retained": true
       }
     },
     "same_source_except_config": false,
@@ -528,11 +941,11 @@
   "two_route_evidence": {
     "date": "2026-10-14",
     "evidence_revision": "final",
-    "evidence_dir": "test-data/turn-response-20261014/vision/final",
-    "project": "CarTest OpenMV weighted turn-response package",
+    "evidence_dir": "test-data/speed-ring-20261014/vision/final",
+    "project": "CarTest OpenMV weighted response and ring route; slope classifier disabled",
     "builds": {
-      "cached_width": "CACHED_WIDTH_TURNRESPONSE_20261014",
-      "clipped_midpoint": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
+      "cached_width": "CACHED_WIDTH_RING_20261014",
+      "clipped_midpoint": "CLIPPED_MIDPOINT_RING_20261014"
     },
     "before_source_snapshot": {
       "manifest": "test-data/turn-response-20261014/before/vision/BASELINE_MANIFEST.json",
@@ -541,12 +954,18 @@
       "file_count": 61,
       "existing_elf_count": 0,
       "all_snapshot_files_reverified": true,
-      "verification_log": "test-data/turn-response-20261014/vision/final/baseline-snapshot-verification.log"
+      "verification_log": "test-data/speed-ring-20261014/vision/final/baseline-snapshot-verification.log"
+    },
+    "before_port_inset_snapshot": {
+      "manifest": "test-data/speed-ring-20261014/vision/pre-inset-port4/SHA256.json",
+      "manifest_sha256": "D64813F1AE7F1C5F10ED1769FC6EB6AC09228F2D0F33D0E42CD560B9C40E3CF0",
+      "file_count": 374,
+      "all_snapshot_files_reverified": true
     },
     "source_hashes": {
-      "path": "test-data/turn-response-20261014/vision/final/source-hashes.csv",
-      "sha256": "4491A97E1DC9E8397073657711C280A254E1DA58BF920E0A75092F3619FE8A57",
-      "source_count": 47
+      "path": "test-data/speed-ring-20261014/vision/final/source-hashes.csv",
+      "sha256": "6CA69ECDED403DDC0E821FAB2ACB8DF267D4C76FFAE2B0626ECC21C7CA64909C",
+      "source_count": 55
     },
     "host_tests": [
       {
@@ -557,21 +976,45 @@
         "tests_run": 7,
         "passed": 7,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
-        "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log",
+        "log_sha256": "FC7B1377F461CCB334791F7B738A8D9A00DEB1074F0163014D6D7B1FF9E59252",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log.exitcode"
+      },
+      {
+        "key": "ring_slope_host",
+        "test_scope": "ring_geometry_and_slope_fit_module_compatibility",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_ring_slope_host.py",
+        "exit_code": 0,
+        "tests_run": 19,
+        "passed": 19,
+        "skipped": 0,
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log",
+        "log_sha256": "B507CCB6A25114E3807C76335AE3BBD20F02F347405C37C023AC0D38703258EF",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log.exitcode"
+      },
+      {
+        "key": "main_integration_ring_slope",
+        "test_scope": "ring_wire_and_slope_disabled_main_acceptance",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_main_ring_slope.py",
+        "exit_code": 0,
+        "tests_run": 2,
+        "passed": 2,
+        "skipped": 0,
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log",
+        "log_sha256": "A8B594E4F0B5772DEE2321D1C6FB089CFA09EA8E3CE6B680482A534DF145444D",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log.exitcode"
       },
       {
         "key": "protocol",
         "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
         "exit_code": 0,
-        "tests_run": 6,
-        "passed": 6,
+        "tests_run": 8,
+        "passed": 8,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
-        "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-protocol.log",
+        "log_sha256": "1267103497CF28516F9A4C7251355D2EE13DBFA46122EA01F42B0C02413246DB",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-protocol.log.exitcode"
       },
       {
         "key": "reverse_control",
@@ -581,9 +1024,9 @@
         "tests_run": 9,
         "passed": 9,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
-        "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log",
+        "log_sha256": "11A29B4505A60E474D85D30CB3099B81151EA951793F2F9892BC6D7DCCA4EDCA",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log.exitcode"
       },
       {
         "key": "single_edge_13",
@@ -593,9 +1036,9 @@
         "tests_run": 13,
         "passed": 13,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
-        "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log",
+        "log_sha256": "C66FD16B6C883732B418A950DE653326DD0EAA13DA12321F3C8D2D37C2D601BB",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log.exitcode"
       },
       {
         "key": "main_integration_7",
@@ -605,9 +1048,9 @@
         "tests_run": 7,
         "passed": 7,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
-        "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log",
+        "log_sha256": "334715DFA1915C32B160F23A932F076310975E3075B4639B2A56B4352A800888",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log.exitcode"
       },
       {
         "key": "two_routes",
@@ -617,9 +1060,9 @@
         "tests_run": 12,
         "passed": 12,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
-        "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-two_routes.log",
+        "log_sha256": "CE5191943373383F941B7D65D588055B4A133630B7CA91B7D0D842B00B2D4AE9",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-two_routes.log.exitcode"
       },
       {
         "key": "v7_overlay_each_frame",
@@ -629,9 +1072,9 @@
         "tests_run": 2,
         "passed": 2,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log",
         "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
       },
       {
         "key": "v7_overlay_accounting",
@@ -641,9 +1084,9 @@
         "tests_run": 3,
         "passed": 3,
         "skipped": 0,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log",
         "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
       },
       {
         "key": "frozen_v7",
@@ -653,9 +1096,9 @@
         "tests_run": 79,
         "passed": 78,
         "skipped": 1,
-        "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
-        "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
-        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
+        "raw_log": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log",
+        "log_sha256": "B0CC97C58C8980D4B276E5C531427726F1148BDA418CBEB2739254BEFDB2A326",
+        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log.exitcode"
       }
     ],
     "configuration_test_classes": {
@@ -664,7 +1107,7 @@
         "test_scope": "legacy_frozen_behavioral_compatibility",
         "exit_code": 0,
         "fixture_source_hashes_verified": true,
-        "temporary_test_copy_adaptation_count": 29,
+        "temporary_test_copy_adaptation_count": 37,
         "temporary_test_copy_adaptations": [
           {
             "count": 1,
@@ -774,6 +1217,46 @@
           {
             "count": 1,
             "file": "test_fast_main.py",
+            "reason": "adapt frozen packet spy to optional current slope flag"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "record optional flag while retaining packet assertions"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "forward optional slope flag through frozen packet spy"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "assert all legacy route frames still clear slope flag"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "update invalid packet spy tuple for optional flag"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "update short-write spy tuple for optional flag"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "update late-packet spy tuples for optional flag"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
             "reason": "adapt historical overlay assertion to current labels and flush stage"
           },
           {
@@ -817,6 +1300,8 @@
       "current_turn_response_acceptance": {
         "test_keys": [
           "turn_response_weights",
+          "ring_slope_host",
+          "main_integration_ring_slope",
           "main_integration_7"
         ],
         "test_scope": "new_configuration_acceptance",
@@ -825,7 +1310,525 @@
         "actual_boundary_per_row_support_tested": true,
         "serialized_main_uart_error_tested": true,
         "both_single_edge_sources_tested": true
+      },
+      "ring_acceptance": {
+        "test_keys": [
+          "ring_slope_host",
+          "main_integration_ring_slope"
+        ],
+        "positive_left_right_arc_and_connected_port_synthetic_tests": true,
+        "port_inset_mirror_dark_unknown_and_multiple_port_tests": true,
+        "three_fresh_keep_entry_and_partial_inner_edge_hold_tested": true,
+        "exit_requires_current_disappearance_and_forward_continuation": true,
+        "exit_requires_side_specific_outward_near_crop_motion": true,
+        "inward_jump_and_unknown_edge_do_not_confirm_exit": true,
+        "port_inset_margin_cells": 4,
+        "port_inset_margin_percent_of_grid_width": 5,
+        "port_checks_current_known_white_and_two_cell_clearance": true,
+        "slope_fit_module_compatibility_tested": true,
+        "slope_classifier_runtime_enabled": false,
+        "runtime_slope_hint_always_zero_tested": true,
+        "serialized_slope_hint_flag_tested": false,
+        "static_photo_temporal_claim": false
       }
+    },
+    "static_screenshot_replay": {
+      "available": true,
+      "runner": "test-data/speed-ring-20261014/vision/replay_host_frames.py",
+      "source_image_directory": "test-data/ring-slope-20261014/vision/inputs/original",
+      "preprocessing": "Pillow grayscale BOX resize to 160x120; screenshots contain IDE overlay text over resized full-resolution rows 0..39",
+      "raw_and_ignore_top40_variants": true,
+      "variants": {
+        "openmv": {
+          "available": true,
+          "summary": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/SUMMARY.json",
+          "summary_sha256": "D09D757FACFED58F4BFC874517D3036624141B498DDB29068913056CF059BC03",
+          "package_id": "CACHED_WIDTH_RING_20261014",
+          "static_input_count": 8,
+          "replayed_frame_variants": 16,
+          "valid_ring_candidate_count": 4,
+          "valid_ring_candidate_examples": [
+            {
+              "image_index": 3,
+              "variant": "raw_screenshot",
+              "side": "RIGHT",
+              "arc_rows": 33,
+              "arc_y_minmax": [
+                18,
+                51
+              ],
+              "vertex_xy": [
+                60,
+                33
+              ],
+              "intrusion_cells": 15,
+              "near_seed_xy": [
+                40,
+                51
+              ],
+              "reachable_port_xy": [
+                76,
+                21
+              ],
+              "clip_marker_x": 79,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  75,
+                  79
+                ],
+                "reachable_nearest_crop_margin_cells": 3,
+                "current_safe_inset_cells": 8,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 20,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 21,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 22,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 75,
+                    "x_max": 76
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/raw_screenshot/3.json"
+            },
+            {
+              "image_index": 3,
+              "variant": "ignore_top40",
+              "side": "RIGHT",
+              "arc_rows": 31,
+              "arc_y_minmax": [
+                20,
+                51
+              ],
+              "vertex_xy": [
+                60,
+                33
+              ],
+              "intrusion_cells": 15,
+              "near_seed_xy": [
+                40,
+                51
+              ],
+              "reachable_port_xy": [
+                76,
+                22
+              ],
+              "clip_marker_x": 79,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  75,
+                  79
+                ],
+                "reachable_nearest_crop_margin_cells": 3,
+                "current_safe_inset_cells": 4,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 22,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 75,
+                    "x_max": 76
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/ignore_top40/3.json"
+            },
+            {
+              "image_index": 5,
+              "variant": "raw_screenshot",
+              "side": "LEFT",
+              "arc_rows": 38,
+              "arc_y_minmax": [
+                19,
+                57
+              ],
+              "vertex_xy": [
+                17,
+                39
+              ],
+              "intrusion_cells": 7,
+              "near_seed_xy": [
+                44,
+                56
+              ],
+              "reachable_port_xy": [
+                4,
+                22
+              ],
+              "clip_marker_x": 0,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  0,
+                  4
+                ],
+                "reachable_nearest_crop_margin_cells": 4,
+                "current_safe_inset_cells": 6,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 20,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 21,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 22,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 24,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 25,
+                    "x_min": 4,
+                    "x_max": 4
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/raw_screenshot/5.json"
+            },
+            {
+              "image_index": 5,
+              "variant": "ignore_top40",
+              "side": "LEFT",
+              "arc_rows": 37,
+              "arc_y_minmax": [
+                20,
+                57
+              ],
+              "vertex_xy": [
+                17,
+                39
+              ],
+              "intrusion_cells": 7,
+              "near_seed_xy": [
+                44,
+                56
+              ],
+              "reachable_port_xy": [
+                4,
+                23
+              ],
+              "clip_marker_x": 0,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  0,
+                  4
+                ],
+                "reachable_nearest_crop_margin_cells": 4,
+                "current_safe_inset_cells": 4,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 22,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 24,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 25,
+                    "x_min": 4,
+                    "x_max": 4
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/ignore_top40/5.json"
+            }
+          ],
+          "ring_port_inset_margin_cells": 4,
+          "ring_port_inset_margin_percent_of_grid_width": 5,
+          "top_overlay_rows_marked_unknown": [
+            0,
+            40
+          ],
+          "sensor_buffer_input": false,
+          "board_execution": false,
+          "temporal_sequence_assumed": false
+        },
+        "openmv_clipped_midpoint": {
+          "available": true,
+          "summary": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/SUMMARY.json",
+          "summary_sha256": "ABAC029391AABC5D31340B099662AB02CC2A9E4FBE84DB64A598DE25B534BCD2",
+          "package_id": "CLIPPED_MIDPOINT_RING_20261014",
+          "static_input_count": 8,
+          "replayed_frame_variants": 16,
+          "valid_ring_candidate_count": 4,
+          "valid_ring_candidate_examples": [
+            {
+              "image_index": 3,
+              "variant": "raw_screenshot",
+              "side": "RIGHT",
+              "arc_rows": 33,
+              "arc_y_minmax": [
+                18,
+                51
+              ],
+              "vertex_xy": [
+                60,
+                33
+              ],
+              "intrusion_cells": 15,
+              "near_seed_xy": [
+                40,
+                51
+              ],
+              "reachable_port_xy": [
+                76,
+                21
+              ],
+              "clip_marker_x": 79,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  75,
+                  79
+                ],
+                "reachable_nearest_crop_margin_cells": 3,
+                "current_safe_inset_cells": 8,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 20,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 21,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 22,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 75,
+                    "x_max": 76
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/raw_screenshot/3.json"
+            },
+            {
+              "image_index": 3,
+              "variant": "ignore_top40",
+              "side": "RIGHT",
+              "arc_rows": 31,
+              "arc_y_minmax": [
+                20,
+                51
+              ],
+              "vertex_xy": [
+                60,
+                33
+              ],
+              "intrusion_cells": 15,
+              "near_seed_xy": [
+                40,
+                51
+              ],
+              "reachable_port_xy": [
+                76,
+                22
+              ],
+              "clip_marker_x": 79,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  75,
+                  79
+                ],
+                "reachable_nearest_crop_margin_cells": 3,
+                "current_safe_inset_cells": 4,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 22,
+                    "x_min": 75,
+                    "x_max": 76
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 75,
+                    "x_max": 76
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/ignore_top40/3.json"
+            },
+            {
+              "image_index": 5,
+              "variant": "raw_screenshot",
+              "side": "LEFT",
+              "arc_rows": 38,
+              "arc_y_minmax": [
+                19,
+                57
+              ],
+              "vertex_xy": [
+                17,
+                39
+              ],
+              "intrusion_cells": 7,
+              "near_seed_xy": [
+                44,
+                56
+              ],
+              "reachable_port_xy": [
+                4,
+                22
+              ],
+              "clip_marker_x": 0,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  0,
+                  4
+                ],
+                "reachable_nearest_crop_margin_cells": 4,
+                "current_safe_inset_cells": 6,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 20,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 21,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 22,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 24,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 25,
+                    "x_min": 4,
+                    "x_max": 4
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/raw_screenshot/5.json"
+            },
+            {
+              "image_index": 5,
+              "variant": "ignore_top40",
+              "side": "LEFT",
+              "arc_rows": 37,
+              "arc_y_minmax": [
+                20,
+                57
+              ],
+              "vertex_xy": [
+                17,
+                39
+              ],
+              "intrusion_cells": 7,
+              "near_seed_xy": [
+                44,
+                56
+              ],
+              "reachable_port_xy": [
+                4,
+                23
+              ],
+              "clip_marker_x": 0,
+              "ring_state": "PREVIEW",
+              "port_inset_diagnostic": {
+                "required_inset_x": [
+                  0,
+                  4
+                ],
+                "reachable_nearest_crop_margin_cells": 4,
+                "current_safe_inset_cells": 4,
+                "current_safe_inset_rows": [
+                  {
+                    "y": 22,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 23,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 24,
+                    "x_min": 4,
+                    "x_max": 4
+                  },
+                  {
+                    "y": 25,
+                    "x_min": 4,
+                    "x_max": 4
+                  }
+                ]
+              },
+              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/ignore_top40/5.json"
+            }
+          ],
+          "ring_port_inset_margin_cells": 4,
+          "ring_port_inset_margin_percent_of_grid_width": 5,
+          "top_overlay_rows_marked_unknown": [
+            0,
+            40
+          ],
+          "sensor_buffer_input": false,
+          "board_execution": false,
+          "temporal_sequence_assumed": false
+        }
+      },
+      "interpretation": "Static image geometry only. Each image starts with empty ring state and no fresh KEEP; candidates do not establish entry, an eight-stage ring sequence, a time sequence, or vehicle behavior. The port inset is a crop-side tolerance, not a steering weight or observed image-edge boundary."
     },
     "mpy_cross": {
       "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
@@ -833,12 +1836,12 @@
       "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
       "compiler_version_command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" --version",
       "compiler_version_exit_code": 0,
-      "compiler_version_log": "test-data/turn-response-20261014/vision/final/mpy-cross-v1.25-version.log",
+      "compiler_version_log": "test-data/speed-ring-20261014/vision/final/mpy-cross-v1.25-version.log",
       "target_architecture": "armv7em",
       "variants": [
         {
           "route_mode": "cached_width",
-          "source_count": 17,
+          "source_count": 18,
           "source_names": [
             "adaptive_detector.py",
             "boundary_evidence.py",
@@ -846,6 +1849,7 @@
             "fast_boundary.py",
             "fast_gray.py",
             "fast_path.py",
+            "fast_ring_slope.py",
             "fast_single_edge.py",
             "fast_topology.py",
             "grayscale_adapter.py",
@@ -858,17 +1862,199 @@
             "thresholding.py",
             "vision_protocol.py"
           ],
-          "compiled": 17,
+          "compiled": 18,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
-          "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
-          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+          "raw_log": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+          "log_sha256": "1AEBA11BCE894C0E674BB748C63777E46A091CB6D72FFF8413ED7CCEB0D22C55",
+          "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode",
+          "compiled_files": [
+            {
+              "source": "adaptive_detector.py",
+              "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.mpy",
+              "output_bytes": 13987,
+              "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.exitcode"
+            },
+            {
+              "source": "boundary_evidence.py",
+              "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.mpy",
+              "output_bytes": 5745,
+              "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.exitcode"
+            },
+            {
+              "source": "config.py",
+              "source_sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.mpy",
+              "output_bytes": 9111,
+              "output_sha256": "98514B99F06D410E5FA858AC7301DE9AD979F1460D1930A4D47AA6E7B6D5BD0C",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.exitcode"
+            },
+            {
+              "source": "fast_boundary.py",
+              "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.mpy",
+              "output_bytes": 28464,
+              "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.exitcode"
+            },
+            {
+              "source": "fast_gray.py",
+              "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.mpy",
+              "output_bytes": 14063,
+              "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.exitcode"
+            },
+            {
+              "source": "fast_path.py",
+              "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.mpy",
+              "output_bytes": 23240,
+              "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.exitcode"
+            },
+            {
+              "source": "fast_ring_slope.py",
+              "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.mpy",
+              "output_bytes": 17126,
+              "output_sha256": "E9BFEC8324EB69C4A16549113CA39716C06C8C14B4FD632A907B76AC51D1C3A9",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.exitcode"
+            },
+            {
+              "source": "fast_single_edge.py",
+              "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.mpy",
+              "output_bytes": 27022,
+              "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.exitcode"
+            },
+            {
+              "source": "fast_topology.py",
+              "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.mpy",
+              "output_bytes": 14981,
+              "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.exitcode"
+            },
+            {
+              "source": "grayscale_adapter.py",
+              "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.mpy",
+              "output_bytes": 2242,
+              "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.exitcode"
+            },
+            {
+              "source": "line_detector.py",
+              "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.mpy",
+              "output_bytes": 4137,
+              "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.exitcode"
+            },
+            {
+              "source": "main.py",
+              "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.mpy",
+              "output_bytes": 43738,
+              "output_sha256": "6192C3E0849004847E7683C68197D76CB97714759853871B3AA34C7FE1344386",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.exitcode"
+            },
+            {
+              "source": "reverse_control.py",
+              "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.mpy",
+              "output_bytes": 2585,
+              "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.exitcode"
+            },
+            {
+              "source": "road_detector.py",
+              "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.mpy",
+              "output_bytes": 8430,
+              "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.exitcode"
+            },
+            {
+              "source": "source_selector.py",
+              "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.mpy",
+              "output_bytes": 2830,
+              "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.exitcode"
+            },
+            {
+              "source": "surface_detector.py",
+              "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.mpy",
+              "output_bytes": 11942,
+              "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.exitcode"
+            },
+            {
+              "source": "thresholding.py",
+              "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.mpy",
+              "output_bytes": 3680,
+              "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.exitcode"
+            },
+            {
+              "source": "vision_protocol.py",
+              "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.mpy",
+              "output_bytes": 1375,
+              "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.exitcode"
+            }
+          ]
         },
         {
           "route_mode": "clipped_midpoint",
-          "source_count": 17,
+          "source_count": 18,
           "source_names": [
             "adaptive_detector.py",
             "boundary_evidence.py",
@@ -876,6 +2062,7 @@
             "fast_boundary.py",
             "fast_gray.py",
             "fast_path.py",
+            "fast_ring_slope.py",
             "fast_single_edge.py",
             "fast_topology.py",
             "grayscale_adapter.py",
@@ -888,13 +2075,195 @@
             "thresholding.py",
             "vision_protocol.py"
           ],
-          "compiled": 17,
+          "compiled": 18,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-          "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
-          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+          "raw_log": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+          "log_sha256": "377ED328A873CA15E5F56B30C7E2D758EFC10D95185894DF69420E2017A6024F",
+          "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode",
+          "compiled_files": [
+            {
+              "source": "adaptive_detector.py",
+              "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.mpy",
+              "output_bytes": 14004,
+              "output_sha256": "7F6BB7117C4DB78AD9B0A99DF09B99487D27D2FFFEAA8A5973E38BB7E172AF43",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.exitcode"
+            },
+            {
+              "source": "boundary_evidence.py",
+              "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.mpy",
+              "output_bytes": 5762,
+              "output_sha256": "F9BAE92812529CAC0350F0B028E01A125E4D69D5E8FFFA9EE2D583D7C68328FD",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.exitcode"
+            },
+            {
+              "source": "config.py",
+              "source_sha256": "780DA0A6E3BD01E6004919C389A2D0EE36D4427E67C1C434B5AA201E6B7DF31B",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.mpy",
+              "output_bytes": 9136,
+              "output_sha256": "63F2EBAE851295D149A0930B95A8CF7838ABC3B8327AD368FCFED4FA0064C91D",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.exitcode"
+            },
+            {
+              "source": "fast_boundary.py",
+              "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.mpy",
+              "output_bytes": 28481,
+              "output_sha256": "376EA3EB9D19CA21B926E8E875DFD933D845E3A25D92BE4A312EA5F22B1AF287",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.exitcode"
+            },
+            {
+              "source": "fast_gray.py",
+              "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.mpy",
+              "output_bytes": 14080,
+              "output_sha256": "08EC81B3AB2BEC76098C606A055A05AB9C57FE47968F71345907A8FADB9FE245",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.exitcode"
+            },
+            {
+              "source": "fast_path.py",
+              "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.mpy",
+              "output_bytes": 23257,
+              "output_sha256": "F7660D6A740E1394CBEE246F56E1D4D594FB0A072EB10ABFD6BE36D9ECF38930",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.exitcode"
+            },
+            {
+              "source": "fast_ring_slope.py",
+              "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.mpy",
+              "output_bytes": 17143,
+              "output_sha256": "66987C59D4B2CD08133D8166358E231C6E40D927E1B81BC5A83A3340CB8CDE0F",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.exitcode"
+            },
+            {
+              "source": "fast_single_edge.py",
+              "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.mpy",
+              "output_bytes": 27039,
+              "output_sha256": "D7363EEDA37304585CDE94801CFD22A41F89D44C3CD1A9FCA4A158E96F217D87",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.exitcode"
+            },
+            {
+              "source": "fast_topology.py",
+              "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.mpy",
+              "output_bytes": 14998,
+              "output_sha256": "6BDE7DD0DE24BB2280B4A36D4734E9F8C36AB0A3D305FF419D85F7E9E7AB6E7C",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.exitcode"
+            },
+            {
+              "source": "grayscale_adapter.py",
+              "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.mpy",
+              "output_bytes": 2259,
+              "output_sha256": "9F3692BEB60F7980BFA5198C6396BD85B28B627B34FD909B41B15570978CBECB",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.exitcode"
+            },
+            {
+              "source": "line_detector.py",
+              "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.mpy",
+              "output_bytes": 4154,
+              "output_sha256": "01525B465D783BFC4898573BD381E97D7C79CCBD5CDC47D623F5BA3ADCEFD5CE",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.exitcode"
+            },
+            {
+              "source": "main.py",
+              "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.mpy",
+              "output_bytes": 43755,
+              "output_sha256": "88823840882C8F347281435A4892A7397CDC1413694965ECAE006F7184C06C55",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.exitcode"
+            },
+            {
+              "source": "reverse_control.py",
+              "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.mpy",
+              "output_bytes": 2602,
+              "output_sha256": "59225710650530C166F470CB08BC204EBE84B9A1A5D903009293ECB599AEE0CA",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.exitcode"
+            },
+            {
+              "source": "road_detector.py",
+              "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.mpy",
+              "output_bytes": 8447,
+              "output_sha256": "B873E2F2F161250F3E756EB98875A4DAD6C8B56404E16AFB346815CD71551815",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.exitcode"
+            },
+            {
+              "source": "source_selector.py",
+              "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.mpy",
+              "output_bytes": 2847,
+              "output_sha256": "8D3A3C13155A50F53AC2A721FE2EF427C919627E31AC9A687B20511520E32DED",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.exitcode"
+            },
+            {
+              "source": "surface_detector.py",
+              "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.mpy",
+              "output_bytes": 11959,
+              "output_sha256": "FFB7A689F66DF7057BAA8E16E7CF858FAEA374646BB5BEB0B3E2E04F870F798A",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.exitcode"
+            },
+            {
+              "source": "thresholding.py",
+              "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.mpy",
+              "output_bytes": 3697,
+              "output_sha256": "5E01E40775A34B7FC85C3AEA1FDA612C7E4C1C6F3C01C59B1A95533EF4F8B08E",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.exitcode"
+            },
+            {
+              "source": "vision_protocol.py",
+              "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.mpy",
+              "output_bytes": 1392,
+              "output_sha256": "C1ACD2C7208B26CF75B784DAE47C95170EC47F1326B104766DEF70627A697535",
+              "exit_code": 0,
+              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.log",
+              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.exitcode"
+            }
+          ]
         }
       ],
       "target_micro_python_v1_28_compiled": false,
@@ -905,9 +2274,9 @@
     "synthetic_numeric_fixture": {
       "fixture_kind": "synthetic_host_masks_only",
       "scenario_count": 11,
-      "numeric_results_csv": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.csv",
+      "numeric_results_csv": "test-data/speed-ring-20261014/vision/final/synthetic-numeric-results.csv",
       "numeric_results_csv_sha256": "828FBD4466B255D0E76F782BE8A83EFF97577B9A956EFB96CCD7B5F33069E160",
-      "raw_log": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.log",
+      "raw_log": "test-data/speed-ring-20261014/vision/final/synthetic-numeric-results.log",
       "raw_log_sha256": "1519E9923D2D07B6847504A8208DF8FBA00BEC4CDAF9EACF6639DAB2B3826B95",
       "same_frame_left_cached_center_x": 39.5,
       "same_frame_left_clip_edge_x": 26.5,
@@ -936,8 +2305,12 @@
       "Bilateral weighted rows require the existing per-row measured pair-support bit; unsupported rows are excluded without changing the existing global gate.",
       "The weighted controller center is a virtual column and remains separate from the geometric safety reference. Missing groups renormalize with a diagnostic.",
       "Weighting runs after current-frame path selection; it does not guarantee lane identity across whole-path candidate changes.",
+      "Ring ports use a configured 4-cell (5% of grid width) crop-side inset. This is a bounded port-search tolerance, not steering weighting; current known-white connectivity and the same full two-cell clearance still apply, and x=0/79 remain diagnostic crop markers only.",
       "The IDE mpy-cross 1.25 run with -march=armv7em is compiler evidence, not board execution; MicroPython 1.28 compiler acceptance remains unverified.",
-      "Synthetic host masks do not execute a camera frame. No OpenMV upload/board run, H743 build/flash, motor start, or vehicle track test was performed."
+      "Synthetic host masks and repeated-frame sequences are not camera recordings. The eight provided photos were static images with IDE text over the top region; the H743 core was unpowered during capture, so reverse STARTUPSTALE/cache=0 was expected and is not a live control-path fault.",
+      "Slope classification is disabled in the current runtime; main-loop observation packets always set slope hint 0. The optional protocol bit and isolated slope-fit module tests remain for compatibility only.",
+      "The separate eight-stage ring/speed document is future architecture only; this package does not implement or claim its end-to-end route behavior.",
+      "No OpenMV upload/board run, H743 build/flash, motor start, or vehicle track test was performed. Ring entry and incline transition are not established by these results."
     ],
     "manifest_refresh_exit_code": 0,
     "generator_final_check_exit_code": 0,

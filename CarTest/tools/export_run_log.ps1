@@ -239,7 +239,11 @@ function Get-RunMetadata {
         dropped_count = if ($Header) { [int]$Header.dropped_count } else { $null }
         buffer_full = if ($Header) { [bool]$Header.buffer_full } else { $null }
         records_truncated = if ($Header) { [bool]$Header.records_truncated } else { $null }
-        csv = $script:RunCsvPath
+        csv = if ($Status -eq 'success' -and $script:RunCsvPath -and
+                  (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf)) {
+            $script:RunCsvPath
+        } else { $null }
+        planned_csv_path = $script:RunCsvPath
         raw_sha256 = $rawHash
         cubeprogrammer_logs = @($script:CliLogs)
         raw_files = $rawFiles

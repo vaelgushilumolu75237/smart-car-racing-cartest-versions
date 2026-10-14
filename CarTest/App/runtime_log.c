@@ -122,6 +122,7 @@ static uint32_t observed_fault_generation;
 static uint32_t observed_auto_recovery_count;
 static uint32_t observed_button_start_event_count;
 static uint32_t observed_button_stop_generation;
+static uint32_t last_started_button_generation;
 static uint8_t observed_mode;
 static uint8_t observed_fault;
 static uint8_t observed_recovery_active;
@@ -230,6 +231,7 @@ void car_runtime_log_init(void)
     observed_auto_recovery_count = 0u;
     observed_button_start_event_count = 0u;
     observed_button_stop_generation = 0u;
+    last_started_button_generation = 0u;
     observed_mode = 0u;
     observed_fault = 0u;
     observed_recovery_active = 0u;
@@ -260,6 +262,7 @@ void car_runtime_log_invalidate(void)
     observed_auto_recovery_count = 0u;
     observed_button_start_event_count = 0u;
     observed_button_stop_generation = 0u;
+    last_started_button_generation = 0u;
     observed_mode = 0u;
     observed_fault = 0u;
     observed_recovery_active = 0u;
@@ -281,7 +284,8 @@ uint8_t car_runtime_log_state(void)
 }
 
 static void begin_session(uint32_t now_ms,
-                          car_runtime_log_session_kind_t session_kind)
+                          car_runtime_log_session_kind_t session_kind,
+                          uint32_t button_start_generation)
 {
     car_runtime_log_header_t next = {0};
 
@@ -305,6 +309,7 @@ static void begin_session(uint32_t now_ms,
     record_crc_state = 0xFFFFFFFFu;
     last_periodic_ms = now_ms;
     active_session_kind = (uint8_t)session_kind;
+    last_started_button_generation = button_start_generation;
     observed_state_valid = 0u;
     stop_pending = 0u;
     pending_stop_reason = CAR_RUNTIME_LOG_STOP_NONE;
@@ -534,6 +539,7 @@ void car_runtime_log_update(const car_runtime_log_sample_t *sample,
     uint16_t events;
     uint8_t still_active;
     uint8_t is_periodic;
+    car_runtime_log_session_kind_t accepted_start_kind = start_kind;
 
     if (sample == 0) {
         return;
@@ -542,10 +548,21 @@ void car_runtime_log_update(const car_runtime_log_sample_t *sample,
         return;
     }
 
+    /* Reconcile a one-loop Follow start token from the monotonic PE7 start
+       counter. This path is unavailable to automatic recovery and request
+       cancellation because neither changes the physical button counter. */
     if (car_runtime_log_storage.header.state != CAR_RUNTIME_LOG_STATE_ACTIVE &&
-        (start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW ||
-         start_kind == CAR_RUNTIME_LOG_SESSION_BENCH)) {
-        begin_session(sample->now_ms, start_kind);
+        accepted_start_kind == CAR_RUNTIME_LOG_SESSION_NONE &&
+        sample->follow_profile_compiled != 0u &&
+        sample->button_start_event_count != last_started_button_generation) {
+        accepted_start_kind = CAR_RUNTIME_LOG_SESSION_FOLLOW;
+    }
+
+    if (car_runtime_log_storage.header.state != CAR_RUNTIME_LOG_STATE_ACTIVE &&
+        (accepted_start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW ||
+         accepted_start_kind == CAR_RUNTIME_LOG_SESSION_BENCH)) {
+        begin_session(sample->now_ms, accepted_start_kind,
+                      sample->button_start_event_count);
         events = (uint16_t)(changed_event_flags(sample) |
                             CAR_RUNTIME_LOG_EVENT_START);
         (void)append_record(sample, events, 0u);

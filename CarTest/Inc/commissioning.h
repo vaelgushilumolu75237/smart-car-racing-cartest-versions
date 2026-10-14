@@ -137,6 +137,8 @@ typedef struct {
     uint8_t fault_latched;
     uint8_t road_drive_allowed;
     uint8_t vision_valid;
+    /* Trusted only after the normal sequence, age, and recovery gates. */
+    uint8_t vision_slope_hint;
     uint8_t vision_timeout;
     uint8_t vision_confidence;
     int16_t vision_error_norm;  /* Normalized image half-width / 1000. */
@@ -169,6 +171,7 @@ typedef struct {
     uint32_t last_ramp_ms;
     /* Latest CRC/format-valid UART observation, independent of trust. */
     uint8_t latest_rx_valid;
+    uint8_t latest_rx_slope_hint;
     uint8_t latest_rx_confidence;
     int16_t latest_rx_error_norm;
     uint16_t latest_rx_sequence;
@@ -292,6 +295,19 @@ void car_control_on_vision_frame_at(car_control_t *control,
                                     uint32_t arrival_ms,
                                     uint32_t now_ms,
                                     uint8_t pe7_raw_high);
+
+/* Parser path preserving all CRC-validated V1 flags. The legacy entry points
+   above intentionally synthesize valid-only observations without a slope hint. */
+void car_control_on_vision_frame_at_with_flags(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high);
 
 /* Call only after outputs are stopped and RX/UART queues are atomically flushed. */
 void car_control_rx_recovery_flush_complete(car_control_t *control);

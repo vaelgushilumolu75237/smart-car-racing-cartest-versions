@@ -28,6 +28,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 option(CARTEST_ENABLE_BENCH "Compile the isolated overhead single-motor diagnostic path" OFF)
 option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_TURN "Compile the faster 70/30 Follow turn-response profile" OFF)
+option(CARTEST_ENABLE_FOLLOW_SPEED_PI "Compile the independent FollowTurn encoder speed PI trial" OFF)
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
@@ -37,6 +38,11 @@ set_property(CACHE CARTEST_FOLLOW_DIFF_PERMILLE PROPERTY STRINGS 0 50 100 200)
 
 if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(0|50|100|200)$")
   message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE must be 0, 50, 100, or 200 in the FollowTurn profile.")
+endif()
+if(CARTEST_ENABLE_FOLLOW_SPEED_PI AND
+   (NOT CARTEST_ENABLE_FOLLOW OR NOT CARTEST_ENABLE_FOLLOW_TURN OR
+    NOT CARTEST_HARDWARE_ACCEPTED))
+  message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_SPEED_PI requires FollowTurn and explicit hardware-output acceptance.")
 endif()
 if(CARTEST_ENABLE_FOLLOW_TURN)
   if(NOT CARTEST_ENABLE_FOLLOW)
@@ -105,6 +111,8 @@ string(TOUPPER "${CMAKE_BUILD_TYPE}" _cartest_build_type_upper)
 set(_cartest_build_id_material
   "profile=${CARTEST_ENABLE_BENCH},${CARTEST_ENABLE_FOLLOW},${CARTEST_ENABLE_STEERING},${CARTEST_HARDWARE_ACCEPTED}\n"
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
+  "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
+  "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=700;tracking_ms=200\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
   "follow_diff_permille=${CARTEST_FOLLOW_DIFF_PERMILLE}\n"
   "follow_inner_diff_permille=${_cartest_follow_inner_diff_permille}\n"
@@ -162,6 +170,9 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/reverse_control.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/car_vision.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/encoder_diag.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_observer.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_log.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/run_block_reason.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/vision_protocol.cpp"
@@ -195,6 +206,12 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_DIFF_PERMILLE=${CARTEST_FOLLOW_DIFF_PERMILLE}
   CARTEST_FOLLOW_INNER_DIFF_PERMILLE=${_cartest_follow_inner_diff_permille}
   CARTEST_FOLLOW_TURN_PROFILE_COMPILED=$<BOOL:${CARTEST_ENABLE_FOLLOW_TURN}>
+  CARTEST_FOLLOW_SPEED_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_SPEED_PI}>
+  CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS=2400
+  CARTEST_FOLLOW_SPEED_PI_KP_Q16=13107
+  CARTEST_FOLLOW_SPEED_PI_KI_Q16=26214
+  CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE=700
+  CARTEST_FOLLOW_SPEED_PI_TRACKING_TIME_MS=200
   CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=${_cartest_follow_normal_limit_permille}
   CARTEST_FOLLOW_HARD_LIMIT_PERMILLE=${_cartest_follow_hard_limit_permille}
   CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=${_cartest_follow_startup_ramp_step_permille}

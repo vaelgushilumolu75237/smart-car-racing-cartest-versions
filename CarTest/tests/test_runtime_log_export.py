@@ -173,6 +173,10 @@ class RuntimeLogExportTests(unittest.TestCase):
                 rows = list(csv.DictReader(stream))
             self.assertEqual(len(rows), len(self.rows))
             self.assertEqual(rows[0]["encoder_left_count"], str(self.rows[0]["encoder_left_count"]))
+            self.assertEqual(rows[0]["mode_name"], exporter.MODE_NAMES[self.rows[0]["mode"]])
+            self.assertEqual(rows[0]["fault_name"], exporter.FAULT_NAMES[self.rows[0]["fault"]])
+            self.assertEqual(exporter.STOP_REASON_NAMES[self.header["stop_reason"]],
+                             self.header["stop_reason_name"])
             self.assertEqual(rows[-1]["servo_applied_us"], "0")
 
     def test_short_or_long_upload_is_rejected(self):

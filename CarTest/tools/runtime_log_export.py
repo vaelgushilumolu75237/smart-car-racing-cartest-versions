@@ -60,6 +60,47 @@ VISION_FLAG_NAMES = {
     3: "latest_frame_present",
     4: "hold_active",
     5: "hold_expired",
+    6: "latest_slope_hint",
+    7: "slope_assist_commanded",
+}
+MODE_NAMES = {
+    0: "boot_safe",
+    1: "wait_switch_release",
+    2: "wait_local_ack",
+    3: "wait_new_frame",
+    4: "wait_start_release",
+    5: "wait_start_edge",
+    6: "bench_running",
+    7: "bench_complete",
+    8: "fault_latched",
+    9: "recovery_wait",
+    10: "follow_running",
+    11: "debug_steering_running",
+    12: "follow_vision_hold",
+}
+FAULT_NAMES = {
+    0: "none",
+    1: "watchdog_reset",
+    2: "loop_gap",
+    3: "uart",
+    4: "rx_overflow",
+    5: "rx_stale",
+    6: "protocol",
+    7: "sequence",
+    8: "vision_invalid",
+    9: "vision_timeout",
+    10: "switch_release",
+    11: "encoder_init",
+    12: "clock",
+    13: "timer",
+    14: "config",
+    15: "watchdog_init",
+}
+STOP_REASON_NAMES = {
+    1: "manual_stop",
+    2: "hard_fault",
+    3: "bench_complete",
+    4: "session_ended",
 }
 
 
@@ -351,6 +392,7 @@ def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int
         "header_crc32": header_crc,
         "build_id": build_id.hex(),
         "stop_reason": stop_reason,
+        "stop_reason_name": STOP_REASON_NAMES[stop_reason],
     }
 
 
@@ -365,7 +407,7 @@ def inspect_header(elf_path: Union[os.PathLike, str], header_path: Union[os.Path
     return parsed
 
 
-def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> Dict[str, Union[int, bool]]:
+def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> Dict[str, Union[int, str, bool]]:
     if len(record) != RECORD_SIZE:
         _fail("Runtime log record {} is truncated".format(index))
     t_ms, record_session = struct.unpack_from("<II", record, 0)
@@ -390,7 +432,7 @@ def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> 
         _fail("Runtime log record {} has an invalid hold-exit cause".format(index))
     if (event_flags & (1 << 8)) and hold_exit_cause == 0:
         _fail("Runtime log record {} is missing its hold-exit cause".format(index))
-    if vision_flags & ~0x3F:
+    if vision_flags & ~0xFF:
         _fail("Runtime log record {} contains unsupported vision flags".format(index))
     if recovery_active not in (0, 1):
         _fail("Runtime log record {} has an invalid recovery_active value".format(index))
@@ -417,7 +459,7 @@ def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> 
     # HAL tick time is a wrapping u32. Difference from the session start remains
     # correct for a session shorter than one full 49.7-day tick period.
     elapsed_ms = (t_ms - start_ms) & 0xFFFFFFFF
-    row: Dict[str, Union[int, bool]] = {
+    row: Dict[str, Union[int, str, bool]] = {
         "t_ms": t_ms,
         "t_elapsed_ms": elapsed_ms,
         "session_id": record_session,
@@ -440,13 +482,17 @@ def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> 
         "event_flags": event_flags,
         "vision_hold_exit_cause": hold_exit_cause,
         "mode": mode,
+        "mode_name": MODE_NAMES.get(mode, "unknown_{}".format(mode)),
         "fault": fault,
+        "fault_name": FAULT_NAMES.get(fault, "unknown_{}".format(fault)),
         "vision_confidence_percent": confidence,
         "vision_flags": vision_flags,
         "vision_latest_valid": int(bool(vision_flags & (1 << 0))),
         "vision_usable_fresh": int(bool(vision_flags & (1 << 1))),
         "vision_timeout": int(bool(vision_flags & (1 << 2))),
         "vision_latest_frame_present": int(bool(vision_flags & (1 << 3))),
+        "vision_latest_slope_hint": int(bool(vision_flags & (1 << 6))),
+        "vision_slope_assist_commanded": int(bool(vision_flags & (1 << 7))),
         "recovery_frame_count": decoded_recovery_count,
         "recovery_active": recovery_active,
         "vision_hold_active": vision_hold_active,
@@ -467,9 +513,10 @@ CSV_FIELDS = [
     "tim3_ccr1_counts", "tim3_ccr2_counts", "tim3_ccr3_counts", "tim3_ccr4_counts",
     "vision_latest_error_norm_milli", "vision_sequence", "vision_confidence_percent", "vision_flags",
     "vision_latest_valid", "vision_usable_fresh", "vision_timeout", "vision_latest_frame_present",
+    "vision_latest_slope_hint", "vision_slope_assist_commanded",
     "vision_hold_active", "vision_hold_expired", "vision_hold_elapsed_ms",
     "vision_hold_valid_count", "auto_recovery_count", "recovery_frame_count", "recovery_active",
-    "mode", "fault", "event_flags",
+    "mode", "mode_name", "fault", "fault_name", "event_flags",
     "event_periodic", "event_start", "event_stop", "event_fault", "event_mode",
     "event_recovery", "event_auto_recovery",
     "vision_hold_exit_cause", "event_hold_enter", "event_hold_exit",
@@ -477,7 +524,7 @@ CSV_FIELDS = [
 ]
 
 
-def decode_buffer(elf_path: Union[os.PathLike, str], raw_path: Union[os.PathLike, str]) -> Tuple[ElfLayout, Dict[str, Union[int, str, bool]], List[Dict[str, Union[int, bool]]]]:
+def decode_buffer(elf_path: Union[os.PathLike, str], raw_path: Union[os.PathLike, str]) -> Tuple[ElfLayout, Dict[str, Union[int, str, bool]], List[Dict[str, Union[int, str, bool]]]]:
     layout = inspect_elf(elf_path)
     try:
         raw = Path(raw_path).read_bytes()
@@ -539,7 +586,7 @@ def _atomic_write_json(path: Path, value: object) -> None:
             temp_path.unlink()
 
 
-def _atomic_write_csv(path: Path, rows: Iterable[Dict[str, Union[int, bool]]]) -> None:
+def _atomic_write_csv(path: Path, rows: Iterable[Dict[str, Union[int, str, bool]]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = None
     try:

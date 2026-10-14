@@ -1,7 +1,7 @@
 {
-  "version": "v20261014-pre-ring",
-  "status": "archived-pre-ring-morning-version",
-  "branch": "main",
-  "files": 271,
+  "version": "v20261015-pi-trial",
+  "status": "experimental-pi-software-tested-ring-regression-reported",
+  "branch": "experimental/pi-trial",
+  "files": 327,
   "hardware_actions": "none"
 }

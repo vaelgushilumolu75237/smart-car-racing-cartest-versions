@@ -40,6 +40,7 @@ fast_topology = None
 fast_boundary = None
 fast_single_edge = None
 reverse_control = None
+fast_ring_slope = None
 
 
 class _LazyAdaptiveDetector:
@@ -70,8 +71,10 @@ V7_RUNTIME_API_VERSION = 7
 V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_TURNRESPONSE_20261014"
-CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
+RING_SLOPE_RUNTIME_API_VERSION = 1
+CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_RING_20261014"
+CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
+SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
     ("cached_width", CACHED_WIDTH_BUILD_ID),
     ("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),
@@ -108,6 +111,7 @@ def _load_v6_runtime():
 
 def _load_fast_runtime():
     global fast_gray, fast_path, fast_topology, fast_boundary
+    global fast_ring_slope
     global _V7_RUNTIME_MODULES
     try:
         if fast_gray is None:
@@ -118,9 +122,12 @@ def _load_fast_runtime():
             fast_path = __import__("fast_path")
         if fast_boundary is None:
             fast_boundary = __import__("fast_boundary")
+        if fast_ring_slope is None:
+            fast_ring_slope = __import__("fast_ring_slope")
     except ImportError as exc:
         raise ImportError(
-            "V7 bundle mismatch: fast grayscale/path/topology/boundary module "
+            "V7 bundle mismatch: fast grayscale/path/topology/boundary/"
+            "ring-slope module "
             "is missing or cannot be imported (%s)" % exc)
     _V7_RUNTIME_MODULES = (
         ("fast_gray.py", fast_gray),
@@ -203,6 +210,8 @@ class _FastRowWeightWorkspace:
             "near_count": 0, "far_count": 0,
             "near_weight": 0.0, "far_weight": 0.0,
             "missing_group": "NONE", "supported_rows": 0,
+            "position_error": 0, "heading_error": 0,
+            "heading_contribution": 0,
         }
 
     def clear(self, reason="NO_ACCEPTED_ROWS"):
@@ -218,16 +227,21 @@ class _FastRowWeightWorkspace:
         info["far_weight"] = 0.0
         info["missing_group"] = "NONE"
         info["supported_rows"] = 0
+        info["position_error"] = 0
+        info["heading_error"] = 0
+        info["heading_contribution"] = 0
         for index in range(len(self._row_weight)):
             self._row_weight[index] = 0
         return info
 
-    def aggregate(self, selection, road_result, settings):
+    def aggregate(self, selection, road_result, settings,
+                  ring_candidate=None):
         info = self.clear()
         if not selection or not selection.get("valid"):
             info["reason"] = "SELECTION_INVALID"
             return info
         source = selection.get("source")
+        ring_route = source in ("ring_left", "ring_right")
         if source == "road":
             result = road_result
             stride = 4
@@ -238,6 +252,17 @@ class _FastRowWeightWorkspace:
             stride = 5
             support = None
             support_count = -1
+        elif ring_route:
+            result = road_result
+            stride = 4
+            support = None
+            support_count = -1
+            if (not ring_candidate or not ring_candidate.get("valid") or
+                    not isinstance(ring_candidate.get("path_x_rows"), array)
+                    or not isinstance(ring_candidate.get(
+                        "path_valid_rows"), bytearray)):
+                info["reason"] = "CURRENT_RING_PATH_UNAVAILABLE"
+                return info
         else:
             info["reason"] = "UNSUPPORTED_SOURCE"
             return info
@@ -246,10 +271,17 @@ class _FastRowWeightWorkspace:
             return info
         rows = result.get("selected_row_ints")
         count = result.get("selected_row_count")
-        if (not isinstance(rows, array) or isinstance(count, bool) or
-                not isinstance(count, int) or count < 1 or count > 60 or
-                result.get("selected_row_stride") != stride or
-                len(rows) < count * stride):
+        if ring_route:
+            rows = ring_candidate["path_x_rows"]
+            path_valid = ring_candidate["path_valid_rows"]
+            count = settings.SURFACE_GRID_HEIGHT
+            if len(rows) < count or len(path_valid) < count:
+                info["reason"] = "INVALID_RING_PATH_ROWS"
+                return info
+        elif (not isinstance(rows, array) or isinstance(count, bool) or
+              not isinstance(count, int) or count < 1 or count > 60 or
+              result.get("selected_row_stride") != stride or
+              len(rows) < count * stride):
             info["reason"] = "INVALID_SELECTED_ROWS"
             return info
         if source == "road" and (
@@ -268,13 +300,18 @@ class _FastRowWeightWorkspace:
         near_count = 0
         far_count = 0
         for index in range(count):
-            offset = index * stride
-            y = rows[offset]
-            if source == "road":
+            if ring_route:
+                y = index
+                accepted = path_valid[index] == 1
+                center_x2 = rows[index] * 2
+            else:
+                offset = index * stride
+                y = rows[offset]
+            if not ring_route and source == "road":
                 flags = rows[offset + 3]
                 accepted = (support[index] == 1 and flags & 7 == 7)
                 center_x2 = rows[offset + 1] + rows[offset + 2]
-            else:
+            elif not ring_route:
                 # FastSingleEdgeTracker packs only rows with row_status==1.
                 accepted = True
                 center_x2 = rows[offset + 1]
@@ -348,13 +385,24 @@ class _FastRowWeightWorkspace:
             info["near_weight"] = 0.0
             info["far_weight"] = 0.0
             return info
-        if raw_error < -1000 or raw_error > 1000:
-            info["reason"] = "WEIGHTED_ERROR_OUT_OF_RANGE"
-            info["source"] = "NONE"
-            info["center_x"] = None
-            info["near_weight"] = 0.0
-            info["far_weight"] = 0.0
-            return info
+        info["position_error"] = raw_error
+        if ring_route:
+            heading_error = ring_candidate.get("heading_error", 0)
+            if (isinstance(heading_error, bool) or
+                    not isinstance(heading_error, int) or
+                    heading_error < -600 or heading_error > 600):
+                info["reason"] = "RING_HEADING_INVALID"
+                info["source"] = "NONE"
+                return info
+            heading_contribution = _rounded_local(
+                heading_error * 0.5)
+            raw_error = raw_error + heading_contribution
+            info["heading_error"] = heading_error
+            info["heading_contribution"] = heading_contribution
+        if raw_error < -1000:
+            raw_error = -1000
+        elif raw_error > 1000:
+            raw_error = 1000
         info["valid"] = True
         info["reason"] = "OK"
         info["center_x"] = center_x
@@ -866,6 +914,10 @@ def _validate_v7_runtime_apis():
                 "V7 bundle mismatch: %s API is %s, expected %d; install a "
                 "matching V7 bundle" % (
                     filename, version, V7_RUNTIME_API_VERSION))
+    if getattr(fast_ring_slope, "RUNTIME_API_VERSION", None) != \
+            RING_SLOPE_RUNTIME_API_VERSION:
+        raise RuntimeError(
+            "ring/slope bundle mismatch: fast_ring_slope.py API version")
     if getattr(vision_protocol, "VERSION", None) != 1 or \
             getattr(vision_protocol, "FRAME_SIZE", None) != 12:
         raise RuntimeError("V7 requires the unchanged 12-byte UART v1 protocol")
@@ -1135,6 +1187,41 @@ def _normalize_fast_reference(x, width):
     return _rounded_local(normalized)
 
 
+def _fast_forward_white_continuation(mask_info, road_result, settings):
+    """Require current supported bilateral rows on the near forward path."""
+    if not mask_info or not road_result or not road_result.get("valid"):
+        return False
+    rows = road_result.get("selected_row_ints")
+    count = road_result.get("selected_row_count", 0)
+    support = road_result.get("boundary_support_rows")
+    if (not isinstance(rows, array) or not isinstance(count, int) or
+            isinstance(count, bool) or count < 1 or count > 60 or
+            road_result.get("selected_row_stride") != 4 or
+            len(rows) < count * 4 or not isinstance(support, bytearray) or
+            len(support) < count or
+            road_result.get("boundary_support_count") != count):
+        return False
+    road = mask_info.get("road_mask")
+    known = mask_info.get("known_region")
+    width = settings.SURFACE_GRID_WIDTH
+    height = settings.SURFACE_GRID_HEIGHT
+    if (not isinstance(road, bytearray) or not isinstance(known, bytearray) or
+            len(road) != width * height or len(known) != width * height):
+        return False
+    supported_near = 0
+    for index in range(count):
+        base = index * 4
+        y = rows[base]
+        if (support[index] != 1 or rows[base + 3] & 7 != 7 or
+                y < height - 10 or y >= height):
+            continue
+        center_x = (rows[base + 1] + rows[base + 2]) // 2
+        cell = y * width + center_x
+        if 0 <= center_x < width and known[cell] and road[cell]:
+            supported_near += 1
+    return supported_near >= 3
+
+
 def _short_v7_detector_error(error, limit=96):
     """Return bounded printable ASCII for low-rate V7 detector diagnostics."""
     try:
@@ -1352,7 +1439,7 @@ def _selected_actual_boundaries(selection, road_result, reference, valid):
         return left_x, right_x
 
     source = selection.get("source")
-    if source == "road":
+    if source == "road" or source in ("ring_left", "ring_right"):
         rows = road_result.get("selected_rows", ())
         reference_y = float(reference["y"])
         for index in range(len(rows)):
@@ -1434,7 +1521,9 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
                    str(route_mode).upper())
     source = selection.get("source", "NONE") if valid else "NONE"
     quality = selection.get("quality", 0) if valid else 0
-    details0 = "D100 %s %s Q%d" % (route_label, source.upper(), quality)
+    ring_state = selection.get("ring_state", "IDLE")
+    details0 = "D100 %s %s %s" % (
+        route_label, source.upper(), str(ring_state)[:8])
     if valid and reference is not None:
         reference_x = float(reference["x"])
         reference_y = reference.get("y")
@@ -1495,6 +1584,36 @@ def _draw_gray_result(img, selection, surface_result, road_result,
                                    center_pixel[0], center_pixel[1]),
                                   color=255)
                 previous_center = center_pixel
+        elif source in ("ring_left", "ring_right"):
+            candidate = selection.get("ring_candidate") or {}
+            _draw_sparse_road_contour(
+                img, road_result.get("selected_rows", ()))
+            path_x = candidate.get("path_x_rows")
+            path_valid = candidate.get("path_valid_rows")
+            if (isinstance(path_x, array) and
+                    isinstance(path_valid, bytearray)):
+                previous_path = None
+                path_points = 0
+                for row_y in range(config.SURFACE_ROI_FLOOR_Y,
+                                   config.SURFACE_GRID_HEIGHT):
+                    if path_valid[row_y] != 1:
+                        continue
+                    current_path = _surface_pixel((path_x[row_y], row_y))
+                    if previous_path is not None:
+                        img.draw_line((previous_path[0], previous_path[1],
+                                       current_path[0], current_path[1]),
+                                      color=96)
+                    previous_path = current_path
+                    path_points += 1
+                if path_points > 0 and candidate.get("port_x") is not None:
+                    img.draw_cross(_surface_pixel((
+                        candidate["port_x"], candidate["port_y"])),
+                        color=128)
+                    # This marker is only the image crop endpoint; it is not
+                    # a measured road boundary or a steering target.
+                    img.draw_cross(_surface_pixel((
+                        candidate["clip_endpoint_x"], candidate["port_y"])),
+                        color=64)
         elif source in ("single_left", "single_right"):
             single_result = selection.get("result") or {}
             rows = single_result.get("selected_row_ints")
@@ -1690,7 +1809,8 @@ def _invalid_road(reason):
 
 
 _V7_PERF_STAGES = (
-    "capture", "masks", "path_topology", "boundary", "row_weight",
+    "capture", "masks", "path_topology", "boundary", "ring",
+    "row_weight",
     "reference_filter",
     "pack_uart", "capture_to_send", "overlay", "preview_flush", "debug",
     "summary_log", "gc", "total_cycle",
@@ -2021,6 +2141,7 @@ def _main_fast(duration_s=None, run_id=0):
     path_detector = fast_path.FastPathDetector(config)
     boundary_validator = fast_boundary.FastBoundaryEvidence(config)
     single_edge_tracker = fast_single_edge.FastSingleEdgeTracker(config)
+    ring_slope_tracker = fast_ring_slope.FastRingSlope(config)
     reverse_parser = reverse_control.ReverseControlParser(
         reverse_control.DEFAULT_TIMEOUT_MS)
     sensor_get_exposure = getattr(sensor, "get_exposure_us", None)
@@ -2052,6 +2173,8 @@ def _main_fast(duration_s=None, run_id=0):
                       if isinstance(sensor_id, int) else
                       "unavailable" if sensor_id is None else str(sensor_id))
     print("V7_BUILD=%s backend=fast route=%s v7_api=%d single_api=%d "
+          "ring_slope_api=%d ring_slope_backend=%s slope_classifier=disabled "
+          "slope_hint=always0 "
           "sensor_id=%s "
           "camera=160x120 grid=80x60 floor=%d budget=%dms "
           "detail_text=%dms preview=per_frame uart=3@115200/8N1 exposure_us=%s "
@@ -2060,7 +2183,10 @@ def _main_fast(duration_s=None, run_id=0):
           "single_backend=%s reverse=8byte/ccitt-false" % (
               config.BUILD_ID, config.SINGLE_EDGE_ROUTE_MODE,
               V7_RUNTIME_API_VERSION,
-              SINGLEEDGE_RUNTIME_API_VERSION, sensor_id_text,
+              SINGLEEDGE_RUNTIME_API_VERSION,
+              RING_SLOPE_RUNTIME_API_VERSION,
+              getattr(fast_ring_slope, "COMPILER_BACKEND", "UNKNOWN"),
+              sensor_id_text,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
               str(exposure_us), str(exposure_cap_us), str(gain_db),
@@ -2133,6 +2259,7 @@ def _main_fast(duration_s=None, run_id=0):
                     reverse_parser.invalidate("CAPTURE_GAP")
                     reverse_drain_state[0] = 1
                     single_edge_tracker.clear("CAPTURE_GAP")
+                    ring_slope_tracker.clear("CAPTURE_GAP")
                     observation_filter.reset()
                     previous_source = None
                     previous_reference_kind = None
@@ -2158,6 +2285,7 @@ def _main_fast(duration_s=None, run_id=0):
             capture_end_ms, time.ticks_diff)
         if reverse_parser.generation != reverse_generation:
             single_edge_tracker.clear(reverse_parser.last_event)
+            ring_slope_tracker.clear(reverse_parser.last_event)
             observation_filter.reset()
             previous_source = None
             previous_reference_kind = None
@@ -2166,6 +2294,7 @@ def _main_fast(duration_s=None, run_id=0):
             reverse_generation = reverse_parser.generation
         if capture_interrupted:
             single_edge_tracker.clear("CAPTURE_GAP")
+            ring_slope_tracker.clear("CAPTURE_GAP")
             observation_filter.reset()
             previous_source = None
             previous_reference_kind = None
@@ -2344,6 +2473,7 @@ def _main_fast(duration_s=None, run_id=0):
             previous_reference_kind = None
             previous_reference_y = None
             previous_reference_x = None
+            ring_slope_tracker.clear(reverse_parser.last_event)
             if selection.get("source") in ("single_left", "single_right"):
                 single_diagnostic_reason = "CONTROL_TIMEOUT"
                 selection["valid"] = False
@@ -2355,9 +2485,52 @@ def _main_fast(duration_s=None, run_id=0):
                 selection["result"] = None
                 reference = None
 
+        ring_start_us = time.ticks_us()
+        support_rows = road_result.get("boundary_support_rows")
+        support_count = road_result.get("boundary_support_count", 0)
+        ring_candidate = ring_slope_tracker.detect_ring_candidate(
+            mask_info, road_result, support_rows, support_count,
+            selection if selection.get("source") in
+            ("single_left", "single_right") else None)
+        forward_continuation = _fast_forward_white_continuation(
+            mask_info, road_result, config)
+        ring_info = ring_slope_tracker.update_ring_state(
+            reverse_fresh, reverse_parser.generation,
+            bool(selection.get("valid")), forward_continuation)
+        topology = road_result.get("topology_evidence") or {}
+        topology_clear = not (
+            topology.get("branch_evidence") or topology.get("branch") or
+            topology.get("ambiguous"))
+        if (ring_candidate.get("valid") and ring_info.get("active") and
+                reverse_fresh and selection.get("valid") and
+                selection.get("source") == "road" and
+                boundary_reference.get("valid") and topology_clear and
+                ring_candidate.get("side_id") ==
+                ring_info.get("side_id")):
+            selection["valid"] = True
+            selection["source"] = (
+                "ring_left" if ring_candidate.get("side_id") ==
+                fast_ring_slope.RING_LEFT else "ring_right")
+            selection["reason"] = "CURRENT_RING_ARC_AND_CONNECTED_PORT"
+            selection["boundary_source"] = ring_candidate.get(
+                "boundary_source", "RING_INNER_CURRENT")
+            selection["inferred"] = True
+            selection["ring_candidate"] = ring_candidate
+            reference = {
+                "x": float(ring_candidate["near_center_x"]),
+                "y": float(ring_candidate["near_center_y"]),
+                "kind": "RING_CURRENT_MEASURED_NEAR_CENTER",
+            }
+        selection["ring_state"] = ring_info.get("state", "IDLE")
+        selection["ring_reason"] = ring_info.get("reason", "NOT_RUN")
+        ring_detection_us = time.ticks_diff(
+            time.ticks_us(), ring_start_us)
+
         row_weight_start_us = time.ticks_us()
         weight_info = row_weight_workspace.aggregate(
-            selection, road_result, config)
+            selection, road_result, config,
+            ring_candidate if selection.get("source") in
+            ("ring_left", "ring_right") else None)
         row_weight_end_us = time.ticks_us()
         raw_valid = bool(selection.get("valid"))
         raw_error = 0
@@ -2383,6 +2556,11 @@ def _main_fast(duration_s=None, run_id=0):
                 if raw_valid and (raw_error < -1000 or raw_error > 1000):
                     raw_valid = False
                     selection["reason"] = "ERROR_OUT_OF_RANGE"
+
+        # Slope classification is intentionally disabled. Keep the protocol
+        # encoder's optional bit for compatibility, but never raise it here.
+        slope_hint = 0
+        ring_us = ring_detection_us
 
         filter_reset_reason = "none"
         if raw_valid:
@@ -2425,6 +2603,7 @@ def _main_fast(duration_s=None, run_id=0):
             raw_error = 0
             quality = 0
             single_edge_tracker.clear("FRAME_BUDGET")
+            ring_slope_tracker.clear("FRAME_BUDGET")
             observation_filter.reset()
             previous_source = None
             previous_reference_kind = None
@@ -2463,7 +2642,8 @@ def _main_fast(duration_s=None, run_id=0):
             packet = vision_protocol.pack_frame(
                 sequence, 1 if valid else 0,
                 quality if valid else 0,
-                filtered_error if valid else 0)
+                filtered_error if valid else 0,
+                0)
             packet_ready_us = time.ticks_us()
             packet_ready_age_us = time.ticks_diff(
                 packet_ready_us, cycle_start_us)
@@ -2480,6 +2660,7 @@ def _main_fast(duration_s=None, run_id=0):
                 filtered_error = 0
                 quality = 0
                 single_edge_tracker.clear("FRAME_BUDGET")
+                ring_slope_tracker.clear("FRAME_BUDGET")
                 observation_filter.reset()
                 previous_source = None
                 previous_reference_kind = None
@@ -2494,7 +2675,7 @@ def _main_fast(duration_s=None, run_id=0):
                 selection["reason"] = "FRAME_BUDGET"
                 reference = None
                 filter_reset_reason = "FRAME_BUDGET_PACKET_READY"
-                packet = vision_protocol.pack_frame(sequence, 0, 0, 0)
+                packet = vision_protocol.pack_frame(sequence, 0, 0, 0, 0)
             if len(packet) != 12:
                 raise ValueError("vision_protocol returned a non-12-byte frame")
             write_attempts = 1
@@ -2519,6 +2700,7 @@ def _main_fast(duration_s=None, run_id=0):
             reverse_generation = reverse_parser.generation
             reverse_drain_state[0] = 1
             single_edge_tracker.clear("OBSERVATION_UART_ERROR")
+            ring_slope_tracker.clear("OBSERVATION_UART_ERROR")
             observation_filter.reset()
             previous_source = None
             previous_reference_kind = None
@@ -2604,6 +2786,8 @@ def _main_fast(duration_s=None, run_id=0):
                   "%s cache_rows=%d actual=%s/%s "
                   "safe_ref=%s wctrl=%s rows_nf=%d/%d eff_nf=%d/%d "
                   "reverse=%s/%s why=%s road_why=%s rows=%d scene=%s topology=%s "
+                  "ring=%s:%s/%d port=%s,%s seed=%s,%s slope=%s:%d "
+                  "head=%+d "
                   "boundary=%s:%d/%d ref=%s raw_weighted=%d filt=%d "
                   "filter=%s "
                   "age_send_ms=%d trusted_block_count=%d "
@@ -2635,6 +2819,15 @@ def _main_fast(duration_s=None, run_id=0):
                                       road_result.get("observed_rows", 0)),
                       road_result.get("scene", "UNKNOWN"),
                       topology.get("reason", "NOT_RUN"),
+                      ring_info.get("state", "IDLE"),
+                      ring_info.get("reason", "NOT_RUN"),
+                      ring_info.get("pending_count", 0),
+                      str(ring_candidate.get("port_x"))[:5],
+                      str(ring_candidate.get("port_y"))[:5],
+                      str(ring_candidate.get("near_seed_x"))[:5],
+                      str(ring_candidate.get("near_seed_y"))[:5],
+                      "DISABLED", slope_hint,
+                      weight_info.get("heading_contribution", 0),
                       boundary.get("reason", "NOT_RUN"),
                       boundary.get("bilateral_supported", 0),
                       boundary.get("pairs_tested", 0),
@@ -2661,6 +2854,7 @@ def _main_fast(duration_s=None, run_id=0):
         perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
         perf.record("path_topology", time.ticks_diff(path_end_us, path_start_us))
         perf.record("boundary", time.ticks_diff(boundary_end_us, boundary_start_us))
+        perf.record("ring", ring_us)
         perf.record("row_weight", time.ticks_diff(
             row_weight_end_us, row_weight_start_us))
         perf.record("reference_filter", time.ticks_diff(reference_end_us,
