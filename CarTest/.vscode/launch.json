@@ -1,0 +1,165 @@
+﻿{
+    "version":  "0.2.0",
+    "configurations":  [
+                           {
+                               "name":  "CarTest H743 - Debug (all actuators off)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build Debug",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/Debug/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/Debug/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugSteering (motors locked; vision steering diagnostic)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugSteering (motors locked; vision steering diagnostic)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugBench (motor outputs locked pending hardware acceptance)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugBench (motor outputs locked pending hardware acceptance)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "行驶0档 - 无差速 50%/50%（日志开启）",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "行驶1档 - 中差速 最大55%/45%（日志开启）",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollowDiff5 (motors enabled; d=50; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowDiff5/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowDiff5/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "行驶2档 - 强差速 最大60%/40%（日志开启）",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollowDiff10 (motors enabled; d=100; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowDiff10/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowDiff10/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           }
+                           ,{
+                               "name":  "行驶3档 - 快速转向 70%/30%（日志开启）",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollowTurn (motors enabled; 70/30 turn; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowTurn/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowTurn/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           }
+                       ]
+}

@@ -1,0 +1,947 @@
+{
+  "schema_version": 3,
+  "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+  "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+  "release_status": "HOST_TESTED_OPENMV_BOARD_VALIDATION_PENDING",
+  "runtime_api": {
+    "v7_fast_pipeline": 7,
+    "singleedge": 2,
+    "reverse_control": 1,
+    "required_fast_path_capability": {
+      "module": "fast_path.py",
+      "name": "CONFIDENCE_DIAGNOSTIC_ONLY",
+      "value": true
+    }
+  },
+  "runtime_file_count": 17,
+  "runtime_files": [
+    {
+      "name": "adaptive_detector.py",
+      "size_bytes": 44071,
+      "sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+      "baseline_v7_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "boundary_evidence.py",
+      "size_bytes": 18818,
+      "sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+      "baseline_v7_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "config.py",
+      "size_bytes": 15197,
+      "sha256": "49C0FF64555612688E551D11F5B2F95B8F0F0B224CB3DC3D9AE1D84BF629C551",
+      "baseline_v7_sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
+      "byte_identical_to_v7": false,
+      "provenance": "modified_from_v7_for_cartest_singleedge"
+    },
+    {
+      "name": "fast_boundary.py",
+      "size_bytes": 49880,
+      "sha256": "3AE5A2A8375A713A2A8F2943867E29FB5905958314962E16A5A9F4DB0144DFFE",
+      "baseline_v7_sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "fast_gray.py",
+      "size_bytes": 30014,
+      "sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+      "baseline_v7_sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "fast_path.py",
+      "size_bytes": 41451,
+      "sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+      "baseline_v7_sha256": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
+      "byte_identical_to_v7": false,
+      "provenance": "modified_from_v7_for_cartest_singleedge"
+    },
+    {
+      "name": "fast_single_edge.py",
+      "size_bytes": 43749,
+      "sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+      "baseline_v7_sha256": null,
+      "byte_identical_to_v7": false,
+      "provenance": "added_for_singleedge_package"
+    },
+    {
+      "name": "fast_topology.py",
+      "size_bytes": 42030,
+      "sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+      "baseline_v7_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "grayscale_adapter.py",
+      "size_bytes": 7589,
+      "sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+      "baseline_v7_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "line_detector.py",
+      "size_bytes": 11979,
+      "sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+      "baseline_v7_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "main.py",
+      "size_bytes": 120022,
+      "sha256": "984C0EF101CDF6BB811BD36F0934AE3D9F71ECFC55A84AB6FE191B87B8F6682C",
+      "baseline_v7_sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
+      "byte_identical_to_v7": false,
+      "provenance": "modified_from_v7_for_cartest_singleedge"
+    },
+    {
+      "name": "reverse_control.py",
+      "size_bytes": 7657,
+      "sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+      "baseline_v7_sha256": null,
+      "byte_identical_to_v7": false,
+      "provenance": "added_for_singleedge_package"
+    },
+    {
+      "name": "road_detector.py",
+      "size_bytes": 26649,
+      "sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+      "baseline_v7_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "source_selector.py",
+      "size_bytes": 8802,
+      "sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+      "baseline_v7_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "surface_detector.py",
+      "size_bytes": 42567,
+      "sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+      "baseline_v7_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "thresholding.py",
+      "size_bytes": 12363,
+      "sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+      "baseline_v7_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    },
+    {
+      "name": "vision_protocol.py",
+      "size_bytes": 2601,
+      "sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+      "baseline_v7_sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+      "byte_identical_to_v7": true,
+      "provenance": "unchanged_v7_source"
+    }
+  ],
+  "changed_runtime_files": [
+    "config.py",
+    "main.py",
+    "fast_gray.py",
+    "fast_path.py",
+    "fast_boundary.py",
+    "fast_single_edge.py"
+  ],
+  "upload_rule": "Copy every declared top-level runtime .py file together to the OpenMV filesystem root; do not mix versions.",
+  "observation_protocol": {
+    "version": 1,
+    "frame_size_bytes": 12,
+    "unchanged_from_v7": true,
+    "shared_vectors": "tests/vision-protocol-v1.csv",
+    "shared_vectors_count": 9,
+    "shared_vectors_sha256": "707364E6EE162CB69075FB3694691863F9C26101ECFB392D6AAF88113E3DCE7F",
+    "quality_semantics": "0..100 diagnostic only; no numeric confidence acceptance gate"
+  },
+  "reverse_control_protocol": {
+    "direction": "H743 TX to OpenMV P5 RX; separate from V1 observation stream",
+    "runtime_module": "reverse_control.py",
+    "runtime_api_version": 1,
+    "frame_size_bytes": 8,
+    "frame_layout": "A6 5A 01 CMD seqLE16 CRC16LE",
+    "crc": "CRC-16/CCITT-FALSE over bytes 0..5",
+    "commands": {
+      "RESET": 0,
+      "KEEP": 1
+    },
+    "sequence": "forward modulo uint16; duplicate KEEP does not renew lease; RESET is idempotent and clears state",
+    "timeout_ms": 250,
+    "max_received_bytes_per_service": 32,
+    "shared_vectors": "tests/data/reverse-control-v1.csv",
+    "shared_vectors_count": 4,
+    "shared_vectors_sha256": "29ADA663067C954D338789B87B85E3806A5C376E2E28D155693AB63B96025A5F",
+    "singleedge_disabled_without_fresh_reset_keep": true,
+    "KEEP_never_grants_motor_permission": true
+  },
+  "singleedge_cache_model": {
+    "widths": "Only validated bilateral rows populate width cache; cache commit follows a valid full observation UART write.",
+    "identity": "Current visible dark-to-bright boundary and accepted continuity anchor remain distinct from inferred center/rows.",
+    "source_values": [
+      "OBSERVED_BOTH",
+      "LEFT_ONLY",
+      "RIGHT_ONLY"
+    ],
+    "filter": "Bounded EMA is retained across verified same-track mode changes and cleared on reset, invalidity, identity loss or significant reference-row shift.",
+    "clear_events": [
+      "cold start",
+      "valid RESET",
+      "KEEP heartbeat gap >=250 ms",
+      "bad reverse version/command/CRC or sequence rollback",
+      "reverse RX error or queue overflow",
+      "capture interruption >=250 ms",
+      "observation UART short write/exception",
+      "frame deadline/budget invalidation"
+    ],
+    "no_cache_behavior": "Single-only observation is invalid until bilateral rows reacquire width; bilateral detection remains available without reverse control."
+  },
+  "upstream_v7_baseline": {
+    "original_zip": "../test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
+    "original_zip_sha256": "80E8F2C900B212DB1AD866CE6F823008658CAFFDF8F218F416B3819766CB960F",
+    "copied_zip_matches_sixth_test_original": true,
+    "original_manifest": "../test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.json",
+    "original_manifest_sha256": "EC60BFAF943F4D835774CBA7A26F88240536B1C2F7B785E67FBD4C73FCD6FF50",
+    "copied_manifest_matches_sixth_test_original": true,
+    "original_source_vector_sha256": {
+      "boundary": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+      "config": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
+      "gray": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+      "main": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
+      "path": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
+      "protocol": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+      "topology": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8"
+    },
+    "bundled_frozen_tests": "tests/frozen_v7/",
+    "bundled_frozen_inventory": "tests/frozen_v7/source-sha256.csv",
+    "bundled_frozen_inventory_sha256": "022D8844C35F786440CE8E6EDAD4CB990C8EFBFCEC8F2B3A1054AD0770D3F0B3",
+    "bundled_frozen_input_count": 9,
+    "runner_adaptation": "Only the temporary copied BUILD expectation and frozen FastPath test-double confidence-diagnostic-only marker are adapted; frozen source/tests remain unchanged."
+  },
+  "before_edit_snapshot": {
+    "directory": "../test-data/steering-singleedge-20261011/before/openmv/",
+    "manifest": "../test-data/steering-singleedge-20261011/before/openmv-sha256.csv",
+    "manifest_sha256": "951A6983B7A270D71C1E70EECE22D3C2D2129F92172D5F4D7B2401FAD2270A50",
+    "verified_file_count": 23,
+    "all_hashes_verified": true
+  },
+  "host_test_results": [
+    {
+      "key": "turn_response_weights",
+      "test_scope": "new_configuration_acceptance",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
+      "exit_code": 0,
+      "tests_run": 7,
+      "passed": 7,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
+      "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+    },
+    {
+      "key": "protocol",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
+      "exit_code": 0,
+      "tests_run": 6,
+      "passed": 6,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
+      "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
+    },
+    {
+      "key": "reverse_control",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
+      "exit_code": 0,
+      "tests_run": 9,
+      "passed": 9,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
+      "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
+    },
+    {
+      "key": "single_edge_13",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
+      "exit_code": 0,
+      "tests_run": 13,
+      "passed": 13,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
+      "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
+    },
+    {
+      "key": "main_integration_7",
+      "test_scope": "new_configuration_acceptance",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
+      "exit_code": 0,
+      "tests_run": 7,
+      "passed": 7,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
+      "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
+    },
+    {
+      "key": "two_routes",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
+      "exit_code": 0,
+      "tests_run": 12,
+      "passed": 12,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
+      "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
+    },
+    {
+      "key": "v7_overlay_each_frame",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
+      "exit_code": 0,
+      "tests_run": 2,
+      "passed": 2,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
+      "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+    },
+    {
+      "key": "v7_overlay_accounting",
+      "test_scope": "current_runtime_regression",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
+      "exit_code": 0,
+      "tests_run": 3,
+      "passed": 3,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
+      "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+    },
+    {
+      "key": "frozen_v7",
+      "test_scope": "legacy_frozen_behavioral_compatibility",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
+      "exit_code": 0,
+      "tests_run": 79,
+      "passed": 78,
+      "skipped": 1,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
+      "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
+    }
+  ],
+  "preserved_failed_attempts": [
+    {
+      "raw_log": "../test-data/steering-singleedge-20261011/vision/frozen-v7-host-regression-attempt-failed-api-marker.log",
+      "sha256": "E84DD84A00CC983D0806302FA6684FD9276E31955C5AE6F7D2B37A61578133D9",
+      "status": "FAILED_ATTEMPT_PRESERVED_NOT_FINAL_RESULT"
+    },
+    {
+      "raw_log": "../test-data/steering-singleedge-20261011/vision/frozen-v7-host-regression-attempt-failed-build-prefix.log",
+      "sha256": "AC5AA26E82C14E737891BF80E501469388EB3A2806DE8B350289DB6D240F761E",
+      "status": "FAILED_ATTEMPT_PRESERVED_NOT_FINAL_RESULT"
+    },
+    {
+      "raw_log": "../test-data/steering-singleedge-20261011/vision/host-main-integration-attempt-failed-index.log",
+      "sha256": "DA5DAC02AC41086FDB7D2BCB1F67D07458351CFEC3318C61E3D2D9ADA4D31BA0",
+      "status": "FAILED_ATTEMPT_PRESERVED_NOT_FINAL_RESULT"
+    }
+  ],
+  "visual_evidence": {
+    "image": "../test-data/steering-singleedge-20261011/vision/singleedge-topology-fixtures.png",
+    "image_sha256": "EEF7489023A3B6C613A3A7C2B02CBF7967080F5F5153DA80126E038863AFB9DC",
+    "dimensions_px": [
+      796,
+      692
+    ],
+    "render_script": "../test-data/steering-singleedge-20261011/vision/render_singleedge_fixtures.py",
+    "render_script_sha256": "CCEC7BF363120FAF56567DBB917EB3FEA6D699C91BBA1DB04B59825D7DFEB3E9",
+    "render_log": "../test-data/steering-singleedge-20261011/vision/render.log",
+    "render_log_sha256": "D28045BA7D9F70DC221DF9A0515949608396D181C719B78E279E2636DE68B5A2",
+    "inspection_note": "../test-data/steering-singleedge-20261011/vision/visual-validation.md",
+    "inspection_note_sha256": "AA563CD655A466822BA32F1FFB675BDA6E4DE5A3EFA0FC1020A05C8CD1F0AE8F",
+    "synthetic_host_fixture_only": true
+  },
+  "topology_cases": [
+    "actual FastTopologyGuard rejects a closed internal dark component aligned with cached outer-edge anchor",
+    "actual topology permits a checked ROI-connected candidate with an unrelated closed dark component outside the corridor",
+    "fork/branch ambiguity is rejected",
+    "identity jump is rejected; continuous edge can advance beyond its initial anchor"
+  ],
+  "known_limitations": [
+    "A partial/crop-connected ring component may touch the ROI boundary without being the course exterior; connectivity, width and continuity do not prove semantic outer-boundary identity.",
+    "No real ring camera image or vehicle track validation was performed."
+  ],
+  "performance_and_hardware_validation": {
+    "singleedge_pixel_search_backend": "preallocated Viper kernels",
+    "conditional_topology_label_workspace": "preallocated 80x60 byte component map plus uint16 queue: 14,400 bytes (~14.1 KiB)",
+    "conditional_topology_label_runtime": "up to one 8-connected traversal over the 80x60 grid when island evidence is present",
+    "openmv_micropython_viper_compile_tested": false,
+    "openmv_board_runtime_tested": false,
+    "board_frame_rate_measured": false,
+    "45_fps_accepted": false,
+    "h743_reverse_uart_receive_tested": false,
+    "vehicle_track_tested": false,
+    "note": "CPython Viper shims and synthetic tests do not establish board compiler acceptance, timing, electrical correctness or track behavior."
+  },
+  "host_mpy_cross_validation": {
+    "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+    "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
+    "target_architecture": "armv7em",
+    "runtime_sources_per_variant": 17,
+    "variants": [
+      {
+        "route_mode": "cached_width",
+        "source_count": 17,
+        "source_names": [
+          "adaptive_detector.py",
+          "boundary_evidence.py",
+          "config.py",
+          "fast_boundary.py",
+          "fast_gray.py",
+          "fast_path.py",
+          "fast_single_edge.py",
+          "fast_topology.py",
+          "grayscale_adapter.py",
+          "line_detector.py",
+          "main.py",
+          "reverse_control.py",
+          "road_detector.py",
+          "source_selector.py",
+          "surface_detector.py",
+          "thresholding.py",
+          "vision_protocol.py"
+        ],
+        "compiled": 17,
+        "failures": 0,
+        "exit_code": 0,
+        "target_architecture": "armv7em",
+        "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+        "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+      },
+      {
+        "route_mode": "clipped_midpoint",
+        "source_count": 17,
+        "source_names": [
+          "adaptive_detector.py",
+          "boundary_evidence.py",
+          "config.py",
+          "fast_boundary.py",
+          "fast_gray.py",
+          "fast_path.py",
+          "fast_single_edge.py",
+          "fast_topology.py",
+          "grayscale_adapter.py",
+          "line_detector.py",
+          "main.py",
+          "reverse_control.py",
+          "road_detector.py",
+          "source_selector.py",
+          "surface_detector.py",
+          "thresholding.py",
+          "vision_protocol.py"
+        ],
+        "compiled": 17,
+        "failures": 0,
+        "exit_code": 0,
+        "target_architecture": "armv7em",
+        "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+        "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+      }
+    ],
+    "all_variants_exit_zero": true,
+    "target_micro_python_v1_28_compiled": false,
+    "micro_python_v1_28_compiler_available_in_ide": false,
+    "target_board_runtime_tested": false,
+    "evidence_report": "../test-data/turn-response-20261014/vision/REPORT.json",
+    "evidence_report_sha256": "CC0B4F622F16F5F58A5B6B70723A39D7AB68E1ECF07637E705DD91D1FFE31191"
+  },
+  "default_vision_backend": "fast",
+  "fast_path_scope": "Confidence is diagnostic-only and single-edge fallback applies to the current fast real-time path. compare/legacy remain historical comparison baselines and are outside this delivery control path.",
+  "readme_sha256": "52A6395284509950D625682F0DAA33A9FA681F1CD64536D15709932590577190",
+  "route_mode": "cached_width",
+  "single_edge_routes": {
+    "default_formal_route": "cached_width",
+    "supported_build_pairs": [
+      {
+        "route_mode": "cached_width",
+        "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014"
+      },
+      {
+        "route_mode": "clipped_midpoint",
+        "build_id": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
+      }
+    ],
+    "selected_package": {
+      "mode": "cached_width",
+      "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+      "singleedge_runtime_api": 2,
+      "requirements": [
+        "current-frame dark-to-white observed side is matched to a validated bilateral width cache",
+        "width cache is populated only by a valid published bilateral observation",
+        "fresh reverse RESET/KEEP lease remains valid"
+      ],
+      "center_equation": "current edge plus/minus the smoothed bilateral width",
+      "turn_response": {
+        "version": "LOWER70_UPPER30_V1",
+        "image_split_y": 36,
+        "grid_split_y": 18,
+        "lower_70_percent_weight": 0.8,
+        "upper_30_percent_weight": 0.2,
+        "row_density_normalized_within_each_group": true,
+        "per_row_bilateral_pair_support_required": true,
+        "missing_group_renormalization": true,
+        "observation_filter_alpha": 0.7,
+        "safety_reference_is_separate_from_virtual_weighted_center": true
+      }
+    },
+    "same_source_except_config": false,
+    "protocol_unchanged": {
+      "observation_frame_bytes": 12,
+      "observation_protocol_version": 1,
+      "reverse_control_timeout_ms": 250,
+      "reverse_control_api_version": 1
+    }
+  },
+  "two_route_evidence": {
+    "date": "2026-10-14",
+    "evidence_revision": "final",
+    "evidence_dir": "test-data/turn-response-20261014/vision/final",
+    "project": "CarTest OpenMV weighted turn-response package",
+    "builds": {
+      "cached_width": "CACHED_WIDTH_TURNRESPONSE_20261014",
+      "clipped_midpoint": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
+    },
+    "before_source_snapshot": {
+      "manifest": "test-data/turn-response-20261014/before/vision/BASELINE_MANIFEST.json",
+      "manifest_sha256": "BDAA00AA7A6C8F8DFCD48696E96FEAE9D1909CD990B3933D7A24D313AC1869B2",
+      "snapshot_root": "test-data/turn-response-20261014/before/vision",
+      "file_count": 61,
+      "existing_elf_count": 0,
+      "all_snapshot_files_reverified": true,
+      "verification_log": "test-data/turn-response-20261014/vision/final/baseline-snapshot-verification.log"
+    },
+    "source_hashes": {
+      "path": "test-data/turn-response-20261014/vision/final/source-hashes.csv",
+      "sha256": "4491A97E1DC9E8397073657711C280A254E1DA58BF920E0A75092F3619FE8A57",
+      "source_count": 47
+    },
+    "host_tests": [
+      {
+        "key": "turn_response_weights",
+        "test_scope": "new_configuration_acceptance",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
+        "exit_code": 0,
+        "tests_run": 7,
+        "passed": 7,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
+        "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+      },
+      {
+        "key": "protocol",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
+        "exit_code": 0,
+        "tests_run": 6,
+        "passed": 6,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
+        "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
+      },
+      {
+        "key": "reverse_control",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
+        "exit_code": 0,
+        "tests_run": 9,
+        "passed": 9,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
+        "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
+      },
+      {
+        "key": "single_edge_13",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
+        "exit_code": 0,
+        "tests_run": 13,
+        "passed": 13,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
+        "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
+      },
+      {
+        "key": "main_integration_7",
+        "test_scope": "new_configuration_acceptance",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
+        "exit_code": 0,
+        "tests_run": 7,
+        "passed": 7,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
+        "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
+      },
+      {
+        "key": "two_routes",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
+        "exit_code": 0,
+        "tests_run": 12,
+        "passed": 12,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
+        "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
+      },
+      {
+        "key": "v7_overlay_each_frame",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
+        "exit_code": 0,
+        "tests_run": 2,
+        "passed": 2,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
+        "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+      },
+      {
+        "key": "v7_overlay_accounting",
+        "test_scope": "current_runtime_regression",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
+        "exit_code": 0,
+        "tests_run": 3,
+        "passed": 3,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
+        "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+      },
+      {
+        "key": "frozen_v7",
+        "test_scope": "legacy_frozen_behavioral_compatibility",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
+        "exit_code": 0,
+        "tests_run": 79,
+        "passed": 78,
+        "skipped": 1,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
+        "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
+      }
+    ],
+    "configuration_test_classes": {
+      "legacy_v7_compatibility": {
+        "runner_present": true,
+        "test_scope": "legacy_frozen_behavioral_compatibility",
+        "exit_code": 0,
+        "fixture_source_hashes_verified": true,
+        "temporary_test_copy_adaptation_count": 29,
+        "temporary_test_copy_adaptations": [
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "default fixture follows expanded current ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "unknown original middle block shifts after new upper block"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "histogram assertion covers configured block count"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "expected block diagnostics follow four-block config"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "default topology corridor spans current expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "partial topology fixture removes whole current upper block"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "keep ROI-edge-connected band at expanded ROI boundary"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "default detector masks cover current expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "allow explicit legacy floor for custom-floor tests"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "all-white invalid mask reports current ROI floor"
+          },
+          {
+            "count": 2,
+            "file": "test_fast_path.py",
+            "reason": "default and merge masks report selected ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "merge fixture spans current full ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "merge fixture reports current ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "keep the explicit floor-20 kernel-bound test intact"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "active row count follows expanded ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical BUILD literal to current package identity"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "add current confidence-diagnostic API to frozen test double"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "align fake grayscale output with expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "report current four configured grayscale blocks"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "assert debug reports current four trusted blocks"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "mock current per-row pair support consumed by controller"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          }
+        ],
+        "claim_boundary": "Legacy V7 behavioral compatibility against the current runtime. This does not establish that the frozen executable or old config accepts the new turn-response tuning."
+      },
+      "current_turn_response_acceptance": {
+        "test_keys": [
+          "turn_response_weights",
+          "main_integration_7"
+        ],
+        "test_scope": "new_configuration_acceptance",
+        "turn_response_version": "LOWER70_UPPER30_V1",
+        "actual_gray_builder_and_path_tested": true,
+        "actual_boundary_per_row_support_tested": true,
+        "serialized_main_uart_error_tested": true,
+        "both_single_edge_sources_tested": true
+      }
+    },
+    "mpy_cross": {
+      "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+      "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
+      "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
+      "compiler_version_command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" --version",
+      "compiler_version_exit_code": 0,
+      "compiler_version_log": "test-data/turn-response-20261014/vision/final/mpy-cross-v1.25-version.log",
+      "target_architecture": "armv7em",
+      "variants": [
+        {
+          "route_mode": "cached_width",
+          "source_count": 17,
+          "source_names": [
+            "adaptive_detector.py",
+            "boundary_evidence.py",
+            "config.py",
+            "fast_boundary.py",
+            "fast_gray.py",
+            "fast_path.py",
+            "fast_single_edge.py",
+            "fast_topology.py",
+            "grayscale_adapter.py",
+            "line_detector.py",
+            "main.py",
+            "reverse_control.py",
+            "road_detector.py",
+            "source_selector.py",
+            "surface_detector.py",
+            "thresholding.py",
+            "vision_protocol.py"
+          ],
+          "compiled": 17,
+          "failures": 0,
+          "exit_code": 0,
+          "target_architecture": "armv7em",
+          "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+          "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
+          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+        },
+        {
+          "route_mode": "clipped_midpoint",
+          "source_count": 17,
+          "source_names": [
+            "adaptive_detector.py",
+            "boundary_evidence.py",
+            "config.py",
+            "fast_boundary.py",
+            "fast_gray.py",
+            "fast_path.py",
+            "fast_single_edge.py",
+            "fast_topology.py",
+            "grayscale_adapter.py",
+            "line_detector.py",
+            "main.py",
+            "reverse_control.py",
+            "road_detector.py",
+            "source_selector.py",
+            "surface_detector.py",
+            "thresholding.py",
+            "vision_protocol.py"
+          ],
+          "compiled": 17,
+          "failures": 0,
+          "exit_code": 0,
+          "target_architecture": "armv7em",
+          "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+          "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
+          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+        }
+      ],
+      "target_micro_python_v1_28_compiled": false,
+      "micro_python_v1_28_compiler_available_in_ide": false,
+      "micro_python_v1_28_compiler_candidates": [],
+      "board_runtime_tested": false
+    },
+    "synthetic_numeric_fixture": {
+      "fixture_kind": "synthetic_host_masks_only",
+      "scenario_count": 11,
+      "numeric_results_csv": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.csv",
+      "numeric_results_csv_sha256": "828FBD4466B255D0E76F782BE8A83EFF97577B9A956EFB96CCD7B5F33069E160",
+      "raw_log": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.log",
+      "raw_log_sha256": "1519E9923D2D07B6847504A8208DF8FBA00BEC4CDAF9EACF6639DAB2B3826B95",
+      "same_frame_left_cached_center_x": 39.5,
+      "same_frame_left_clip_edge_x": 26.5,
+      "same_frame_left_clip_endpoint_x": 79,
+      "same_frame_left_clip_expected_center_x": 52.75,
+      "same_frame_left_clip_reported_center_x": 53.0,
+      "same_frame_left_clip_rounding_error_cells": 0.25,
+      "right_clip_expected_center_x": 26.25,
+      "camera_or_board_image_used": false
+    },
+    "variant_refresh_exit_code": 0,
+    "generator_check_exit_code": 0,
+    "camera_frames_executed": false,
+    "camera_rate_baseline_frames_per_10s": 383,
+    "camera_rate_baseline_provenance": "Previously reported by the user; not measured on this revision.",
+    "camera_rate_target_frames_per_10s": 450,
+    "camera_rate_target_result": "not_measured",
+    "revision_camera_frames_per_10s_measured": false,
+    "openmv_board_runtime_tested": false,
+    "h743_build_or_flash_performed": false,
+    "camera_upload_performed": false,
+    "vehicle_track_tested": false,
+    "notes": [
+      "Lower rows y>=36 carry aggregate weight 0.80 and upper rows y<36 carry 0.20; each available group is internally normalized.",
+      "The ROI expands to grid row 8/full-image y=16 with four Otsu blocks; the three original blocks from row 20 down remain unchanged.",
+      "Bilateral weighted rows require the existing per-row measured pair-support bit; unsupported rows are excluded without changing the existing global gate.",
+      "The weighted controller center is a virtual column and remains separate from the geometric safety reference. Missing groups renormalize with a diagnostic.",
+      "Weighting runs after current-frame path selection; it does not guarantee lane identity across whole-path candidate changes.",
+      "The IDE mpy-cross 1.25 run with -march=armv7em is compiler evidence, not board execution; MicroPython 1.28 compiler acceptance remains unverified.",
+      "Synthetic host masks do not execute a camera frame. No OpenMV upload/board run, H743 build/flash, motor start, or vehicle track test was performed."
+    ],
+    "manifest_refresh_exit_code": 0,
+    "generator_final_check_exit_code": 0,
+    "manifest_final_refresh_exit_code": 0
+  },
+  "readme": "README.md"
+}
