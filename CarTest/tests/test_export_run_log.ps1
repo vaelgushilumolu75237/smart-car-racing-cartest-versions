@@ -134,6 +134,8 @@ try {
     $metadataProperties = @($successMetadata.PSObject.Properties.Name)
     if ($successMetadata.status -ne 'success' -or
         $successMetadata.record_count -ne $fixtureHeader.count -or
+        $successMetadata.csv -ne $successCsv -or
+        $successMetadata.planned_csv_path -ne $successCsv -or
         -not ($metadataProperties -contains 'buffer_full') -or
         -not ($metadataProperties -contains 'records_truncated')) {
         throw 'Successful metadata is missing the verified record/full/truncation fields.'
@@ -199,12 +201,33 @@ try {
     $connectArgs = @(Get-Content -LiteralPath $connectError.ArgsLog -Encoding UTF8)
     if ($connectArgs.Count -ne 1 -or
         $connectMetadata.status -ne 'failed' -or
+        $null -ne $connectMetadata.csv -or
+        [string]::IsNullOrWhiteSpace([string]$connectMetadata.planned_csv_path) -or
         $null -ne $connectMetadata.initial_header -or
         $null -ne $connectMetadata.raw_sha256 -or
         $connectMetadata.error -notmatch 'DEV_CONNECT_ERR' -or
         $connectMetadata.error -notmatch 'does not stop the vehicle' -or
         (Test-Path -LiteralPath (Join-Path $connectRun.FullName 'run.csv'))) {
         throw 'DEV_CONNECT_ERR must preserve no-data metadata and fail closed without automatic retry/fallback.'
+    }
+
+    $mutatedMetadata = Get-Content -LiteralPath (Join-Path $mutatedRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -ne $mutatedMetadata.csv -or
+        [string]::IsNullOrWhiteSpace([string]$mutatedMetadata.planned_csv_path)) {
+        throw 'Header-change failure metadata must distinguish the absent CSV from its planned path.'
+    }
+
+    $decodeFailure = Invoke-FakeExport -Name 'decode-error-no-csv' -Mode 'decode-error'
+    if ($decodeFailure.ExitCode -eq 0) {
+        throw 'Corrupted synthetic payload unexpectedly decoded as a successful CSV.'
+    }
+    $decodeFailureRun = Get-ExportRunDirectory -CaseRoot $decodeFailure.CaseRoot
+    $decodeFailureMetadata = Get-Content -LiteralPath (Join-Path $decodeFailureRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($decodeFailureMetadata.status -ne 'failed' -or
+        $null -ne $decodeFailureMetadata.csv -or
+        [string]::IsNullOrWhiteSpace([string]$decodeFailureMetadata.planned_csv_path) -or
+        (Test-Path -LiteralPath (Join-Path $decodeFailureRun.FullName 'run.csv'))) {
+        throw 'Decode failure metadata must leave csv null and retain the planned path separately.'
     }
 
     $dryRunRoot = Join-Path $OutputRoot 'dry run shared frequency'

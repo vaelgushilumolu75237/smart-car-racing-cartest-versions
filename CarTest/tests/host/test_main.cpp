@@ -4,10 +4,13 @@
 #include "manual_run_button.h"
 #include "encoder_diag.h"
 #include "follow_output.h"
+#include "follow_speed_pi.h"
 #include "reverse_control.h"
 #include "run_block_reason.h"
 #include "runtime_log.h"
 #include "servo_safety.h"
+#include "speed_observer.h"
+#include "speed_pi.h"
 #include "uart_rx_service.h"
 #include "vision_protocol.h"
 
@@ -24,6 +27,27 @@
 #include <utility>
 #include <vector>
 
+extern "C" uint8_t car_follow_output_turn_slope_assist_request(
+    const car_follow_slope_assist_gate_t *gate);
+extern "C" uint8_t car_follow_output_turn_update_with_slope_assist(
+    car_follow_output_state_t *state,
+    uint32_t now_ms,
+    uint16_t base_target_permille,
+    uint16_t outer_differential_permille,
+    uint16_t inner_differential_permille,
+    uint16_t servo_applied_us,
+    uint16_t servo_center_us,
+    uint16_t servo_left_endpoint_us,
+    uint16_t servo_right_endpoint_us,
+    uint8_t servo_output_active,
+    uint8_t servo_frame_ready,
+    uint8_t motor_outputs_active,
+    uint16_t left_applied_permille,
+    uint16_t right_applied_permille,
+    uint8_t slope_assist_requested,
+    uint16_t *left_command_permille,
+    uint16_t *right_command_permille);
+
 namespace {
 
 struct WireVector {
@@ -32,6 +56,7 @@ struct WireVector {
     uint8_t valid = 0;
     uint8_t confidence = 0;
     int16_t error = 0;
+    uint8_t slope_hint = 0;
     std::array<uint8_t, VP_FRAME_SIZE> bytes{};
 };
 
@@ -185,7 +210,7 @@ bool parse_csv_vectors(const char *path)
             continue;
         }
         std::stringstream row(line);
-        std::array<std::string, 6> fields{};
+        std::array<std::string, 7> fields{};
         for (std::string &field : fields) {
             if (!std::getline(row, field, ',')) {
                 std::printf("FAIL malformed CSV row: %s\n", line.c_str());
@@ -199,14 +224,21 @@ bool parse_csv_vectors(const char *path)
             vector.valid = static_cast<uint8_t>(std::stoul(fields[2]));
             vector.confidence = static_cast<uint8_t>(std::stoul(fields[3]));
             vector.error = static_cast<int16_t>(std::stoi(fields[4]));
-            if (fields[5].size() != VP_FRAME_SIZE * 2u) {
+            vector.slope_hint = static_cast<uint8_t>(std::stoul(fields[5]));
+            if (vector.slope_hint > 1u ||
+                (vector.valid == 0u && vector.slope_hint != 0u)) {
+                std::printf("FAIL invalid slope hint in vector: %s\n",
+                            vector.name.c_str());
+                return false;
+            }
+            if (fields[6].size() != VP_FRAME_SIZE * 2u) {
                 std::printf("FAIL wrong hex byte count in vector: %s\n",
                             vector.name.c_str());
                 return false;
             }
             for (size_t i = 0; i < VP_FRAME_SIZE; ++i) {
                 vector.bytes[i] = static_cast<uint8_t>(
-                    std::stoul(fields[5].substr(i * 2u, 2u), nullptr, 16));
+                    std::stoul(fields[6].substr(i * 2u, 2u), nullptr, 16));
             }
             g_vectors.push_back(vector);
         } catch (const std::exception &exception) {
@@ -215,8 +247,8 @@ bool parse_csv_vectors(const char *path)
             return false;
         }
     }
-    if (!input.eof() || g_vectors.size() != 9u) {
-        std::printf("FAIL shared vector file must contain exactly nine rows; found %zu\n",
+    if (!input.eof() || g_vectors.size() != 10u) {
+        std::printf("FAIL shared vector file must contain exactly ten rows; found %zu\n",
                     g_vectors.size());
         return false;
     }
@@ -390,12 +422,14 @@ void send_frame_at(car_control_t *control,
                    int16_t error,
                    uint32_t arrival_ms,
                    uint32_t now_ms,
-                   bool switch_high)
+                   bool switch_high,
+                   bool slope_hint = false)
 {
-    car_control_on_vision_frame_at(control, config, sequence,
-                                   valid ? 1u : 0u, confidence, error,
-                                   arrival_ms, now_ms,
-                                   switch_high ? 1u : 0u);
+    const uint8_t flags = (valid ? VP_FLAG_VALID : 0u) |
+                          (slope_hint ? VP_FLAG_SLOPE_HINT : 0u);
+    car_control_on_vision_frame_at_with_flags(
+        control, config, sequence, flags, confidence, error, arrival_ms,
+        now_ms, switch_high ? 1u : 0u);
 }
 
 void establish_fresh_vision(car_control_t *control,
@@ -414,11 +448,13 @@ void establish_fresh_vision(car_control_t *control,
 vp_frame make_wire_frame(uint16_t sequence,
                          bool valid = true,
                          uint8_t confidence = 80u,
-                         int16_t error = 0)
+                         int16_t error = 0,
+                         bool slope_hint = false)
 {
     vp_frame frame{};
     frame.sequence = sequence;
-    frame.flags = valid ? VP_FLAG_VALID : 0u;
+    frame.flags = (valid ? VP_FLAG_VALID : 0u) |
+                  (slope_hint ? VP_FLAG_SLOPE_HINT : 0u);
     frame.confidence = confidence;
     frame.lateral_error = error;
     return frame;
@@ -621,11 +657,12 @@ void start_bench_with_fresh_frame_at(car_control_t *control,
 
 void test_shared_protocol_vectors()
 {
-    CHECK_EQ("nine shared vectors loaded", g_vectors.size(), 9u);
+    CHECK_EQ("ten shared vectors loaded", g_vectors.size(), 10u);
     for (const WireVector &vector : g_vectors) {
         vp_frame frame{};
         frame.sequence = vector.sequence;
-        frame.flags = vector.valid != 0u ? VP_FLAG_VALID : 0u;
+        frame.flags = (vector.valid != 0u ? VP_FLAG_VALID : 0u) |
+                      (vector.slope_hint != 0u ? VP_FLAG_SLOPE_HINT : 0u);
         frame.confidence = vector.confidence;
         frame.lateral_error = vector.error;
 
@@ -639,7 +676,8 @@ void test_shared_protocol_vectors()
         CHECK(vp_unpack(vector.bytes.data(), &decoded) != 0u, vector.name.c_str());
         CHECK_EQ("shared vector sequence", decoded.sequence, vector.sequence);
         CHECK_EQ("shared vector valid flag", decoded.flags,
-                 vector.valid != 0u ? VP_FLAG_VALID : 0u);
+                 (vector.valid != 0u ? VP_FLAG_VALID : 0u) |
+                     (vector.slope_hint != 0u ? VP_FLAG_SLOPE_HINT : 0u));
         CHECK_EQ("shared vector confidence", decoded.confidence, vector.confidence);
         CHECK_EQ("shared vector lateral error", decoded.lateral_error, vector.error);
     }
@@ -980,6 +1018,142 @@ void test_follow_output_differential_and_independent_ramps()
              car_follow_output_update(&state, 14u, 500u, 0u, 0u, 1530u,
                                       1530u, 1530u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 0u);
+    car_follow_slope_assist_gate_t old_profile_gate{};
+    old_profile_gate.follow_running = 1u;
+    old_profile_gate.manual_run_request = 1u;
+    old_profile_gate.follow_session_active = 1u;
+    old_profile_gate.road_drive_allowed = 1u;
+    old_profile_gate.trusted_slope_hint = 1u;
+    old_profile_gate.vision_valid = 1u;
+    old_profile_gate.vision_fresh = 1u;
+    old_profile_gate.startup_qualified = 1u;
+    old_profile_gate.servo_output_active = 1u;
+    old_profile_gate.servo_frame_ready = 1u;
+    old_profile_gate.motor_outputs_active = 1u;
+    old_profile_gate.applied_outputs_nonzero = 1u;
+    CHECK_EQ("non-Turn profiles cannot request slope assist",
+             car_follow_output_slope_assist_request(&old_profile_gate), 0u);
+}
+
+void test_turn_slope_assist_gate_and_per_side_slew()
+{
+    car_follow_slope_assist_gate_t gate{};
+    gate.follow_running = 1u;
+    gate.manual_run_request = 1u;
+    gate.follow_session_active = 1u;
+    gate.road_drive_allowed = 1u;
+    gate.trusted_slope_hint = 1u;
+    gate.vision_valid = 1u;
+    gate.vision_fresh = 1u;
+    gate.startup_qualified = 1u;
+    gate.servo_output_active = 1u;
+    gate.servo_frame_ready = 1u;
+    gate.motor_outputs_active = 1u;
+    gate.applied_outputs_nonzero = 1u;
+    gate.trusted_vision_error_norm = -100;
+    CHECK_EQ("Turn slope gate accepts -100 normalized error",
+             car_follow_output_turn_slope_assist_request(&gate), 1u);
+    gate.trusted_vision_error_norm = 100;
+    CHECK_EQ("Turn slope gate accepts +100 normalized error",
+             car_follow_output_turn_slope_assist_request(&gate), 1u);
+    gate.trusted_vision_error_norm = 101;
+    CHECK_EQ("Turn slope gate rejects steering error above 100",
+             car_follow_output_turn_slope_assist_request(&gate), 0u);
+    gate.trusted_vision_error_norm = 0;
+
+    uint8_t *required_gates[] = {
+        &gate.follow_running, &gate.manual_run_request,
+        &gate.follow_session_active, &gate.road_drive_allowed,
+        &gate.trusted_slope_hint, &gate.vision_valid, &gate.vision_fresh,
+        &gate.startup_qualified, &gate.servo_output_active,
+        &gate.servo_frame_ready, &gate.motor_outputs_active,
+        &gate.applied_outputs_nonzero
+    };
+    for (size_t index = 0u;
+         index < sizeof(required_gates) / sizeof(required_gates[0]);
+         ++index) {
+        uint8_t *mutable_gate = required_gates[index];
+        const uint8_t saved = *mutable_gate;
+        *mutable_gate = 0u;
+        CHECK_EQ("every independent startup/route/output gate is required",
+                 car_follow_output_turn_slope_assist_request(&gate), 0u);
+        *mutable_gate = saved;
+    }
+    gate.fault_or_stop = 1u;
+    CHECK_EQ("fault or stop blocks Turn slope request",
+             car_follow_output_turn_slope_assist_request(&gate), 0u);
+    gate.fault_or_stop = 0u;
+
+    car_follow_output_state_t state{};
+    uint16_t left = 0u;
+    uint16_t right = 0u;
+    CHECK_EQ("pre-start slope request remains at zero output",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 0u, 500u, 200u, 200u, 1530u, 1530u, 1100u,
+                 2500u, 1u, 1u, 1u, 0u, 0u, 1u, &left, &right), 1u);
+    CHECK_EQ("slope request cannot skip 500/500 startup target",
+             state.target_left_permille, 500u);
+    CHECK_EQ("pre-start request is not marked commanded",
+             state.slope_assist_active, 0u);
+    CHECK_EQ("pre-start motor command remains zero", left, 0u);
+
+    CHECK_EQ("completed actual 500/500 and full servo frame latch startup",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 10u, 500u, 200u, 200u, 1530u, 1530u, 1100u,
+                 2500u, 1u, 1u, 1u, 500u, 500u, 0u, &left, &right), 1u);
+    CHECK_EQ("startup qualifies only at actual straight 500/500",
+             state.startup_qualified, 1u);
+
+    CHECK_EQ("trusted straight slope request selects 700/700 targets",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 20u, 500u, 200u, 200u, 1530u, 1530u, 1100u,
+                 2500u, 1u, 1u, 1u, 500u, 500u, 1u, &left, &right), 1u);
+    CHECK_EQ("slope target is 700 left", state.target_left_permille, 700u);
+    CHECK_EQ("slope target is 700 right", state.target_right_permille, 700u);
+    CHECK_EQ("assist state describes the selected command", state.slope_assist_active, 1u);
+    CHECK_EQ("assist enters through one 20-permille left step", left, 520u);
+    CHECK_EQ("assist enters through one 20-permille right step", right, 520u);
+    CHECK(state.target_left_permille <= 700u &&
+              state.target_right_permille <= 700u,
+          "both assisted side targets respect the fixed 700 hard ceiling");
+    CHECK(state.target_left_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE,
+          "left slope target passes the fixed hard-bound check");
+    CHECK(state.target_right_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE,
+          "right slope target passes the fixed hard-bound check");
+
+    CHECK_EQ("long delay still advances uphill output by one step only",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 1000u, 500u, 200u, 200u, 1530u, 1530u,
+                 1100u, 2500u, 1u, 1u, 1u, 520u, 520u, 1u,
+                 &left, &right), 1u);
+    CHECK_EQ("delayed assisted left output has no catch-up", left, 540u);
+    CHECK_EQ("delayed assisted right output has no catch-up", right, 540u);
+
+    CHECK_EQ("right turn above u=100 withdraws assist immediately",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 1010u, 500u, 200u, 200u, 1599u, 1530u,
+                 1100u, 2500u, 1u, 1u, 1u, 700u, 700u, 1u,
+                 &left, &right), 1u);
+    CHECK_EQ("right turn restores the existing 70/30 differential outer target",
+             state.target_left_permille, 520u);
+    CHECK_EQ("right turn restores the existing 70/30 differential inner target",
+             state.target_right_permille, 480u);
+    CHECK_EQ("turn withdraws commanded-assist diagnostic immediately",
+             state.slope_assist_active, 0u);
+    CHECK_EQ("left motor decreases by no more than 20 on withdrawal", left, 680u);
+    CHECK_EQ("right motor decreases by no more than 20 on withdrawal", right, 680u);
+
+    CHECK_EQ("left turn above u=100 also withdraws assist",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 1020u, 500u, 200u, 200u, 1461u, 1530u,
+                 1100u, 2500u, 1u, 1u, 1u, 700u, 700u, 1u,
+                 &left, &right), 1u);
+    CHECK_EQ("left turn mirrors lower inner duty target",
+             state.target_left_permille, 455u);
+    CHECK_EQ("left turn mirrors upper outer duty target",
+             state.target_right_permille, 545u);
+    CHECK_EQ("left-turn ramp remains per-side limited", left, 680u);
+    CHECK_EQ("left-turn ramp remains per-side limited right", right, 680u);
 }
 
 void test_servo_center_frame_slew_fault_and_sticky_snapshot()
@@ -1362,8 +1536,20 @@ void test_protocol_validation_and_crc()
 
     uint8_t output[VP_FRAME_SIZE]{};
     vp_frame frame = make_wire_frame(2u);
-    frame.flags = 0x02u;
-    CHECK_EQ("unknown flag rejected", vp_pack(&frame, output), 0u);
+    frame.flags = static_cast<uint8_t>(VP_FLAG_VALID | VP_FLAG_SLOPE_HINT);
+    CHECK_EQ("valid slope hint remains wire-valid", vp_pack(&frame, output), 1u);
+    CHECK_EQ("slope hint round-trips with valid bit",
+             vp_unpack(output, &frame), 1u);
+    CHECK_EQ("slope hint bit is retained by parser",
+             frame.flags,
+             static_cast<uint8_t>(VP_FLAG_VALID | VP_FLAG_SLOPE_HINT));
+    frame = make_wire_frame(2u, true, 80u, 0);
+    frame.flags = 0x04u;
+    CHECK_EQ("unknown higher flag bit rejected", vp_pack(&frame, output), 0u);
+    frame = make_wire_frame(2u, false, 0u, 0);
+    frame.flags = VP_FLAG_SLOPE_HINT;
+    CHECK_EQ("slope hint on invalid observation rejected",
+             vp_pack(&frame, output), 0u);
     frame = make_wire_frame(2u, true, 101u, 0);
     CHECK_EQ("confidence above protocol maximum rejected", vp_pack(&frame, output), 0u);
     frame = make_wire_frame(2u, true, 80u, 1001);
@@ -1375,9 +1561,10 @@ void test_protocol_validation_and_crc()
 
     CHECK_EQ("all-zero invalid vector remains protocol-valid",
              vp_unpack(g_vectors[5].bytes.data(), &frame), 1u);
-    std::array<uint8_t, VP_FRAME_SIZE> corrupt = g_vectors[0].bytes;
+    std::array<uint8_t, VP_FRAME_SIZE> corrupt = g_vectors[9].bytes;
     corrupt[10] ^= 0x01u;
-    CHECK_EQ("CRC-corrupted frame rejected", vp_unpack(corrupt.data(), &frame), 0u);
+    CHECK_EQ("CRC-corrupted slope hint frame rejected",
+             vp_unpack(corrupt.data(), &frame), 0u);
     corrupt = g_vectors[0].bytes;
     corrupt[2] = static_cast<uint8_t>(VP_VERSION + 1u);
     CHECK_EQ("unsupported protocol version rejected", vp_unpack(corrupt.data(), &frame), 0u);
@@ -3025,6 +3212,70 @@ void test_raw_rx_is_diagnostic_and_flush_preserves_new_uart_error()
              old_queue_control.latest_rx_frame_count, 0u);
 }
 
+void test_slope_hint_trust_recovery_and_hold()
+{
+    const car_config_t config = make_follow_config();
+    car_control_t recovering{};
+    car_vision_rx_t rx{};
+    car_control_init(&recovering, &config, 0u, 1u, 0u);
+    confirm_follow_startup_release(&recovering, &config, 0u);
+    car_vision_rx_init(&rx);
+    car_control_note_fault(&recovering, CAR_FAULT_UART);
+    car_vision_rx_clear(&rx);
+    car_control_rx_recovery_flush_complete(&recovering);
+
+    for (uint16_t sequence = 1u; sequence <= 3u; ++sequence) {
+        enqueue_frame(&rx,
+                      make_wire_frame(sequence, true, 0u, 0, true),
+                      sequence);
+        poll_rx_current_snapshot(&rx, &recovering, &config, sequence, true);
+        CHECK_EQ("wire parser preserves the latest CRC-valid slope flag",
+                 recovering.latest_rx_slope_hint, 1u);
+        if (sequence < 3u) {
+            CHECK_EQ("one or two recovery frames cannot authorize slope",
+                     recovering.vision_slope_hint, 0u);
+        }
+    }
+    CHECK_EQ("third fresh forward frame commits slope hint",
+             recovering.vision_slope_hint, 1u);
+    CHECK_EQ("slope hint adds no confidence threshold",
+             recovering.vision_confidence, 0u);
+
+    enqueue_frame(&rx, make_wire_frame(3u, true, 0u, 0, true), 4u);
+    poll_rx_current_snapshot(&rx, &recovering, &config, 4u, true);
+    CHECK_EQ("duplicate slope frame remains visible in raw diagnostics",
+             recovering.latest_rx_slope_hint, 1u);
+    CHECK_EQ("duplicate sequence clears the trusted slope hint",
+             recovering.vision_slope_hint, 0u);
+    CHECK_EQ("duplicate sequence faults the normal controller path",
+             recovering.fault, CAR_FAULT_SEQUENCE);
+
+    car_control_t held{};
+    start_follow_by_physical_pe7(&held, &config, 400u, 0u);
+    send_frame_at(&held, &config, 403u, true, 0u, 0, 25u, 25u, false,
+                  true);
+    CHECK_EQ("fresh slope observation is trusted during Follow",
+             held.vision_slope_hint, 1u);
+    car_control_note_applied_outputs(&held, 1u, 1u, 1530u, 500u, 500u);
+    send_frame_at(&held, &config, 404u, false, 0u, 0, 26u, 26u, false);
+    CHECK_EQ("invalid frame clears trusted slope before entering hold",
+             held.vision_slope_hint, 0u);
+    CHECK_EQ("invalid no-hint frame enters the existing hold path",
+             held.mode, CAR_MODE_FOLLOW_VISION_HOLD);
+    send_frame_at(&held, &config, 405u, true, 0u, 0, 27u, 27u, false,
+                  true);
+    send_frame_at(&held, &config, 406u, true, 0u, 0, 28u, 28u, false,
+                  true);
+    CHECK_EQ("first two hold recovery frames do not commit slope",
+             held.vision_slope_hint, 0u);
+    send_frame_at(&held, &config, 407u, true, 0u, 0, 29u, 29u, false,
+                  true);
+    CHECK_EQ("third hold recovery frame commits its fresh slope hint",
+             held.vision_slope_hint, 1u);
+    CHECK_EQ("hold recovery preserves the established session",
+             held.mode, CAR_MODE_FOLLOW_RUNNING);
+}
+
 void test_follow_resume_is_session_scoped_and_pe7_isr_cancels()
 {
     const car_config_t config = make_follow_config();
@@ -4168,6 +4419,7 @@ car_runtime_log_sample_t make_runtime_log_follow_sample(uint32_t now_ms)
     sample.mode = CAR_MODE_FOLLOW_RUNNING;
     sample.follow_session_active = 1u;
     sample.manual_run_request = 1u;
+    sample.follow_profile_compiled = 1u;
     sample.servo_requested_us = 1530u;
     sample.servo_limited_us = 1530u;
     sample.servo_applied_us = 1530u;
@@ -4409,6 +4661,235 @@ void test_runtime_log_pending_stop_waits_for_applied_zero()
              car_runtime_log_storage.records[
                  car_runtime_log_storage.header.count - 1u].right_applied_permille,
              0u);
+}
+
+void test_runtime_log_hold_elapsed_does_not_emit_recovery()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(0u);
+    sample.mode = CAR_MODE_FOLLOW_VISION_HOLD;
+    sample.vision_hold_active = 1u;
+    sample.recovery_frame_count = 0u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+
+    sample.now_ms = 20u;
+    sample.vision_hold_elapsed_ms = 20u;
+    sample.recovery_frame_count = 4u; /* one elapsed hold tick, zero frames */
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("mode 12 hold timer alone does not append an event row",
+             car_runtime_log_storage.header.count, 1u);
+
+    sample.now_ms = 40u;
+    sample.vision_hold_elapsed_ms = 40u;
+    sample.recovery_frame_count = 9u; /* two ticks and one fresh frame */
+    sample.vision_hold_valid_count = 1u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("one valid recovery frame appends one event row",
+             car_runtime_log_storage.header.count, 2u);
+    CHECK((car_runtime_log_storage.records[1].event_flags &
+           CAR_RUNTIME_LOG_EVENT_RECOVERY) != 0u,
+          "hold recovery-frame change remains observable");
+}
+
+void test_runtime_log_slope_flags_keep_fixed_record_abi()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(0u);
+    sample.button_start_event_count = 1u;
+    sample.left_applied_permille = 507u;
+    sample.right_applied_permille = 493u;
+    sample.motor_ccr2_counts = 507u;
+    sample.motor_ccr3_counts = 493u;
+    sample.vision_flags |= CAR_RUNTIME_LOG_VISION_LATEST_SLOPE_HINT |
+                           CAR_RUNTIME_LOG_VISION_SLOPE_ASSIST_COMMANDED;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+    CHECK_EQ("fixed runtime record remains 64 bytes",
+             sizeof(car_runtime_log_record_t), 64u);
+    CHECK_EQ("vision flags remain at their existing record byte",
+             offsetof(car_runtime_log_record_t, vision_flags), 61u);
+    CHECK_EQ("new diagnostic bits are copied into byte 61 unchanged",
+             car_runtime_log_storage.records[0].vision_flags,
+             sample.vision_flags);
+    CHECK_EQ("left Follow output is serialized from its own applied value",
+             car_runtime_log_storage.records[0].left_applied_permille, 507u);
+    CHECK_EQ("right Follow output is serialized independently",
+             car_runtime_log_storage.records[0].right_applied_permille, 493u);
+
+    sample.now_ms = 20u;
+    sample.mode = CAR_MODE_FOLLOW_VISION_HOLD;
+    sample.vision_hold_active = 1u;
+    sample.vision_flags |= CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE;
+    sample.vision_hold_elapsed_ms = 20u;
+    sample.recovery_frame_count = 4u;
+    sample.left_applied_permille = 486u;
+    sample.right_applied_permille = 514u;
+    sample.motor_ccr2_counts = 486u;
+    sample.motor_ccr3_counts = 514u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK((car_runtime_log_storage.records[1].vision_flags &
+           CAR_RUNTIME_LOG_VISION_SLOPE_ASSIST_COMMANDED) != 0u,
+          "hold record retains the inherited assist-command diagnostic");
+    CHECK_EQ("second asymmetric pair remains left=486 in the fixed record",
+             car_runtime_log_storage.records[1].left_applied_permille, 486u);
+    CHECK_EQ("second asymmetric pair remains right=514 in the fixed record",
+             car_runtime_log_storage.records[1].right_applied_permille, 514u);
+
+    sample.now_ms = 70u;
+    sample.mode = CAR_MODE_FOLLOW_RUNNING;
+    sample.vision_hold_active = 0u;
+    sample.vision_flags &= (uint8_t)~CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE;
+    sample.left_applied_permille = 700u;
+    sample.right_applied_permille = 300u;
+    sample.motor_ccr2_counts = 700u;
+    sample.motor_ccr3_counts = 300u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("third one-sided case preserves 700 left in 64-byte record",
+             car_runtime_log_storage.records[2].left_applied_permille, 700u);
+    CHECK_EQ("third one-sided case preserves 300 right in 64-byte record",
+             car_runtime_log_storage.records[2].right_applied_permille, 300u);
+}
+
+void test_runtime_log_fault_cancel_is_not_physical_button_stop()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(10u);
+    sample.button_start_event_count = 1u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+
+    CHECK((car_runtime_log_storage.records[0].event_flags &
+           CAR_RUNTIME_LOG_EVENT_BUTTON_START) != 0u,
+          "consumed physical PE7 start event is recorded");
+
+    sample.now_ms = 11u;
+    sample.mode = CAR_MODE_FAULT_LATCHED;
+    sample.fault = CAR_FAULT_TIMER;
+    sample.fault_generation = 1u;
+    sample.hard_fault_latched = 1u;
+    sample.manual_run_request = 0u; /* hard-fault cancellation, not PE7 */
+    sample.servo_applied_us = 0u;
+    sample.left_applied_permille = 0u;
+    sample.right_applied_permille = 0u;
+    sample.motor_ccr1_counts = 0u;
+    sample.motor_ccr2_counts = 0u;
+    sample.motor_ccr3_counts = 0u;
+    sample.motor_ccr4_counts = 0u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+
+    const uint16_t final_events = car_runtime_log_storage.records[
+        car_runtime_log_storage.header.count - 1u].event_flags;
+    CHECK_EQ("fault-cancelled request still freezes its session",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_FROZEN);
+    CHECK((final_events & CAR_RUNTIME_LOG_EVENT_STOP) != 0u,
+          "fault-cancelled request retains the session stop event");
+    CHECK((final_events & CAR_RUNTIME_LOG_EVENT_BUTTON_STOP) == 0u,
+          "request cancellation is not mislabeled as a physical PE7 stop");
+}
+
+void test_runtime_log_physical_button_counter_edges()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(100u);
+
+    /* Reconcile the real physical counter even when the one-loop token was
+       lost before the logger's first publication call. */
+    sample.button_start_event_count = 1u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("physical PE7 counter starts an idle Follow logger",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_ACTIVE);
+    CHECK_EQ("reconciled physical start publishes its first row",
+             car_runtime_log_storage.header.count, 1u);
+    const uint16_t first_events =
+        car_runtime_log_storage.records[0].event_flags;
+    CHECK((first_events & CAR_RUNTIME_LOG_EVENT_START) != 0u,
+          "reconciled row carries the session START event");
+    CHECK((first_events & CAR_RUNTIME_LOG_EVENT_BUTTON_START) != 0u,
+          "reconciled row retains the physical BUTTON_START event");
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+    CHECK_EQ("late explicit token cannot start a duplicate session",
+             car_runtime_log_storage.header.session_id, 1u);
+    CHECK_EQ("late explicit token does not duplicate the first row",
+             car_runtime_log_storage.header.count, 1u);
+
+    sample.now_ms = 101u;
+    sample.button_start_event_count = 2u;
+    sample.button_stop_generation = 1u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    const uint16_t events = car_runtime_log_storage.records[1].event_flags;
+    CHECK((events & CAR_RUNTIME_LOG_EVENT_BUTTON_START) != 0u,
+          "start counter delta is logged independently");
+    CHECK((events & CAR_RUNTIME_LOG_EVENT_BUTTON_STOP) != 0u,
+          "stop generation delta is logged even when both counters change");
+}
+
+void test_runtime_log_automatic_follow_never_starts_or_replaces_session()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(200u);
+    sample.mode = CAR_MODE_FOLLOW_RUNNING;
+    sample.follow_session_active = 1u;
+
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("automatic Follow state does not start logging",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_IDLE);
+
+    sample.button_start_event_count = 1u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+    CHECK_EQ("explicit physical Follow start creates session one",
+             car_runtime_log_storage.header.session_id, 1u);
+
+    sample.now_ms = 201u;
+    sample.mode = CAR_MODE_WAIT_SWITCH_RELEASE;
+    sample.fault = CAR_FAULT_SWITCH_RELEASE;
+    sample.follow_session_active = 0u;
+    sample.manual_run_request = 0u;
+    sample.button_stop_generation = 1u;
+    sample.servo_applied_us = 0u;
+    sample.left_applied_permille = 0u;
+    sample.right_applied_permille = 0u;
+    sample.motor_ccr1_counts = 0u;
+    sample.motor_ccr2_counts = 0u;
+    sample.motor_ccr3_counts = 0u;
+    sample.motor_ccr4_counts = 0u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("physical stop freezes the one recorded session",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_FROZEN);
+
+    sample.now_ms = 202u;
+    sample.mode = CAR_MODE_FOLLOW_RUNNING;
+    sample.fault = CAR_FAULT_NONE;
+    sample.follow_session_active = 1u;
+    sample.manual_run_request = 1u;
+    sample.servo_applied_us = 1530u;
+    sample.left_applied_permille = 120u;
+    sample.right_applied_permille = 120u;
+    sample.motor_ccr1_counts = 120u;
+    sample.motor_ccr4_counts = 120u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("automatic Follow recovery cannot replace frozen RAM evidence",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_FROZEN);
+    CHECK_EQ("automatic Follow recovery preserves prior session identity",
+             car_runtime_log_storage.header.session_id, 1u);
+
+    sample.now_ms = 203u;
+    sample.mode = CAR_MODE_FOLLOW_RUNNING;
+    sample.fault = CAR_FAULT_NONE;
+    sample.follow_session_active = 1u;
+    sample.manual_run_request = 1u;
+    sample.button_start_event_count = 2u;
+    sample.button_stop_generation = 1u;
+    sample.servo_applied_us = 1530u;
+    sample.left_applied_permille = 120u;
+    sample.right_applied_permille = 120u;
+    sample.motor_ccr1_counts = 120u;
+    sample.motor_ccr4_counts = 120u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("new physical start counter begins the next frozen-session log",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_ACTIVE);
+    CHECK_EQ("new physical start increments session identity once",
+             car_runtime_log_storage.header.session_id, 2u);
+    CHECK((car_runtime_log_storage.records[0].event_flags &
+           CAR_RUNTIME_LOG_EVENT_BUTTON_START) != 0u,
+          "new session records the actual button start");
 }
 
 void test_runtime_log_restart_overwrites_header_without_buffer_clear()
@@ -4748,11 +5229,493 @@ void test_logging_toggle_does_not_change_follow_recovery()
              logging_on.follow_output_duty_permille);
 }
 
+void test_speed_observer_signs_jitter_and_clock_wrap()
+{
+    car_speed_observer_t observer{};
+    car_speed_observer_result_t result{};
+    const uint32_t start = 0xFFFFFFF0u;
+    car_speed_observer_init(&observer, start, 100, 200,
+                            60000u, 1, 60000u, -1);
+
+    CHECK_EQ("speed observer waits for 10ms", car_speed_observer_update(
+                 &observer, start + 5u, 100, 200, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_NOT_READY);
+    CHECK_EQ("speed observer samples across wrap", car_speed_observer_update(
+                 &observer, start + 20u, 120, 170, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("left forward sign gives positive mRPS",
+             result.left_millirps, 16);
+    CHECK_EQ("right inverted sign gives positive mRPS",
+             result.right_millirps, 25);
+    CHECK_EQ("actual elapsed interval recorded", result.elapsed_ms, 20u);
+
+    CHECK_EQ("jittered sample uses 15ms actual dt",
+             car_speed_observer_update(&observer, start + 35u, 135, 155,
+                                       1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("jittered speed remains calibrated", result.left_millirps, 16);
+    CHECK_EQ("jittered elapsed interval", result.elapsed_ms, 15u);
+
+    CHECK_EQ("delayed loop produces one sample only",
+             car_speed_observer_update(&observer, start + 65u, 165, 125,
+                                       1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("delayed loop does not replay missed periods",
+             result.elapsed_ms, 30u);
+}
+
+void test_speed_observer_invalid_inputs_and_stall()
+{
+    car_speed_observer_t observer{};
+    car_speed_observer_result_t result{};
+    car_speed_observer_init(&observer, 0u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    CHECK_EQ("encoderless zero window at 10ms",
+             car_speed_observer_update(&observer, 10u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("jittered 20ms stall window",
+             car_speed_observer_update(&observer, 30u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("jittered 100ms stall window",
+             car_speed_observer_update(&observer, 130u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("second 100ms stall window",
+             car_speed_observer_update(&observer, 230u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("299ms continuous zero is not yet a stall",
+             car_speed_observer_update(&observer, 299u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("zero timer reaches 299ms", observer.left_zero_expected_ms, 299u);
+    CHECK_EQ("one millisecond cannot bypass 10ms sampler cadence",
+             car_speed_observer_update(&observer, 300u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_WAITING);
+    CHECK_EQ("stall is reported when next eligible sample crosses 300ms",
+             car_speed_observer_update(&observer, 309u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("stall revokes speed validity", result.valid, 0u);
+    CHECK_EQ("stall remains visible before next 10ms sample",
+             car_speed_observer_update(&observer, 310u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("persistent broken encoder remains invalid after 100ms",
+             car_speed_observer_update(&observer, 409u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("persistent stall remains visible after another 100ms",
+             car_speed_observer_update(&observer, 509u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("persistent stall remains invalid at 600ms",
+             car_speed_observer_update(&observer, 600u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("persistent stall speed stays invalid", result.valid, 0u);
+    CHECK_EQ("real positive encoder counts restore observation",
+             car_speed_observer_update(&observer, 610u, 10, -10, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("movement restores observer validity", result.valid, 1u);
+
+    car_speed_observer_init(&observer, 0u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    (void)car_speed_observer_update(&observer, 10u, 0, 0, 1u, &result);
+    (void)car_speed_observer_update(&observer, 30u, 0, 0, 1u, &result);
+    (void)car_speed_observer_update(&observer, 130u, 0, 0, 1u, &result);
+    (void)car_speed_observer_update(&observer, 230u, 0, 0, 1u, &result);
+    CHECK_EQ("10/20/100ms jitter reaches exact 300ms stall boundary",
+             car_speed_observer_update(&observer, 300u, 0, 0, 1u, &result),
+             CAR_SPEED_OBSERVER_STATUS_STALL);
+    CHECK_EQ("standby clears persistent stall diagnostic",
+             car_speed_observer_update(&observer, 310u, 0, 0, 0u, &result),
+             CAR_SPEED_OBSERVER_STATUS_SAMPLE);
+    CHECK_EQ("standby clears accumulated zero time",
+             observer.left_zero_expected_ms, 0u);
+
+    car_speed_observer_init(&observer, 0u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    (void)car_speed_observer_update(&observer, 100u, 0, 0, 1u, &result);
+    CHECK_EQ("zero timer accumulates only while output expects motion",
+             observer.left_zero_expected_ms, 100u);
+    (void)car_speed_observer_update(&observer, 110u, 0, 0, 0u, &result);
+    CHECK_EQ("stop clears stall time before restart",
+             observer.left_zero_expected_ms, 0u);
+    (void)car_speed_observer_update(&observer, 120u, 0, 0, 1u, &result);
+    CHECK_EQ("restart begins new zero interval",
+             observer.left_zero_expected_ms, 10u);
+
+    car_speed_observer_init(&observer, 0u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    CHECK_EQ("normalized reverse count is invalid",
+             car_speed_observer_update(&observer, 10u, -1, 0, 0u, &result),
+             CAR_SPEED_OBSERVER_STATUS_REVERSE_DELTA);
+
+    car_speed_observer_init(&observer, 0u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    CHECK_EQ("long loop gap invalidates baseline",
+             car_speed_observer_update(&observer, 101u, 5, -5, 0u, &result),
+             CAR_SPEED_OBSERVER_STATUS_CLOCK_GAP);
+    CHECK_EQ("gap invalidates speed", result.valid, 0u);
+
+    car_speed_observer_init(&observer, 100u, INT64_MIN, 0,
+                            60000u, 1, 60000u, -1);
+    CHECK_EQ("cumulative-count subtraction overflow is rejected",
+             car_speed_observer_update(&observer, 110u, INT64_MAX, 0, 0u,
+                                       &result),
+             CAR_SPEED_OBSERVER_STATUS_COUNT_RANGE);
+
+    car_speed_observer_init(&observer, 0x100u, 0, 0,
+                            60000u, 1, 60000u, -1);
+    CHECK_EQ("backward half-range clock is rejected",
+             car_speed_observer_update(&observer, 0xFFFFFF00u, 0, 0, 0u,
+                                       &result),
+             CAR_SPEED_OBSERVER_STATUS_CLOCK_GAP);
+}
+
+void test_speed_pi_shadow_math_gates_and_antiwindup()
+{
+    car_speed_pi_state_t state{};
+    car_speed_pi_output_t output{};
+    car_speed_pi_config_t config{1u, 700u, 65536u, 65536u};
+    car_speed_pi_input_t input{};
+    input.lifecycle = CAR_SPEED_PI_LIFECYCLE_RUNNING;
+    input.speed_sample_valid = 1u;
+    input.feedforward_permille = 100u;
+    input.dt_ms = 100u;
+    input.target_millirps = 100;
+    input.measured_millirps = 100;
+    CHECK_EQ("PI steady baseline proposal is feedforward",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    const uint16_t baseline_duty = output.requested_permille;
+    input.measured_millirps = 80;
+    CHECK_EQ("PI loadstep proposal is computed",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("PI loadstep includes feedforward and proportional term",
+             output.requested_permille, 122u);
+    CHECK(output.requested_permille > baseline_duty,
+          "simulated load-induced speed drop increases proposal");
+    CHECK_EQ("PI library proposal is permission-gated until configured/run",
+             output.motor_permission, 1u);
+
+    config.kp_q16 = CAR_SPEED_PI_MAX_GAIN_Q16;
+    config.ki_q16 = CAR_SPEED_PI_MAX_GAIN_Q16;
+    input.feedforward_permille = 690u;
+    input.target_millirps = 1000;
+    input.measured_millirps = 0;
+    state.integral_q16 = 0;
+    CHECK_EQ("PI output saturates at independent 700 cap",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("PI cap remains 700", output.requested_permille, 700u);
+    CHECK_EQ("PI reports saturation", output.saturated, 1u);
+    CHECK_EQ("conditional integration prevents upper windup",
+             state.integral_q16, INT64_C(0));
+    input.measured_millirps = 1010;
+    CHECK_EQ("PI recovers below cap when error reverses",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK(output.requested_permille < 700u,
+          "reverse error lowers requested output");
+
+    input.measured_millirps = 0;
+    input.downstream_applied_valid = 1u;
+    input.downstream_applied_permille = 400u;
+    const int64_t integral_before_tracking = state.integral_q16;
+    const int64_t expected_tracked_integral = integral_before_tracking +
+        ((int64_t)input.downstream_applied_permille -
+         state.requested_permille) * INT64_C(65536);
+    (void)car_speed_pi_update(&state, &config, &input, &output);
+    CHECK_EQ("tracking compares prior applied duty with prior proposal",
+             state.integral_q16, expected_tracked_integral);
+
+    input.target_millirps = 0;
+    CHECK_EQ("zero target has no permission",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("zero target output is zero", output.motor_permission, 0u);
+    CHECK_EQ("zero target clears stored integral", state.integral_q16,
+             INT64_C(0));
+
+    input.target_millirps = 100;
+    input.lifecycle = CAR_SPEED_PI_LIFECYCLE_HOLD;
+    state.integral_q16 = 12345;
+    CHECK_EQ("hold freezes PI integrator and revokes permission",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_HOLD);
+    CHECK_EQ("hold preserves integral", state.integral_q16, INT64_C(12345));
+    CHECK_EQ("hold does not permit motor output", output.motor_permission, 0u);
+
+    input.lifecycle = CAR_SPEED_PI_LIFECYCLE_STARTUP;
+    CHECK_EQ("startup resets PI state",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_STARTUP);
+    CHECK_EQ("startup clears integral", state.integral_q16, INT64_C(0));
+    CHECK_EQ("startup has no motor permission", output.motor_permission, 0u);
+
+    input.lifecycle = CAR_SPEED_PI_LIFECYCLE_RUNNING;
+    input.speed_sample_valid = 0u;
+    CHECK_EQ("invalid encoder sample blocks PI",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("invalid encoder sample has no permission",
+             output.motor_permission, 0u);
+    CHECK_EQ("invalid encoder sample clears stale integral",
+             state.integral_q16, INT64_C(0));
+
+    config.configured = 0u;
+    input.speed_sample_valid = 1u;
+    CHECK_EQ("unconfigured gains block PI",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_DISABLED);
+    CHECK_EQ("unconfigured PI cannot request motor output",
+             output.motor_permission, 0u);
+    CHECK_EQ("unconfigured PI clears stored integral", state.integral_q16,
+             INT64_C(0));
+    config.configured = 1u;
+    config.output_cap_permille = 701u;
+    CHECK_EQ("cap above independent 700 rejected",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("invalid cap has no permission", output.motor_permission, 0u);
+
+    config.output_cap_permille = CAR_SPEED_PI_MAX_OUTPUT_PERMILLE;
+    config.kp_q16 = CAR_SPEED_PI_MAX_GAIN_Q16;
+    config.ki_q16 = CAR_SPEED_PI_MAX_GAIN_Q16;
+    input.target_millirps = CAR_SPEED_PI_MAX_SPEED_MILLIRPS;
+    input.measured_millirps = 0;
+    input.dt_ms = CAR_SPEED_PI_MAX_DT_MS;
+    input.feedforward_permille = 0u;
+    input.downstream_applied_valid = 0u;
+    CHECK_EQ("maximum bounded PI inputs remain defined",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("maximum bounded PI input saturates at 700",
+             output.requested_permille, 700u);
+    CHECK_EQ("maximum bounded PI input reports saturation",
+             output.saturated, 1u);
+
+    config.kp_q16 = 0u;
+    config.ki_q16 = 0u;
+    config.output_cap_permille = 700u;
+    input.target_millirps = 100;
+    input.measured_millirps = 100;
+    input.dt_ms = 10u;
+    input.feedforward_permille = 0u;
+    input.downstream_applied_valid = 0u;
+    state.integral_q16 = INT64_C(699) * INT64_C(65536);
+    state.previous_proposal_valid = 0u;
+    CHECK_EQ("large-cap PI state is valid before cap change",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    config.output_cap_permille = 400u;
+    CHECK_EQ("lowered cap bounds existing PI state immediately",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK(state.integral_q16 <= INT64_C(400) * INT64_C(65536),
+          "stored integral respects newly lowered cap");
+    CHECK(output.requested_permille <= 400u,
+          "proposal respects newly lowered cap");
+
+    car_speed_pi_reset(&state);
+    config = car_speed_pi_config_t{1u, 700u, 0u, 0u, 200u, 0u};
+    input = car_speed_pi_input_t{};
+    input.lifecycle = CAR_SPEED_PI_LIFECYCLE_RUNNING;
+    input.speed_sample_valid = 1u;
+    input.feedforward_permille = 100u;
+    input.dt_ms = 1000u;
+    input.target_millirps = 100;
+    input.measured_millirps = 100;
+    CHECK_EQ("tracking-time controller establishes its prior proposal",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    input.downstream_applied_valid = 1u;
+    input.downstream_applied_permille = 300u;
+    CHECK_EQ("tracking-time back-calculation accepts bounded long sample",
+             car_speed_pi_update(&state, &config, &input, &output),
+             CAR_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("tracking correction clamps dt to tracking time",
+             state.integral_q16, INT64_C(200) * INT64_C(65536));
+}
+
+void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
+{
+    car_follow_speed_pi_state_t state{};
+    car_follow_speed_pi_input_t input{};
+    uint16_t command_left = 0u;
+    uint16_t command_right = 0u;
+
+    input.enabled = 1u;
+    CHECK_EQ("PI adapter waits behind existing startup qualification",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_NOT_READY);
+    CHECK_EQ("startup gate leaves PI unarmed", state.armed, 0u);
+
+    input.follow_running = 1u;
+    input.startup_qualified = 1u;
+    input.actual_motor_outputs = 1u;
+    input.servo_ready = 1u;
+    input.speed_sample_valid = 1u;
+    input.new_speed_sample = 1u;
+    input.sample_ms = 10u;
+    input.sample_elapsed_ms = 10u;
+    input.sample_age_ms = 0u;
+    input.nominal_left_permille = 500u;
+    input.nominal_right_permille = 500u;
+    input.applied_left_permille = 500u;
+    input.applied_right_permille = 500u;
+    input.measured_left_millirps = 2400;
+    input.measured_right_millirps = 2400;
+    CHECK_EQ("qualified fresh sample arms the independent PI adapter",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("straight speed target is 2400 milli-RPS",
+             state.target_left_millirps, 2400);
+    CHECK_EQ("steady speed proposal stays at 500 permille",
+             state.proposal_left_permille, 500u);
+    CHECK_EQ("steady right proposal stays at 500 permille",
+             state.proposal_right_permille, 500u);
+
+    const uint16_t proposal_before_duplicate = state.proposal_left_permille;
+    const int64_t integral_before_duplicate = state.left.integral_q16;
+    input.new_speed_sample = 0u;
+    input.sample_age_ms = 5u;
+    input.measured_left_millirps = 1000;
+    CHECK_EQ("duplicate observer timestamp does not update PI",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("duplicate timestamp retains proposal",
+             state.proposal_left_permille, proposal_before_duplicate);
+    CHECK_EQ("duplicate timestamp retains integral",
+             state.left.integral_q16, integral_before_duplicate);
+
+    input.new_speed_sample = 1u;
+    input.sample_ms = 20u;
+    input.sample_age_ms = 0u;
+    input.measured_left_millirps = 1800;
+    input.measured_right_millirps = 2400;
+    input.applied_left_permille = 480u;
+    input.applied_right_permille = 500u;
+    CHECK_EQ("load drop raises only the affected side proposal",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(state.proposal_left_permille > 500u,
+          "left load drop increases left proposal");
+    CHECK_EQ("unloaded side remains at nominal proposal",
+             state.proposal_right_permille, 500u);
+    CHECK_EQ("nominal left target remains 2400 milli-RPS",
+             state.target_left_millirps, 2400);
+
+    CHECK_EQ("PI output ramp advances one 20-permille step",
+             car_follow_speed_pi_ramp(&state, 1u, 500u, 500u,
+                                      &command_left, &command_right), 1u);
+    CHECK_EQ("load correction slew is bounded to 20",
+             command_left, 520u);
+    CHECK_EQ("unloaded side has no output step",
+             command_right, 500u);
+    CHECK_EQ("PI output ramp does not step before its 10 ms deadline",
+             car_follow_speed_pi_ramp(&state, 0u, 520u, 500u,
+                                      &command_left, &command_right), 1u);
+    CHECK_EQ("not-due step leaves the applied left output unchanged",
+             command_left, 520u);
+
+    input.sample_ms = 30u;
+    input.measured_left_millirps = 5000;
+    input.measured_right_millirps = 5000;
+    input.applied_left_permille = 520u;
+    input.applied_right_permille = 500u;
+    CHECK_EQ("overspeed sample reduces both side proposals",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(state.proposal_left_permille < 500u,
+          "overspeed reduces left request below feedforward");
+    CHECK(state.proposal_right_permille < 500u,
+          "overspeed reduces right request below feedforward");
+
+    input.sample_ms = 40u;
+    input.measured_left_millirps = 10000;
+    input.measured_right_millirps = 10000;
+    input.applied_left_permille = 20u;
+    input.applied_right_permille = 20u;
+    CHECK_EQ("strong overspeed can request zero on both sides",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("zero correction is permitted for left request",
+             state.proposal_left_permille, 0u);
+    CHECK_EQ("zero correction is permitted for right request",
+             state.proposal_right_permille, 0u);
+    CHECK_EQ("zero correction keeps PI state armed",
+             state.armed, 1u);
+    CHECK_EQ("zero correction still ramps without resetting startup",
+             car_follow_speed_pi_ramp(&state, 1u, 20u, 20u,
+                                      &command_left, &command_right), 1u);
+    CHECK_EQ("zero correction reaches zero within the allowed slew",
+             command_left, 0u);
+    CHECK_EQ("zero correction reaches zero on the second side",
+             command_right, 0u);
+
+    input.sample_ms = 50u;
+    input.measured_left_millirps = 0;
+    input.measured_right_millirps = 0;
+    input.applied_left_permille = 0u;
+    input.applied_right_permille = 0u;
+    CHECK_EQ("underspeed after zero-coast recovers without a startup reset",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("underspeed ramp recovers from actual zero on left",
+             car_follow_speed_pi_ramp(&state, 1u, 0u, 0u,
+                                      &command_left, &command_right), 1u);
+    CHECK_EQ("underspeed recovery starts with a 20-permille left step",
+             command_left, 20u);
+    CHECK_EQ("underspeed recovery starts with a 20-permille right step",
+             command_right, 20u);
+    CHECK_EQ("zero-coast recovery remains armed", state.armed, 1u);
+
+    const int64_t hold_integral = state.left.integral_q16;
+    input.vision_hold = 1u;
+    input.applied_left_permille = command_left;
+    input.applied_right_permille = command_right;
+    CHECK_EQ("vision hold freezes PI updates", car_follow_speed_pi_update(
+                 &state, &input), CAR_FOLLOW_SPEED_PI_STATUS_HOLD);
+    CHECK_EQ("vision hold preserves bounded integral",
+             state.left.integral_q16, hold_integral);
+    CHECK_EQ("vision hold preserves stored proposal",
+             state.proposal_left_permille, 700u);
+
+    input.vision_hold = 0u;
+    input.new_speed_sample = 0u;
+    input.sample_ms = 80u;
+    CHECK_EQ("hold resume clears stale proposal history",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("hold resume begins at actual applied left output",
+             state.proposal_left_permille, command_left);
+    CHECK_EQ("hold resume preserves integral without old tracking",
+             state.left.integral_q16, hold_integral);
+
+    input.new_speed_sample = 1u;
+    input.sample_ms = 90u;
+    input.sample_age_ms = 101u;
+    CHECK_EQ("stale qualified encoder data invalidates PI",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("stale data clears PI arm and stored request", state.armed, 0u);
+    CHECK_EQ("stale data clears old integral", state.left.integral_q16,
+             INT64_C(0));
+    CHECK_EQ("invalid PI state cannot ramp a stale command",
+             car_follow_speed_pi_ramp(&state, 1u, 200u, 200u,
+                                      &command_left, &command_right), 0u);
+
+    input.sample_age_ms = 0u;
+    input.speed_sample_valid = 0u;
+    CHECK_EQ("invalid duplicate sample also fails closed",
+             car_follow_speed_pi_update(&state, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("invalid sample clears stale target", state.target_left_millirps,
+             0);
+}
+
 bool emit_runtime_log_fixture(const char *path)
 {
     car_runtime_log_sample_t sample =
         make_runtime_log_follow_sample(0xFFFFFFF0u);
     car_runtime_log_init();
+    sample.button_start_event_count = 1u;
     sample.left_encoder_counts = INT64_C(0x123456789);
     sample.right_encoder_counts = -INT64_C(0x123456789);
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
@@ -4774,6 +5737,7 @@ bool emit_runtime_log_fixture(const char *path)
     sample.fault = CAR_FAULT_SWITCH_RELEASE;
     sample.follow_session_active = 0u;
     sample.manual_run_request = 0u;
+    sample.button_stop_generation = 1u;
     sample.vision_flags &= static_cast<uint8_t>(
         ~CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE);
     sample.vision_hold_active = 0u;
@@ -4843,6 +5807,8 @@ int main(int argc, char **argv)
              test_servo_live_clock_profile_derivation);
     run_case("follow_output_differential_and_independent_ramps",
              test_follow_output_differential_and_independent_ramps);
+    run_case("turn_slope_assist_gate_and_per_side_slew",
+             test_turn_slope_assist_gate_and_per_side_slew);
     run_case("servo_center_frame_slew_sticky_fault",
              test_servo_center_frame_slew_fault_and_sticky_snapshot);
     run_case("servo_stop_phase_and_pending_policy",
@@ -4874,6 +5840,8 @@ int main(int argc, char **argv)
     run_case("debug_steering_fault_recovery", test_debug_steering_fault_recovery_and_hard_lock);
     run_case("recovery_confidence_age_gap_wrap", test_recovery_confidence_age_gap_wrap_and_bad_sequence);
     run_case("raw_rx_flush_generation", test_raw_rx_is_diagnostic_and_flush_preserves_new_uart_error);
+    run_case("slope_hint_trust_recovery_and_hold",
+             test_slope_hint_trust_recovery_and_hold);
     run_case("follow_session_resume_pe7_cancel", test_follow_resume_is_session_scoped_and_pe7_isr_cancels);
     run_case("uart_fifo_service_batches_recovery",
              test_uart_fifo_service_batches_errors_and_follow_recovery);
@@ -4905,6 +5873,16 @@ int main(int argc, char **argv)
              test_runtime_log_bench_one_shot_freezes);
     run_case("runtime_log_stop_waits_for_zero_output",
              test_runtime_log_pending_stop_waits_for_applied_zero);
+    run_case("runtime_log_hold_timer_not_recovery_event",
+             test_runtime_log_hold_elapsed_does_not_emit_recovery);
+    run_case("runtime_log_slope_flags_fixed_abi",
+             test_runtime_log_slope_flags_keep_fixed_record_abi);
+    run_case("runtime_log_fault_cancel_not_button_stop",
+             test_runtime_log_fault_cancel_is_not_physical_button_stop);
+    run_case("runtime_log_physical_button_counter_edges",
+             test_runtime_log_physical_button_counter_edges);
+    run_case("runtime_log_auto_follow_no_session_replacement",
+             test_runtime_log_automatic_follow_never_starts_or_replaces_session);
     run_case("runtime_log_restart_header_only",
              test_runtime_log_restart_overwrites_header_without_buffer_clear);
     run_case("runtime_log_capacity_drop_rate_limit",
@@ -4913,6 +5891,14 @@ int main(int argc, char **argv)
              test_run_block_reason_reports_first_gate);
     run_case("runtime_log_toggle_control_invariant",
              test_logging_toggle_does_not_change_follow_recovery);
+    run_case("speed_observer_signs_jitter_clock_wrap",
+             test_speed_observer_signs_jitter_and_clock_wrap);
+    run_case("speed_observer_invalid_inputs_stall",
+             test_speed_observer_invalid_inputs_and_stall);
+    run_case("speed_pi_shadow_math_gates_antiwindup",
+             test_speed_pi_shadow_math_gates_and_antiwindup);
+    run_case("follow_speed_pi_adapter_sample_slew_hold_recovery",
+             test_follow_speed_pi_adapter_sample_slew_hold_and_recovery);
 
     std::printf("HOST_TEST_SUMMARY cases=%u assertions=%u failures=%u vectors=%u\n",
                 g_case_count, g_check_count, g_fail_count,

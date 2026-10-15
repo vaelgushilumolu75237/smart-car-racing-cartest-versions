@@ -1,7 +1,7 @@
 {
-  "version": "v20261014-0422-after",
-  "status": "archived-post-turn-response-0841",
-  "branch": "archive/20261014-0422-after",
-  "files": 267,
+  "version": "v20261015-bend-preview",
+  "status": "experimental-software-tested-road-pending",
+  "branch": "fix/bend-preview",
+  "files": 348,
   "hardware_actions": "none"
 }

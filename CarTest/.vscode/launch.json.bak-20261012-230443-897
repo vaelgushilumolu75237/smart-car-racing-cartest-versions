@@ -1,0 +1,85 @@
+{
+    "version":  "0.2.0",
+    "configurations":  [
+                           {
+                               "name":  "CarTest H743 - Debug (all actuators off)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build Debug",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/Debug/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/Debug/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugSteering (motors locked; vision steering diagnostic)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugSteering (motors locked; vision steering diagnostic)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugBench (motor outputs locked pending hardware acceptance)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugBench (motor outputs locked pending hardware acceptance)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "CarTest H743 - DebugFollowNoLog (motors enabled; PE7 manual start; 40% cap; RAM log OFF)",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollowNoLog (motors enabled; PE7 manual start; 40% cap; RAM log OFF)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowNoLog/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowNoLog/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           }
+                       ]
+}

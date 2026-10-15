@@ -1,5 +1,6 @@
 #include "commissioning.h"
 #include "car_calibration.h"
+#include "vision_protocol.h"
 
 #define CAR_DEFAULT_VISION_TIMEOUT_MS 250u
 #define CAR_HARD_BENCH_LIMIT_PM       400u
@@ -204,6 +205,7 @@ uint8_t car_control_bench_channel_mask(const car_control_t *control)
 static void clear_trusted_observation(car_control_t *control)
 {
     control->vision_valid = 0u;
+    control->vision_slope_hint = 0u;
     control->vision_timeout = 1u;
     control->vision_confidence = 0u;
     control->vision_error_norm = 0;
@@ -429,9 +431,11 @@ static void store_trusted_observation(car_control_t *control,
                                       uint16_t sequence,
                                       uint8_t confidence,
                                       int16_t error_norm,
-                                      uint32_t arrival_ms)
+                                      uint32_t arrival_ms,
+                                      uint8_t slope_hint)
 {
     control->vision_valid = 1u;
+    control->vision_slope_hint = slope_hint != 0u ? 1u : 0u;
     control->vision_timeout = 0u;
     control->vision_confidence = confidence;
     control->vision_error_norm = clamp_error(error_norm);
@@ -702,19 +706,22 @@ void car_control_reverse_control_keep_started(car_control_t *control)
     }
 }
 
-void car_control_on_vision_frame_at(car_control_t *control,
-                                    const car_config_t *config,
-                                    uint16_t sequence,
-                                    uint8_t valid,
-                                    uint8_t confidence,
-                                    int16_t error_norm,
-                                    uint32_t arrival_ms,
-                                    uint32_t now_ms,
-                                    uint8_t pe7_raw_high)
+void car_control_on_vision_frame_at_with_flags(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high)
 {
     uint16_t delta;
     uint32_t interval;
     uint32_t queue_age;
+    uint8_t valid = (flags & VP_FLAG_VALID) != 0u ? 1u : 0u;
+    uint8_t slope_hint = (flags & VP_FLAG_SLOPE_HINT) != 0u ? 1u : 0u;
 
     if (control == 0) {
         return;
@@ -722,6 +729,7 @@ void car_control_on_vision_frame_at(car_control_t *control,
 
     /* CRC/format-validated data remains visible during every control fault. */
     control->latest_rx_valid = valid != 0u ? 1u : 0u;
+    control->latest_rx_slope_hint = slope_hint;
     control->latest_rx_confidence = confidence;
     control->latest_rx_error_norm = error_norm;
     control->latest_rx_sequence = sequence;
@@ -800,6 +808,7 @@ void car_control_on_vision_frame_at(car_control_t *control,
     if (valid == 0u) {
         ++control->invalid_vision_count;
         control->vision_valid = 0u;
+        control->vision_slope_hint = 0u;
         control->vision_timeout = 0u;
         if (control->recovery_active != 0u ||
             control->mode == CAR_MODE_RECOVERY_WAIT ||
@@ -897,7 +906,7 @@ void car_control_on_vision_frame_at(car_control_t *control,
                 control->vision_hold_base_duty_permille;
         }
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms);
+                                  error_norm, arrival_ms, slope_hint);
         control->vision_hold_active = 0u;
         control->vision_hold_expired = 0u;
         control->vision_hold_exit_cause = CAR_VISION_HOLD_EXIT_RECOVERED;
@@ -949,7 +958,7 @@ void car_control_on_vision_frame_at(car_control_t *control,
         }
 
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms);
+                                  error_norm, arrival_ms, slope_hint);
         if (control->mode == CAR_MODE_WAIT_NEW_FRAME) {
             control->ack_waiting_new_frame = 0u;
         }
@@ -968,7 +977,23 @@ void car_control_on_vision_frame_at(car_control_t *control,
 
     note_reverse_control_frame(control);
     store_trusted_observation(control, config, sequence, confidence,
-                              error_norm, arrival_ms);
+                              error_norm, arrival_ms, slope_hint);
+}
+
+void car_control_on_vision_frame_at(car_control_t *control,
+                                    const car_config_t *config,
+                                    uint16_t sequence,
+                                    uint8_t valid,
+                                    uint8_t confidence,
+                                    int16_t error_norm,
+                                    uint32_t arrival_ms,
+                                    uint32_t now_ms,
+                                    uint8_t pe7_raw_high)
+{
+    const uint8_t flags = valid != 0u ? VP_FLAG_VALID : 0u;
+    car_control_on_vision_frame_at_with_flags(
+        control, config, sequence, flags, confidence, error_norm, arrival_ms,
+        now_ms, pe7_raw_high);
 }
 
 void car_control_on_vision_frame(car_control_t *control,

@@ -160,6 +160,26 @@
                                                  "enabled":  true,
                                                  "samplesPerSecond":  "4"
                                              }
+                           },
+                           {
+                               "name":  "PI试验档 - 编码器稳速（日志开启）",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build DebugFollowSpeedPI (experimental encoder PI; RAM log ON)",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowSpeedPI/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowSpeedPI/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
                            }
                        ]
 }

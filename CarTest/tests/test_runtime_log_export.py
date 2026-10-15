@@ -79,6 +79,19 @@ class RuntimeLogExportTests(unittest.TestCase):
         mutate(data)
         return refresh_crcs(data)
 
+    def make_header_with_identity(self, state, build_id=None):
+        header = bytearray(self.header_bytes)
+        struct.pack_into("<B", header, 14, state)
+        if state == exporter.STATE_IDLE:
+            struct.pack_into("<B", header, 15, 0)
+            struct.pack_into("<6I", header, 16, 0, 0, 0, 0, 0, 0)
+            struct.pack_into("<B", header, 60, 0)
+        if build_id is not None:
+            header[44:60] = build_id
+        header[40:44] = bytes(4)
+        struct.pack_into("<I", header, 40, zlib.crc32(header) & 0xFFFFFFFF)
+        return bytes(header)
+
     def test_real_c_fixture_matches_elf_and_schema(self):
         expected_count = struct.unpack_from("<I", self.header_bytes, 16)[0]
         self.assertGreaterEqual(expected_count, 2)
@@ -173,6 +186,10 @@ class RuntimeLogExportTests(unittest.TestCase):
                 rows = list(csv.DictReader(stream))
             self.assertEqual(len(rows), len(self.rows))
             self.assertEqual(rows[0]["encoder_left_count"], str(self.rows[0]["encoder_left_count"]))
+            self.assertEqual(rows[0]["mode_name"], exporter.MODE_NAMES[self.rows[0]["mode"]])
+            self.assertEqual(rows[0]["fault_name"], exporter.FAULT_NAMES[self.rows[0]["fault"]])
+            self.assertEqual(exporter.STOP_REASON_NAMES[self.header["stop_reason"]],
+                             self.header["stop_reason_name"])
             self.assertEqual(rows[-1]["servo_applied_us"], "0")
 
     def test_short_or_long_upload_is_rejected(self):
@@ -187,6 +204,55 @@ class RuntimeLogExportTests(unittest.TestCase):
         self.assert_rejected(bytes(corrupt_crc))
         self.assert_rejected(self.replace_header(lambda data: data.__setitem__(44, data[44] ^ 0x01)))
         self.assert_rejected(self.replace_header(lambda data: data.__setitem__(61, 1)))
+
+    def test_matching_idle_and_active_headers_report_state_after_validation(self):
+        cases = (
+            (exporter.STATE_IDLE, "Runtime log is idle; no run has been recorded"),
+            (exporter.STATE_ACTIVE, "Runtime log is active; stop and freeze the run before exporting"),
+        )
+        for state, expected in cases:
+            with self.subTest(state=state):
+                header = self.make_header_with_identity(state, self.layout.build_id)
+                with self.assertRaises(exporter.ExportError) as caught:
+                    exporter._parse_header(header, self.layout)
+                self.assertEqual(str(caught.exception), expected)
+
+    def test_mismatched_idle_active_and_frozen_headers_report_identity(self):
+        wrong_build_id = bytearray(self.layout.build_id)
+        wrong_build_id[0] ^= 0x80
+        expected = (
+            "Runtime log header build ID mismatch at RAM address "
+            "0x{:08X}: selected CarTest.elf expects {}, header contains {}"
+        )
+        for state in (exporter.STATE_IDLE, exporter.STATE_ACTIVE,
+                      exporter.STATE_FROZEN):
+            with self.subTest(state=state):
+                header = self.make_header_with_identity(state, bytes(wrong_build_id))
+                with self.assertRaises(exporter.ExportError) as caught:
+                    exporter._parse_header(header, self.layout)
+                self.assertEqual(str(caught.exception), expected.format(
+                    self.layout.storage_address,
+                    self.layout.build_id.hex(), bytes(wrong_build_id).hex()))
+
+    def test_corrupt_header_crc_precedes_build_id_and_state_errors(self):
+        wrong_build_id = bytearray(self.layout.build_id)
+        wrong_build_id[0] ^= 0x80
+        header = bytearray(self.make_header_with_identity(
+            exporter.STATE_IDLE, bytes(wrong_build_id)))
+        header[40] ^= 0x01
+        with self.assertRaises(exporter.ExportError) as caught:
+            exporter._parse_header(bytes(header), self.layout)
+        self.assertEqual(str(caught.exception), "Runtime log header CRC32 is invalid")
+
+        header = bytearray(self.make_header_with_identity(
+            exporter.STATE_IDLE, bytes(wrong_build_id)))
+        header[61] = 1
+        header[40:44] = bytes(4)
+        struct.pack_into("<I", header, 40, zlib.crc32(header) & 0xFFFFFFFF)
+        with self.assertRaises(exporter.ExportError) as caught:
+            exporter._parse_header(bytes(header), self.layout)
+        self.assertEqual(str(caught.exception),
+                         "Runtime log header reserved bytes are not zero")
 
     def test_header_state_count_session_stop_reason_and_flag_semantics(self):
         self.assert_rejected(self.replace_header(lambda data: struct.pack_into("<B", data, 14, 1)))

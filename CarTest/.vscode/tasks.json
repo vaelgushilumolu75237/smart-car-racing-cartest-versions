@@ -67,6 +67,14 @@
       "problemMatcher": []
     },
     {
+      "label": "CarTest: Build DebugFollowSpeedPI (experimental encoder PI; RAM log ON)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowSpeedPI"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
       "label": "CarTest: Host tests",
       "type": "process",
       "command": "python",

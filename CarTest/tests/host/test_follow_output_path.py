@@ -25,6 +25,7 @@ DEFAULT_EVIDENCE_DIR = (
     PROJECT_ROOT / "test-data" / "turn-response-20261014" / "control" / "output-path"
 )
 FUNCTION_NAMES = (
+    "consume_follow_speed_pi_reset_request",
     "prepare_follow_motor_targets",
     "uart_error_icr_mask",
     "record_uart_error_flags",
@@ -45,6 +46,8 @@ PRELUDE = r'''#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include "follow_output.h"
+#include "follow_speed_pi.h"
+#include "speed_observer.h"
 
 #ifndef CARTEST_HARDWARE_ACCEPTED
 #define CARTEST_HARDWARE_ACCEPTED 1
@@ -92,7 +95,8 @@ typedef enum {
     CAR_FAULT_UART = 3,
     CAR_FAULT_RX_OVERFLOW = 4,
     CAR_FAULT_CLOCK = 5,
-    CAR_FAULT_TIMER = 6
+    CAR_FAULT_TIMER = 6,
+    CAR_FAULT_ENCODER_INIT = 7
 } car_fault_t;
 
 typedef enum { CAR_MOTOR_NONE = 0 } car_motor_t;
@@ -109,12 +113,14 @@ typedef struct {
     uint8_t road_drive_allowed;
     uint8_t manual_run_request;
     uint8_t vision_valid;
+    uint8_t vision_slope_hint;
     uint8_t fault_latched;
     uint8_t isr_stop_request;
     uint8_t isr_release_seen;
     uint8_t rx_recovery_flush_required;
     uint8_t bench_motor;
     uint16_t follow_output_duty_permille;
+    int16_t vision_error_norm;
     uint16_t bench_output_duty_permille;
     uint16_t vision_hold_motor_left_permille;
     uint16_t vision_hold_motor_right_permille;
@@ -196,6 +202,8 @@ static car_vision_rx_t car_vision_rx;
 static car_manual_button_t manual_run_button;
 static car_servo_safety_t servo_safety;
 static car_follow_output_state_t follow_output_state;
+static car_follow_speed_pi_state_t follow_speed_pi_state;
+static car_speed_observer_result_t speed_observer_result;
 static car_servo_safety_io_t servo_safety_io;
 static tim_regs_t tim1_regs, tim3_regs;
 static usart_regs_t usart1_regs;
@@ -224,6 +232,8 @@ static uint16_t car_bench_max_applied_duty_permille;
 static uint32_t car_uart_parity_error_count, car_uart_framing_error_count;
 static uint32_t car_uart_noise_error_count, car_uart_overrun_error_count;
 static uint32_t motor_stop_calls, servo_stop_calls;
+static volatile uint8_t follow_speed_pi_reset_pending;
+static volatile uint32_t car_speed_pi_actuation_enabled;
 static uint32_t servo_request_calls, servo_request_permitted;
 static uint32_t servo_request_source;
 static uint16_t servo_request_follow_target, servo_request_debug_target;
@@ -388,11 +398,14 @@ static void reset_mock(uint32_t caller)
     memset(&manual_run_button, 0, sizeof(manual_run_button));
     memset(&servo_safety, 0, sizeof(servo_safety));
     memset(&follow_output_state, 0, sizeof(follow_output_state));
+    car_follow_speed_pi_reset(&follow_speed_pi_state);
+    memset(&speed_observer_result, 0, sizeof(speed_observer_result));
     memset(&tim1_regs, 0, sizeof(tim1_regs));
     memset(&tim3_regs, 0, sizeof(tim3_regs));
     memset(&usart1_regs, 0, sizeof(usart1_regs));
     memset(&exti_regs, 0, sizeof(exti_regs));
     primask_state = caller; mock_now_ms = 10000u; pe7_high = 0u;
+    speed_observer_result.sample_ms = mock_now_ms;
     bump_switch_generation_on_snapshot_restore = 0u;
     servo_output_active = motor_outputs_active = servo_stop_pending = 0u;
     follow_ramp_started = applied_follow_outputs = 0u;
@@ -403,6 +416,8 @@ static void reset_mock(uint32_t caller)
     car_uart_parity_error_count = car_uart_framing_error_count = 0u;
     car_uart_noise_error_count = car_uart_overrun_error_count = 0u;
     motor_stop_calls = servo_stop_calls = 0u;
+    follow_speed_pi_reset_pending = 0u;
+    car_speed_pi_actuation_enabled = 0u;
     servo_request_calls = servo_request_permitted = servo_request_source = 0u;
     servo_request_follow_target = servo_request_debug_target = 0u;
     servo_request_slew_step_us = 0u;
@@ -548,11 +563,42 @@ static void case_profile_differential_commit(uint32_t caller,
                500u + outer_differential, follow_output_state.target_left_permille);
 }
 
+static void case_slope_hint_ignored_by_main(uint32_t caller)
+{
+    reset_mock(caller); ++cases_run;
+    app_config.follow_servo_left_us = 1100u;
+    app_config.follow_servo_right_us = 2500u;
+    app_config.servo_center_us = 1530u;
+    car_control_state.follow_output_duty_permille = 500u;
+    car_control_state.vision_slope_hint = 1u;
+    car_control_state.vision_error_norm = 0;
+    follow_output_state.startup_qualified = 1u;
+    follow_output_state.have_ramp_time = 1u;
+    follow_output_state.last_ramp_ms = mock_now_ms - 10u;
+    follow_output_state.command_left_permille = 500u;
+    follow_output_state.command_right_permille = 500u;
+    start_existing_servo(1530u);
+    start_existing_motor_outputs(500u, 500u);
+
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("main_slope_disabled", "trusted slope hint does not boost left target",
+               0u, follow_output_state.slope_assist_active);
+    expect_u32("main_slope_disabled", "trusted slope hint leaves left target at 500",
+               500u, follow_output_state.target_left_permille);
+    expect_u32("main_slope_disabled", "trusted slope hint leaves right target at 500",
+               500u, follow_output_state.target_right_permille);
+    expect_u32("main_slope_disabled", "normal left command remains unchanged",
+               500u, follow_output_state.command_left_permille);
+    expect_u32("main_slope_disabled", "normal right command remains unchanged",
+               500u, follow_output_state.command_right_permille);
+}
+
 static void case_active_hold_frozen(uint32_t caller)
 {
     const uint16_t left = 91u, right = 107u, pulse = 1584u;
     reset_mock(caller); ++cases_run;
     mock_now_ms = 5000u;
+    speed_observer_result.sample_ms = mock_now_ms;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
@@ -592,6 +638,7 @@ static void case_hold_expired(uint32_t caller, uint8_t transport_expired)
                                            "hold_valid_1000ms";
     reset_mock(caller); ++cases_run;
     mock_now_ms = 6000u;
+    speed_observer_result.sample_ms = mock_now_ms;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
@@ -794,15 +841,98 @@ static void case_hardware_locked(uint32_t caller)
                car_control_state.mode == CAR_MODE_WAIT_START_EDGE ? 1u : 0u);
 }
 
+static void start_pi_zero_coast_fixture(void)
+{
+    reset_mock(0u);
+    follow_output_state.startup_qualified = 1u;
+    follow_output_state.command_left_permille = 0u;
+    follow_output_state.command_right_permille = 0u;
+    follow_speed_pi_state.armed = 1u;
+    follow_speed_pi_state.status = CAR_FOLLOW_SPEED_PI_STATUS_RUNNING;
+    follow_speed_pi_state.target_left_millirps = 2400;
+    follow_speed_pi_state.target_right_millirps = 2400;
+    start_existing_servo(1530u);
+    start_existing_motor_outputs(20u, 20u);
+}
+
+static void case_zero_output_behavior(void)
+{
+    ++cases_run;
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+    start_pi_zero_coast_fixture();
+    motor_apply();
+    expect_u32("pi_zero_coast", "left CCR commits zero", 0u, TIM3->CCR2);
+    expect_u32("pi_zero_coast", "right CCR commits zero", 0u, TIM3->CCR3);
+    expect_u32("pi_zero_coast", "both PWM channels remain connected",
+               TIM_CCER_CC2E | TIM_CCER_CC3E, TIM3->CCER);
+    expect_u32("pi_zero_coast", "timer remains active",
+               TIM_CR1_CEN, TIM3->CR1 & TIM_CR1_CEN);
+    expect_u32("pi_zero_coast", "software output qualification remains",
+               1u, follow_output_state.startup_qualified);
+    expect_u32("pi_zero_coast", "motor output path remains active", 1u,
+               motor_outputs_active);
+    expect_u32("pi_zero_coast", "normal stop callback not called", 0u,
+               motor_stop_calls);
+
+    follow_output_state.command_left_permille = 20u;
+    follow_output_state.command_right_permille = 20u;
+    motor_apply();
+    expect_u32("pi_zero_recovery", "left recovers from actual zero", 20u,
+               TIM3->CCR2);
+    expect_u32("pi_zero_recovery", "right recovers from actual zero", 20u,
+               TIM3->CCR3);
+    expect_u32("pi_zero_recovery", "recovery does not reset qualification",
+               1u, follow_output_state.startup_qualified);
+    expect_u32("pi_zero_recovery", "recovery does not invoke stop", 0u,
+               motor_stop_calls);
+
+    start_pi_zero_coast_fixture();
+    manual_run_button.run_request = 0u;
+    motor_apply();
+    expect_u32("pi_zero_manual_rejection", "manual stop disables outputs", 0u,
+               motor_outputs_active);
+    expect_u32("pi_zero_manual_rejection", "manual stop clears PWM channels", 0u,
+               TIM3->CCER);
+    expect_u32("pi_zero_manual_rejection", "manual guard calls hard stop", 1u,
+               motor_stop_calls);
+
+    start_pi_zero_coast_fixture();
+    USART1->ISR = USART_ISR_ORE;
+    motor_apply();
+    expect_u32("pi_zero_uart_rejection", "UART fault disables outputs", 0u,
+               motor_outputs_active);
+    expect_u32("pi_zero_uart_rejection", "UART fault clears PWM channels", 0u,
+               TIM3->CCER);
+    expect_u32("pi_zero_uart_rejection", "UART fault is preserved",
+               CAR_FAULT_UART, car_control_state.isr_stop_fault);
+#else
+    reset_mock(0u);
+    follow_output_state.startup_qualified = 1u;
+    follow_output_state.command_left_permille = 0u;
+    follow_output_state.command_right_permille = 0u;
+    start_existing_servo(1530u);
+    start_existing_motor_outputs(20u, 20u);
+    motor_apply();
+    expect_u32("open_loop_zero_stop", "zero command hard stops motor", 0u,
+               motor_outputs_active);
+    expect_u32("open_loop_zero_stop", "zero command disables PWM channels", 0u,
+               TIM3->CCER);
+    expect_u32("open_loop_zero_stop", "zero command calls stop callback", 1u,
+               motor_stop_calls);
+#endif
+}
+
 int main(void)
 {
     uint32_t caller;
 #if CARTEST_HARDWARE_ACCEPTED
     for (caller = 0u; caller <= 1u; ++caller) {
+        if (caller == 0u) case_zero_output_behavior();
         case_first_frame_wait(caller);
         case_profile_differential_commit(
             caller, (uint16_t)CARTEST_FOLLOW_DIFF_PERMILLE,
             (uint16_t)CARTEST_FOLLOW_INNER_DIFF_PERMILLE);
+        case_slope_hint_ignored_by_main(caller);
         case_active_hold_frozen(caller);
         case_hold_expired(caller, 0u);
         case_hold_expired(caller, 1u);
@@ -932,9 +1062,9 @@ def compiler_command(compiler: str, args: list[str], cwd: Path) -> subprocess.Co
 
 
 def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler: str,
-                    evidence: Path) -> tuple[int, int, str, str]:
+                    evidence: Path, pi_enabled: bool = False) -> tuple[int, int, str, str]:
     label = ("hardware-accepted" if macro_value else "hardware-locked") + \
-        f"-diff{diff_permille}"
+        f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "")
     with tempfile.TemporaryDirectory(prefix="CarTestFollowOutput-") as temp_name:
         temp = Path(temp_name)
         c_path = temp / "follow_output_path.c"
@@ -943,9 +1073,12 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
         compile_args = ["/nologo", "/std:c11", "/W4", "/TC",
                         "/I" + str(PROJECT_ROOT / "Inc"),
                         "/DCARTEST_FOLLOW_DIFF_PERMILLE=" + str(diff_permille),
+                        f"/DCARTEST_FOLLOW_SPEED_PI_ENABLED={int(pi_enabled)}",
                         f"/DCARTEST_HARDWARE_ACCEPTED={macro_value}",
                         "/Fe:" + str(exe_path), str(c_path),
-                        str(PROJECT_ROOT / "App" / "follow_output.c")]
+                        str(PROJECT_ROOT / "App" / "follow_output.c"),
+                        str(PROJECT_ROOT / "App" / "speed_pi.c"),
+                        str(PROJECT_ROOT / "App" / "follow_speed_pi.c")]
         if diff_permille == 200:
             compile_args.extend([
                 "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
@@ -1066,13 +1199,18 @@ def main() -> int:
     if version_result.returncode != 0 or version_match is None:
         failures.append("MSVC version evidence command failed or returned no banner")
     variants = []
-    for macro, diff_permille in ((1, 0), (1, 50), (1, 100), (1, 200), (0, 0)):
+    for macro, diff_permille, pi_enabled in (
+        (1, 0, False), (1, 50, False), (1, 100, False),
+        (1, 200, False), (0, 0, False), (1, 200, True),
+    ):
         compile_rc, run_rc, _, run_log = compile_and_run(
-            macro, diff_permille, c_text, args.compiler, evidence_dir)
+            macro, diff_permille, c_text, args.compiler, evidence_dir,
+            pi_enabled=pi_enabled)
         label = ("hardware-accepted" if macro else "hardware-locked") + \
-            f"-diff{diff_permille}"
+            f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "")
         variants.append({
             "name": label, "hardware_accepted": macro,
+            "follow_speed_pi_enabled": pi_enabled,
             "diff_permille": diff_permille,
             "compile_exit_code": int((evidence_dir / f"{label}-compile.exitcode").read_text().strip()),
             "run_exit_code": int((evidence_dir / f"{label}-run.exitcode").read_text().strip()),
