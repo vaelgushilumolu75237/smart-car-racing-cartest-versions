@@ -72,7 +72,7 @@ V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
-CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_BEND_PREVIEW_20261015"
+CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_CORRECTION_FIRST_20261015"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
@@ -222,7 +222,10 @@ class _FastRowWeightWorkspace:
             "near_weight": 0.0, "far_weight": 0.0,
             "missing_group": "NONE", "supported_rows": 0,
             "position_error": 0, "heading_error": 0,
-            "heading_contribution": 0, "steering_error": 0,
+            "heading_contribution": 0, "preview_candidate": 0,
+            "steering_error": 0,
+            "preview_rejection_reason": None,
+            "reference_row_y": None, "reference_error": None,
             "preview_valid": False,
             "preview_near_x": None, "preview_near_y": None,
             "preview_far_x": None, "preview_far_y": None,
@@ -245,7 +248,11 @@ class _FastRowWeightWorkspace:
         info["position_error"] = 0
         info["heading_error"] = 0
         info["heading_contribution"] = 0
+        info["preview_candidate"] = 0
         info["steering_error"] = 0
+        info["preview_rejection_reason"] = None
+        info["reference_row_y"] = None
+        info["reference_error"] = None
         info["preview_valid"] = False
         info["preview_near_x"] = None
         info["preview_near_y"] = None
@@ -461,7 +468,7 @@ class _FastRowWeightWorkspace:
             contribution = 0
 
         info["heading_error"] = heading_error
-        info["heading_contribution"] = contribution
+        info["preview_candidate"] = contribution
         info["preview_valid"] = True
         info["preview_near_x"] = near_center_x2 * 0.5
         info["preview_near_y"] = near_y
@@ -539,6 +546,9 @@ class _FastRowWeightWorkspace:
         accepted_count = 0
         preview_count = 0
         preview_conflicting_centers = False
+        reference_row_y = None
+        reference_center_x2 = 0
+        reference_conflicting_centers = False
         preview_centers = self._preview_center_x2
         preview_valid_rows = self._preview_valid_rows
         near_count = 0
@@ -563,6 +573,19 @@ class _FastRowWeightWorkspace:
                     center_x2 < 0 or center_x2 > (width - 1) * 2):
                 continue
             centers[accepted_count] = center_x2
+            if not ring_route:
+                reference_distance = abs(y - 40)
+                if reference_distance <= self._PREVIEW_REFERENCE_TOLERANCE:
+                    previous_distance = (None if reference_row_y is None else
+                                         abs(reference_row_y - 40))
+                    if (previous_distance is None or
+                            reference_distance < previous_distance):
+                        reference_row_y = y
+                        reference_center_x2 = center_x2
+                        reference_conflicting_centers = False
+                    elif reference_distance == previous_distance:
+                        if reference_center_x2 != center_x2:
+                            reference_conflicting_centers = True
             if not ring_route and y >= self._PREVIEW_FLOOR_Y:
                 if preview_valid_rows[y]:
                     if preview_centers[y] != center_x2:
@@ -665,16 +688,21 @@ class _FastRowWeightWorkspace:
         info["reason"] = "OK"
         info["center_x"] = center_x
         info["raw_error"] = raw_error
+        if (reference_row_y is not None and
+                not reference_conflicting_centers):
+            info["reference_row_y"] = reference_row_y
+            info["reference_error"] = _normalize_fast_reference(
+                reference_center_x2 * 0.5, width)
         if ring_route:
             info["steering_error"] = raw_error
         else:
             self._compute_road_preview(
                 preview_count, settings, preview_conflicting_centers)
-            steering_error = raw_error + info["heading_contribution"]
-            if steering_error < -1000:
-                steering_error = -1000
-            elif steering_error > 1000:
-                steering_error = 1000
+            steering_error, rejection_reason, applied_contribution = \
+                _compose_ordinary_steering_error(
+                    info["position_error"], info["preview_candidate"])
+            info["heading_contribution"] = applied_contribution
+            info["preview_rejection_reason"] = rejection_reason
             info["steering_error"] = steering_error
         return info
 
@@ -1456,6 +1484,30 @@ def _normalize_fast_reference(x, width):
     return _rounded_local(normalized)
 
 
+def _compose_ordinary_steering_error(position_error, preview_candidate):
+    """Return control, rejection reason, and the applied preview amount."""
+    rejection_reason = None
+    applied_contribution = preview_candidate
+    if position_error * preview_candidate < 0:
+        remaining = 20 - abs(position_error)
+        if remaining <= 0:
+            applied_contribution = 0
+            rejection_reason = "OPPOSES_POSITION_CORRECTION"
+        else:
+            magnitude = (abs(preview_candidate) * remaining) // 20
+            if preview_candidate < 0:
+                applied_contribution = -magnitude
+            else:
+                applied_contribution = magnitude
+            rejection_reason = "CONFLICT_FADE"
+    steering_error = position_error + applied_contribution
+    if steering_error < -1000:
+        steering_error = -1000
+    elif steering_error > 1000:
+        steering_error = 1000
+    return steering_error, rejection_reason, applied_contribution
+
+
 def _fast_forward_white_continuation(mask_info, road_result, settings):
     """Require current supported bilateral rows on the near forward path."""
     if not mask_info or not road_result or not road_result.get("valid"):
@@ -1827,6 +1879,7 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
         position_error = weight_info.get("position_error", 0)
         heading_error = weight_info.get("heading_error", 0)
         contribution = weight_info.get("heading_contribution", 0)
+        rejection_reason = weight_info.get("preview_rejection_reason")
         near_percent = int(weight_info.get("near_weight", 0.0) * 100 + 0.5)
         far_percent = int(weight_info.get("far_weight", 0.0) * 100 + 0.5)
         if source in ("ring_left", "ring_right"):
@@ -1836,11 +1889,25 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
             details3 = "W%d/%d %s" % (
                 far_percent, near_percent, gate_reason)
         else:
-            details1 = "POS%+d A%+d C%.1f" % (
-                position_error, contribution,
-                weight_info.get("preview_curvature_cells", 0.0))
+            if rejection_reason in ("OPPOSES_POSITION_CORRECTION",
+                                    "CONFLICT_FADE"):
+                details1 = "POS%+d A%+d CAN%+d" % (
+                    position_error, contribution,
+                    weight_info.get("preview_candidate", contribution))
+            else:
+                details1 = "POS%+d A%+d C%.1f" % (
+                    position_error, contribution,
+                    weight_info.get("preview_curvature_cells", 0.0))
             details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
-            if weight_info.get("preview_valid"):
+            if rejection_reason in ("OPPOSES_POSITION_CORRECTION",
+                                    "CONFLICT_FADE"):
+                details3 = ("CORR_FIRST" if rejection_reason ==
+                            "OPPOSES_POSITION_CORRECTION" else
+                            "CONFLICT_FADE")
+                reference_error = weight_info.get("reference_error")
+                if reference_error is not None:
+                    details3 += " R%+d" % reference_error
+            elif weight_info.get("preview_valid"):
                 details3 = "N%.1f,%d F%.1f,%d" % (
                     weight_info["preview_near_x"],
                     weight_info["preview_near_y"],
@@ -3147,6 +3214,20 @@ def _main_fast(duration_s=None, run_id=0):
             actual_left, actual_right, actual_reference = \
                 _format_selected_actual_diagnostic(
                     selection, road_result, reference, valid)
+            preview_rejection_reason = weight_info.get(
+                "preview_rejection_reason")
+            if preview_rejection_reason == "OPPOSES_POSITION_CORRECTION":
+                preview_block = "CORR_FIRST"
+            elif preview_rejection_reason == "CONFLICT_FADE":
+                preview_block = "CONFLICT_FADE"
+            else:
+                preview_block = "-"
+            reference_row_y = weight_info.get("reference_row_y")
+            reference_error = weight_info.get("reference_error")
+            reference_row_text = ("-" if reference_row_y is None else
+                                  str(reference_row_y))
+            reference_error_text = ("-" if reference_error is None else
+                                    "%+d" % reference_error)
             print("V7DBG run=%d seq=%d valid=%d q=%d source=%s "
                   "b=%s inferred=%d flags=%d "
                   "%s cache_rows=%d actual=%s/%s "
@@ -3156,7 +3237,9 @@ def _main_fast(duration_s=None, run_id=0):
                   "corr=%s diff=%s width=%s path=%d/%d auth=%d geo=%d "
                   "port=%s,%s seed=%s,%s "
                   "slope=%s:%d "
-                  "preview=%+d bend=%.2f "
+                  "preview=%+d preview_candidate=%+d bend=%.2f "
+                  "preview_block=%s "
+                  "rowref=%s reference_error=%s "
                   "boundary=%s:%d/%d ref=%s pos_weighted=%d raw_ctrl=%d filt=%d "
                   "filter=%s "
                   "age_send_ms=%d trusted_block_count=%d "
@@ -3220,7 +3303,10 @@ def _main_fast(duration_s=None, run_id=0):
                       str(ring_candidate.get("near_seed_y"))[:5],
                       "DISABLED", slope_hint,
                       weight_info.get("heading_contribution", 0),
+                      weight_info.get("preview_candidate", 0),
                       weight_info.get("preview_curvature_cells", 0.0),
+                      preview_block, reference_row_text,
+                      reference_error_text,
                       boundary.get("reason", "NOT_RUN"),
                       boundary.get("bilateral_supported", 0),
                       boundary.get("pairs_tested", 0),

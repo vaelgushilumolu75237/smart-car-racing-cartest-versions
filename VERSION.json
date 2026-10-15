@@ -1,7 +1,7 @@
 {
-  "version": "v20261015-bend-preview",
+  "version": "v20261015-correction-first",
   "status": "experimental-software-tested-road-pending",
-  "branch": "fix/bend-preview",
-  "files": 348,
+  "branch": "fix/correction-first",
+  "files": 349,
   "hardware_actions": "none"
 }

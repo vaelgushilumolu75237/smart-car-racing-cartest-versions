@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
-  "package_id": "CACHED_WIDTH_BEND_PREVIEW_20261015",
-  "build_id": "CACHED_WIDTH_BEND_PREVIEW_20261015",
+  "package_id": "CACHED_WIDTH_CORRECTION_FIRST_20261015",
+  "build_id": "CACHED_WIDTH_CORRECTION_FIRST_20261015",
   "release_status": "SOFTWARE_TESTED_VEHICLE_VALIDATION_PENDING",
   "route_mode": "cached_width",
   "runtime_api": {
@@ -30,11 +30,11 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15647,
-      "sha256": "b648807ac912e11a7aea154eb9e35ce30f06db70c6ca7cfdeafa2db1b3a3a533",
-      "before_edit_sha256": "32c904101d7f39ebf3fa81c8cdef6e4801c319f8caccbc07e847b5d06659e689",
+      "size_bytes": 15651,
+      "sha256": "bf70808cb912bbbf281e6b8a3d11b1bf475f77a59954030d6a8bdb71406c7b14",
+      "before_edit_sha256": "b648807ac912e11a7aea154eb9e35ce30f06db70c6ca7cfdeafa2db1b3a3a533",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "a7bb79a7f567226412dc3121aaffe56a614122f5d76e852fe4e00d599b5eb3dd"
+      "compiled_sha256": "9de489bdc1378ce838bad6e4d32ef459ac28eb12d714a9e3c2f7ea32ce923b9e"
     },
     {
       "name": "fast_boundary.py",
@@ -102,11 +102,11 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 147590,
-      "sha256": "15dd6d2766e0f9b18fc83418066fc47937b5e501d7b21215d00538d1e8d70bd1",
-      "before_edit_sha256": "b984308126f7c6c1c4211db437485cc0559233a603807a4cdcfd7829d21d180c",
+      "size_bytes": 152030,
+      "sha256": "26dca7313cebbc6da8c62a2068c4a82acd26a43c1038175e8002c5a604f6a5ed",
+      "before_edit_sha256": "15dd6d2766e0f9b18fc83418066fc47937b5e501d7b21215d00538d1e8d70bd1",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "f829d65b7273da042701d127bb2cede5cba19346308453db46b09874da8042a3"
+      "compiled_sha256": "641d030008c9ab9c7edd037f47e67ad02ccea6402a1274053809e9e2fef46e81"
     },
     {
       "name": "reverse_control.py",
@@ -158,8 +158,8 @@
     }
   ],
   "upload_rule": "Upload all 18 top-level .py files together and restart the interpreter. Do not upload tests or mix versions.",
-  "readme_sha256": "55e895541ff62b41c326375da4870658315b4f0b11891c33f21ca93d17487df5",
-  "before_edit_snapshot": "test-data/first-bend-20261015/baseline/current",
+  "readme_sha256": "eed605c63af681b0e89fd1515facba6d651be05020deca5c50c306f7f6480fba",
+  "before_edit_snapshot": "test-data/straight-exit-20261015/baseline/current",
   "position_weights": {
     "lower70": 0.8,
     "upper30": 0.2
@@ -176,23 +176,29 @@
     "heading_gain": 2,
     "contribution_limit_norm": 400,
     "control_limit_norm": 1000,
-    "ring_override_changed": false
+    "ring_override_changed": false,
+    "current_position_priority": {
+      "opposing_preview_cancel_at_abs_position_norm": 20,
+      "inside_tolerance": "fade candidate magnitude by (20-abs(position))/20; truncate magnitude then restore sign",
+      "same_direction_unchanged": true,
+      "reference_error_diagnostic_only": true
+    }
   },
   "observation_protocol": "12-byte V1; CRC-16/CCITT-FALSE; 115200 8N1; confidence diagnostic only",
   "reverse_control_protocol": "8-byte RESET/KEEP; 250ms fresh lease",
   "host_tests": {
     "suite_count": 10,
-    "tests_run": 170,
+    "tests_run": 179,
     "all_passed": true,
     "board_equivalence_skipped": true,
-    "evidence": "test-data/first-bend-20261015/vision-validation/host/SUMMARY.json"
+    "evidence": "test-data/straight-exit-20261015/vision-validation/host/SUMMARY.json"
   },
   "host_mpy_cross_validation": {
     "compiler": "MicroPython v1.25.0; mpy-cross v6.3",
     "target": "armv7em",
     "files_compiled": 18,
     "all_passed": true,
-    "evidence": "test-data/first-bend-20261015/vision-validation/mpy-final-manifest.json"
+    "evidence": "test-data/straight-exit-20261015/vision-validation/mpy-cross/SUMMARY.json"
   },
   "hardware_validation": {
     "openmv_board_timing": false,
@@ -204,6 +210,7 @@
     "Video replay includes compression and overlay; top-overlay masking is a separate sensitivity variant, not raw sensor evidence.",
     "Preview parameters are initial software-tested values, not optimal measured gains.",
     "H743 motor/steering firmware and safety policy are unchanged.",
-    "Historical clipped-midpoint package is not maintained or regenerated."
+    "Historical clipped-midpoint package is not maintained or regenerated.",
+    "Opposing-preview tolerance is an initial software choice, not vehicle calibration."
   ]
 }
