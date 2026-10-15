@@ -1,25 +1,22 @@
-# CarTest 历史归档：2026-10-14 04:22（北京时区）之前
+# CarTest 历史归档：turn-response 完成后的 2026-10-14 上午版本
 
-此目录用于恢复 2026-10-14 04:22 北京时间前的 CarTest 代码快照。H743 源码来自控制/工作区清单 `created_utc=2026-10-13T20:22:06.3934321Z`，即 2026-10-14 04:22:06 北京时间；配套保留清单中的 7 个原始 `CarTest.elf`。根目录 `README.md` 是本归档的中文恢复说明，原始源码 README 保存在 `docs/archive-origin/README-source-0422.md`。
+此目录保存 2026-10-14 上午完成的 turn-response 版本，使用 08:41（北京时间）生成的原始 H743 ELF 清单作为版本锚点。H743 源码来自 09:19（北京时间）在后续 log-audit 开始前捕获的 `before/source` 快照；它不是 08:41 同一时刻的文件副本。将一个独立验证副本按原工具链重新配置后，`DebugFollowTurn` 的 ROM Build ID 与 08:41 原始清单一致，因此源码/配置与原始 ELF 配对得到验证。归档保留原始 8 个 ELF，不以新构建产物替换。
 
-OpenMV 部分使用对应的 pre-turn-response 包 `CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013`，并保留其 17 个运行时 `.py` 文件及非日志测试源码。该 OpenMV 包的快照记录只有日期，没有精确到 04:22 的采集时刻，因此它表示对应的 turn-response 之前版本，不声称与 H743 在同一秒采集。
+OpenMV 部分来自 `CACHED_WIDTH_TURNRESPONSE_20261014`，17 个运行时 `.py` 文件逐个与 turn-response 结束时的 `current_sha256` 对照。归档不含后续 ring、log-audit 或 PI 行为代码。
 
-## 版本内容
+## 版本变化
 
-- OpenMV 表面 ROI 下界为 80×60 网格第 20 行，对应 160×120 原图 y=40；观测滤波 alpha 为 0.45。
-- H743 保留当时的 7 个原始预设 ELF，路径为 `build/<preset>/CarTest.elf`。这些是历史二进制，不由本归档重新构建生成。
-- `Drivers/` 是从 `test-data/baseline-restore-20261015/validation/Drivers/` 补入的共享 STM32 vendor 依赖，共 176 个文件；它不是 04:22 快照的一部分，逐文件来源和 SHA-256 记录在 `origin-manifest.json`。
-
-## 构建与恢复
-
-请先复制解压目录作为独立构建副本，再在副本中运行构建，以免覆盖归档内的历史 ELF。示例（在副本根目录运行）：
+- OpenMV 表面 ROI 下界从 80×60 网格第 20 行（160×120 原图 y=40）调整为网格第 8 行（原图 y=16），观测滤波 alpha 从 0.45 调整为 0.70。
+- OpenMV 转向权重按 160×120 原图高度分区：上方 30%（y<36）权重 0.2，下方 70%（y≥36）权重 0.8。
+- 新增 H743 `DebugFollowTurn`：满转目标约为 70/30，正常舵机步进为 60 µs/20 ms，正常电机斜坡为 20 permille/10 ms。归档未加入 ring 或 PI 行为。
+- 原始 8 个 H743 ELF 位于 `build/<preset>/CarTest.elf`；不要在归档目录内直接构建，以免覆盖这些历史二进制。请复制目录后在副本中运行：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -Preset DebugFollowDiff10 -Fresh
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -Preset DebugFollowTurn -Fresh
 ```
 
-`SHA256SUMS.txt` 覆盖包内所有其他文件（校验文件本身不对自身做哈希）。`origin-manifest.json` 记录原始快照输入、补充依赖、排除的日志/缓存、ELF 哈希和 ROM Build ID。
+`stm32h743xi_flash.ld`、`project-description.json` 和通用 `.vscode` 设置从 04:22 前的已校验快照补充；`.vscode/launch.json` 与 `tasks.json` 使用 08:38 selector 工作区快照。它们的补充来源逐文件记录在 `origin-manifest.json`。源码原始 README 保存在 `docs/archive-origin/README-before-turn-response.md`，本文件是归档专用恢复说明。
 
 ## 证据边界
 
-本归档只记录源码、原始 ELF 和独立副本上的编译/ROM Build ID 配对证据。未在车辆或开发板上验证，不表示用户曾烧录这些 ELF，也不证明道路表现。
+构建验证在隔离副本中进行，且只用于检查构建与 ROM Build ID 配对；归档内 ELF 仍是保存的原始 ELF。未在开发板或车辆上验证，不表示用户曾烧录这些文件，也不证明道路表现。`SHA256SUMS.txt` 校验除自身以外的全部包内文件。

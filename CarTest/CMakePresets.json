@@ -89,6 +89,16 @@
       "cacheVariables": {
         "CARTEST_FOLLOW_DIFF_PERMILLE": "100"
       }
+    },
+    {
+      "name": "DebugFollowTurn",
+      "displayName": "DebugFollowTurn - 70/30 turn target; servo 60us/20ms; motor 20‰/10ms",
+      "inherits": "DebugFollow",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_TURN": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "200"
+      }
     }
   ],
   "buildPresets": [
@@ -98,6 +108,7 @@
     { "name": "DebugFollow", "configurePreset": "DebugFollow" },
     { "name": "DebugFollowNoLog", "configurePreset": "DebugFollowNoLog" },
     { "name": "DebugFollowDiff5", "configurePreset": "DebugFollowDiff5" },
-    { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" }
+    { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" },
+    { "name": "DebugFollowTurn", "configurePreset": "DebugFollowTurn" }
   ]
 }

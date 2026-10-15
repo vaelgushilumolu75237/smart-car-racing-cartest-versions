@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "package_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
-  "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
+  "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+  "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
   "release_status": "HOST_TESTED_OPENMV_BOARD_VALIDATION_PENDING",
   "runtime_api": {
     "v7_fast_pipeline": 7,
@@ -33,40 +33,40 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 14957,
-      "sha256": "978A83467629261245C82E08739D1AA265B5CC6D2268DDAAAF372857F02541EA",
+      "size_bytes": 15197,
+      "sha256": "49C0FF64555612688E551D11F5B2F95B8F0F0B224CB3DC3D9AE1D84BF629C551",
       "baseline_v7_sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
     },
     {
       "name": "fast_boundary.py",
-      "size_bytes": 48574,
-      "sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+      "size_bytes": 49880,
+      "sha256": "3AE5A2A8375A713A2A8F2943867E29FB5905958314962E16A5A9F4DB0144DFFE",
       "baseline_v7_sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
     },
     {
       "name": "fast_gray.py",
-      "size_bytes": 29919,
-      "sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+      "size_bytes": 30014,
+      "sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
       "baseline_v7_sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
     },
     {
       "name": "fast_path.py",
-      "size_bytes": 41453,
-      "sha256": "9F38FC2D866E188055F1765139DA66E26CDB0A1C22CD6DC0BE9A01F18E57095A",
+      "size_bytes": 41451,
+      "sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
       "baseline_v7_sha256": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
     },
     {
       "name": "fast_single_edge.py",
-      "size_bytes": 43750,
-      "sha256": "42939467B4D1C6709295E908635AA739054D77A4CA6E7F033959B1DEC8EB5BD3",
+      "size_bytes": 43749,
+      "sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
       "baseline_v7_sha256": null,
       "byte_identical_to_v7": false,
       "provenance": "added_for_singleedge_package"
@@ -97,8 +97,8 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 110557,
-      "sha256": "77A65C576BB13BF6F859D5C338F607A0220BEFE9BE84D42562D9218CCC3EC586",
+      "size_bytes": 120022,
+      "sha256": "984C0EF101CDF6BB811BD36F0934AE3D9F71ECFC55A84AB6FE191B87B8F6682C",
       "baseline_v7_sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
@@ -154,7 +154,11 @@
   ],
   "changed_runtime_files": [
     "config.py",
-    "main.py"
+    "main.py",
+    "fast_gray.py",
+    "fast_path.py",
+    "fast_boundary.py",
+    "fast_single_edge.py"
   ],
   "upload_rule": "Copy every declared top-level runtime .py file together to the OpenMV filesystem root; do not mix versions.",
   "observation_protocol": {
@@ -238,92 +242,112 @@
   },
   "host_test_results": [
     {
+      "key": "turn_response_weights",
+      "test_scope": "new_configuration_acceptance",
+      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
+      "exit_code": 0,
+      "tests_run": 7,
+      "passed": 7,
+      "skipped": 0,
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
+      "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+    },
+    {
       "key": "protocol",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
       "exit_code": 0,
       "tests_run": 6,
       "passed": 6,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-protocol.log",
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
       "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-protocol.log.exitcode"
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
     },
     {
       "key": "reverse_control",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
       "exit_code": 0,
       "tests_run": 9,
       "passed": 9,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-reverse_control.log",
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
       "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-reverse_control.log.exitcode"
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
     },
     {
       "key": "single_edge_13",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
       "exit_code": 0,
       "tests_run": 13,
       "passed": 13,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-single_edge_13.log",
-      "log_sha256": "38CDF3D3DB279E57AA0BCFBAE64AFFDFAC55370832A23462CAA63BAC0A075C7C",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-single_edge_13.log.exitcode"
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
+      "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
     },
     {
       "key": "main_integration_7",
+      "test_scope": "new_configuration_acceptance",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
       "exit_code": 0,
       "tests_run": 7,
       "passed": 7,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-main_integration_7.log",
-      "log_sha256": "C87120FEAFDBF2C4010C9AB243BA7A73936C2A0E356E8A80AB3AE47EA3BF9F0A",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-main_integration_7.log.exitcode"
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
+      "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
     },
     {
       "key": "two_routes",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
       "exit_code": 0,
       "tests_run": 12,
       "passed": 12,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-two_routes.log",
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
       "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-two_routes.log.exitcode"
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
     },
     {
       "key": "v7_overlay_each_frame",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
       "exit_code": 0,
       "tests_run": 2,
       "passed": 2,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log",
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
       "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log.exitcode"
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
     },
     {
       "key": "v7_overlay_accounting",
+      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
       "exit_code": 0,
       "tests_run": 3,
       "passed": 3,
       "skipped": 0,
-      "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log",
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
       "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log.exitcode"
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
     },
     {
       "key": "frozen_v7",
+      "test_scope": "legacy_frozen_behavioral_compatibility",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
       "exit_code": 0,
       "tests_run": 79,
       "passed": 78,
       "skipped": 1,
-      "raw_log": "test-data/differential-20261013/vision/final/host-frozen_v7.log",
-      "log_sha256": "9A4AF7197D5BE749EEDDD748D2DE03EF9A64FE48208599D8DB086A3062BAE689",
-      "exit_code_file": "test-data/differential-20261013/vision/final/host-frozen_v7.log.exitcode"
+      "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
+      "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
+      "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
     }
   ],
   "preserved_failed_attempts": [
@@ -389,59 +413,109 @@
       {
         "route_mode": "cached_width",
         "source_count": 17,
+        "source_names": [
+          "adaptive_detector.py",
+          "boundary_evidence.py",
+          "config.py",
+          "fast_boundary.py",
+          "fast_gray.py",
+          "fast_path.py",
+          "fast_single_edge.py",
+          "fast_topology.py",
+          "grayscale_adapter.py",
+          "line_detector.py",
+          "main.py",
+          "reverse_control.py",
+          "road_detector.py",
+          "source_selector.py",
+          "surface_detector.py",
+          "thresholding.py",
+          "vision_protocol.py"
+        ],
         "compiled": 17,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log",
-        "log_sha256": "0570385EE62E27D401C9515BBA3C80C54E54883EDEF8DAE243C8B6543CDC1F3C",
-        "exit_code_file": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+        "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+        "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
       },
       {
         "route_mode": "clipped_midpoint",
         "source_count": 17,
+        "source_names": [
+          "adaptive_detector.py",
+          "boundary_evidence.py",
+          "config.py",
+          "fast_boundary.py",
+          "fast_gray.py",
+          "fast_path.py",
+          "fast_single_edge.py",
+          "fast_topology.py",
+          "grayscale_adapter.py",
+          "line_detector.py",
+          "main.py",
+          "reverse_control.py",
+          "road_detector.py",
+          "source_selector.py",
+          "surface_detector.py",
+          "thresholding.py",
+          "vision_protocol.py"
+        ],
         "compiled": 17,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-        "log_sha256": "0FBE9F1DA7728D371DF01A703DFEF6FD3AD4EBBF42D32145779ED8D98C02E4F8",
-        "exit_code_file": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+        "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+        "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
       }
     ],
     "all_variants_exit_zero": true,
     "target_micro_python_v1_28_compiled": false,
     "micro_python_v1_28_compiler_available_in_ide": false,
     "target_board_runtime_tested": false,
-    "evidence_report": "../test-data/differential-20261013/vision/REPORT.json",
-    "evidence_report_sha256": "DCDC26A7F68E622DD969C5E326F4CF8816ECED6F8B82DBA85B89FB7530EB4265"
+    "evidence_report": "../test-data/turn-response-20261014/vision/REPORT.json",
+    "evidence_report_sha256": "CC0B4F622F16F5F58A5B6B70723A39D7AB68E1ECF07637E705DD91D1FFE31191"
   },
   "default_vision_backend": "fast",
   "fast_path_scope": "Confidence is diagnostic-only and single-edge fallback applies to the current fast real-time path. compare/legacy remain historical comparison baselines and are outside this delivery control path.",
-  "readme_sha256": "DB4FE797CEB9A24A756285164DA13CCEB483CA2BA48BBCD0388DA83C236A6D8B",
+  "readme_sha256": "52A6395284509950D625682F0DAA33A9FA681F1CD64536D15709932590577190",
   "route_mode": "cached_width",
   "single_edge_routes": {
     "default_formal_route": "cached_width",
     "supported_build_pairs": [
       {
         "route_mode": "cached_width",
-        "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013"
+        "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014"
       },
       {
         "route_mode": "clipped_midpoint",
-        "build_id": "CARTEST_OPENMV_CLIPPED_MIDPOINT_DIFFTRIAL_20261013"
+        "build_id": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
       }
     ],
     "selected_package": {
       "mode": "cached_width",
-      "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
+      "build_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
       "singleedge_runtime_api": 2,
       "requirements": [
         "current-frame dark-to-white observed side is matched to a validated bilateral width cache",
         "width cache is populated only by a valid published bilateral observation",
         "fresh reverse RESET/KEEP lease remains valid"
       ],
-      "center_equation": "current edge plus/minus the smoothed bilateral width"
+      "center_equation": "current edge plus/minus the smoothed bilateral width",
+      "turn_response": {
+        "version": "LOWER70_UPPER30_V1",
+        "image_split_y": 36,
+        "grid_split_y": 18,
+        "lower_70_percent_weight": 0.8,
+        "upper_30_percent_weight": 0.2,
+        "row_density_normalized_within_each_group": true,
+        "per_row_bilateral_pair_support_required": true,
+        "missing_group_renormalization": true,
+        "observation_filter_alpha": 0.7,
+        "safety_reference_is_separate_from_virtual_weighted_center": true
+      }
     },
     "same_source_except_config": false,
     "protocol_unchanged": {
@@ -452,148 +526,375 @@
     }
   },
   "two_route_evidence": {
-    "date": "2026-10-13",
+    "date": "2026-10-14",
     "evidence_revision": "final",
-    "evidence_dir": "test-data/differential-20261013/vision/final",
-    "project": "CarTest OpenMV per-frame preview differential trial",
+    "evidence_dir": "test-data/turn-response-20261014/vision/final",
+    "project": "CarTest OpenMV weighted turn-response package",
     "builds": {
-      "cached_width": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
-      "clipped_midpoint": "CARTEST_OPENMV_CLIPPED_MIDPOINT_DIFFTRIAL_20261013"
+      "cached_width": "CACHED_WIDTH_TURNRESPONSE_20261014",
+      "clipped_midpoint": "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
     },
     "before_source_snapshot": {
-      "manifest": "test-data/differential-20261013/before/BASELINE_MANIFEST.json",
-      "manifest_sha256": "59C69EB7035D7C33DB2974CF0CF0D79088F6F2098CA6AEBD571CD529A709DA27",
-      "snapshot_root": "test-data/differential-20261013/before",
-      "file_count": 433,
-      "existing_elf_count": 5,
+      "manifest": "test-data/turn-response-20261014/before/vision/BASELINE_MANIFEST.json",
+      "manifest_sha256": "BDAA00AA7A6C8F8DFCD48696E96FEAE9D1909CD990B3933D7A24D313AC1869B2",
+      "snapshot_root": "test-data/turn-response-20261014/before/vision",
+      "file_count": 61,
+      "existing_elf_count": 0,
       "all_snapshot_files_reverified": true,
-      "verification_log": "test-data/differential-20261013/vision/final/baseline-snapshot-verification.log"
+      "verification_log": "test-data/turn-response-20261014/vision/final/baseline-snapshot-verification.log"
     },
     "source_hashes": {
-      "path": "test-data/differential-20261013/vision/final/source-hashes.csv",
-      "sha256": "505070BD86204D2213DE1A5D5CD1CDE369CDE18422E125B79154440AD8D8A7F5",
-      "source_count": 46
+      "path": "test-data/turn-response-20261014/vision/final/source-hashes.csv",
+      "sha256": "4491A97E1DC9E8397073657711C280A254E1DA58BF920E0A75092F3619FE8A57",
+      "source_count": 47
     },
     "host_tests": [
       {
+        "key": "turn_response_weights",
+        "test_scope": "new_configuration_acceptance",
+        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
+        "exit_code": 0,
+        "tests_run": 7,
+        "passed": 7,
+        "skipped": 0,
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log",
+        "log_sha256": "CA50CE0425F620D3C1D541C3B67AF4A17C4D80D1125333CB280A67423AE2FF86",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-turn_response_weights.log.exitcode"
+      },
+      {
         "key": "protocol",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
         "exit_code": 0,
         "tests_run": 6,
         "passed": 6,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-protocol.log",
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-protocol.log",
         "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-protocol.log.exitcode"
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-protocol.log.exitcode"
       },
       {
         "key": "reverse_control",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
         "exit_code": 0,
         "tests_run": 9,
         "passed": 9,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-reverse_control.log",
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-reverse_control.log",
         "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-reverse_control.log.exitcode"
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-reverse_control.log.exitcode"
       },
       {
         "key": "single_edge_13",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
         "exit_code": 0,
         "tests_run": 13,
         "passed": 13,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-single_edge_13.log",
-        "log_sha256": "38CDF3D3DB279E57AA0BCFBAE64AFFDFAC55370832A23462CAA63BAC0A075C7C",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-single_edge_13.log.exitcode"
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log",
+        "log_sha256": "4BDB50700C81ACA2B03CE05742DAE206410FEE3C77E1FC616CD631387A7F29BD",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-single_edge_13.log.exitcode"
       },
       {
         "key": "main_integration_7",
+        "test_scope": "new_configuration_acceptance",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
         "exit_code": 0,
         "tests_run": 7,
         "passed": 7,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-main_integration_7.log",
-        "log_sha256": "C87120FEAFDBF2C4010C9AB243BA7A73936C2A0E356E8A80AB3AE47EA3BF9F0A",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-main_integration_7.log.exitcode"
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log",
+        "log_sha256": "D5BA10BC906497C602FD9289E1EE928F21BC834DBFC78AE71AE825876941F370",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-main_integration_7.log.exitcode"
       },
       {
         "key": "two_routes",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
         "exit_code": 0,
         "tests_run": 12,
         "passed": 12,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-two_routes.log",
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-two_routes.log",
         "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-two_routes.log.exitcode"
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-two_routes.log.exitcode"
       },
       {
         "key": "v7_overlay_each_frame",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
         "exit_code": 0,
         "tests_run": 2,
         "passed": 2,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log",
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log",
         "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log.exitcode"
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
       },
       {
         "key": "v7_overlay_accounting",
+        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
         "exit_code": 0,
         "tests_run": 3,
         "passed": 3,
         "skipped": 0,
-        "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log",
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log",
         "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log.exitcode"
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
       },
       {
         "key": "frozen_v7",
+        "test_scope": "legacy_frozen_behavioral_compatibility",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
         "exit_code": 0,
         "tests_run": 79,
         "passed": 78,
         "skipped": 1,
-        "raw_log": "test-data/differential-20261013/vision/final/host-frozen_v7.log",
-        "log_sha256": "9A4AF7197D5BE749EEDDD748D2DE03EF9A64FE48208599D8DB086A3062BAE689",
-        "exit_code_file": "test-data/differential-20261013/vision/final/host-frozen_v7.log.exitcode"
+        "raw_log": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log",
+        "log_sha256": "BFA3ABF2321B37B3FCF317A00272FDC4ACFC3D705FEADD864B0728AD9D557DC6",
+        "exit_code_file": "test-data/turn-response-20261014/vision/final/host-frozen_v7.log.exitcode"
       }
     ],
+    "configuration_test_classes": {
+      "legacy_v7_compatibility": {
+        "runner_present": true,
+        "test_scope": "legacy_frozen_behavioral_compatibility",
+        "exit_code": 0,
+        "fixture_source_hashes_verified": true,
+        "temporary_test_copy_adaptation_count": 29,
+        "temporary_test_copy_adaptations": [
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "default fixture follows expanded current ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "unknown original middle block shifts after new upper block"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "histogram assertion covers configured block count"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_gray.py",
+            "reason": "expected block diagnostics follow four-block config"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "default topology corridor spans current expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "partial topology fixture removes whole current upper block"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_topology.py",
+            "reason": "keep ROI-edge-connected band at expanded ROI boundary"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "default detector masks cover current expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "allow explicit legacy floor for custom-floor tests"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "all-white invalid mask reports current ROI floor"
+          },
+          {
+            "count": 2,
+            "file": "test_fast_path.py",
+            "reason": "default and merge masks report selected ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "merge fixture spans current full ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "merge fixture reports current ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "keep the explicit floor-20 kernel-bound test intact"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_path.py",
+            "reason": "active row count follows expanded ROI floor"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical BUILD literal to current package identity"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "add current confidence-diagnostic API to frozen test double"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "align fake grayscale output with expanded ROI"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "report current four configured grayscale blocks"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "assert debug reports current four trusted blocks"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "mock current per-row pair support consumed by controller"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          },
+          {
+            "count": 1,
+            "file": "test_fast_main.py",
+            "reason": "adapt historical overlay assertion to current labels and flush stage"
+          }
+        ],
+        "claim_boundary": "Legacy V7 behavioral compatibility against the current runtime. This does not establish that the frozen executable or old config accepts the new turn-response tuning."
+      },
+      "current_turn_response_acceptance": {
+        "test_keys": [
+          "turn_response_weights",
+          "main_integration_7"
+        ],
+        "test_scope": "new_configuration_acceptance",
+        "turn_response_version": "LOWER70_UPPER30_V1",
+        "actual_gray_builder_and_path_tested": true,
+        "actual_boundary_per_row_support_tested": true,
+        "serialized_main_uart_error_tested": true,
+        "both_single_edge_sources_tested": true
+      }
+    },
     "mpy_cross": {
       "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
       "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
       "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
       "compiler_version_command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" --version",
       "compiler_version_exit_code": 0,
-      "compiler_version_log": "test-data/differential-20261013/vision/final/mpy-cross-v1.25-version.log",
+      "compiler_version_log": "test-data/turn-response-20261014/vision/final/mpy-cross-v1.25-version.log",
       "target_architecture": "armv7em",
       "variants": [
         {
           "route_mode": "cached_width",
           "source_count": 17,
+          "source_names": [
+            "adaptive_detector.py",
+            "boundary_evidence.py",
+            "config.py",
+            "fast_boundary.py",
+            "fast_gray.py",
+            "fast_path.py",
+            "fast_single_edge.py",
+            "fast_topology.py",
+            "grayscale_adapter.py",
+            "line_detector.py",
+            "main.py",
+            "reverse_control.py",
+            "road_detector.py",
+            "source_selector.py",
+            "surface_detector.py",
+            "thresholding.py",
+            "vision_protocol.py"
+          ],
           "compiled": 17,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log",
-          "log_sha256": "0570385EE62E27D401C9515BBA3C80C54E54883EDEF8DAE243C8B6543CDC1F3C",
-          "exit_code_file": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
+          "raw_log": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
+          "log_sha256": "38DAE36091D729AAEFE60512A521801E62C942F989F525B3E781ACD93D3BE277",
+          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
         },
         {
           "route_mode": "clipped_midpoint",
           "source_count": 17,
+          "source_names": [
+            "adaptive_detector.py",
+            "boundary_evidence.py",
+            "config.py",
+            "fast_boundary.py",
+            "fast_gray.py",
+            "fast_path.py",
+            "fast_single_edge.py",
+            "fast_topology.py",
+            "grayscale_adapter.py",
+            "line_detector.py",
+            "main.py",
+            "reverse_control.py",
+            "road_detector.py",
+            "source_selector.py",
+            "surface_detector.py",
+            "thresholding.py",
+            "vision_protocol.py"
+          ],
           "compiled": 17,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-          "log_sha256": "0FBE9F1DA7728D371DF01A703DFEF6FD3AD4EBBF42D32145779ED8D98C02E4F8",
-          "exit_code_file": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
+          "raw_log": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+          "log_sha256": "F29A301BD68BCA888E7836734F7DCC76E4D4B2FCE6F7893288AA17386FBFE7D9",
+          "exit_code_file": "test-data/turn-response-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
         }
       ],
       "target_micro_python_v1_28_compiled": false,
@@ -604,10 +905,10 @@
     "synthetic_numeric_fixture": {
       "fixture_kind": "synthetic_host_masks_only",
       "scenario_count": 11,
-      "numeric_results_csv": "test-data/differential-20261013/vision/final/synthetic-numeric-results.csv",
-      "numeric_results_csv_sha256": "A7AEABAE33C533042349D3624296462F18967E315F339EDF768B2C80DD9BAA14",
-      "raw_log": "test-data/differential-20261013/vision/final/synthetic-numeric-results.log",
-      "raw_log_sha256": "249C850CEB105C15C4341A4A7140C56F44E2A7FFFC85DF8A994348902A4FEF16",
+      "numeric_results_csv": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.csv",
+      "numeric_results_csv_sha256": "828FBD4466B255D0E76F782BE8A83EFF97577B9A956EFB96CCD7B5F33069E160",
+      "raw_log": "test-data/turn-response-20261014/vision/final/synthetic-numeric-results.log",
+      "raw_log_sha256": "1519E9923D2D07B6847504A8208DF8FBA00BEC4CDAF9EACF6639DAB2B3826B95",
       "same_frame_left_cached_center_x": 39.5,
       "same_frame_left_clip_edge_x": 26.5,
       "same_frame_left_clip_endpoint_x": 79,
@@ -630,12 +931,13 @@
     "camera_upload_performed": false,
     "vehicle_track_tested": false,
     "notes": [
-      "The V7 preview draws current-frame geometry every captured frame after detection and UART send, then flushes that frame to the IDE preview.",
-      "Preview drawing samples at most 13 row points including both ends; single-edge boundary and clipped-endpoint markers share those sampled rows.",
-      "The overlay timing includes 100 ms detail-cache formatting and every-frame drawing; preview flush is measured separately and capture-to-send age still ends at UART send.",
-      "The 1.25 IDE compiler run with -march=armv7em is host compiler evidence, not board execution.",
-      "No MicroPython 1.28 mpy-cross compiler was found in the installed IDE bundle; exact target compiler acceptance remains unverified.",
-      "Synthetic masks and host overlay doubles do not execute a camera frame or measure preview performance."
+      "Lower rows y>=36 carry aggregate weight 0.80 and upper rows y<36 carry 0.20; each available group is internally normalized.",
+      "The ROI expands to grid row 8/full-image y=16 with four Otsu blocks; the three original blocks from row 20 down remain unchanged.",
+      "Bilateral weighted rows require the existing per-row measured pair-support bit; unsupported rows are excluded without changing the existing global gate.",
+      "The weighted controller center is a virtual column and remains separate from the geometric safety reference. Missing groups renormalize with a diagnostic.",
+      "Weighting runs after current-frame path selection; it does not guarantee lane identity across whole-path candidate changes.",
+      "The IDE mpy-cross 1.25 run with -march=armv7em is compiler evidence, not board execution; MicroPython 1.28 compiler acceptance remains unverified.",
+      "Synthetic host masks do not execute a camera frame. No OpenMV upload/board run, H743 build/flash, motor start, or vehicle track test was performed."
     ],
     "manifest_refresh_exit_code": 0,
     "generator_final_check_exit_code": 0,

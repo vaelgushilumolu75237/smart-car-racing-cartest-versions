@@ -3,16 +3,35 @@
 
 #include <stdint.h>
 
+#ifndef CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
+#define CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE 600u
+#endif
+#ifndef CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
+#define CARTEST_FOLLOW_HARD_LIMIT_PERMILLE 700u
+#endif
+#if CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700u
+#error "Follow hard output limit is fixed at 700 permille."
+#endif
+#ifndef CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE
+#define CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE 10u
+#endif
+#ifndef CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE
+#define CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE 10u
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
     CAR_FOLLOW_BASE_TARGET_PERMILLE = 500u,
-    CAR_FOLLOW_NORMAL_MAX_PERMILLE = 600u,
+    CAR_FOLLOW_NORMAL_MAX_PERMILLE = CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE,
     CAR_FOLLOW_HARD_MAX_PERMILLE = 700u,
-    CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE = 100u,
-    CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE = 10u,
+    CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE = 200u,
+    CAR_FOLLOW_OUTPUT_STARTUP_RAMP_STEP_PERMILLE =
+        CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE,
+    CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE =
+        CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE,
     CAR_FOLLOW_OUTPUT_RAMP_PERIOD_MS = 10u,
     CAR_FOLLOW_STEERING_GAIN_PERMILLE = 700u
 };
@@ -32,6 +51,8 @@ typedef struct {
     uint16_t command_left_permille;
     uint16_t command_right_permille;
     uint16_t differential_u_permille;
+    uint16_t outer_delta_permille;
+    uint16_t inner_delta_permille;
     uint32_t last_ramp_ms;
     uint8_t have_ramp_time;
     uint8_t startup_qualified;
@@ -51,12 +72,13 @@ void car_follow_output_hold(car_follow_output_state_t *state,
    pulse.  Before the startup qualification latch, both sides target the same
    500-permille base ramp.  Once qualified, the selected differential is
    computed from the applied pulse and each side advances at most one
-   10-permille step per 10 ms. */
+   profile-selected step per 10 ms. */
 uint8_t car_follow_output_update(
     car_follow_output_state_t *state,
     uint32_t now_ms,
     uint16_t base_target_permille,
-    uint16_t differential_permille,
+    uint16_t outer_differential_permille,
+    uint16_t inner_differential_permille,
     uint16_t servo_applied_us,
     uint16_t servo_center_us,
     uint16_t servo_left_endpoint_us,

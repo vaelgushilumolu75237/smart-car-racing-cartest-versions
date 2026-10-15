@@ -38,7 +38,7 @@ from fast_topology import FastTopologyGuard
 _DEFAULTS = {
     "SURFACE_GRID_WIDTH": 80,
     "SURFACE_GRID_HEIGHT": 60,
-    "SURFACE_ROI_FLOOR_Y": 20,
+    "SURFACE_ROI_FLOOR_Y": 8,
     "ROAD_MIN_WIDTH": 8,
     "ROAD_MAX_WIDTH": 70,
     "ROAD_MAX_GAP_ROWS": 2,
@@ -610,7 +610,7 @@ class FastPathDetector:
         self.height = _int_value(config, "SURFACE_GRID_HEIGHT", 60)
         if self.width != 80 or self.height != 60:
             raise ValueError("FastPathDetector requires an 80x60 grid")
-        self.floor_y = _int_value(config, "SURFACE_ROI_FLOOR_Y", 20, 0)
+        self.floor_y = _int_value(config, "SURFACE_ROI_FLOOR_Y", 8, 0)
         if self.floor_y >= self.height:
             raise ValueError("SURFACE_ROI_FLOOR_Y must be in 0..59")
         self.row_count = self.height - self.floor_y

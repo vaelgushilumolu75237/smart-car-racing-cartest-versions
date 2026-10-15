@@ -72,10 +72,17 @@ $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
 $runtimeLogBuildIdInclude = ""
 $runtimeLogBuildIdDefine = ""
 if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_FIXTURE_PATH)) {
-    $generatedDirectory = Join-Path $projectRoot "build\DebugFollow\generated"
+    $runtimeLogBuildPreset = "DebugFollow"
+    if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_BUILD_PRESET)) {
+        $runtimeLogBuildPreset = $env:CARTEST_RUNTIME_LOG_BUILD_PRESET.Trim()
+    }
+    if ($runtimeLogBuildPreset -notin @("DebugFollow", "DebugFollowTurn")) {
+        throw "CARTEST_RUNTIME_LOG_BUILD_PRESET must be DebugFollow or DebugFollowTurn."
+    }
+    $generatedDirectory = Join-Path $projectRoot "build\$runtimeLogBuildPreset\generated"
     $generatedBuildId = Join-Path $generatedDirectory "runtime_log_build_id.h"
     if (-not (Test-Path -LiteralPath $generatedBuildId -PathType Leaf)) {
-        throw "Build DebugFollow before requesting a target-matched host fixture: $generatedBuildId"
+        throw "Build $runtimeLogBuildPreset before requesting a target-matched host fixture: $generatedBuildId"
     }
     $runtimeLogBuildIdInclude = "/I`"$generatedDirectory`""
     $runtimeLogBuildIdDefine = "/DCAR_RUNTIME_LOG_HOST_TEST_USE_TARGET_BUILD_ID"

@@ -70,8 +70,8 @@ V7_RUNTIME_API_VERSION = 7
 V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013"
-CLIPPED_MIDPOINT_BUILD_ID = "CARTEST_OPENMV_CLIPPED_MIDPOINT_DIFFTRIAL_20261013"
+CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_TURNRESPONSE_20261014"
+CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_TURNRESPONSE_20261014"
 SINGLEEDGE_ROUTE_BUILD_IDS = (
     ("cached_width", CACHED_WIDTH_BUILD_ID),
     ("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),
@@ -180,6 +180,186 @@ class _FreshObservationFilter:
         if self.value >= 0.0:
             return int(self.value + 0.5)
         return -int(-self.value + 0.5)
+
+
+class _FastRowWeightWorkspace:
+    """Preallocated same-frame row aggregation for the fast controller path.
+
+    Rows are grouped at grid y=18 (full-image y=36). Each available group is
+    normalized internally, so row density cannot change its configured share.
+    Bilateral rows must carry the boundary validator's per-row pair bit; single
+    rows arrive only from the tracker's accepted row_status==1 output.
+    """
+
+    _WEIGHT_SCALE = 1000000
+
+    def __init__(self):
+        self._center_x2 = array("i", [0] * 60)
+        self._group = bytearray(60)
+        self._row_weight = array("i", [0] * 60)
+        self.info = {
+            "valid": False, "reason": "NOT_RUN", "source": "NONE",
+            "center_x": None, "raw_error": 0,
+            "near_count": 0, "far_count": 0,
+            "near_weight": 0.0, "far_weight": 0.0,
+            "missing_group": "NONE", "supported_rows": 0,
+        }
+
+    def clear(self, reason="NO_ACCEPTED_ROWS"):
+        info = self.info
+        info["valid"] = False
+        info["reason"] = reason
+        info["source"] = "NONE"
+        info["center_x"] = None
+        info["raw_error"] = 0
+        info["near_count"] = 0
+        info["far_count"] = 0
+        info["near_weight"] = 0.0
+        info["far_weight"] = 0.0
+        info["missing_group"] = "NONE"
+        info["supported_rows"] = 0
+        for index in range(len(self._row_weight)):
+            self._row_weight[index] = 0
+        return info
+
+    def aggregate(self, selection, road_result, settings):
+        info = self.clear()
+        if not selection or not selection.get("valid"):
+            info["reason"] = "SELECTION_INVALID"
+            return info
+        source = selection.get("source")
+        if source == "road":
+            result = road_result
+            stride = 4
+            support = result.get("boundary_support_rows")
+            support_count = result.get("boundary_support_count", -1)
+        elif source in ("single_left", "single_right"):
+            result = selection.get("result")
+            stride = 5
+            support = None
+            support_count = -1
+        else:
+            info["reason"] = "UNSUPPORTED_SOURCE"
+            return info
+        if not result:
+            info["reason"] = "MISSING_ROW_RESULT"
+            return info
+        rows = result.get("selected_row_ints")
+        count = result.get("selected_row_count")
+        if (not isinstance(rows, array) or isinstance(count, bool) or
+                not isinstance(count, int) or count < 1 or count > 60 or
+                result.get("selected_row_stride") != stride or
+                len(rows) < count * stride):
+            info["reason"] = "INVALID_SELECTED_ROWS"
+            return info
+        if source == "road" and (
+                not isinstance(support, bytearray) or
+                support_count != count or len(support) < count):
+            info["reason"] = "PAIR_SUPPORT_UNAVAILABLE"
+            return info
+
+        split_y = settings.STEERING_SPLIT_GRID_Y
+        floor_y = settings.SURFACE_ROI_FLOOR_Y
+        width = settings.SURFACE_GRID_WIDTH
+        height = settings.SURFACE_GRID_HEIGHT
+        centers = self._center_x2
+        groups = self._group
+        accepted_count = 0
+        near_count = 0
+        far_count = 0
+        for index in range(count):
+            offset = index * stride
+            y = rows[offset]
+            if source == "road":
+                flags = rows[offset + 3]
+                accepted = (support[index] == 1 and flags & 7 == 7)
+                center_x2 = rows[offset + 1] + rows[offset + 2]
+            else:
+                # FastSingleEdgeTracker packs only rows with row_status==1.
+                accepted = True
+                center_x2 = rows[offset + 1]
+            if (not accepted or y < floor_y or y >= height or
+                    center_x2 < 0 or center_x2 > (width - 1) * 2):
+                continue
+            centers[accepted_count] = center_x2
+            if y < split_y:
+                groups[accepted_count] = 1
+                far_count += 1
+            else:
+                groups[accepted_count] = 2
+                near_count += 1
+            accepted_count += 1
+
+        if accepted_count == 0:
+            info["reason"] = "NO_SUPPORTED_ROWS"
+            return info
+        info["source"] = source
+        info["near_count"] = near_count
+        info["far_count"] = far_count
+        info["supported_rows"] = accepted_count
+        if near_count and far_count:
+            near_weight = int(settings.STEERING_NEAR_WEIGHT *
+                              self._WEIGHT_SCALE + 0.5)
+            far_weight = self._WEIGHT_SCALE - near_weight
+            info["near_weight"] = near_weight / float(self._WEIGHT_SCALE)
+            info["far_weight"] = far_weight / float(self._WEIGHT_SCALE)
+        elif near_count:
+            near_weight = self._WEIGHT_SCALE
+            far_weight = 0
+            info["near_weight"] = 1.0
+            info["far_weight"] = 0.0
+            info["missing_group"] = "FAR"
+        else:
+            near_weight = 0
+            far_weight = self._WEIGHT_SCALE
+            info["near_weight"] = 0.0
+            info["far_weight"] = 1.0
+            info["missing_group"] = "NEAR"
+
+        row_weights = self._row_weight
+        near_seen = 0
+        far_seen = 0
+        for index in range(accepted_count):
+            group = groups[index]
+            group_count = near_count if group == 2 else far_count
+            group_weight = near_weight if group == 2 else far_weight
+            quotient = group_weight // group_count
+            remainder = group_weight - quotient * group_count
+            # Deterministic remainder distribution keeps each group's row
+            # weights summing exactly to its configured effective share.
+            if group == 2:
+                seen = near_seen
+                near_seen += 1
+            else:
+                seen = far_seen
+                far_seen += 1
+            row_weights[index] = quotient + (1 if seen < remainder else 0)
+
+        weighted_x2 = 0
+        for index in range(accepted_count):
+            weighted_x2 += centers[index] * row_weights[index]
+        center_x = weighted_x2 / float(2 * self._WEIGHT_SCALE)
+        try:
+            raw_error = _normalize_fast_reference(center_x, width)
+        except (TypeError, ValueError, OverflowError):
+            info["reason"] = "WEIGHTED_CENTER_INVALID"
+            info["source"] = "NONE"
+            info["center_x"] = None
+            info["near_weight"] = 0.0
+            info["far_weight"] = 0.0
+            return info
+        if raw_error < -1000 or raw_error > 1000:
+            info["reason"] = "WEIGHTED_ERROR_OUT_OF_RANGE"
+            info["source"] = "NONE"
+            info["center_x"] = None
+            info["near_weight"] = 0.0
+            info["far_weight"] = 0.0
+            return info
+        info["valid"] = True
+        info["reason"] = "OK"
+        info["center_x"] = center_x
+        info["raw_error"] = raw_error
+        return info
 
 
 def _validate_roi_config():
@@ -740,6 +920,28 @@ def _validate_fast_config():
             config.SURFACE_PIXEL_SCALE != 2):
         raise ValueError(
             "V7 requires QQVGA 160x120 and the fixed 80x60 scale-2 grid")
+    expected_blocks = (
+        (0, 8, 80, 20), (0, 20, 80, 32),
+        (0, 32, 80, 46), (0, 46, 80, 60),
+    )
+    if (config.SURFACE_ROI_FLOOR_Y != 8 or
+            config.ROAD_PARAMS.get("ROAD_FLOOR_Y") != 8 or
+            tuple(config.GRAY_THRESHOLD_BLOCKS) != expected_blocks):
+        raise ValueError(
+            "turn-response ROI must use floor=8 and the four ordered blocks")
+    if (getattr(config, "STEERING_SPLIT_IMAGE_Y", None) != 36 or
+            getattr(config, "STEERING_SPLIT_GRID_Y", None) != 18 or
+            config.STEERING_SPLIT_IMAGE_Y !=
+            config.STEERING_SPLIT_GRID_Y * config.SURFACE_PIXEL_SCALE):
+        raise ValueError(
+            "turn-response split must remain full y=36 / grid y=18")
+    if (getattr(config, "STEERING_FAR_WEIGHT", None) != 0.20 or
+            getattr(config, "STEERING_NEAR_WEIGHT", None) != 0.80 or
+            getattr(config, "TURN_RESPONSE_VERSION", None) !=
+            "LOWER70_UPPER30_V1"):
+        raise ValueError("turn-response weighting config/build mismatch")
+    if getattr(config, "OBSERVATION_FILTER_ALPHA", None) != 0.70:
+        raise ValueError("turn-response filter alpha must remain 0.70")
     if (isinstance(config.SURFACE_MIN_CONFIDENCE, bool) or
             not isinstance(config.SURFACE_MIN_CONFIDENCE, int) or
             not 0 <= config.SURFACE_MIN_CONFIDENCE <= 100):
@@ -1223,7 +1425,8 @@ def _same_fast_track_reference(previous_source, source,
 
 def _build_gray_overlay_text_cache(selection, surface_result, road_result,
                                    reference, valid, raw_error,
-                                   filtered_error, processing_ms, fps):
+                                   filtered_error, processing_ms, fps,
+                                   weight_info=None):
     """Format compact details for the 100 ms text cache, never frame geometry."""
     route_mode = getattr(config, "SINGLE_EDGE_ROUTE_MODE", "unknown")
     route_label = ("CLIP" if route_mode == "clipped_midpoint" else
@@ -1232,57 +1435,38 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
     source = selection.get("source", "NONE") if valid else "NONE"
     quality = selection.get("quality", 0) if valid else 0
     details0 = "D100 %s %s Q%d" % (route_label, source.upper(), quality)
-    if valid and source == "road":
-        left_x, right_x = _selected_actual_boundaries(
-            selection, road_result, reference, True)
-        left_text = "-" if left_x is None else "%.0f" % left_x
-        right_text = "-" if right_x is None else "%.0f" % right_x
-        reference_x = ("-" if reference is None else
-                       "%.0f" % reference["x"])
-        details1 = "D100 L%s R%s X%s" % (
-            left_text, right_text, reference_x)
-        reference_y = ("-" if reference is None else
-                       "%.0f" % reference["y"])
-        details2 = "D100 Y%s E%+d/%+d" % (
-            reference_y, raw_error, filtered_error)
-    elif valid and source in ("single_left", "single_right"):
-        single_result = selection.get("result") or {}
-        actual = single_result.get("actual_boundary", "?")
-        actual_x = single_result.get("actual_boundary_x")
-        edge_side = "L" if actual == "LEFT" else "R"
-        edge_text = "-" if actual_x is None else "%.0f" % actual_x
-        midpoint = single_result.get("reference_center_x")
-        midpoint_text = "-" if midpoint is None else "%.0f" % midpoint
-        if route_mode == "clipped_midpoint":
-            endpoint = single_result.get("clipped_endpoint_x")
-            endpoint_side = ("R" if actual == "LEFT" else "L")
-            endpoint_text = "-" if endpoint is None else "%.0f" % endpoint
-            details1 = "D100 %s%s>%s%s M%s" % (
-                edge_side, edge_text, endpoint_side, endpoint_text,
-                midpoint_text)
-        else:
-            details1 = "D100 %s%s MID%s" % (
-                edge_side, edge_text, midpoint_text)
-        reference_y = ("-" if reference is None else
-                       "%.0f" % reference["y"])
-        details2 = "D100 Y%s E%+d/%+d" % (
-            reference_y, raw_error, filtered_error)
-    elif valid and reference is not None:
-        details1 = "D100 REF%.0f,%.0f" % (
-            reference["x"], reference["y"])
-        details2 = "D100 E%+d/%+d P%d" % (
-            raw_error, filtered_error, processing_ms)
+    if valid and reference is not None:
+        reference_x = float(reference["x"])
+        reference_y = reference.get("y")
+        safe_y = "-" if reference_y is None else "%.0f" % reference_y
+        details1 = "D100 SAFE X%.0f Y%s" % (reference_x, safe_y)
+    else:
+        details1 = "D100 no current safe ref"
+    if valid and weight_info is not None and weight_info.get("valid"):
+        center_x = weight_info.get("center_x")
+        near_count = weight_info.get("near_count", 0)
+        far_count = weight_info.get("far_count", 0)
+        near_percent = int(weight_info.get("near_weight", 0.0) * 100 + 0.5)
+        far_percent = int(weight_info.get("far_weight", 0.0) * 100 + 0.5)
+        details2 = "D100 WCTRL X%.1f N%d F%d" % (
+            center_x, near_count, far_count)
+        details3 = "D100 E%+d/%+d W%d/%d" % (
+            raw_error, filtered_error, near_percent, far_percent)
+    elif valid:
+        details2 = "D100 WCTRL unavailable"
+        details3 = "D100 E%+d/%+d" % (raw_error, filtered_error)
     else:
         reason = selection.get(
             "single_edge_reason", selection.get("reason", "INVALID"))
-        details1 = "D100 %s" % str(reason)
-        details2 = "D100 no current path"
-    return (details0[:24], details1[:24], details2[:24])
+        details2 = "D100 %s" % str(reason)
+        details3 = "D100 no current control"
+    return (details0[:24], details1[:24], details2[:24], details3[:24])
 
 
 def _draw_gray_result(img, selection, surface_result, road_result,
                       reference, valid, raw_error, filtered_error,
-                      processing_ms, fps, text_cache=None):
+                      processing_ms, fps, text_cache=None,
+                      weight_info=None):
     """Draw only current-frame geometry and cached text on the current image."""
     if not config.OVERLAY_ENABLED:
         return
@@ -1345,16 +1529,30 @@ def _draw_gray_result(img, selection, surface_result, road_result,
         if reference is not None and reference.get("y") is not None:
             img.draw_cross(_surface_pixel((reference["x"], reference["y"])),
                            color=160)
+        if (weight_info is not None and weight_info.get("valid") and
+                weight_info.get("center_x") is not None):
+            # The weighted controller aggregate is a virtual full-frame
+            # column, not a measured point on any selected camera row.
+            raw_top = _surface_pixel((weight_info["center_x"],
+                                      config.SURFACE_ROI_FLOOR_Y))
+            bottom_x, bottom_y = _surface_pixel((
+                weight_info["center_x"], config.SURFACE_GRID_HEIGHT - 1))
+            img.draw_line((raw_top[0], raw_top[1], bottom_x, bottom_y),
+                          color=224)
             filtered_x = (((filtered_error / 1000.0) *
                            ((config.SURFACE_GRID_WIDTH - 1) * 0.5)) +
                           (config.SURFACE_GRID_WIDTH - 1) * 0.5)
-            img.draw_cross(_surface_pixel((filtered_x, reference["y"])),
-                           color=255)
+            filtered_start = _surface_pixel((
+                filtered_x, config.SURFACE_ROI_FLOOR_Y))
+            filtered_end = _surface_pixel((
+                filtered_x, config.SURFACE_GRID_HEIGHT - 1))
+            img.draw_line((filtered_start[0], filtered_start[1],
+                           filtered_end[0], filtered_end[1]), color=255)
 
     if text_cache is None:
         text_cache = _build_gray_overlay_text_cache(
             selection, surface_result, road_result, reference, valid,
-            raw_error, filtered_error, processing_ms, fps)
+            raw_error, filtered_error, processing_ms, fps, weight_info)
     route_mode = getattr(config, "SINGLE_EDGE_ROUTE_MODE", "unknown")
     route_label = ("CLIP" if route_mode == "clipped_midpoint" else
                    "CACHE" if route_mode == "cached_width" else
@@ -1375,6 +1573,7 @@ class _V7OverlayState:
     def __init__(self, now_ms):
         self.last_text_ms = None
         self.text_cache = None
+        self.last_status = None
         self.draw_us = 0
         self.flush_us = 0
 
@@ -1382,7 +1581,7 @@ class _V7OverlayState:
 def _render_v7_preview_frame(img, selection, surface_result, road_result,
                              reference, valid, raw_error, filtered_error,
                              processing_ms, fps, overlay_state, now_ms,
-                             flush_func=None):
+                             flush_func=None, weight_info=None):
     """Draw every captured frame, refresh details at 100 ms, then flush it.
 
     This runs only after detection and the observation UART write. The flush
@@ -1394,18 +1593,22 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
         return
     if config.OVERLAY_ENABLED:
         draw_start_us = time.ticks_us()
+        current_status = (bool(valid),
+                          selection.get("source", "NONE") if valid else "NONE")
         if (overlay_state.text_cache is None or
                 overlay_state.last_text_ms is None or
+                overlay_state.last_status != current_status or
                 time.ticks_diff(now_ms, overlay_state.last_text_ms) >=
                 config.OVERLAY_PERIOD_MS):
             overlay_state.text_cache = _build_gray_overlay_text_cache(
                 selection, surface_result, road_result, reference, valid,
-                raw_error, filtered_error, processing_ms, fps)
+                raw_error, filtered_error, processing_ms, fps, weight_info)
             overlay_state.last_text_ms = now_ms
+            overlay_state.last_status = current_status
         _draw_gray_result(
             img, selection, surface_result, road_result, reference, valid,
             raw_error, filtered_error, processing_ms, fps,
-            overlay_state.text_cache)
+            overlay_state.text_cache, weight_info)
         overlay_state.draw_us = time.ticks_diff(
             time.ticks_us(), draw_start_us)
     if flush_func is None:
@@ -1487,7 +1690,8 @@ def _invalid_road(reason):
 
 
 _V7_PERF_STAGES = (
-    "capture", "masks", "path_topology", "boundary", "reference_filter",
+    "capture", "masks", "path_topology", "boundary", "row_weight",
+    "reference_filter",
     "pack_uart", "capture_to_send", "overlay", "preview_flush", "debug",
     "summary_log", "gc", "total_cycle",
 )
@@ -1875,6 +2079,7 @@ def _main_fast(duration_s=None, run_id=0):
         config.OBSERVATION_FILTER_ALPHA,
         config.OBSERVATION_FILTER_MAX_GAP_MS,
         0)  # Quality is diagnostic only for this fast geometry path.
+    row_weight_workspace = _FastRowWeightWorkspace()
     reverse_input_buffer = bytearray(reverse_control.MAX_FEED_BYTES)
     reverse_drain_state = array("i", [0])
     reverse_generation = reverse_parser.generation
@@ -2150,6 +2355,10 @@ def _main_fast(duration_s=None, run_id=0):
                 selection["result"] = None
                 reference = None
 
+        row_weight_start_us = time.ticks_us()
+        weight_info = row_weight_workspace.aggregate(
+            selection, road_result, config)
+        row_weight_end_us = time.ticks_us()
         raw_valid = bool(selection.get("valid"))
         raw_error = 0
         quality = selection.get("quality", 0) if raw_valid else 0
@@ -2157,17 +2366,20 @@ def _main_fast(duration_s=None, run_id=0):
             if reference is None:
                 raw_valid = False
                 selection["reason"] = "REFERENCE_UNAVAILABLE"
+            elif not weight_info.get("valid"):
+                raw_valid = False
+                selection["reason"] = "ROW_WEIGHT_%s" % weight_info.get(
+                    "reason", "INVALID")
             else:
                 try:
-                    # The protocol error must describe the exact point whose
-                    # boundary evidence was verified, including nearest-row
-                    # fallback when configured reference_y is unobserved.
-                    raw_error = _normalize_fast_reference(
-                        reference["x"], config.SURFACE_GRID_WIDTH)
+                    # This is the same-frame row aggregate; `reference`
+                    # remains the independently validated geometric safety
+                    # reference used by source-switch and boundary checks.
+                    raw_error = weight_info["raw_error"]
                     selection["lateral_error"] = raw_error
-                except (KeyError, TypeError, ValueError):
+                except (KeyError, TypeError, ValueError, OverflowError):
                     raw_valid = False
-                    selection["reason"] = "REFERENCE_UNAVAILABLE"
+                    selection["reason"] = "ROW_WEIGHT_UNAVAILABLE"
                 if raw_valid and (raw_error < -1000 or raw_error > 1000):
                     raw_valid = False
                     selection["reason"] = "ERROR_OUT_OF_RANGE"
@@ -2356,7 +2568,7 @@ def _main_fast(duration_s=None, run_id=0):
             img, selection, no_surface_result, road_result, reference,
             valid, raw_error, filtered_error,
             capture_to_send_us // 1000, clock.fps(), overlay_state,
-            time.ticks_ms())
+            time.ticks_ms(), weight_info=weight_info)
         overlay_us = overlay_state.draw_us
         preview_flush_us = overlay_state.flush_us
 
@@ -2388,10 +2600,11 @@ def _main_fast(duration_s=None, run_id=0):
                 _format_selected_actual_diagnostic(
                     selection, road_result, reference, valid)
             print("V7DBG run=%d seq=%d valid=%d q=%d source=%s "
-                  "boundary_source=%s inferred=%d inference_flags=%d "
-                  "%s cache_rows=%d actualL=%s actualR=%s "
-                  "controller_ref=%s reverse=%s/%s dual_why=%s rows=%d scene=%s topology=%s "
-                  "boundary=%s:%d/%d ref=%s raw=%d filt=%d "
+                  "b=%s inferred=%d flags=%d "
+                  "%s cache_rows=%d actual=%s/%s "
+                  "safe_ref=%s wctrl=%s rows_nf=%d/%d eff_nf=%d/%d "
+                  "reverse=%s/%s why=%s road_why=%s rows=%d scene=%s topology=%s "
+                  "boundary=%s:%d/%d ref=%s raw_weighted=%d filt=%d "
                   "filter=%s "
                   "age_send_ms=%d trusted_block_count=%d "
                   "threshold_min=%s threshold_max=%s "
@@ -2407,9 +2620,17 @@ def _main_fast(duration_s=None, run_id=0):
                       single_edge_diag,
                       single_edge_tracker.cache_rows,
                       actual_left, actual_right, actual_reference,
+                      ("%.1f" % weight_info["center_x"]
+                       if valid and weight_info.get("center_x") is not None
+                       else "NONE"),
+                      weight_info.get("near_count", 0),
+                      weight_info.get("far_count", 0),
+                      int(weight_info.get("near_weight", 0.0) * 100 + 0.5),
+                      int(weight_info.get("far_weight", 0.0) * 100 + 0.5),
                       reverse_parser.last_event,
                       "FRESH" if reverse_parser.single_enabled else "STALE",
                       selection.get("reason", "INVALID"),
+                      road_result.get("reason", "INVALID"),
                       road_result.get("active_row_count",
                                       road_result.get("observed_rows", 0)),
                       road_result.get("scene", "UNKNOWN"),
@@ -2440,6 +2661,8 @@ def _main_fast(duration_s=None, run_id=0):
         perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
         perf.record("path_topology", time.ticks_diff(path_end_us, path_start_us))
         perf.record("boundary", time.ticks_diff(boundary_end_us, boundary_start_us))
+        perf.record("row_weight", time.ticks_diff(
+            row_weight_end_us, row_weight_start_us))
         perf.record("reference_filter", time.ticks_diff(reference_end_us,
                                                           reference_start_us))
         perf.record("pack_uart", pack_uart_us)

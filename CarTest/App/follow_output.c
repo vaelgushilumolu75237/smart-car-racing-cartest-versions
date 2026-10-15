@@ -5,19 +5,18 @@ static uint16_t clamp_u16(uint32_t value, uint16_t maximum)
     return value > maximum ? maximum : (uint16_t)value;
 }
 
-static uint16_t approach_by_step(uint16_t current, uint16_t target)
+static uint16_t approach_by_step(uint16_t current, uint16_t target,
+                                 uint16_t step_permille)
 {
     if (current < target) {
         uint16_t delta = (uint16_t)(target - current);
         return (uint16_t)(current +
-            (delta > CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE
-                 ? CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE : delta));
+            (delta > step_permille ? step_permille : delta));
     }
     if (current > target) {
         uint16_t delta = (uint16_t)(current - target);
         return (uint16_t)(current -
-            (delta > CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE
-                 ? CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE : delta));
+            (delta > step_permille ? step_permille : delta));
     }
     return current;
 }
@@ -90,7 +89,8 @@ uint8_t car_follow_output_update(
     car_follow_output_state_t *state,
     uint32_t now_ms,
     uint16_t base_target_permille,
-    uint16_t differential_permille,
+    uint16_t outer_differential_permille,
+    uint16_t inner_differential_permille,
     uint16_t servo_applied_us,
     uint16_t servo_center_us,
     uint16_t servo_left_endpoint_us,
@@ -106,13 +106,15 @@ uint8_t car_follow_output_update(
     uint16_t next_left_target;
     uint16_t next_right_target;
     uint16_t steering_u = 0u;
+    uint16_t ramp_step_permille;
     uint32_t delta = 0u;
     uint8_t servo_ready;
 
     if (state == 0 || left_command_permille == 0 ||
         right_command_permille == 0 ||
         base_target_permille > CAR_FOLLOW_BASE_TARGET_PERMILLE ||
-        differential_permille > CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE ||
+        outer_differential_permille > CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE ||
+        inner_differential_permille > CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE ||
         servo_left_endpoint_us >= servo_center_us ||
         servo_right_endpoint_us <= servo_center_us) {
         return 0u;
@@ -137,16 +139,34 @@ uint8_t car_follow_output_update(
 
     next_left_target = base_target_permille;
     next_right_target = base_target_permille;
+    state->outer_delta_permille = 0u;
+    state->inner_delta_permille = 0u;
     if (state->startup_qualified != 0u) {
-        delta = ((uint32_t)differential_permille * steering_u) / 1000u;
+        delta = ((uint32_t)outer_differential_permille * steering_u) / 1000u;
         if (servo_applied_us > servo_center_us) {
             /* Right turn: left is the outer side and receives more duty. */
             next_left_target = (uint16_t)(base_target_permille + delta);
+            state->outer_delta_permille = (uint16_t)delta;
+            delta = ((uint32_t)inner_differential_permille * steering_u) /
+                    1000u;
+            if (delta > base_target_permille) {
+                return 0u;
+            }
             next_right_target = (uint16_t)(base_target_permille - delta);
+            state->inner_delta_permille = (uint16_t)delta;
         } else if (servo_applied_us < servo_center_us) {
             /* Left turn mirrors the right-turn output. */
+            delta = ((uint32_t)inner_differential_permille * steering_u) /
+                    1000u;
+            if (delta > base_target_permille) {
+                return 0u;
+            }
             next_left_target = (uint16_t)(base_target_permille - delta);
+            state->inner_delta_permille = (uint16_t)delta;
+            delta = ((uint32_t)outer_differential_permille * steering_u) /
+                    1000u;
             next_right_target = (uint16_t)(base_target_permille + delta);
+            state->outer_delta_permille = (uint16_t)delta;
         }
         if (next_left_target > CAR_FOLLOW_NORMAL_MAX_PERMILLE ||
             next_right_target > CAR_FOLLOW_NORMAL_MAX_PERMILLE ||
@@ -168,6 +188,9 @@ uint8_t car_follow_output_update(
     } else {
         state->phase = CAR_FOLLOW_OUTPUT_PHASE_WAIT_BASE_DUTY;
     }
+    ramp_step_permille = state->startup_qualified != 0u
+        ? CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE
+        : CAR_FOLLOW_OUTPUT_STARTUP_RAMP_STEP_PERMILLE;
 
     if (state->have_ramp_time == 0u) {
         state->last_ramp_ms = now_ms;
@@ -178,9 +201,9 @@ uint8_t car_follow_output_update(
                CAR_FOLLOW_OUTPUT_RAMP_PERIOD_MS) {
         state->last_ramp_ms = now_ms;
         state->command_left_permille = approach_by_step(
-            left_applied_permille, next_left_target);
+            left_applied_permille, next_left_target, ramp_step_permille);
         state->command_right_permille = approach_by_step(
-            right_applied_permille, next_right_target);
+            right_applied_permille, next_right_target, ramp_step_permille);
     } else {
         state->command_left_permille = left_applied_permille;
         state->command_right_permille = right_applied_permille;

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10")]
+    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn")]
     [string] $Preset,
     [switch] $Fresh
 )
@@ -273,6 +273,7 @@ try {
         'DebugFollowNoLog' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'OFF'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
         'DebugFollowDiff5' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '50' }
         'DebugFollowDiff10' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '100' }
+        'DebugFollowTurn' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200' }
     }
     $configuredCache = Join-Path $buildDirectory 'CMakeCache.txt'
     foreach ($flagName in $expectedProfileFlags[$Preset].Keys) {
@@ -280,6 +281,11 @@ try {
         if ($actualFlag -ne $expectedProfileFlags[$Preset][$flagName]) {
             throw "Configured profile flag mismatch for $Preset`: $flagName=$actualFlag"
         }
+    }
+    $expectedTurnProfile = if ($Preset -eq 'DebugFollowTurn') { 'ON' } else { 'OFF' }
+    $actualTurnProfile = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_FOLLOW_TURN'
+    if ($actualTurnProfile -ne $expectedTurnProfile) {
+        throw "Configured Follow turn profile mismatch for $Preset`: CARTEST_ENABLE_FOLLOW_TURN=$actualTurnProfile"
     }
     Write-Host "Building target CarTest with preset '$Preset'..."
     & $cmakeExe --build --preset $Preset --target CarTest

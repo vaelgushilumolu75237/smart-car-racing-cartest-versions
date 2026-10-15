@@ -35,10 +35,38 @@
 #if !defined(CARTEST_FOLLOW_DIFF_PERMILLE)
 #error "CMake must explicitly select the Follow differential level."
 #endif
+#if !defined(CARTEST_FOLLOW_INNER_DIFF_PERMILLE) || \
+    !defined(CARTEST_FOLLOW_TURN_PROFILE_COMPILED) || \
+    !defined(CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE) || \
+    !defined(CARTEST_FOLLOW_HARD_LIMIT_PERMILLE) || \
+    !defined(CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE) || \
+    !defined(CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE) || \
+    !defined(CARTEST_FOLLOW_SERVO_SLEW_STEP_US)
+#error "CMake must explicitly select the Follow turn response fingerprint."
+#endif
+#if CARTEST_FOLLOW_TURN_PROFILE_COMPILED
+#if !CARTEST_FOLLOW_MODE_COMPILED || \
+    (CARTEST_FOLLOW_DIFF_PERMILLE != 200) || \
+    (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != 200) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 20) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 60)
+#error "FollowTurn requires the validated 70/30, 60us/20ms, 20-permille/10ms profile."
+#endif
+#else
 #if (CARTEST_FOLLOW_DIFF_PERMILLE != 0) && \
     (CARTEST_FOLLOW_DIFF_PERMILLE != 50) && \
-    (CARTEST_FOLLOW_DIFF_PERMILLE != 100)
-#error "Follow differential must be 0, 50, or 100 permille."
+    (CARTEST_FOLLOW_DIFF_PERMILLE != 100) || \
+    (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != CARTEST_FOLLOW_DIFF_PERMILLE) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 600) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 10) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 40)
+#error "Legacy Follow requires differential 0, 50, or 100 with its original limits and rates."
+#endif
 #endif
 #if !CARTEST_FOLLOW_MODE_COMPILED && (CARTEST_FOLLOW_DIFF_PERMILLE != 0)
 #error "Follow differential is only valid in a Follow profile."
@@ -52,8 +80,9 @@
 #define APP_MAIN_LOOP_GAP_LIMIT_MS 50u
 #define APP_SWITCH_DEBOUNCE_MS 30u
 #define APP_BENCH_LIMIT_PERMILLE 400u
-#define APP_FOLLOW_NORMAL_LIMIT_PERMILLE 600u
-#define APP_FOLLOW_HARD_LIMIT_PERMILLE 700u
+#define APP_FOLLOW_NORMAL_LIMIT_PERMILLE \
+    CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
+#define APP_FOLLOW_HARD_LIMIT_PERMILLE CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
 #define APP_BENCH_RAMP_STEP_PERMILLE 10u
 #define APP_USART_BAUDRATE 115200u
 #define APP_IWDG_RELOAD_COUNTS 500u
@@ -222,7 +251,14 @@ volatile uint32_t car_reverse_control_fresh_frames;
 volatile uint32_t car_follow_servo_target_us;
 volatile uint32_t car_follow_motor_duty_permille;
 volatile uint32_t car_follow_diff_mode_permille;
+volatile uint32_t car_follow_inner_diff_permille;
 volatile uint32_t car_follow_diff_u_permille;
+volatile uint32_t car_follow_profile_id;
+volatile uint32_t car_follow_outer_delta_permille;
+volatile uint32_t car_follow_inner_delta_permille;
+volatile uint32_t car_follow_normal_cap_permille;
+volatile uint32_t car_follow_motor_normal_step_permille;
+volatile uint32_t car_follow_servo_normal_step_us;
 volatile uint32_t car_follow_output_phase;
 volatile uint32_t car_follow_startup_qualified;
 volatile uint32_t car_follow_base_target_permille;
@@ -1992,7 +2028,8 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
     if (car_follow_output_update(
             &follow_output_state, now_ms,
             car_control_state.follow_output_duty_permille,
-            CARTEST_FOLLOW_DIFF_PERMILLE, applied_servo_pulse_us,
+            CARTEST_FOLLOW_DIFF_PERMILLE,
+            CARTEST_FOLLOW_INNER_DIFF_PERMILLE, applied_servo_pulse_us,
             app_config.servo_center_us, app_config.follow_servo_left_us,
             app_config.follow_servo_right_us, servo_output_active,
             servo_safety.frame_ready,
@@ -2698,7 +2735,20 @@ static void publish_debug_snapshot(uint8_t raw_high,
         0u;
 #endif
     car_follow_diff_mode_permille = CARTEST_FOLLOW_DIFF_PERMILLE;
+    car_follow_inner_diff_permille = CARTEST_FOLLOW_INNER_DIFF_PERMILLE;
+    car_follow_profile_id = CARTEST_FOLLOW_TURN_PROFILE_COMPILED ? 3u :
+        (CARTEST_FOLLOW_DIFF_PERMILLE == 0 ? 0u :
+         (CARTEST_FOLLOW_DIFF_PERMILLE == 50 ? 1u : 2u));
     car_follow_diff_u_permille = follow_output_state.differential_u_permille;
+    car_follow_outer_delta_permille =
+        follow_output_state.outer_delta_permille;
+    car_follow_inner_delta_permille =
+        follow_output_state.inner_delta_permille;
+    car_follow_normal_cap_permille = APP_FOLLOW_NORMAL_LIMIT_PERMILLE;
+    car_follow_motor_normal_step_permille =
+        CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE;
+    car_follow_servo_normal_step_us =
+        CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US;
     car_follow_output_phase = follow_output_state.phase;
     car_follow_startup_qualified = follow_output_state.startup_qualified;
     car_follow_base_target_permille =

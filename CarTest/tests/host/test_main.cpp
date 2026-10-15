@@ -861,7 +861,7 @@ void test_follow_output_differential_and_independent_ramps()
     uint16_t right = 0u;
 
     CHECK_EQ("centered applied servo pulse has no differential",
-             car_follow_output_update(&state, 0u, 500u, 100u, 1530u,
+             car_follow_output_update(&state, 0u, 500u, 100u, 100u, 1530u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       0u, 0u, 0u, &left, &right), 1u);
     CHECK_EQ("startup waits for applied motor base before qualifying",
@@ -875,7 +875,7 @@ void test_follow_output_differential_and_independent_ramps()
 
     car_follow_output_reset(&state);
     CHECK_EQ("a complete active pulse is still required before qualification",
-             car_follow_output_update(&state, 0u, 500u, 100u, 2500u,
+             car_follow_output_update(&state, 0u, 500u, 100u, 100u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 0u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("motor duties alone cannot qualify before full servo frame",
@@ -884,7 +884,7 @@ void test_follow_output_differential_and_independent_ramps()
              state.target_left_permille, 500u);
 
     CHECK_EQ("first full PWM and both actual base duties qualify startup",
-             car_follow_output_update(&state, 10u, 500u, 100u, 1530u,
+             car_follow_output_update(&state, 10u, 500u, 100u, 100u, 1530u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("startup qualification is latched only at actual 500/500",
@@ -894,7 +894,7 @@ void test_follow_output_differential_and_independent_ramps()
              state.differential_u_permille, 0u);
 
     CHECK_EQ("right-turn endpoint updates from applied servo pulse",
-             car_follow_output_update(&state, 20u, 500u, 100u, 2500u,
+             car_follow_output_update(&state, 20u, 500u, 100u, 100u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("right-turn endpoint has full normalized amount",
@@ -908,7 +908,7 @@ void test_follow_output_differential_and_independent_ramps()
              right, 490u);
 
     CHECK_EQ("left turn mirrors the right-turn target allocation",
-             car_follow_output_update(&state, 30u, 500u, 100u, 1100u,
+             car_follow_output_update(&state, 30u, 500u, 100u, 100u, 1100u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("left turn targets inner left at 400", state.target_left_permille,
@@ -921,7 +921,7 @@ void test_follow_output_differential_and_independent_ramps()
              right, 510u);
 
     CHECK_EQ("medium differential endpoint remains symmetric",
-             car_follow_output_update(&state, 40u, 500u, 50u, 2500u,
+             car_follow_output_update(&state, 40u, 500u, 50u, 50u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("medium right-turn outer target is 550", state.target_left_permille,
@@ -930,7 +930,7 @@ void test_follow_output_differential_and_independent_ramps()
              450u);
 
     CHECK_EQ("long scheduling delay still advances at most one ramp step",
-             car_follow_output_update(&state, 1000u, 500u, 50u, 2500u,
+             car_follow_output_update(&state, 1000u, 500u, 50u, 50u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("delayed left command does not catch up in one tick", left, 510u);
@@ -955,29 +955,29 @@ void test_follow_output_differential_and_independent_ramps()
 
     car_follow_output_reset(&state);
     CHECK_EQ("wrap fixture starts with completed 500/500 outputs",
-             car_follow_output_update(&state, UINT32_MAX - 5u, 500u, 0u,
+             car_follow_output_update(&state, UINT32_MAX - 5u, 500u, 0u, 0u,
                                       1530u, 1530u, 1100u, 2500u,
                                       1u, 1u, 1u, 500u, 500u,
                                       &left, &right), 1u);
     CHECK_EQ("zero differential qualifies the base latch once",
              state.startup_qualified, 1u);
     CHECK_EQ("elapsed-time arithmetic crosses uint32 wrap exactly once",
-             car_follow_output_update(&state, 4u, 500u, 100u, 2500u,
+             car_follow_output_update(&state, 4u, 500u, 100u, 100u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
     CHECK_EQ("wrapped ramp advances left by one step", left, 510u);
     CHECK_EQ("wrapped ramp advances right by one step", right, 490u);
 
     CHECK_EQ("normal helper rejects base requests above 500",
-             car_follow_output_update(&state, 14u, 501u, 0u, 2500u,
+             car_follow_output_update(&state, 14u, 501u, 0u, 0u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 0u);
-    CHECK_EQ("normal helper rejects differential above the 100 profile",
-             car_follow_output_update(&state, 14u, 500u, 101u, 2500u,
+    CHECK_EQ("normal helper rejects differential above the implementation bound",
+             car_follow_output_update(&state, 14u, 500u, 201u, 201u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 0u);
     CHECK_EQ("degenerate servo endpoint calibration is rejected",
-             car_follow_output_update(&state, 14u, 500u, 0u, 1530u,
+             car_follow_output_update(&state, 14u, 500u, 0u, 0u, 1530u,
                                       1530u, 1530u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 0u);
 }

@@ -1,1415 +1,997 @@
 {
   "schema_version": 1,
-  "archive_id": "CarTest-20261014-0422-before",
-  "phase": "before",
+  "archive_id": "CarTest-20261014-0422-after",
+  "phase": "after",
   "archive_scope": "Historical source and original ELF code package; no behavioral redesign or hardware actions.",
-  "generated_utc": "2026-10-15T09:32:19Z",
+  "generated_utc": "2026-10-15T09:32:21Z",
   "source_snapshot": {
-    "manifest_path": "test-data/turn-response-20261014/before/control/MANIFEST.json",
-    "manifest_sha256": "4cb8776876ea8c2957584c3f13c3006e546fc397bba580adc2c289237fb1722c",
-    "created_utc": "2026-10-13T20:22:06.3934321Z",
-    "created_beijing": "2026-10-14T04:22:06.3934321+08:00",
-    "source_entry_count": 147,
-    "validated_entry_count_including_original_elfs": 154,
-    "copied_source_entry_count": 58,
-    "excluded_source_entry_count": 89,
+    "manifest_path": "test-data/log-audit-20261014/before/SNAPSHOT_MANIFEST.json",
+    "manifest_sha256": "a74cd75840d6b63bbbc42113c22a6c9102115a81dea08ceb9146accb7285ef16",
+    "created_local": "2026-10-14T09:19:09.9945678+08:00",
+    "source_entry_count": 54,
+    "validated_snapshot_entry_count": 84,
+    "copied_source_entry_count": 54,
     "input_files": [
       {
-        "kind": "source_config",
-        "source_path": "CMakeLists.txt",
-        "sha256": "fff413e3658e372f16cf728f493746d5caeb02a5fd3f82b2d970128d7ab6b890",
-        "bytes": 8576,
+        "kind": "source",
+        "source_path": "source/CMakeLists.txt",
+        "sha256": "3b1d16278102f9f8762860e5b24ac152556d6e8e3225294c291d225870d9f333",
+        "bytes": 10757,
         "retained_as": "CMakeLists.txt"
       },
       {
-        "kind": "source_config",
-        "source_path": "CMakePresets.json",
-        "sha256": "1230beffe245fa1355ef5324b799babb0bbf6fada52a0f7b427fecee99f5a3b1",
-        "bytes": 3522,
+        "kind": "source",
+        "source_path": "source/CMakePresets.json",
+        "sha256": "17b720b50af6e3f8a35ba452bec2b9d9e7e29adeb18d12067efa4d588cd796c5",
+        "bytes": 3948,
         "retained_as": "CMakePresets.json"
       },
       {
-        "kind": "source_config",
-        "source_path": "project-description.json",
-        "sha256": "d98b33b6111257d2a4ec598330c209d65e5fc0e7c7ef8797a66dcfaead5493b8",
-        "bytes": 5375,
-        "retained_as": "project-description.json"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "README.md",
-        "sha256": "250cc7ffd803fce3b4a4cdfea89368726adc3b0f0648a92d399b4ebc15eebacf",
-        "bytes": 14616,
-        "retained_as": "docs/archive-origin/README-source-0422.md"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "stm32h743xi_flash.ld",
-        "sha256": "81ba4a2433b4948caf93127e994ff757742eff00474a8c59608380e3d6bce75c",
-        "bytes": 8039,
-        "retained_as": "stm32h743xi_flash.ld"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/c_cpp_properties.json",
-        "sha256": "1d40a921a6f28b9ac3dfcd2613d0a666dd3d9a9a7f6f626028132db735fe020f",
-        "bytes": 168,
-        "retained_as": ".vscode/c_cpp_properties.json"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/launch.json",
-        "sha256": "dc408c662d61d609d7bacf1dbf48927921f8ba752b9902063df67c50f7720a32",
-        "bytes": 9922,
-        "retained_as": ".vscode/launch.json"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/launch.json.bak-20261012-223049-218",
-        "sha256": "16ebf2f43759adec07d8869fef1bbd86d91e689097c77ec433bbeaadb80aa714",
-        "bytes": 2769,
-        "retained_as": ".vscode/launch.json.bak-20261012-223049-218"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/launch.json.bak-20261012-230443-897",
-        "sha256": "9877911c82b0121d221bff363c047ce57ddce56702becd807c74613f83abf964",
-        "bytes": 5683,
-        "retained_as": ".vscode/launch.json.bak-20261012-230443-897"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/settings.json",
-        "sha256": "fa1c0143eaef1942427630d3a8453d0063a616cfee4f68bf3b6f5f151d864906",
-        "bytes": 558,
-        "retained_as": ".vscode/settings.json"
-      },
-      {
-        "kind": "source_config",
-        "source_path": ".vscode/tasks.json",
-        "sha256": "aecb2a540f3a5c908440bc62bfe28957703993ca527f878953517c3b7cc1e315",
-        "bytes": 3055,
-        "retained_as": ".vscode/tasks.json"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "App/car_vision.c",
+        "kind": "source",
+        "source_path": "source/App/car_vision.c",
         "sha256": "3a377e93bfb5ffdae41d3a88e9b1b0c0a5a93eda955d07f928d03b7860090504",
         "bytes": 6872,
         "retained_as": "App/car_vision.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/commissioning.c",
-        "sha256": "fdc5db7199ffd686f9415127326dc05d6205ced6a18bb400130c87ffacac4a9f",
-        "bytes": 65313,
+        "kind": "source",
+        "source_path": "source/App/commissioning.c",
+        "sha256": "8e4733362a70dfe4664c807c59a89d12624ce75baa908f97a3e529cfd6ef353f",
+        "bytes": 65447,
         "retained_as": "App/commissioning.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/encoder_diag.c",
+        "kind": "source",
+        "source_path": "source/App/encoder_diag.c",
         "sha256": "5ebda489edb0cd5226a25e23148ab670c22db7689d67aa6474cca3e079f7951c",
         "bytes": 1856,
         "retained_as": "App/encoder_diag.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/follow_output.c",
-        "sha256": "039b0320b16bcafe522f5b0272551cf18708025ee7d08ef34e4fee576eafc309",
-        "bytes": 7233,
+        "kind": "source",
+        "source_path": "source/App/follow_output.c",
+        "sha256": "973cf35c5d2b0b03a3a72d829deefabd8589e66826bdf9c445f93a67962015aa",
+        "bytes": 8330,
         "retained_as": "App/follow_output.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/manual_run_button.c",
+        "kind": "source",
+        "source_path": "source/App/manual_run_button.c",
         "sha256": "9f180df53b5c43172b5c3d6c3de3e4e78fa96e227c679b49b5891554893d7a2d",
         "bytes": 2771,
         "retained_as": "App/manual_run_button.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/reverse_control.c",
+        "kind": "source",
+        "source_path": "source/App/reverse_control.c",
         "sha256": "d102cd89144d715aaa1ee25aa00b4b9ca9b23bba2a31b959553d8ae0f4f9df66",
         "bytes": 4242,
         "retained_as": "App/reverse_control.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/runtime_log.c",
+        "kind": "source",
+        "source_path": "source/App/runtime_log.c",
         "sha256": "b7dae1dad1c8cbf4290caebae87cf7c16a9b60bd6318be33deacfdc7780e5e5d",
         "bytes": 21983,
         "retained_as": "App/runtime_log.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/run_block_reason.c",
+        "kind": "source",
+        "source_path": "source/App/run_block_reason.c",
         "sha256": "6ffeaa0e4e77043cd9b117a3e987b2651176441be00d19a0524638666b0089e6",
         "bytes": 1711,
         "retained_as": "App/run_block_reason.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/servo_safety.c",
+        "kind": "source",
+        "source_path": "source/App/servo_safety.c",
         "sha256": "ee437b84122895140e3078aebda00de4209575b335de0df78894a506ef1c0780",
         "bytes": 15575,
         "retained_as": "App/servo_safety.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/uart_rx_service.c",
+        "kind": "source",
+        "source_path": "source/App/uart_rx_service.c",
         "sha256": "86771d14f72bc679767f4475c3deea1fc90549d1412b67ce8cef1baa15b63dbc",
         "bytes": 1179,
         "retained_as": "App/uart_rx_service.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "App/vision_protocol.cpp",
+        "kind": "source",
+        "source_path": "source/App/vision_protocol.cpp",
         "sha256": "ad17e378a2d47dee009d821b8651744d21f654f4f3c30b6be1d032a355d958d9",
         "bytes": 4959,
         "retained_as": "App/vision_protocol.cpp"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/components.cmake",
+        "kind": "source",
+        "source_path": "source/cmake/components.cmake",
         "sha256": "bd3ca45f13265afe58297c23db39592ccba61eb93c3d348a53ceac1f42c4e118",
         "bytes": 82,
         "retained_as": "cmake/components.cmake"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/files.cmake",
+        "kind": "source",
+        "source_path": "source/cmake/files.cmake",
         "sha256": "4a3f1fd36e5a3a8ba3e4310bbf5824876d7997485c9e2ec4b26d11a18ad9d1cc",
         "bytes": 499,
         "retained_as": "cmake/files.cmake"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/flags.cmake",
+        "kind": "source",
+        "source_path": "source/cmake/flags.cmake",
         "sha256": "46f2fc7e729e97992185208b38f440c4a95239ea67c5ae046db86eb6c08845c8",
         "bytes": 3563,
         "retained_as": "cmake/flags.cmake"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/gcc-arm-none-eabi.cmake",
+        "kind": "source",
+        "source_path": "source/cmake/gcc-arm-none-eabi.cmake",
         "sha256": "ffccc9f99255d5b8b24065f038479e6b45e3d4b06319669e24f083feeeb55078",
         "bytes": 4908,
         "retained_as": "cmake/gcc-arm-none-eabi.cmake"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/runtime_log_build_id.h.in",
+        "kind": "source",
+        "source_path": "source/cmake/runtime_log_build_id.h.in",
         "sha256": "b5283b9dee74bac0edfab2bc9268de3b15dd30a3bbaccbcbe3e83b877540d87c",
         "bytes": 278,
         "retained_as": "cmake/runtime_log_build_id.h.in"
       },
       {
-        "kind": "source_config",
-        "source_path": "cmake/target.cmake",
+        "kind": "source",
+        "source_path": "source/cmake/target.cmake",
         "sha256": "961799c73878877da61cf7d74b3450056554f36e501aceb80f88aecc7044e273",
         "bytes": 496,
         "retained_as": "cmake/target.cmake"
       },
       {
-        "kind": "source_config",
-        "source_path": "docs/BASIC_FOLLOW_RECOVERY_CN.md",
-        "sha256": "6a969da32b945afabccc8663e6ff2f172542da6fbc8cfdb6da0b5a391ddfd2e9",
-        "bytes": 2699,
-        "retained_as": "docs/BASIC_FOLLOW_RECOVERY_CN.md"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "docs/DIFFERENTIAL_TRIALS_CN.md",
-        "sha256": "9535dbcf0364f6b1a7a5a9c8c6065a5b93a265d089a4986b22345036fb49cf4e",
-        "bytes": 9281,
+        "kind": "source",
+        "source_path": "source/docs/DIFFERENTIAL_TRIALS_CN.md",
+        "sha256": "af69c67490bdbe8275e0a7d94b1deb542225b094fd9fcadccb9dbd3bd85e9a5e",
+        "bytes": 9843,
         "retained_as": "docs/DIFFERENTIAL_TRIALS_CN.md"
       },
       {
-        "kind": "source_config",
-        "source_path": "docs/FOLLOW_BRINGUP_CN.md",
-        "sha256": "521d836ceef0086c89bdee99998fb4bf5d2cb27011fe2d3de5c4704b3179896e",
-        "bytes": 7746,
+        "kind": "source",
+        "source_path": "source/docs/FOLLOW_BRINGUP_CN.md",
+        "sha256": "cb5ca09892ef5bc4fe30e12d688c2ade2643eadba5716e3eb5a2d8c0b05e1078",
+        "bytes": 8680,
         "retained_as": "docs/FOLLOW_BRINGUP_CN.md"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/car_calibration.h",
+        "kind": "source",
+        "source_path": "source/docs/RUNTIME_LOG_EXPORT_CN.md",
+        "sha256": "29332969f0e5f0e8d432d55a990fd6c806f58ee163e79c60678e05d97c059a2b",
+        "bytes": 7174,
+        "retained_as": "docs/RUNTIME_LOG_EXPORT_CN.md"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/Inc/car_calibration.h",
         "sha256": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
         "bytes": 2314,
         "retained_as": "Inc/car_calibration.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/car_vision.h",
+        "kind": "source",
+        "source_path": "source/Inc/car_vision.h",
         "sha256": "5cd8ccd6f870cec92210304d213dddfd6091bd9db83cd22250e32241b0e6e4e3",
         "bytes": 2167,
         "retained_as": "Inc/car_vision.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/commissioning.h",
+        "kind": "source",
+        "source_path": "source/Inc/commissioning.h",
         "sha256": "cfdd104d545205ce0b3370ea8691e7bfe42674b51ed02f314a0df08895d33855",
         "bytes": 13556,
         "retained_as": "Inc/commissioning.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/encoder_diag.h",
+        "kind": "source",
+        "source_path": "source/Inc/encoder_diag.h",
         "sha256": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
         "bytes": 765,
         "retained_as": "Inc/encoder_diag.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/follow_output.h",
-        "sha256": "8a4fd77cd8ccd23328f82c8997d27975bf313685207671bad847b0dc43ef47ed",
-        "bytes": 2469,
+        "kind": "source",
+        "source_path": "source/Inc/follow_output.h",
+        "sha256": "de157f38c00ad496ac1ad3fa634600fcac71e8f75e31892631988da75395a5a0",
+        "bytes": 3306,
         "retained_as": "Inc/follow_output.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/manual_run_button.h",
+        "kind": "source",
+        "source_path": "source/Inc/manual_run_button.h",
         "sha256": "f66cca80884a5087a5d8a1afae4bb9671acca300413c6b641657d14aa2bbf09f",
         "bytes": 1725,
         "retained_as": "Inc/manual_run_button.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/reverse_control.h",
+        "kind": "source",
+        "source_path": "source/Inc/reverse_control.h",
         "sha256": "12e312db02daba917f3680f7f725bbadf354519eac05f04d81b1e0572e04e8c5",
         "bytes": 1690,
         "retained_as": "Inc/reverse_control.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/runtime_log.h",
+        "kind": "source",
+        "source_path": "source/Inc/runtime_log.h",
         "sha256": "9640752bbbe916438ac88a06ddd8bc39845e794c4dee8277312b3f86b5250838",
         "bytes": 8223,
         "retained_as": "Inc/runtime_log.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/run_block_reason.h",
+        "kind": "source",
+        "source_path": "source/Inc/run_block_reason.h",
         "sha256": "81a7d81e4609845e6c53fb791c957598d3d0303f6183b55d1faca583915cc449",
         "bytes": 1571,
         "retained_as": "Inc/run_block_reason.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/servo_safety.h",
-        "sha256": "510fddd5713065e344b6f7d5957ed2afd12c54395ef3f2057af84353ddff81a6",
-        "bytes": 4933,
+        "kind": "source",
+        "source_path": "source/Inc/servo_safety.h",
+        "sha256": "61554b5160f16a9285f882112cd507128d2ae9865b41ef5093596ddb74ff2305",
+        "bytes": 5067,
         "retained_as": "Inc/servo_safety.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/stm32h7xx_hal_conf.h",
+        "kind": "source",
+        "source_path": "source/Inc/stm32h7xx_hal_conf.h",
         "sha256": "d6b849358010ba05d51e4bc4344ef8033fd86eb08eb313b3fd4b167bc7245e1b",
         "bytes": 3195,
         "retained_as": "Inc/stm32h7xx_hal_conf.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/uart_rx_service.h",
+        "kind": "source",
+        "source_path": "source/Inc/uart_rx_service.h",
         "sha256": "18b14e4cacd14c4b7d4b0a487cf3c54d4dbe330c16f9aed5e8f724873331bdb4",
         "bytes": 1499,
         "retained_as": "Inc/uart_rx_service.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Inc/vision_protocol.h",
+        "kind": "source",
+        "source_path": "source/Inc/vision_protocol.h",
         "sha256": "0ff43c1775f00130f48fbcf838f414e314bf090355d0b35ce57ba13682c03506",
         "bytes": 1278,
         "retained_as": "Inc/vision_protocol.h"
       },
       {
-        "kind": "source_config",
-        "source_path": "Src/main.c",
-        "sha256": "d5ac245e4aeed64581258c66aef8cb21c9ab583c83e51372be490270625c2dd6",
-        "bytes": 126302,
+        "kind": "source",
+        "source_path": "source/Src/main.c",
+        "sha256": "5ca089cf627654cf57be016832698e8a7fbad5f1cecbc7ec51ba40088ed2c186",
+        "bytes": 128868,
         "retained_as": "Src/main.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "Src/startup_stm32h743xx.S",
+        "kind": "source",
+        "source_path": "source/Src/startup_stm32h743xx.S",
         "sha256": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
         "bytes": 30867,
         "retained_as": "Src/startup_stm32h743xx.S"
       },
       {
-        "kind": "source_config",
-        "source_path": "Src/syscall.c",
+        "kind": "source",
+        "source_path": "source/Src/syscall.c",
         "sha256": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
         "bytes": 5142,
         "retained_as": "Src/syscall.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "Src/sysmem.c",
+        "kind": "source",
+        "source_path": "source/Src/sysmem.c",
         "sha256": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
         "bytes": 3029,
         "retained_as": "Src/sysmem.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "Src/system_stm32h7xx.c",
+        "kind": "source",
+        "source_path": "source/Src/system_stm32h7xx.c",
         "sha256": "7651ffeba09a135459e5501033d3610c3205df959c840aed496163a63ae9ae44",
         "bytes": 20305,
         "retained_as": "Src/system_stm32h7xx.c"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/test_analyze_differential_runs.py",
-        "sha256": "ce68599e08812e109b1cfda789f6536921ff7ff2b6ecca45d66d4809f0174cab",
-        "bytes": 37995,
+        "kind": "source",
+        "source_path": "source/tests/test_analyze_differential_runs.py",
+        "sha256": "a627a1d82e194cc678068035185e27f6f6f052779de697b72c99337af2ee228a",
+        "bytes": 38573,
         "retained_as": "tests/test_analyze_differential_runs.py"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/test_select_follow_logging.ps1",
-        "sha256": "5eabc4b5da20cae6ba29d0c20d7bb2226b08d17f227c87eb95d9ac7eec567dca",
-        "bytes": 5505,
+        "kind": "source",
+        "source_path": "source/tests/test_export_run_log.ps1",
+        "sha256": "18a6b9d25619acae8d0554005a83820c6c10829202e619069630be57af3dfef0",
+        "bytes": 13830,
+        "retained_as": "tests/test_export_run_log.ps1"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/tests/test_runtime_log_export.py",
+        "sha256": "5f3bc328cb50882831b30a9ccb888cb854ecab96be7edaea56d3d743b7a2495b",
+        "bytes": 13733,
+        "retained_as": "tests/test_runtime_log_export.py"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/tests/test_select_follow_logging.ps1",
+        "sha256": "21148759cabe0b8e4c413a29755a4b9dd2e475f2216c5cffc4bffc751a7e2691",
+        "bytes": 6185,
         "retained_as": "tests/test_select_follow_logging.ps1"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/host/run_tests.ps1",
-        "sha256": "9e07f794a4e6d26752889e0e3a0a6ddc2e05d0db339479d31ebd7ed60984ccd4",
-        "bytes": 10349,
+        "kind": "source",
+        "source_path": "source/tests/host/run_tests.ps1",
+        "sha256": "7089ae2b6c584e80c46f0f7260fea01ff65713848218e441337787bd81080d05",
+        "bytes": 10754,
         "retained_as": "tests/host/run_tests.ps1"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/host/test_follow_output_path.py",
-        "sha256": "3f1ab6f15b0863cb4a9dba72d6e5dd1182a51f7adf577aca1d2f9c179016967c",
-        "bytes": 47127,
+        "kind": "source",
+        "source_path": "source/tests/host/test_follow_output_path.py",
+        "sha256": "3007e00bf12b309eeb827f20f821d82fa05f2a19f95fae2d4e5fc8e85b9022bb",
+        "bytes": 49011,
         "retained_as": "tests/host/test_follow_output_path.py"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/host/test_main.cpp",
-        "sha256": "34601e095aa78f3703d50364d78c45cdd4da3236625d8417a9d20b8a66c80707",
-        "bytes": 238736,
+        "kind": "source",
+        "source_path": "source/tests/host/test_main.cpp",
+        "sha256": "3f0d70c8c8a680c4814981f80a1757d8a687cd91c8bc28d245ea80873c613fe8",
+        "bytes": 238809,
         "retained_as": "tests/host/test_main.cpp"
       },
       {
-        "kind": "source_config",
-        "source_path": "tests/host/test_servo_apply_primask.py",
-        "sha256": "2a136793c6a47595ca542f2116957937207710c2a8f665f5b8b135cbcdffac5d",
-        "bytes": 21468,
-        "retained_as": "tests/host/test_servo_apply_primask.py"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-164326-829.log",
-        "sha256": "3935a4ee1a6c7271fdb668c999b1ff35c0f874d6f4ff812eca7328ea30bd4f41",
-        "bytes": 758,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-164418-243.log",
-        "sha256": "4971930a0570ce88597627f2f75ea07687ed35818698c7e80752fb0b943118d5",
-        "bytes": 758,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-164505-016.log",
-        "sha256": "604b538bd95157db7101e50965ae7d5a42a3ff2787f73850270a6dec1911604a",
-        "bytes": 36226,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-164719-217.log",
-        "sha256": "5d20cbc06a4402d0f731b88f8159d666b42ff7b0e81a8c1c9eb12c70110ad278",
-        "bytes": 3097,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-164816-571.log",
-        "sha256": "d5dae22b89a5dc353075bc2374ff67423821f72824b9db6e8161c6b78f1dd8ee",
-        "bytes": 2465,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-165017-070.log",
-        "sha256": "c111cd1867c5fdb0b1cf56a976a6c29b0ea06548d75dbb9f7055582d4ceb3fa6",
-        "bytes": 1883,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-165101-346.log",
-        "sha256": "534fbba05af5dc2b7efd8b6136a0a61248eb20ba9ee63b4db04f5414e881b34f",
-        "bytes": 1883,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-224337-038.log",
-        "sha256": "0cc7147383faa58ed8553848356cf47ed31356b9eb92ac99253a744f653b5999",
-        "bytes": 1883,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261006-224553-113.log",
-        "sha256": "e156a3951c4fa3fd0064279dbf8e41b4463f20e1f72658a92059cbccfcc5c91b",
-        "bytes": 1883,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-033611-735.log",
-        "sha256": "e521f25bc634d3c203a2bd8fa4767bde87cffd4eeb2119818898f2ec379f75bf",
-        "bytes": 4261,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-033640-042.log",
-        "sha256": "31cb061a66f3330cb04d6c3f9f0688c57abb50568793726b363c66e71a1eaf6c",
-        "bytes": 21462,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-033738-324.log",
-        "sha256": "4317a018b5740483b7b2b94d7182dd49a8df6099b2f2da6afe79a246eb8c7e90",
-        "bytes": 16713,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-033916-108.log",
-        "sha256": "e1bc2fd9d924d014466187437a7225bfd0ac5a4f43d3265848fd2d8c41a7cc45",
-        "bytes": 16713,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-034626-370.log",
-        "sha256": "540753ca907975a61ab7d75721b15bbb87f2ee6be272ac8f7f46f28403a5f7c1",
-        "bytes": 1320,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-034707-444.log",
-        "sha256": "db4c09525f56451ecee25fdf331d75648b81cbe863f8b95552eef51c1e027636",
-        "bytes": 3098,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-034745-489.log",
-        "sha256": "90ee17649915437b8909173e663698348ba7e06ce3da947aec64ee9dda8b4a51",
-        "bytes": 2133,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-035124-182.log",
-        "sha256": "a4220a16d3737e2819b388acaa5979679c0e6acfc47512b633e18180e94e4e98",
-        "bytes": 2183,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-035823-995.log",
-        "sha256": "5ed605fb54982967e56fa35bf1e38c539c0723a7caff1c920f49042e0f8c7776",
-        "bytes": 2221,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-040319-197.log",
-        "sha256": "c81adc9964864f21b5c1219c52312a039bfdf7b1059ac5a358dd62b79b829323",
-        "bytes": 2221,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-174154-778.log",
-        "sha256": "5c5a12fabfd3697e662a2fb9767c55b6b1d7c5e04432f9ba5e237ec118c9d908",
-        "bytes": 2268,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-174356-800.log",
-        "sha256": "9763ebd7d28ad077738431642d97e76f453ba63fa1f8d6293e4686668f4a1830",
-        "bytes": 2268,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261007-183946-530.log",
-        "sha256": "9624d232283ae2f7ec9bc5f83b102f28a6f4f4b08c581ca1fbbd9991d0f26afa",
-        "bytes": 2268,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261008-164421-960.log",
-        "sha256": "b0a72b937527ca01353a5861cae4f183e99f95846dc3f70e44a27d6e3ab17029",
-        "bytes": 2268,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-034839-722.log",
-        "sha256": "5fccdf79907dcca6bcee4dfb768fe07f8382c7107c9fe8b2ba03d50086bc62b6",
-        "bytes": 2931,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-034944-840.log",
-        "sha256": "07a1b544af51eddef067f2305dcf2c758729621ef7576ac569fc8af0a81c7096",
-        "bytes": 2320,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-035639-115.log",
-        "sha256": "47746bbb37e7aae8c60e041132b7b00992bcb1cdb86173a4b7e59676071db992",
-        "bytes": 2320,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-162729-290.log",
-        "sha256": "f959426ab80e368bcffeac7403ec1206c24f81bb405af9440dcb39935b2ddea1",
-        "bytes": 2320,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-222308-927.log",
-        "sha256": "b4abbaebc7b747fe892a556446a646c465baae29673e14aacddb1869c1c898ba",
-        "bytes": 2269,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-222443-370.log",
-        "sha256": "7020a7292d6e9eac659be02ed666028c7fb752e019ff8cd2f59e2ffa560c666f",
-        "bytes": 2269,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261009-233107-814.log",
-        "sha256": "0d2fe42157891985a3e3c1f1b3513499216eb835c0dbd7bb8f2b5f6f0dd6d0ce",
-        "bytes": 2269,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-033815-364.log",
-        "sha256": "fd4cd65dcbb1a930c6738f2096771b8e7609cb083a37bb656412629e4e280d51",
-        "bytes": 2313,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-033925-960.log",
-        "sha256": "e2f8d076d7d558f78ff08a3b40470eca23b505c0efdc5f65737147fbdfc6f870",
-        "bytes": 2313,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-034113-330.log",
-        "sha256": "26f70bfe626a0f1b06a2a69d29e718eb1d155485a133e9c36aae20c25af29023",
-        "bytes": 2313,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-112858-438.log",
-        "sha256": "894815584d7171e6895d4488a6b5f7432fbac6ec7da88005c0b376c72cb59a4d",
-        "bytes": 3053,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-112919-640.log",
-        "sha256": "68a46460229d0cc1493a132f4a80c687db492ac23f4bc4dc08657e9630b53504",
-        "bytes": 2367,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-113028-059.log",
-        "sha256": "9658b5b32a746973fd5176f46ed87fea5eb88fa2e9685a257eba05cdfbe01579",
-        "bytes": 2367,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-113127-214.log",
-        "sha256": "2b3a81ebd2796c3c914a997c2746f2154f3a5bebc10fbba58f10ce0877e8607e",
-        "bytes": 2367,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-113324-079.log",
-        "sha256": "8e6d8b84e3ba158571b5c5681edaae67d4e982d96f3df6b27e46700bd35a5a93",
-        "bytes": 2367,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-195138-112.log",
-        "sha256": "bf6dd21dd4b9f69587b15979d505d0b2bf37311065353e3935f6f018d0d6db9b",
-        "bytes": 2367,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-202748-425.log",
-        "sha256": "2d277881a8151329603ae9593a80e8a6430442ee03a686820b0f6a71dca4fc88",
-        "bytes": 2405,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-220044-995.log",
-        "sha256": "7af6522a4d6ce9da533a3a6373b09c9531c210c94e2ab8697fe668a6e304d7da",
-        "bytes": 2806,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261010-220124-697.log",
-        "sha256": "c399bfa1953ce5d66facd2de9c3f2de6e132d4bd286f908580b023e598830bc7",
-        "bytes": 2458,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-042104-061.log",
-        "sha256": "55f6c9dd04bb76c6c2cc3a5ffdd9dc7427089569319e2de8b6aa4d0dc89c9722",
-        "bytes": 5212,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-042317-997.log",
-        "sha256": "94d54515acb2fee15b0331a95b07bc5e538506be09054290aa0c23bc0cceba29",
-        "bytes": 3384,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-042446-154.log",
-        "sha256": "bf479930e56c8b5c55563be1295b0f4757e7a7ac385cebb0cdc0d78f4f968a59",
-        "bytes": 3105,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-043106-419.log",
-        "sha256": "b3849bbd703ff688981483ffc46b3ff19955df0d75f17f4ca2fc34f6f8bbf606",
-        "bytes": 3105,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-174916-721.log",
-        "sha256": "84325a00b42af2ab8daf6e33cce6d09798954cf49e54c0b26a01d85890cb7e55",
-        "bytes": 3105,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-181241-968.log",
-        "sha256": "6e1605693fa4369e16cdbd0ebac6aad743e2511fa5c748437c50edacf39dad1e",
-        "bytes": 3384,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-181400-878.log",
-        "sha256": "e1646f3fa89257108849f630242b3862b7a8879ff54622212bf2f8320763e25b",
-        "bytes": 3777,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-195528-064.log",
-        "sha256": "55fc629661f265c729931c0d005833528b117793a7fe744cdec7bf8d87e81a4d",
-        "bytes": 2149,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-195647-427.log",
-        "sha256": "8655fe07bdb70fa467896caf63f5482d626a8d78471ef0af84372698dc0b409e",
-        "bytes": 3719,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-195939-352.log",
-        "sha256": "c3e00574eda76bcf1ea123779640dd97c7653cf31a537148c219c6fd85aae962",
-        "bytes": 3524,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-200130-501.log",
-        "sha256": "9ff8502c85a404c5018c79f80d3a57262cea109f5fd973e5e1770a9ddad3266e",
-        "bytes": 3826,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-200512-923.log",
-        "sha256": "23a8f1fec113d50587a9c4d25a6959ea600f9b7c89d9f4712814980c4620b2be",
-        "bytes": 3735,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-200541-276.log",
-        "sha256": "88c2bdc397c6c8e98599c250193af87d88b500982ab746e803b1500d53d75fff",
-        "bytes": 3524,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-200634-358.log",
-        "sha256": "129da12e66965ebc2e0fab3ba1a106c7757617612c5306a5f39ed9a99a8be688",
-        "bytes": 3826,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-200920-045.log",
-        "sha256": "6724fe3814368fe16e01ab00d10be36f66a64fa721c7b2468851ba4f10b4a86a",
-        "bytes": 3826,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-212551-794.log",
-        "sha256": "4707af70eb72d750aec853da06e08f2ddfd8d71f3863be718e90c69d18152f7f",
-        "bytes": 3686,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-212719-041.log",
-        "sha256": "af1548ed77ae0b897dfed85cbc4031cf0c4ea6afcca0cb5cc9d378fa8041f6e3",
-        "bytes": 3221,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-212733-730.log",
-        "sha256": "219bc598bd64f9ed475524de45afca627983e9a502222b7384d629a0737254bd",
-        "bytes": 3686,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261011-212935-522.log",
-        "sha256": "78aab1b1c169e37642ce61285371690b9de3f226e877aa61c4ee348612f66f9c",
-        "bytes": 3975,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-220804-915.log",
-        "sha256": "314c5d140537fade6e7de0f2a5ab7be4a9343da6e787c6addd481138c48301cb",
-        "bytes": 4013,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-220919-700.log",
-        "sha256": "c8bdb771acc73d2066bb15cb600d82b04a4a8732042fcb0941f4c5426381c223",
-        "bytes": 4100,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-220940-559.log",
-        "sha256": "23f4dfc9a915ec0eecf70e6c379c4e2fb7678ee915fee9a58a7bbe958fd8eabf",
-        "bytes": 3855,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-221107-768.log",
-        "sha256": "a3a1346d779042fec78598851d8f72971769eaea534c75908cf978cfc43ea4b9",
-        "bytes": 4149,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-221554-940.log",
-        "sha256": "44e91344033c14a633d69a618fa87638b15713b5ef6b8beb5b0b7d2f5c7b8dad",
-        "bytes": 4155,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-224045-819.log",
-        "sha256": "a662b8a5b70650183cac4e4c82867a7cd46fc15a6a40d1b8c7f2e4a20c12cda6",
-        "bytes": 5731,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-224131-392.log",
-        "sha256": "784189de154c964a4b076fec177fc3aeb119b8596a6d574ce137c1aa1dbeef5c",
-        "bytes": 5895,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261012-224233-294.log",
-        "sha256": "912825a0d9e0f3ece8a0249fd874bcfb3380ad7b282cc3bc91817765498b5317",
-        "bytes": 6190,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-071733-768.log",
-        "sha256": "32baf7bb1f7b78a709b060accc39790f529b1776551ad29d9787a0d3ad7eeed6",
-        "bytes": 1461,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-071831-527.log",
-        "sha256": "0c812da45961a267e18d0c922a69dd5244674c1b52b028b790abdd108b40966c",
-        "bytes": 34670,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-072552-072.log",
-        "sha256": "474e0e8c7c0f75868b48175f5f4ac9cdc03384e67ff339dbf115e7283be8c267",
-        "bytes": 23008,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-072829-046.log",
-        "sha256": "3cabaf9c5f530067fcc0a6fa799404946fb1720a5092e642467e66e52163639a",
-        "bytes": 12080,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-073031-985.log",
-        "sha256": "11145735fa2e27d0ed8edef021931b5d92db54f159cfb8f24a4cbb78dd2572f9",
-        "bytes": 6562,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-073100-745.log",
-        "sha256": "79736e01b0b926303648b43beade41c4dfc81566f4b32dbd38940a0bee9df3cb",
-        "bytes": 6014,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-073532-381.log",
-        "sha256": "45fb03ef620752e20f95442e77c3028fe33c507b47ac9b48be5bcf134d53af6f",
-        "bytes": 6880,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-073548-833.log",
-        "sha256": "27d059de34056fbba8e626ef612e7d341dbebe3872bc131f1ed2d40743c12e1a",
-        "bytes": 6202,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-074116-853.log",
-        "sha256": "49b9fc6689874db136fbd3c0e71678e4bad768595de09326f20f8cb3b21ea986",
-        "bytes": 6202,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-074212-047.log",
-        "sha256": "0fa98e7fa175fd805d5079581c8564f26b13fe0369f18a0614c6c7f98e5bd467",
-        "bytes": 6490,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-074428-706.log",
-        "sha256": "ef67059a9a29d9ded4b6dd9fc42596ba321b2f6a495b9386ac33d1d426aca40b",
-        "bytes": 6490,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-184249-390.log",
-        "sha256": "03d3d2c384c0c973736740cb393e1d59be900ab0be9644e94c9382c9cb33354a",
-        "bytes": 8546,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-184543-477.log",
-        "sha256": "d33c66fb0510b7c01e0c57397720b5e1448f7e089f74a58283ced32dd7d14a3c",
-        "bytes": 6220,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-184616-185.log",
-        "sha256": "be87f738efc90a1994b36da2914ad47ccac15816b57d2a1de499eee5554a0ae6",
-        "bytes": 8002,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-184649-021.log",
-        "sha256": "d3ed5cf26df718f776977eb3fa8a29d6ec0789f9b670827da71ffb4c9ba4ab0f",
-        "bytes": 7777,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-184708-612.log",
-        "sha256": "defee7ed2b0c7a7c46829022bad74b73024a5c54144ff83af6e91db4a91f2e9e",
-        "bytes": 6982,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-190344-974.log",
-        "sha256": "7d0b28642cc69658bdd98320a82706b3304a65cdfdd1a1bbd28fdba97922076e",
-        "bytes": 6982,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-190808-102.log",
-        "sha256": "e8d191ef01eb7a37eb4cb036fa006f83e71a30d7d7d11020982f3155e22f162b",
-        "bytes": 7273,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/logs/msvc-host-20261013-211654-026.log",
-        "sha256": "ac8ddc9eb0d12fce06f6f0bb1d956214eb7b20a8d84a6574af2f3a7c4968e2bc",
-        "bytes": 7273,
-        "retained_as": null,
-        "excluded_reason": "runtime or test log"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tests/host/__pycache__/test_servo_apply_primask.cpython-314.pyc",
-        "sha256": "8f538cc58b296427fd39d2378e736175afcdc0e16f094070cc4b7d7134d941cc",
-        "bytes": 21425,
-        "retained_as": null,
-        "excluded_reason": "Python bytecode/cache"
-      },
-      {
-        "kind": "source_config",
-        "source_path": "tools/analyze_differential_runs.py",
-        "sha256": "f0daa112cad2547c40701586adeda1df87f25605af5b04b9d469eb06e3c094de",
-        "bytes": 78865,
+        "kind": "source",
+        "source_path": "source/tests/host/test_turn_response_timing.c",
+        "sha256": "9254271bb486049be8f0121dd0c67d7a02e68efd2d6813438e0706b799e2d0e4",
+        "bytes": 10056,
+        "retained_as": "tests/host/test_turn_response_timing.c"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/tools/analyze_differential_runs.py",
+        "sha256": "d9b4c5c362d6838b8f503105dfeceb528217687fccf9a05c58ac6d937d3f797e",
+        "bytes": 79503,
         "retained_as": "tools/analyze_differential_runs.py"
       },
       {
-        "kind": "source_config",
-        "source_path": "tools/build.ps1",
-        "sha256": "ff1a8db5f195f0a90f5a0e7a0a83949dd1095746d4bc4a4ef20f68e7ab07fd95",
-        "bytes": 13584,
+        "kind": "source",
+        "source_path": "source/tools/build.ps1",
+        "sha256": "b8578eab13470dd6cfac61b26af5e59aa529d175d5c02075c7b8ba9a561e21c6",
+        "bytes": 14237,
         "retained_as": "tools/build.ps1"
       },
       {
-        "kind": "source_config",
-        "source_path": "tools/select_follow_logging.ps1",
-        "sha256": "1678f09559c12a325624467c83cbc4601f944c782b48fe8f847ecd67fa609b79",
-        "bytes": 4872,
+        "kind": "source",
+        "source_path": "source/tools/export_run_log.ps1",
+        "sha256": "c3ff1d0666fcc818a0b9d3314afb6deae2bb614621498f9e4e7225b47945d750",
+        "bytes": 17746,
+        "retained_as": "tools/export_run_log.ps1"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/tools/runtime_log_export.py",
+        "sha256": "d48695b86f36280d40f5dbd89f7b378db38107304fdef7494ebf531a26e69961",
+        "bytes": 28268,
+        "retained_as": "tools/runtime_log_export.py"
+      },
+      {
+        "kind": "source",
+        "source_path": "source/tools/select_follow_logging.ps1",
+        "sha256": "26700423519c0df07398b4dc694717aa415c1b412903121efc702238d3cd5574",
+        "bytes": 4973,
         "retained_as": "tools/select_follow_logging.ps1"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/Debug/CarTest.elf",
-        "sha256": "025a1e243f1ca25aa4b3b2acdac36c70c754e37d10e409116486984e7304cd58",
-        "bytes": 1893164,
+        "kind": "source",
+        "source_path": "source/tools/write_turn_response_manifests.py",
+        "sha256": "3735f354801ed7f33e764b7781f301f47491873b08093ae16cc30dbe02f6bc40",
+        "bytes": 11792,
+        "retained_as": "tools/write_turn_response_manifests.py"
+      },
+      {
+        "kind": "original_elf",
+        "source_path": "elfs/Debug/CarTest.elf",
+        "sha256": "82700194203b84c5bb32f534d60d78c5b6cbc7aadfcfa97fe67cf2c9be7e3715",
+        "bytes": 1894972,
         "retained_as": "build/Debug/CarTest.elf"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugSteering/CarTest.elf",
-        "sha256": "10038df67b5bdcc14e02d2a0cf85ee8f720ce918f9bc1187aeb00b510a15e19d",
-        "bytes": 1893184,
-        "retained_as": "build/DebugSteering/CarTest.elf"
-      },
-      {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugBench/CarTest.elf",
-        "sha256": "d73d412c628698ddfeab07b04ec3e0eaea9ddc7289170fb6479bc1ee79de1e56",
-        "bytes": 1893704,
+        "kind": "original_elf",
+        "source_path": "elfs/DebugBench/CarTest.elf",
+        "sha256": "f93532d1636a2235bb26d54edff1c4bcb7ea7ba3f1cb510f7240474cb705fb09",
+        "bytes": 1895524,
         "retained_as": "build/DebugBench/CarTest.elf"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugFollow/CarTest.elf",
-        "sha256": "67b3592bd2be55c6feed21fed869bed7db8017ccd1cf5c20f5fab1cbc4760001",
-        "bytes": 1897896,
+        "kind": "original_elf",
+        "source_path": "elfs/DebugFollow/CarTest.elf",
+        "sha256": "f1627a2477526629fbde4725b0a54777341b044f7a3ed9e5f3a17ee28c64d395",
+        "bytes": 1899716,
         "retained_as": "build/DebugFollow/CarTest.elf"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugFollowNoLog/CarTest.elf",
-        "sha256": "3804b36122fe7c2f17e172254bc43d91044401951da4b04e22b0ff116ce6229d",
-        "bytes": 1891204,
-        "retained_as": "build/DebugFollowNoLog/CarTest.elf"
+        "kind": "original_elf",
+        "source_path": "elfs/DebugFollowDiff10/CarTest.elf",
+        "sha256": "a7cd1e238832577076179bd084c80c0830c3805a886cf85658c2c6ae3948b3f4",
+        "bytes": 1899740,
+        "retained_as": "build/DebugFollowDiff10/CarTest.elf"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugFollowDiff5/CarTest.elf",
-        "sha256": "367fff2f92a2e62fd0799df891a3e522f95a33f66e439481f43db32a48087594",
-        "bytes": 1897916,
+        "kind": "original_elf",
+        "source_path": "elfs/DebugFollowDiff5/CarTest.elf",
+        "sha256": "f5e28c9b00180ba3680908704011a204ca06c6dad5174e9654b92738775ec04c",
+        "bytes": 1899736,
         "retained_as": "build/DebugFollowDiff5/CarTest.elf"
       },
       {
-        "kind": "baseline_elf",
-        "source_path": "build/DebugFollowDiff10/CarTest.elf",
-        "sha256": "53345d2917d09343a3aa936373d764240276e33902abaa3be1ec494b62b9b70d",
-        "bytes": 1897920,
-        "retained_as": "build/DebugFollowDiff10/CarTest.elf"
+        "kind": "original_elf",
+        "source_path": "elfs/DebugFollowNoLog/CarTest.elf",
+        "sha256": "36ecdaca7056da1002558f0201279be1cc9e7e78562f0c423efad513337d025b",
+        "bytes": 1893016,
+        "retained_as": "build/DebugFollowNoLog/CarTest.elf"
+      },
+      {
+        "kind": "original_elf",
+        "source_path": "elfs/DebugFollowTurn/CarTest.elf",
+        "sha256": "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48",
+        "bytes": 1899760,
+        "retained_as": "build/DebugFollowTurn/CarTest.elf"
+      },
+      {
+        "kind": "original_elf",
+        "source_path": "elfs/DebugSteering/CarTest.elf",
+        "sha256": "201c79ff8e6a89cec24b6805fc603774ce4332eb430cddb2d43d879b04c01291",
+        "bytes": 1894992,
+        "retained_as": "build/DebugSteering/CarTest.elf"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/differential-20261013/ARTIFACTS.json",
+        "sha256": "8f155efb1bc43ec979749477df69b373b5ba915d5a9b6cf2cb013da2ff66f9b2",
+        "bytes": 1111,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/differential-20261013/ELF_MANIFEST.json",
+        "sha256": "57585b7a224f5baf7fca47001039a22a521188c31bd76097ca118e3f2505830f",
+        "bytes": 5009,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/differential-20261013/historical-path-form-manifests/ARTIFACTS.original-paths.json",
+        "sha256": "713574137b6f779b8907f1b83729e96ba5b47c87121a8a80c225e0e6361bd65c",
+        "bytes": 1009,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/differential-20261013/historical-path-form-manifests/ELF_MANIFEST.original-paths.json",
+        "sha256": "4fa56884b6302055576dd68da817cbbfdc2076b58b4c2dce335ce3daea11cafe",
+        "bytes": 4771,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/ARTIFACTS.json",
+        "sha256": "f3cfd514bfa6d57ae68a5523e17e248d3de66fc79b467cbc4015b89c73742b12",
+        "bytes": 3394,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/ELF_MANIFEST.json",
+        "sha256": "5eadce15c300fd258b84bee3ac89654c733417229dd6ecbb69fe798d55721748",
+        "bytes": 10174,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/Debug.log",
+        "sha256": "6502f19dc5db71d307b3ca862dd87a42dd40ec4f72407c0c178f38a62206acd5",
+        "bytes": 8090,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/Debug.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugBench.log",
+        "sha256": "4b62ea71051ea708177e4cec540dd9d6aa4a176e1fc883d81914e4868fc7ff8a",
+        "bytes": 8130,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugBench.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollow.log",
+        "sha256": "9bba232185b8fbdc3936169b61c45ad71dc8accd6885207e4806e5dc7cdb2a99",
+        "bytes": 8138,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollow.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowDiff10.log",
+        "sha256": "a58d039458486434c4e4301ffece9747d822fe78fa7be8937fee80da3a8db305",
+        "bytes": 8186,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowDiff10.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowDiff5.log",
+        "sha256": "8ce552ede84601d82c27d27a3a1b76edeab044967b1650e6569ca41484d67109",
+        "bytes": 8178,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowDiff5.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowNoLog.log",
+        "sha256": "edc83185203557351418b4dd724becdd6d83550f53852ca972bb94171b25d541",
+        "bytes": 8178,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowNoLog.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowTurn.log",
+        "sha256": "08a627e8449f44636bc3161537a92bbffb931fb4061fbf6f8e716434c9f23aa3",
+        "bytes": 8852,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugFollowTurn.log.exitcode",
+        "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "bytes": 1,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugSteering.log",
+        "sha256": "4a3729d8e9d5c5bca6e9291368dab1b42d3021433619b264d2328993637fdbd1",
+        "bytes": 8154,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
+      },
+      {
+        "kind": "artifact_evidence",
+        "source_path": "artifacts/turn-response-20261014/buildlogs/DebugSteering.log.exitcode",
+        "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+        "bytes": 3,
+        "retained_as": null,
+        "excluded_reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
       }
     ]
   },
   "openmv": {
-    "package_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
-    "package_manifest_path": "test-data/turn-response-20261014/before/vision/openmv/PACKAGE_MANIFEST.json",
+    "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+    "package_manifest_path": "test-data/ring-slope-20261014/vision/before/openmv/PACKAGE_MANIFEST.json",
     "runtime_file_count": 17,
     "runtime_files": [
       {
         "name": "adaptive_detector.py",
         "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
         "bytes": 44071,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/adaptive_detector.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/adaptive_detector.py",
+        "production_harness_current_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+        "production_harness_source_path": "openmv/adaptive_detector.py"
       },
       {
         "name": "boundary_evidence.py",
         "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
         "bytes": 18818,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/boundary_evidence.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/boundary_evidence.py",
+        "production_harness_current_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+        "production_harness_source_path": "openmv/boundary_evidence.py"
       },
       {
         "name": "config.py",
-        "sha256": "978a83467629261245c82e08739d1aa265b5cc6d2268ddaaaf372857f02541ea",
-        "bytes": 14957,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/config.py"
+        "sha256": "49c0ff64555612688e551d11f5b2f95b8f0f0b224cb3dc3d9ae1d84bf629c551",
+        "bytes": 15197,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/config.py",
+        "production_harness_current_sha256": "49c0ff64555612688e551d11f5b2f95b8f0f0b224cb3dc3d9ae1d84bf629c551",
+        "production_harness_source_path": "openmv/config.py"
       },
       {
         "name": "fast_boundary.py",
-        "sha256": "90f29049074cd16ee2f1c5c9979323bc45860fcbc08444119a043a9e317441a1",
-        "bytes": 48574,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/fast_boundary.py"
+        "sha256": "3ae5a2a8375a713a2a8f2943867e29fb5905958314962e16a5a9f4db0144dffe",
+        "bytes": 49880,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/fast_boundary.py",
+        "production_harness_current_sha256": "3ae5a2a8375a713a2a8f2943867e29fb5905958314962e16a5a9f4db0144dffe",
+        "production_harness_source_path": "openmv/fast_boundary.py"
       },
       {
         "name": "fast_gray.py",
-        "sha256": "94451601cadd9b94a951b0dc47be26b0f3189e61bdc3eaf182f57b325345512b",
-        "bytes": 29919,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/fast_gray.py"
+        "sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
+        "bytes": 30014,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/fast_gray.py",
+        "production_harness_current_sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
+        "production_harness_source_path": "openmv/fast_gray.py"
       },
       {
         "name": "fast_path.py",
-        "sha256": "9f38fc2d866e188055f1765139da66e26cdb0a1c22cd6dc0be9a01f18e57095a",
-        "bytes": 41453,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/fast_path.py"
+        "sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
+        "bytes": 41451,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/fast_path.py",
+        "production_harness_current_sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
+        "production_harness_source_path": "openmv/fast_path.py"
       },
       {
         "name": "fast_single_edge.py",
-        "sha256": "42939467b4d1c6709295e908635aa739054d77a4ca6e7f033959b1dec8eb5bd3",
-        "bytes": 43750,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/fast_single_edge.py"
+        "sha256": "9f6a2f709ce2636aac73025e2ffb40088575b87aadbe803cb971723d124f25e2",
+        "bytes": 43749,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/fast_single_edge.py",
+        "production_harness_current_sha256": "9f6a2f709ce2636aac73025e2ffb40088575b87aadbe803cb971723d124f25e2",
+        "production_harness_source_path": "openmv/fast_single_edge.py"
       },
       {
         "name": "fast_topology.py",
         "sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
         "bytes": 42030,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/fast_topology.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/fast_topology.py",
+        "production_harness_current_sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
+        "production_harness_source_path": "openmv/fast_topology.py"
       },
       {
         "name": "grayscale_adapter.py",
         "sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
         "bytes": 7589,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/grayscale_adapter.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/grayscale_adapter.py",
+        "production_harness_current_sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
+        "production_harness_source_path": "openmv/grayscale_adapter.py"
       },
       {
         "name": "line_detector.py",
         "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
         "bytes": 11979,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/line_detector.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/line_detector.py",
+        "production_harness_current_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+        "production_harness_source_path": "openmv/line_detector.py"
       },
       {
         "name": "main.py",
-        "sha256": "77a65c576bb13bf6f859d5c338f607a0220befe9be84d42562d9218ccc3ec586",
-        "bytes": 110557,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/main.py"
+        "sha256": "984c0ef101cdf6bb811bd36f0934ae3d9f71ecfc55a84ab6fe191b87b8f6682c",
+        "bytes": 120022,
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/main.py",
+        "production_harness_current_sha256": "984c0ef101cdf6bb811bd36f0934ae3d9f71ecfc55a84ab6fe191b87b8f6682c",
+        "production_harness_source_path": "openmv/main.py"
       },
       {
         "name": "reverse_control.py",
         "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
         "bytes": 7657,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/reverse_control.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/reverse_control.py",
+        "production_harness_current_sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
+        "production_harness_source_path": "openmv/reverse_control.py"
       },
       {
         "name": "road_detector.py",
         "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
         "bytes": 26649,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/road_detector.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/road_detector.py",
+        "production_harness_current_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+        "production_harness_source_path": "openmv/road_detector.py"
       },
       {
         "name": "source_selector.py",
         "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
         "bytes": 8802,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/source_selector.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/source_selector.py",
+        "production_harness_current_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+        "production_harness_source_path": "openmv/source_selector.py"
       },
       {
         "name": "surface_detector.py",
         "sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
         "bytes": 42567,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/surface_detector.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/surface_detector.py",
+        "production_harness_current_sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
+        "production_harness_source_path": "openmv/surface_detector.py"
       },
       {
         "name": "thresholding.py",
         "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
         "bytes": 12363,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/thresholding.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/thresholding.py",
+        "production_harness_current_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+        "production_harness_source_path": "openmv/thresholding.py"
       },
       {
         "name": "vision_protocol.py",
         "sha256": "86d80c5a81940b54175e056c085167baa4d2f13749e3c2f77eeb7f73671fef83",
         "bytes": 2601,
-        "source_path": "test-data/turn-response-20261014/before/vision/openmv/vision_protocol.py"
+        "source_path": "test-data/ring-slope-20261014/vision/before/openmv/vision_protocol.py",
+        "production_harness_current_sha256": "86d80c5a81940b54175e056c085167baa4d2f13749e3c2f77eeb7f73671fef83",
+        "production_harness_source_path": "openmv/vision_protocol.py"
       }
     ],
-    "snapshot_time_limitation": "The preserved source package manifest records a date-level snapshot only; it is paired as the corresponding pre-turn-response camera package, not claimed to be captured at the exact 04:22 instant."
+    "comparison_source_hash_list": "test-data/turn-response-20261014/vision/final/source-hashes.csv",
+    "comparison_source_hash_list_sha256": "4491a97e1dc9e8397073657711c280a254e1da58bf920e0a75092f3619fe8a57",
+    "hash_match_field": "current_sha256"
   },
   "original_elfs": [
     {
       "preset": "Debug",
       "input_manifest_path": "elfs/Debug/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/Debug/CarTest.elf",
-      "sha256": "025a1e243f1ca25aa4b3b2acdac36c70c754e37d10e409116486984e7304cd58",
-      "bytes": 1893164,
-      "expected_rom_build_id": "9f0cd1824a243134e396fef7b8eac366",
-      "observed_rom_build_id": "9f0cd1824a243134e396fef7b8eac366",
-      "rom_build_id_match": true
-    },
-    {
-      "preset": "DebugSteering",
-      "input_manifest_path": "elfs/DebugSteering/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugSteering/CarTest.elf",
-      "sha256": "10038df67b5bdcc14e02d2a0cf85ee8f720ce918f9bc1187aeb00b510a15e19d",
-      "bytes": 1893184,
-      "expected_rom_build_id": "e1d9bec47f65a2fccb325892179e843f",
-      "observed_rom_build_id": "e1d9bec47f65a2fccb325892179e843f",
-      "rom_build_id_match": true
+      "source_path": "test-data/log-audit-20261014/before/elfs/Debug/CarTest.elf",
+      "sha256": "82700194203b84c5bb32f534d60d78c5b6cbc7aadfcfa97fe67cf2c9be7e3715",
+      "bytes": 1894972,
+      "expected_rom_build_id": "c794cab7a842cfde79db21a20e46d36b",
+      "observed_rom_build_id": "c794cab7a842cfde79db21a20e46d36b",
+      "rom_build_id_match": true,
+      "profile_parameters": {}
     },
     {
       "preset": "DebugBench",
       "input_manifest_path": "elfs/DebugBench/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugBench/CarTest.elf",
-      "sha256": "d73d412c628698ddfeab07b04ec3e0eaea9ddc7289170fb6479bc1ee79de1e56",
-      "bytes": 1893704,
-      "expected_rom_build_id": "7ed59304123ff885af8ec2bec7666fa4",
-      "observed_rom_build_id": "7ed59304123ff885af8ec2bec7666fa4",
-      "rom_build_id_match": true
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugBench/CarTest.elf",
+      "sha256": "f93532d1636a2235bb26d54edff1c4bcb7ea7ba3f1cb510f7240474cb705fb09",
+      "bytes": 1895524,
+      "expected_rom_build_id": "31ea99a9f0e47f7854ee7f0070b3d0f5",
+      "observed_rom_build_id": "31ea99a9f0e47f7854ee7f0070b3d0f5",
+      "rom_build_id_match": true,
+      "profile_parameters": {}
     },
     {
       "preset": "DebugFollow",
       "input_manifest_path": "elfs/DebugFollow/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugFollow/CarTest.elf",
-      "sha256": "67b3592bd2be55c6feed21fed869bed7db8017ccd1cf5c20f5fab1cbc4760001",
-      "bytes": 1897896,
-      "expected_rom_build_id": "dae00d1d9c4f99ac8c33c82ef24450da",
-      "observed_rom_build_id": "dae00d1d9c4f99ac8c33c82ef24450da",
-      "rom_build_id_match": true
-    },
-    {
-      "preset": "DebugFollowNoLog",
-      "input_manifest_path": "elfs/DebugFollowNoLog/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugFollowNoLog/CarTest.elf",
-      "sha256": "3804b36122fe7c2f17e172254bc43d91044401951da4b04e22b0ff116ce6229d",
-      "bytes": 1891204,
-      "expected_rom_build_id": "a68ea3655104fe907bdffa6da0d9ba97",
-      "observed_rom_build_id": "a68ea3655104fe907bdffa6da0d9ba97",
-      "rom_build_id_match": true
-    },
-    {
-      "preset": "DebugFollowDiff5",
-      "input_manifest_path": "elfs/DebugFollowDiff5/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugFollowDiff5/CarTest.elf",
-      "sha256": "367fff2f92a2e62fd0799df891a3e522f95a33f66e439481f43db32a48087594",
-      "bytes": 1897916,
-      "expected_rom_build_id": "0b6e53faa0363cf0e909f9f0f4bd7a80",
-      "observed_rom_build_id": "0b6e53faa0363cf0e909f9f0f4bd7a80",
-      "rom_build_id_match": true
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugFollow/CarTest.elf",
+      "sha256": "f1627a2477526629fbde4725b0a54777341b044f7a3ed9e5f3a17ee28c64d395",
+      "bytes": 1899716,
+      "expected_rom_build_id": "e9f181d3c5f13dbb9b834fad0a14ee40",
+      "observed_rom_build_id": "e9f181d3c5f13dbb9b834fad0a14ee40",
+      "rom_build_id_match": true,
+      "profile_parameters": {
+        "straight_target_permille": 500,
+        "outer_differential_permille": 0,
+        "inner_differential_permille": 0,
+        "full_turn_left_right_target_permille": [
+          500,
+          500
+        ],
+        "normal_cap_permille": 600,
+        "hard_cap_permille": 700,
+        "startup_motor_step_permille_per_10ms": 10,
+        "normal_motor_step_permille_per_10ms": 10,
+        "startup_servo_step_us_per_20ms": 10,
+        "normal_servo_step_us_per_20ms": 40,
+        "steering_gain_permille": 700
+      }
     },
     {
       "preset": "DebugFollowDiff10",
       "input_manifest_path": "elfs/DebugFollowDiff10/CarTest.elf",
-      "source_path": "test-data/turn-response-20261014/before/control/elfs/DebugFollowDiff10/CarTest.elf",
-      "sha256": "53345d2917d09343a3aa936373d764240276e33902abaa3be1ec494b62b9b70d",
-      "bytes": 1897920,
-      "expected_rom_build_id": "b08eb33848203c314286a87d01c25803",
-      "observed_rom_build_id": "b08eb33848203c314286a87d01c25803",
-      "rom_build_id_match": true
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugFollowDiff10/CarTest.elf",
+      "sha256": "a7cd1e238832577076179bd084c80c0830c3805a886cf85658c2c6ae3948b3f4",
+      "bytes": 1899740,
+      "expected_rom_build_id": "11154723abd4091c0a86a152cc1d6a89",
+      "observed_rom_build_id": "11154723abd4091c0a86a152cc1d6a89",
+      "rom_build_id_match": true,
+      "profile_parameters": {
+        "straight_target_permille": 500,
+        "outer_differential_permille": 100,
+        "inner_differential_permille": 100,
+        "full_turn_left_right_target_permille": [
+          600,
+          400
+        ],
+        "normal_cap_permille": 600,
+        "hard_cap_permille": 700,
+        "startup_motor_step_permille_per_10ms": 10,
+        "normal_motor_step_permille_per_10ms": 10,
+        "startup_servo_step_us_per_20ms": 10,
+        "normal_servo_step_us_per_20ms": 40,
+        "steering_gain_permille": 700
+      }
+    },
+    {
+      "preset": "DebugFollowDiff5",
+      "input_manifest_path": "elfs/DebugFollowDiff5/CarTest.elf",
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugFollowDiff5/CarTest.elf",
+      "sha256": "f5e28c9b00180ba3680908704011a204ca06c6dad5174e9654b92738775ec04c",
+      "bytes": 1899736,
+      "expected_rom_build_id": "4436990ea0659c3dff7a663d58034f17",
+      "observed_rom_build_id": "4436990ea0659c3dff7a663d58034f17",
+      "rom_build_id_match": true,
+      "profile_parameters": {
+        "straight_target_permille": 500,
+        "outer_differential_permille": 50,
+        "inner_differential_permille": 50,
+        "full_turn_left_right_target_permille": [
+          550,
+          450
+        ],
+        "normal_cap_permille": 600,
+        "hard_cap_permille": 700,
+        "startup_motor_step_permille_per_10ms": 10,
+        "normal_motor_step_permille_per_10ms": 10,
+        "startup_servo_step_us_per_20ms": 10,
+        "normal_servo_step_us_per_20ms": 40,
+        "steering_gain_permille": 700
+      }
+    },
+    {
+      "preset": "DebugFollowNoLog",
+      "input_manifest_path": "elfs/DebugFollowNoLog/CarTest.elf",
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugFollowNoLog/CarTest.elf",
+      "sha256": "36ecdaca7056da1002558f0201279be1cc9e7e78562f0c423efad513337d025b",
+      "bytes": 1893016,
+      "expected_rom_build_id": "1a06f2bc7569f90167ffded9d175bc4c",
+      "observed_rom_build_id": "1a06f2bc7569f90167ffded9d175bc4c",
+      "rom_build_id_match": true,
+      "profile_parameters": {
+        "straight_target_permille": 500,
+        "outer_differential_permille": 0,
+        "inner_differential_permille": 0,
+        "full_turn_left_right_target_permille": [
+          500,
+          500
+        ],
+        "normal_cap_permille": 600,
+        "hard_cap_permille": 700,
+        "startup_motor_step_permille_per_10ms": 10,
+        "normal_motor_step_permille_per_10ms": 10,
+        "startup_servo_step_us_per_20ms": 10,
+        "normal_servo_step_us_per_20ms": 40,
+        "steering_gain_permille": 700
+      }
+    },
+    {
+      "preset": "DebugFollowTurn",
+      "input_manifest_path": "elfs/DebugFollowTurn/CarTest.elf",
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugFollowTurn/CarTest.elf",
+      "sha256": "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48",
+      "bytes": 1899760,
+      "expected_rom_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
+      "observed_rom_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
+      "rom_build_id_match": true,
+      "profile_parameters": {
+        "straight_target_permille": 500,
+        "outer_differential_permille": 200,
+        "inner_differential_permille": 200,
+        "full_turn_left_right_target_permille": [
+          700,
+          300
+        ],
+        "normal_cap_permille": 700,
+        "hard_cap_permille": 700,
+        "startup_motor_step_permille_per_10ms": 10,
+        "normal_motor_step_permille_per_10ms": 20,
+        "startup_servo_step_us_per_20ms": 10,
+        "normal_servo_step_us_per_20ms": 60,
+        "steering_gain_permille": 700
+      }
+    },
+    {
+      "preset": "DebugSteering",
+      "input_manifest_path": "elfs/DebugSteering/CarTest.elf",
+      "source_path": "test-data/log-audit-20261014/before/elfs/DebugSteering/CarTest.elf",
+      "sha256": "201c79ff8e6a89cec24b6805fc603774ce4332eb430cddb2d43d879b04c01291",
+      "bytes": 1894992,
+      "expected_rom_build_id": "cfc92fb8f95df18eb63c5e57478d97bb",
+      "observed_rom_build_id": "cfc92fb8f95df18eb63c5e57478d97bb",
+      "rom_build_id_match": true,
+      "profile_parameters": {}
     }
   ],
   "source_pairing_validation": {
     "isolated_build_probe": {
-      "validation_copy": "test-data/archive-0422-20261015/vb",
-      "preset": "DebugFollowDiff10",
-      "generated_header": "test-data/archive-0422-20261015/vb/build/DebugFollowDiff10/generated/runtime_log_build_id.h",
-      "expected_rom_build_id": "b08eb33848203c314286a87d01c25803",
-      "observed_rom_build_id": "b08eb33848203c314286a87d01c25803",
+      "validation_copy": "test-data/archive-0422-20261015/validation/after-source-pairing",
+      "preset": "DebugFollowTurn",
+      "generated_header": "test-data/archive-0422-20261015/validation/after-source-pairing/build/DebugFollowTurn/generated/runtime_log_build_id.h",
+      "expected_rom_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
+      "observed_rom_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
       "match": true,
-      "scope": "one read-only CMake configure/build in a separate validation copy; original archive ELFs remain untouched"
+      "scope": "one read-only CMake configure/build in a separate validation copy; original archive ELFs remain untouched",
+      "snapshot_main_sha256": "5ca089cf627654cf57be016832698e8a7fbad5f1cecbc7ec51ba40088ed2c186",
+      "later_harness_report_discrepancy": {
+        "later_report_path": "test-data/turn-response-20261014/control/output-path/REPORT.json",
+        "later_report_source_sha256": "59a8c3509d510177b36a876a5f78def58966f4c0e754189dc0b8bd9bae3dd248",
+        "later_report_local_time": "2026-10-14 20:25 Beijing",
+        "decision": "This later report is not used as the after source identity. The archived 09:19 source snapshot main.c hash is built in a separate copy and its ROM Build ID matches the original 08:41 ELF manifest."
+      }
     },
     "expected_profile_rom_ids": [
       {
         "preset": "Debug",
-        "rom_build_id": "9f0cd1824a243134e396fef7b8eac366",
-        "elf_sha256": "025a1e243f1ca25aa4b3b2acdac36c70c754e37d10e409116486984e7304cd58"
-      },
-      {
-        "preset": "DebugSteering",
-        "rom_build_id": "e1d9bec47f65a2fccb325892179e843f",
-        "elf_sha256": "10038df67b5bdcc14e02d2a0cf85ee8f720ce918f9bc1187aeb00b510a15e19d"
+        "rom_build_id": "c794cab7a842cfde79db21a20e46d36b",
+        "elf_sha256": "82700194203b84c5bb32f534d60d78c5b6cbc7aadfcfa97fe67cf2c9be7e3715"
       },
       {
         "preset": "DebugBench",
-        "rom_build_id": "7ed59304123ff885af8ec2bec7666fa4",
-        "elf_sha256": "d73d412c628698ddfeab07b04ec3e0eaea9ddc7289170fb6479bc1ee79de1e56"
+        "rom_build_id": "31ea99a9f0e47f7854ee7f0070b3d0f5",
+        "elf_sha256": "f93532d1636a2235bb26d54edff1c4bcb7ea7ba3f1cb510f7240474cb705fb09"
       },
       {
         "preset": "DebugFollow",
-        "rom_build_id": "dae00d1d9c4f99ac8c33c82ef24450da",
-        "elf_sha256": "67b3592bd2be55c6feed21fed869bed7db8017ccd1cf5c20f5fab1cbc4760001"
-      },
-      {
-        "preset": "DebugFollowNoLog",
-        "rom_build_id": "a68ea3655104fe907bdffa6da0d9ba97",
-        "elf_sha256": "3804b36122fe7c2f17e172254bc43d91044401951da4b04e22b0ff116ce6229d"
-      },
-      {
-        "preset": "DebugFollowDiff5",
-        "rom_build_id": "0b6e53faa0363cf0e909f9f0f4bd7a80",
-        "elf_sha256": "367fff2f92a2e62fd0799df891a3e522f95a33f66e439481f43db32a48087594"
+        "rom_build_id": "e9f181d3c5f13dbb9b834fad0a14ee40",
+        "elf_sha256": "f1627a2477526629fbde4725b0a54777341b044f7a3ed9e5f3a17ee28c64d395"
       },
       {
         "preset": "DebugFollowDiff10",
-        "rom_build_id": "b08eb33848203c314286a87d01c25803",
-        "elf_sha256": "53345d2917d09343a3aa936373d764240276e33902abaa3be1ec494b62b9b70d"
+        "rom_build_id": "11154723abd4091c0a86a152cc1d6a89",
+        "elf_sha256": "a7cd1e238832577076179bd084c80c0830c3805a886cf85658c2c6ae3948b3f4"
+      },
+      {
+        "preset": "DebugFollowDiff5",
+        "rom_build_id": "4436990ea0659c3dff7a663d58034f17",
+        "elf_sha256": "f5e28c9b00180ba3680908704011a204ca06c6dad5174e9654b92738775ec04c"
+      },
+      {
+        "preset": "DebugFollowNoLog",
+        "rom_build_id": "1a06f2bc7569f90167ffded9d175bc4c",
+        "elf_sha256": "36ecdaca7056da1002558f0201279be1cc9e7e78562f0c423efad513337d025b"
+      },
+      {
+        "preset": "DebugFollowTurn",
+        "rom_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
+        "elf_sha256": "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48"
+      },
+      {
+        "preset": "DebugSteering",
+        "rom_build_id": "cfc92fb8f95df18eb63c5e57478d97bb",
+        "elf_sha256": "201c79ff8e6a89cec24b6805fc603774ce4332eb430cddb2d43d879b04c01291"
       }
     ]
   },
@@ -2489,617 +2071,200 @@
         }
       ]
     },
-    "other_files": []
+    "other_files": [
+      {
+        "archive_path": "stm32h743xi_flash.ld",
+        "source_path": "test-data/turn-response-20261014/before/control/worktree/stm32h743xi_flash.ld",
+        "sha256": "81ba4a2433b4948caf93127e994ff757742eff00474a8c59608380e3d6bce75c",
+        "bytes": 8039,
+        "provenance": "before_snapshot_linker_used_in_after_ROM_ID_pairing"
+      },
+      {
+        "archive_path": "project-description.json",
+        "source_path": "test-data/turn-response-20261014/before/control/worktree/project-description.json",
+        "sha256": "d98b33b6111257d2a4ec598330c209d65e5fc0e7c7ef8797a66dcfaead5493b8",
+        "bytes": 5375,
+        "provenance": "before_snapshot_workspace_metadata_supplement"
+      },
+      {
+        "archive_path": ".vscode/settings.json",
+        "source_path": "test-data/turn-response-20261014/before/control/worktree/.vscode/settings.json",
+        "sha256": "fa1c0143eaef1942427630d3a8453d0063a616cfee4f68bf3b6f5f151d864906",
+        "bytes": 558,
+        "provenance": "before_snapshot_general_VSCode_settings_supplement"
+      },
+      {
+        "archive_path": ".vscode/c_cpp_properties.json",
+        "source_path": "test-data/turn-response-20261014/before/control/worktree/.vscode/c_cpp_properties.json",
+        "sha256": "1d40a921a6f28b9ac3dfcd2613d0a666dd3d9a9a7f6f626028132db735fe020f",
+        "bytes": 168,
+        "provenance": "before_snapshot_C_CPP_workspace_settings_supplement"
+      },
+      {
+        "archive_path": ".vscode/launch.json",
+        "source_path": "test-data/turn-response-20261014/control/selector/workspace-20261014-083826-974/.vscode/launch.json",
+        "sha256": "c0edcbbf955c9a9f316eae95bff8c97715186f0a6482d52197bc2c0c5f8fb5b4",
+        "bytes": 11316,
+        "provenance": "08_38_selector_workspace_snapshot"
+      },
+      {
+        "archive_path": ".vscode/tasks.json",
+        "source_path": "test-data/turn-response-20261014/control/selector/workspace-20261014-083826-974/.vscode/tasks.json",
+        "sha256": "9ae50dfd524a0ca23c5c7118a174297ab77fe1c6e3c9b41cfaed9a1e32bfc200",
+        "bytes": 3443,
+        "provenance": "08_38_selector_workspace_snapshot"
+      },
+      {
+        "archive_path": "docs/archive-origin/README-before-turn-response.md",
+        "source_path": "test-data/turn-response-20261014/before/control/worktree/README.md",
+        "sha256": "250cc7ffd803fce3b4a4cdfea89368726adc3b0f0648a92d399b4ebc15eebacf",
+        "bytes": 14616,
+        "provenance": "04:22 before snapshot root README; contextual copy, not the after snapshot README"
+      }
+    ]
   },
   "excluded_files": [
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-164326-829.log",
-      "sha256": "3935a4ee1a6c7271fdb668c999b1ff35c0f874d6f4ff812eca7328ea30bd4f41",
-      "bytes": 758,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/differential-20261013/ARTIFACTS.json",
+      "sha256": "8f155efb1bc43ec979749477df69b373b5ba915d5a9b6cf2cb013da2ff66f9b2",
+      "bytes": 1111,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-164418-243.log",
-      "sha256": "4971930a0570ce88597627f2f75ea07687ed35818698c7e80752fb0b943118d5",
-      "bytes": 758,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/differential-20261013/ELF_MANIFEST.json",
+      "sha256": "57585b7a224f5baf7fca47001039a22a521188c31bd76097ca118e3f2505830f",
+      "bytes": 5009,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-164505-016.log",
-      "sha256": "604b538bd95157db7101e50965ae7d5a42a3ff2787f73850270a6dec1911604a",
-      "bytes": 36226,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/differential-20261013/historical-path-form-manifests/ARTIFACTS.original-paths.json",
+      "sha256": "713574137b6f779b8907f1b83729e96ba5b47c87121a8a80c225e0e6361bd65c",
+      "bytes": 1009,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-164719-217.log",
-      "sha256": "5d20cbc06a4402d0f731b88f8159d666b42ff7b0e81a8c1c9eb12c70110ad278",
-      "bytes": 3097,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/differential-20261013/historical-path-form-manifests/ELF_MANIFEST.original-paths.json",
+      "sha256": "4fa56884b6302055576dd68da817cbbfdc2076b58b4c2dce335ce3daea11cafe",
+      "bytes": 4771,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-164816-571.log",
-      "sha256": "d5dae22b89a5dc353075bc2374ff67423821f72824b9db6e8161c6b78f1dd8ee",
-      "bytes": 2465,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/ARTIFACTS.json",
+      "sha256": "f3cfd514bfa6d57ae68a5523e17e248d3de66fc79b467cbc4015b89c73742b12",
+      "bytes": 3394,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-165017-070.log",
-      "sha256": "c111cd1867c5fdb0b1cf56a976a6c29b0ea06548d75dbb9f7055582d4ceb3fa6",
-      "bytes": 1883,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/ELF_MANIFEST.json",
+      "sha256": "5eadce15c300fd258b84bee3ac89654c733417229dd6ecbb69fe798d55721748",
+      "bytes": 10174,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-165101-346.log",
-      "sha256": "534fbba05af5dc2b7efd8b6136a0a61248eb20ba9ee63b4db04f5414e881b34f",
-      "bytes": 1883,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/Debug.log",
+      "sha256": "6502f19dc5db71d307b3ca862dd87a42dd40ec4f72407c0c178f38a62206acd5",
+      "bytes": 8090,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-224337-038.log",
-      "sha256": "0cc7147383faa58ed8553848356cf47ed31356b9eb92ac99253a744f653b5999",
-      "bytes": 1883,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/Debug.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261006-224553-113.log",
-      "sha256": "e156a3951c4fa3fd0064279dbf8e41b4463f20e1f72658a92059cbccfcc5c91b",
-      "bytes": 1883,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugBench.log",
+      "sha256": "4b62ea71051ea708177e4cec540dd9d6aa4a176e1fc883d81914e4868fc7ff8a",
+      "bytes": 8130,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-033611-735.log",
-      "sha256": "e521f25bc634d3c203a2bd8fa4767bde87cffd4eeb2119818898f2ec379f75bf",
-      "bytes": 4261,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugBench.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-033640-042.log",
-      "sha256": "31cb061a66f3330cb04d6c3f9f0688c57abb50568793726b363c66e71a1eaf6c",
-      "bytes": 21462,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollow.log",
+      "sha256": "9bba232185b8fbdc3936169b61c45ad71dc8accd6885207e4806e5dc7cdb2a99",
+      "bytes": 8138,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-033738-324.log",
-      "sha256": "4317a018b5740483b7b2b94d7182dd49a8df6099b2f2da6afe79a246eb8c7e90",
-      "bytes": 16713,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollow.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-033916-108.log",
-      "sha256": "e1bc2fd9d924d014466187437a7225bfd0ac5a4f43d3265848fd2d8c41a7cc45",
-      "bytes": 16713,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowDiff10.log",
+      "sha256": "a58d039458486434c4e4301ffece9747d822fe78fa7be8937fee80da3a8db305",
+      "bytes": 8186,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-034626-370.log",
-      "sha256": "540753ca907975a61ab7d75721b15bbb87f2ee6be272ac8f7f46f28403a5f7c1",
-      "bytes": 1320,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowDiff10.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-034707-444.log",
-      "sha256": "db4c09525f56451ecee25fdf331d75648b81cbe863f8b95552eef51c1e027636",
-      "bytes": 3098,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowDiff5.log",
+      "sha256": "8ce552ede84601d82c27d27a3a1b76edeab044967b1650e6569ca41484d67109",
+      "bytes": 8178,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-034745-489.log",
-      "sha256": "90ee17649915437b8909173e663698348ba7e06ce3da947aec64ee9dda8b4a51",
-      "bytes": 2133,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowDiff5.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-035124-182.log",
-      "sha256": "a4220a16d3737e2819b388acaa5979679c0e6acfc47512b633e18180e94e4e98",
-      "bytes": 2183,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowNoLog.log",
+      "sha256": "edc83185203557351418b4dd724becdd6d83550f53852ca972bb94171b25d541",
+      "bytes": 8178,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-035823-995.log",
-      "sha256": "5ed605fb54982967e56fa35bf1e38c539c0723a7caff1c920f49042e0f8c7776",
-      "bytes": 2221,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowNoLog.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-040319-197.log",
-      "sha256": "c81adc9964864f21b5c1219c52312a039bfdf7b1059ac5a358dd62b79b829323",
-      "bytes": 2221,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowTurn.log",
+      "sha256": "08a627e8449f44636bc3161537a92bbffb931fb4061fbf6f8e716434c9f23aa3",
+      "bytes": 8852,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-174154-778.log",
-      "sha256": "5c5a12fabfd3697e662a2fb9767c55b6b1d7c5e04432f9ba5e237ec118c9d908",
-      "bytes": 2268,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugFollowTurn.log.exitcode",
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "bytes": 1,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-174356-800.log",
-      "sha256": "9763ebd7d28ad077738431642d97e76f453ba63fa1f8d6293e4686668f4a1830",
-      "bytes": 2268,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugSteering.log",
+      "sha256": "4a3729d8e9d5c5bca6e9291368dab1b42d3021433619b264d2328993637fdbd1",
+      "bytes": 8154,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     },
     {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261007-183946-530.log",
-      "sha256": "9624d232283ae2f7ec9bc5f83b102f28a6f4f4b08c581ca1fbbd9991d0f26afa",
-      "bytes": 2268,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261008-164421-960.log",
-      "sha256": "b0a72b937527ca01353a5861cae4f183e99f95846dc3f70e44a27d6e3ab17029",
-      "bytes": 2268,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-034839-722.log",
-      "sha256": "5fccdf79907dcca6bcee4dfb768fe07f8382c7107c9fe8b2ba03d50086bc62b6",
-      "bytes": 2931,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-034944-840.log",
-      "sha256": "07a1b544af51eddef067f2305dcf2c758729621ef7576ac569fc8af0a81c7096",
-      "bytes": 2320,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-035639-115.log",
-      "sha256": "47746bbb37e7aae8c60e041132b7b00992bcb1cdb86173a4b7e59676071db992",
-      "bytes": 2320,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-162729-290.log",
-      "sha256": "f959426ab80e368bcffeac7403ec1206c24f81bb405af9440dcb39935b2ddea1",
-      "bytes": 2320,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-222308-927.log",
-      "sha256": "b4abbaebc7b747fe892a556446a646c465baae29673e14aacddb1869c1c898ba",
-      "bytes": 2269,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-222443-370.log",
-      "sha256": "7020a7292d6e9eac659be02ed666028c7fb752e019ff8cd2f59e2ffa560c666f",
-      "bytes": 2269,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261009-233107-814.log",
-      "sha256": "0d2fe42157891985a3e3c1f1b3513499216eb835c0dbd7bb8f2b5f6f0dd6d0ce",
-      "bytes": 2269,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-033815-364.log",
-      "sha256": "fd4cd65dcbb1a930c6738f2096771b8e7609cb083a37bb656412629e4e280d51",
-      "bytes": 2313,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-033925-960.log",
-      "sha256": "e2f8d076d7d558f78ff08a3b40470eca23b505c0efdc5f65737147fbdfc6f870",
-      "bytes": 2313,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-034113-330.log",
-      "sha256": "26f70bfe626a0f1b06a2a69d29e718eb1d155485a133e9c36aae20c25af29023",
-      "bytes": 2313,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-112858-438.log",
-      "sha256": "894815584d7171e6895d4488a6b5f7432fbac6ec7da88005c0b376c72cb59a4d",
-      "bytes": 3053,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-112919-640.log",
-      "sha256": "68a46460229d0cc1493a132f4a80c687db492ac23f4bc4dc08657e9630b53504",
-      "bytes": 2367,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-113028-059.log",
-      "sha256": "9658b5b32a746973fd5176f46ed87fea5eb88fa2e9685a257eba05cdfbe01579",
-      "bytes": 2367,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-113127-214.log",
-      "sha256": "2b3a81ebd2796c3c914a997c2746f2154f3a5bebc10fbba58f10ce0877e8607e",
-      "bytes": 2367,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-113324-079.log",
-      "sha256": "8e6d8b84e3ba158571b5c5681edaae67d4e982d96f3df6b27e46700bd35a5a93",
-      "bytes": 2367,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-195138-112.log",
-      "sha256": "bf6dd21dd4b9f69587b15979d505d0b2bf37311065353e3935f6f018d0d6db9b",
-      "bytes": 2367,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-202748-425.log",
-      "sha256": "2d277881a8151329603ae9593a80e8a6430442ee03a686820b0f6a71dca4fc88",
-      "bytes": 2405,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-220044-995.log",
-      "sha256": "7af6522a4d6ce9da533a3a6373b09c9531c210c94e2ab8697fe668a6e304d7da",
-      "bytes": 2806,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261010-220124-697.log",
-      "sha256": "c399bfa1953ce5d66facd2de9c3f2de6e132d4bd286f908580b023e598830bc7",
-      "bytes": 2458,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-042104-061.log",
-      "sha256": "55f6c9dd04bb76c6c2cc3a5ffdd9dc7427089569319e2de8b6aa4d0dc89c9722",
-      "bytes": 5212,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-042317-997.log",
-      "sha256": "94d54515acb2fee15b0331a95b07bc5e538506be09054290aa0c23bc0cceba29",
-      "bytes": 3384,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-042446-154.log",
-      "sha256": "bf479930e56c8b5c55563be1295b0f4757e7a7ac385cebb0cdc0d78f4f968a59",
-      "bytes": 3105,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-043106-419.log",
-      "sha256": "b3849bbd703ff688981483ffc46b3ff19955df0d75f17f4ca2fc34f6f8bbf606",
-      "bytes": 3105,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-174916-721.log",
-      "sha256": "84325a00b42af2ab8daf6e33cce6d09798954cf49e54c0b26a01d85890cb7e55",
-      "bytes": 3105,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-181241-968.log",
-      "sha256": "6e1605693fa4369e16cdbd0ebac6aad743e2511fa5c748437c50edacf39dad1e",
-      "bytes": 3384,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-181400-878.log",
-      "sha256": "e1646f3fa89257108849f630242b3862b7a8879ff54622212bf2f8320763e25b",
-      "bytes": 3777,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-195528-064.log",
-      "sha256": "55fc629661f265c729931c0d005833528b117793a7fe744cdec7bf8d87e81a4d",
-      "bytes": 2149,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-195647-427.log",
-      "sha256": "8655fe07bdb70fa467896caf63f5482d626a8d78471ef0af84372698dc0b409e",
-      "bytes": 3719,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-195939-352.log",
-      "sha256": "c3e00574eda76bcf1ea123779640dd97c7653cf31a537148c219c6fd85aae962",
-      "bytes": 3524,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-200130-501.log",
-      "sha256": "9ff8502c85a404c5018c79f80d3a57262cea109f5fd973e5e1770a9ddad3266e",
-      "bytes": 3826,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-200512-923.log",
-      "sha256": "23a8f1fec113d50587a9c4d25a6959ea600f9b7c89d9f4712814980c4620b2be",
-      "bytes": 3735,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-200541-276.log",
-      "sha256": "88c2bdc397c6c8e98599c250193af87d88b500982ab746e803b1500d53d75fff",
-      "bytes": 3524,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-200634-358.log",
-      "sha256": "129da12e66965ebc2e0fab3ba1a106c7757617612c5306a5f39ed9a99a8be688",
-      "bytes": 3826,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-200920-045.log",
-      "sha256": "6724fe3814368fe16e01ab00d10be36f66a64fa721c7b2468851ba4f10b4a86a",
-      "bytes": 3826,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-212551-794.log",
-      "sha256": "4707af70eb72d750aec853da06e08f2ddfd8d71f3863be718e90c69d18152f7f",
-      "bytes": 3686,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-212719-041.log",
-      "sha256": "af1548ed77ae0b897dfed85cbc4031cf0c4ea6afcca0cb5cc9d378fa8041f6e3",
-      "bytes": 3221,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-212733-730.log",
-      "sha256": "219bc598bd64f9ed475524de45afca627983e9a502222b7384d629a0737254bd",
-      "bytes": 3686,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261011-212935-522.log",
-      "sha256": "78aab1b1c169e37642ce61285371690b9de3f226e877aa61c4ee348612f66f9c",
-      "bytes": 3975,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-220804-915.log",
-      "sha256": "314c5d140537fade6e7de0f2a5ab7be4a9343da6e787c6addd481138c48301cb",
-      "bytes": 4013,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-220919-700.log",
-      "sha256": "c8bdb771acc73d2066bb15cb600d82b04a4a8732042fcb0941f4c5426381c223",
-      "bytes": 4100,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-220940-559.log",
-      "sha256": "23f4dfc9a915ec0eecf70e6c379c4e2fb7678ee915fee9a58a7bbe958fd8eabf",
-      "bytes": 3855,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-221107-768.log",
-      "sha256": "a3a1346d779042fec78598851d8f72971769eaea534c75908cf978cfc43ea4b9",
-      "bytes": 4149,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-221554-940.log",
-      "sha256": "44e91344033c14a633d69a618fa87638b15713b5ef6b8beb5b0b7d2f5c7b8dad",
-      "bytes": 4155,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-224045-819.log",
-      "sha256": "a662b8a5b70650183cac4e4c82867a7cd46fc15a6a40d1b8c7f2e4a20c12cda6",
-      "bytes": 5731,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-224131-392.log",
-      "sha256": "784189de154c964a4b076fec177fc3aeb119b8596a6d574ce137c1aa1dbeef5c",
-      "bytes": 5895,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261012-224233-294.log",
-      "sha256": "912825a0d9e0f3ece8a0249fd874bcfb3380ad7b282cc3bc91817765498b5317",
-      "bytes": 6190,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-071733-768.log",
-      "sha256": "32baf7bb1f7b78a709b060accc39790f529b1776551ad29d9787a0d3ad7eeed6",
-      "bytes": 1461,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-071831-527.log",
-      "sha256": "0c812da45961a267e18d0c922a69dd5244674c1b52b028b790abdd108b40966c",
-      "bytes": 34670,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-072552-072.log",
-      "sha256": "474e0e8c7c0f75868b48175f5f4ac9cdc03384e67ff339dbf115e7283be8c267",
-      "bytes": 23008,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-072829-046.log",
-      "sha256": "3cabaf9c5f530067fcc0a6fa799404946fb1720a5092e642467e66e52163639a",
-      "bytes": 12080,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-073031-985.log",
-      "sha256": "11145735fa2e27d0ed8edef021931b5d92db54f159cfb8f24a4cbb78dd2572f9",
-      "bytes": 6562,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-073100-745.log",
-      "sha256": "79736e01b0b926303648b43beade41c4dfc81566f4b32dbd38940a0bee9df3cb",
-      "bytes": 6014,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-073532-381.log",
-      "sha256": "45fb03ef620752e20f95442e77c3028fe33c507b47ac9b48be5bcf134d53af6f",
-      "bytes": 6880,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-073548-833.log",
-      "sha256": "27d059de34056fbba8e626ef612e7d341dbebe3872bc131f1ed2d40743c12e1a",
-      "bytes": 6202,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-074116-853.log",
-      "sha256": "49b9fc6689874db136fbd3c0e71678e4bad768595de09326f20f8cb3b21ea986",
-      "bytes": 6202,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-074212-047.log",
-      "sha256": "0fa98e7fa175fd805d5079581c8564f26b13fe0369f18a0614c6c7f98e5bd467",
-      "bytes": 6490,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-074428-706.log",
-      "sha256": "ef67059a9a29d9ded4b6dd9fc42596ba321b2f6a495b9386ac33d1d426aca40b",
-      "bytes": 6490,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-184249-390.log",
-      "sha256": "03d3d2c384c0c973736740cb393e1d59be900ab0be9644e94c9382c9cb33354a",
-      "bytes": 8546,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-184543-477.log",
-      "sha256": "d33c66fb0510b7c01e0c57397720b5e1448f7e089f74a58283ced32dd7d14a3c",
-      "bytes": 6220,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-184616-185.log",
-      "sha256": "be87f738efc90a1994b36da2914ad47ccac15816b57d2a1de499eee5554a0ae6",
-      "bytes": 8002,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-184649-021.log",
-      "sha256": "d3ed5cf26df718f776977eb3fa8a29d6ec0789f9b670827da71ffb4c9ba4ab0f",
-      "bytes": 7777,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-184708-612.log",
-      "sha256": "defee7ed2b0c7a7c46829022bad74b73024a5c54144ff83af6e91db4a91f2e9e",
-      "bytes": 6982,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-190344-974.log",
-      "sha256": "7d0b28642cc69658bdd98320a82706b3304a65cdfdd1a1bbd28fdba97922076e",
-      "bytes": 6982,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-190808-102.log",
-      "sha256": "e8d191ef01eb7a37eb4cb036fa006f83e71a30d7d7d11020982f3155e22f162b",
-      "bytes": 7273,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/logs/msvc-host-20261013-211654-026.log",
-      "sha256": "ac8ddc9eb0d12fce06f6f0bb1d956214eb7b20a8d84a6574af2f3a7c4968e2bc",
-      "bytes": 7273,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/control/worktree/tests/host/__pycache__/test_servo_apply_primask.cpython-314.pyc",
-      "sha256": "8f538cc58b296427fd39d2378e736175afcdc0e16f094070cc4b7d7134d941cc",
-      "bytes": 21425,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/config.cpython-314.pyc",
-      "sha256": "8c66c953aa9710c95d25b3040f013c2fd9f9fd351d2d93c494e7c40210500fca",
-      "bytes": 11141,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/fast_boundary.cpython-314.pyc",
-      "sha256": "0dd52014edd45fab1ec7d48bb77fb39ad2e6602eac27024ade76c28c98f8367b",
-      "bytes": 57943,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/fast_gray.cpython-314.pyc",
-      "sha256": "8d552fe9ebb32f939769159220ef138c82cfd91733dbd19d922ef58fba771c63",
-      "bytes": 33028,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/fast_path.cpython-314.pyc",
-      "sha256": "9cbe2923237f93a31bf07cfbb044da7d2419c23f14f63402a22a4073c29b76b5",
-      "bytes": 48839,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/fast_single_edge.cpython-314.pyc",
-      "sha256": "ea1124c59882220dc246ae0d25d4ac1bed990b382d0e152863d02f7234408bdb",
-      "bytes": 49843,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/fast_topology.cpython-314.pyc",
-      "sha256": "96cc342d3dfcbfd2447180c779dd750574304dd21c063fcab26889e1aefacd5a",
-      "bytes": 42216,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/main.cpython-314.pyc",
-      "sha256": "9715cbf7537ef2475f4d2d9ac978281f4bf0923212eaa99b9c9821a67f7d4ec3",
-      "bytes": 116525,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/reverse_control.cpython-314.pyc",
-      "sha256": "71a368b14b5956eeeab789010688462b28b8cfd1c58b71d39780f7e54b9a7c40",
-      "bytes": 9879,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/__pycache__/vision_protocol.cpython-314.pyc",
-      "sha256": "ac62207a64c8ba8197f5fb668ed6068f3c61d29aa6962f27d4a15f6503e401ba",
-      "bytes": 3599,
-      "reason": "Python bytecode/cache"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/tests/protocol-host-final.log",
-      "sha256": "85f6422484762bb380f179b0b36dd3cf6b3d47dde2b789be0e1af1309d0d0d36",
-      "bytes": 840,
-      "reason": "runtime or test log"
-    },
-    {
-      "source_path": "test-data/turn-response-20261014/before/vision/openmv/tests/v7-regression-final.log",
-      "sha256": "b60e9b552cfc27c82ba386b7966ccbc7e98ab5a8b38cbeaceb8e549e50187f39",
-      "bytes": 13695,
-      "reason": "runtime or test log"
+      "source_path": "test-data/log-audit-20261014/before/artifacts/turn-response-20261014/buildlogs/DebugSteering.log.exitcode",
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "bytes": 3,
+      "reason": "validated source/build evidence; source manifest and profile identities are summarized in origin-manifest; build logs excluded from public code package"
     }
   ],
-  "retained_file_count_before_generated_manifests": 282,
-  "copied_source_file_count": 281,
-  "supplemental_file_count_including_vendor_drivers": 176,
+  "retained_file_count_before_generated_manifests": 265,
+  "copied_source_file_count": 264,
+  "supplemental_file_count_including_vendor_drivers": 183,
   "limitations": [
-    "This is the pre-turn-response source snapshot at 04:22 Beijing; it does not establish that these original ELFs were ever flashed.",
-    "OpenMV source package is date-stamped rather than timestamped to 04:22, so it is identified only as the corresponding pre-turn-response package.",
-    "Build inputs and original ELFs are historical evidence only; no board, vehicle, or road validation is claimed."
+    "The 08:41 original ELF manifest anchors the completed morning version. The included source tree was captured at 09:19 before the later log-audit; exact source correspondence is established by a matching ROM Build ID in a separate validation build.",
+    "The 20:25 output-path harness report with main.c SHA 59a8... is later evidence and is not the source selected for this archive; the archived 09:19 main.c hash is recorded above.",
+    "The camera package is the pre-ring CACHED_WIDTH_TURNRESPONSE_20261014 package; all 17 runtime files match the final turn-response source-hashes.csv current_sha256 field.",
+    "This archive excludes later ring, log-audit, and PI behavior code and makes no claim of physical validation or user flashing."
   ],
   "generated_files": [
     "README.md",
@@ -3109,633 +2274,531 @@
   "all_retained_file_hashes": [
     {
       "archive_path": "CMakeLists.txt",
-      "sha256": "fff413e3658e372f16cf728f493746d5caeb02a5fd3f82b2d970128d7ab6b890",
-      "bytes": 8576,
-      "category": "exact_before_control_snapshot"
+      "sha256": "3b1d16278102f9f8762860e5b24ac152556d6e8e3225294c291d225870d9f333",
+      "bytes": 10757,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "CMakePresets.json",
-      "sha256": "1230beffe245fa1355ef5324b799babb0bbf6fada52a0f7b427fecee99f5a3b1",
-      "bytes": 3522,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": "project-description.json",
-      "sha256": "d98b33b6111257d2a4ec598330c209d65e5fc0e7c7ef8797a66dcfaead5493b8",
-      "bytes": 5375,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": "docs/archive-origin/README-source-0422.md",
-      "sha256": "250cc7ffd803fce3b4a4cdfea89368726adc3b0f0648a92d399b4ebc15eebacf",
-      "bytes": 14616,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": "stm32h743xi_flash.ld",
-      "sha256": "81ba4a2433b4948caf93127e994ff757742eff00474a8c59608380e3d6bce75c",
-      "bytes": 8039,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/c_cpp_properties.json",
-      "sha256": "1d40a921a6f28b9ac3dfcd2613d0a666dd3d9a9a7f6f626028132db735fe020f",
-      "bytes": 168,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/launch.json",
-      "sha256": "dc408c662d61d609d7bacf1dbf48927921f8ba752b9902063df67c50f7720a32",
-      "bytes": 9922,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/launch.json.bak-20261012-223049-218",
-      "sha256": "16ebf2f43759adec07d8869fef1bbd86d91e689097c77ec433bbeaadb80aa714",
-      "bytes": 2769,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/launch.json.bak-20261012-230443-897",
-      "sha256": "9877911c82b0121d221bff363c047ce57ddce56702becd807c74613f83abf964",
-      "bytes": 5683,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/settings.json",
-      "sha256": "fa1c0143eaef1942427630d3a8453d0063a616cfee4f68bf3b6f5f151d864906",
-      "bytes": 558,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": ".vscode/tasks.json",
-      "sha256": "aecb2a540f3a5c908440bc62bfe28957703993ca527f878953517c3b7cc1e315",
-      "bytes": 3055,
-      "category": "exact_before_control_snapshot"
+      "sha256": "17b720b50af6e3f8a35ba452bec2b9d9e7e29adeb18d12067efa4d588cd796c5",
+      "bytes": 3948,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/car_vision.c",
       "sha256": "3a377e93bfb5ffdae41d3a88e9b1b0c0a5a93eda955d07f928d03b7860090504",
       "bytes": 6872,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/commissioning.c",
-      "sha256": "fdc5db7199ffd686f9415127326dc05d6205ced6a18bb400130c87ffacac4a9f",
-      "bytes": 65313,
-      "category": "exact_before_control_snapshot"
+      "sha256": "8e4733362a70dfe4664c807c59a89d12624ce75baa908f97a3e529cfd6ef353f",
+      "bytes": 65447,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/encoder_diag.c",
       "sha256": "5ebda489edb0cd5226a25e23148ab670c22db7689d67aa6474cca3e079f7951c",
       "bytes": 1856,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/follow_output.c",
-      "sha256": "039b0320b16bcafe522f5b0272551cf18708025ee7d08ef34e4fee576eafc309",
-      "bytes": 7233,
-      "category": "exact_before_control_snapshot"
+      "sha256": "973cf35c5d2b0b03a3a72d829deefabd8589e66826bdf9c445f93a67962015aa",
+      "bytes": 8330,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/manual_run_button.c",
       "sha256": "9f180df53b5c43172b5c3d6c3de3e4e78fa96e227c679b49b5891554893d7a2d",
       "bytes": 2771,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/reverse_control.c",
       "sha256": "d102cd89144d715aaa1ee25aa00b4b9ca9b23bba2a31b959553d8ae0f4f9df66",
       "bytes": 4242,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/runtime_log.c",
       "sha256": "b7dae1dad1c8cbf4290caebae87cf7c16a9b60bd6318be33deacfdc7780e5e5d",
       "bytes": 21983,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/run_block_reason.c",
       "sha256": "6ffeaa0e4e77043cd9b117a3e987b2651176441be00d19a0524638666b0089e6",
       "bytes": 1711,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/servo_safety.c",
       "sha256": "ee437b84122895140e3078aebda00de4209575b335de0df78894a506ef1c0780",
       "bytes": 15575,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/uart_rx_service.c",
       "sha256": "86771d14f72bc679767f4475c3deea1fc90549d1412b67ce8cef1baa15b63dbc",
       "bytes": 1179,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "App/vision_protocol.cpp",
       "sha256": "ad17e378a2d47dee009d821b8651744d21f654f4f3c30b6be1d032a355d958d9",
       "bytes": 4959,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/components.cmake",
       "sha256": "bd3ca45f13265afe58297c23db39592ccba61eb93c3d348a53ceac1f42c4e118",
       "bytes": 82,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/files.cmake",
       "sha256": "4a3f1fd36e5a3a8ba3e4310bbf5824876d7997485c9e2ec4b26d11a18ad9d1cc",
       "bytes": 499,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/flags.cmake",
       "sha256": "46f2fc7e729e97992185208b38f440c4a95239ea67c5ae046db86eb6c08845c8",
       "bytes": 3563,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/gcc-arm-none-eabi.cmake",
       "sha256": "ffccc9f99255d5b8b24065f038479e6b45e3d4b06319669e24f083feeeb55078",
       "bytes": 4908,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/runtime_log_build_id.h.in",
       "sha256": "b5283b9dee74bac0edfab2bc9268de3b15dd30a3bbaccbcbe3e83b877540d87c",
       "bytes": 278,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "cmake/target.cmake",
       "sha256": "961799c73878877da61cf7d74b3450056554f36e501aceb80f88aecc7044e273",
       "bytes": 496,
-      "category": "exact_before_control_snapshot"
-    },
-    {
-      "archive_path": "docs/BASIC_FOLLOW_RECOVERY_CN.md",
-      "sha256": "6a969da32b945afabccc8663e6ff2f172542da6fbc8cfdb6da0b5a391ddfd2e9",
-      "bytes": 2699,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "docs/DIFFERENTIAL_TRIALS_CN.md",
-      "sha256": "9535dbcf0364f6b1a7a5a9c8c6065a5b93a265d089a4986b22345036fb49cf4e",
-      "bytes": 9281,
-      "category": "exact_before_control_snapshot"
+      "sha256": "af69c67490bdbe8275e0a7d94b1deb542225b094fd9fcadccb9dbd3bd85e9a5e",
+      "bytes": 9843,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "docs/FOLLOW_BRINGUP_CN.md",
-      "sha256": "521d836ceef0086c89bdee99998fb4bf5d2cb27011fe2d3de5c4704b3179896e",
-      "bytes": 7746,
-      "category": "exact_before_control_snapshot"
+      "sha256": "cb5ca09892ef5bc4fe30e12d688c2ade2643eadba5716e3eb5a2d8c0b05e1078",
+      "bytes": 8680,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "docs/RUNTIME_LOG_EXPORT_CN.md",
+      "sha256": "29332969f0e5f0e8d432d55a990fd6c806f58ee163e79c60678e05d97c059a2b",
+      "bytes": 7174,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/car_calibration.h",
       "sha256": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
       "bytes": 2314,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/car_vision.h",
       "sha256": "5cd8ccd6f870cec92210304d213dddfd6091bd9db83cd22250e32241b0e6e4e3",
       "bytes": 2167,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/commissioning.h",
       "sha256": "cfdd104d545205ce0b3370ea8691e7bfe42674b51ed02f314a0df08895d33855",
       "bytes": 13556,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/encoder_diag.h",
       "sha256": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
       "bytes": 765,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/follow_output.h",
-      "sha256": "8a4fd77cd8ccd23328f82c8997d27975bf313685207671bad847b0dc43ef47ed",
-      "bytes": 2469,
-      "category": "exact_before_control_snapshot"
+      "sha256": "de157f38c00ad496ac1ad3fa634600fcac71e8f75e31892631988da75395a5a0",
+      "bytes": 3306,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/manual_run_button.h",
       "sha256": "f66cca80884a5087a5d8a1afae4bb9671acca300413c6b641657d14aa2bbf09f",
       "bytes": 1725,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/reverse_control.h",
       "sha256": "12e312db02daba917f3680f7f725bbadf354519eac05f04d81b1e0572e04e8c5",
       "bytes": 1690,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/runtime_log.h",
       "sha256": "9640752bbbe916438ac88a06ddd8bc39845e794c4dee8277312b3f86b5250838",
       "bytes": 8223,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/run_block_reason.h",
       "sha256": "81a7d81e4609845e6c53fb791c957598d3d0303f6183b55d1faca583915cc449",
       "bytes": 1571,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/servo_safety.h",
-      "sha256": "510fddd5713065e344b6f7d5957ed2afd12c54395ef3f2057af84353ddff81a6",
-      "bytes": 4933,
-      "category": "exact_before_control_snapshot"
+      "sha256": "61554b5160f16a9285f882112cd507128d2ae9865b41ef5093596ddb74ff2305",
+      "bytes": 5067,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/stm32h7xx_hal_conf.h",
       "sha256": "d6b849358010ba05d51e4bc4344ef8033fd86eb08eb313b3fd4b167bc7245e1b",
       "bytes": 3195,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/uart_rx_service.h",
       "sha256": "18b14e4cacd14c4b7d4b0a487cf3c54d4dbe330c16f9aed5e8f724873331bdb4",
       "bytes": 1499,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Inc/vision_protocol.h",
       "sha256": "0ff43c1775f00130f48fbcf838f414e314bf090355d0b35ce57ba13682c03506",
       "bytes": 1278,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Src/main.c",
-      "sha256": "d5ac245e4aeed64581258c66aef8cb21c9ab583c83e51372be490270625c2dd6",
-      "bytes": 126302,
-      "category": "exact_before_control_snapshot"
+      "sha256": "5ca089cf627654cf57be016832698e8a7fbad5f1cecbc7ec51ba40088ed2c186",
+      "bytes": 128868,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Src/startup_stm32h743xx.S",
       "sha256": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
       "bytes": 30867,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Src/syscall.c",
       "sha256": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
       "bytes": 5142,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Src/sysmem.c",
       "sha256": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
       "bytes": 3029,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "Src/system_stm32h7xx.c",
       "sha256": "7651ffeba09a135459e5501033d3610c3205df959c840aed496163a63ae9ae44",
       "bytes": 20305,
-      "category": "exact_before_control_snapshot"
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tests/test_analyze_differential_runs.py",
-      "sha256": "ce68599e08812e109b1cfda789f6536921ff7ff2b6ecca45d66d4809f0174cab",
-      "bytes": 37995,
-      "category": "exact_before_control_snapshot"
+      "sha256": "a627a1d82e194cc678068035185e27f6f6f052779de697b72c99337af2ee228a",
+      "bytes": 38573,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "tests/test_export_run_log.ps1",
+      "sha256": "18a6b9d25619acae8d0554005a83820c6c10829202e619069630be57af3dfef0",
+      "bytes": 13830,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "tests/test_runtime_log_export.py",
+      "sha256": "5f3bc328cb50882831b30a9ccb888cb854ecab96be7edaea56d3d743b7a2495b",
+      "bytes": 13733,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tests/test_select_follow_logging.ps1",
-      "sha256": "5eabc4b5da20cae6ba29d0c20d7bb2226b08d17f227c87eb95d9ac7eec567dca",
-      "bytes": 5505,
-      "category": "exact_before_control_snapshot"
+      "sha256": "21148759cabe0b8e4c413a29755a4b9dd2e475f2216c5cffc4bffc751a7e2691",
+      "bytes": 6185,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tests/host/run_tests.ps1",
-      "sha256": "9e07f794a4e6d26752889e0e3a0a6ddc2e05d0db339479d31ebd7ed60984ccd4",
-      "bytes": 10349,
-      "category": "exact_before_control_snapshot"
+      "sha256": "7089ae2b6c584e80c46f0f7260fea01ff65713848218e441337787bd81080d05",
+      "bytes": 10754,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tests/host/test_follow_output_path.py",
-      "sha256": "3f1ab6f15b0863cb4a9dba72d6e5dd1182a51f7adf577aca1d2f9c179016967c",
-      "bytes": 47127,
-      "category": "exact_before_control_snapshot"
+      "sha256": "3007e00bf12b309eeb827f20f821d82fa05f2a19f95fae2d4e5fc8e85b9022bb",
+      "bytes": 49011,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tests/host/test_main.cpp",
-      "sha256": "34601e095aa78f3703d50364d78c45cdd4da3236625d8417a9d20b8a66c80707",
-      "bytes": 238736,
-      "category": "exact_before_control_snapshot"
+      "sha256": "3f0d70c8c8a680c4814981f80a1757d8a687cd91c8bc28d245ea80873c613fe8",
+      "bytes": 238809,
+      "category": "exact_after_source_snapshot"
     },
     {
-      "archive_path": "tests/host/test_servo_apply_primask.py",
-      "sha256": "2a136793c6a47595ca542f2116957937207710c2a8f665f5b8b135cbcdffac5d",
-      "bytes": 21468,
-      "category": "exact_before_control_snapshot"
+      "archive_path": "tests/host/test_turn_response_timing.c",
+      "sha256": "9254271bb486049be8f0121dd0c67d7a02e68efd2d6813438e0706b799e2d0e4",
+      "bytes": 10056,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tools/analyze_differential_runs.py",
-      "sha256": "f0daa112cad2547c40701586adeda1df87f25605af5b04b9d469eb06e3c094de",
-      "bytes": 78865,
-      "category": "exact_before_control_snapshot"
+      "sha256": "d9b4c5c362d6838b8f503105dfeceb528217687fccf9a05c58ac6d937d3f797e",
+      "bytes": 79503,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tools/build.ps1",
-      "sha256": "ff1a8db5f195f0a90f5a0e7a0a83949dd1095746d4bc4a4ef20f68e7ab07fd95",
-      "bytes": 13584,
-      "category": "exact_before_control_snapshot"
+      "sha256": "b8578eab13470dd6cfac61b26af5e59aa529d175d5c02075c7b8ba9a561e21c6",
+      "bytes": 14237,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "tools/export_run_log.ps1",
+      "sha256": "c3ff1d0666fcc818a0b9d3314afb6deae2bb614621498f9e4e7225b47945d750",
+      "bytes": 17746,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "tools/runtime_log_export.py",
+      "sha256": "d48695b86f36280d40f5dbd89f7b378db38107304fdef7494ebf531a26e69961",
+      "bytes": 28268,
+      "category": "exact_after_source_snapshot"
     },
     {
       "archive_path": "tools/select_follow_logging.ps1",
-      "sha256": "1678f09559c12a325624467c83cbc4601f944c782b48fe8f847ecd67fa609b79",
-      "bytes": 4872,
-      "category": "exact_before_control_snapshot"
+      "sha256": "26700423519c0df07398b4dc694717aa415c1b412903121efc702238d3cd5574",
+      "bytes": 4973,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "tools/write_turn_response_manifests.py",
+      "sha256": "3735f354801ed7f33e764b7781f301f47491873b08093ae16cc30dbe02f6bc40",
+      "bytes": 11792,
+      "category": "exact_after_source_snapshot"
+    },
+    {
+      "archive_path": "stm32h743xi_flash.ld",
+      "sha256": "81ba4a2433b4948caf93127e994ff757742eff00474a8c59608380e3d6bce75c",
+      "bytes": 8039,
+      "category": "before_snapshot_linker_used_in_after_ROM_ID_pairing"
+    },
+    {
+      "archive_path": "project-description.json",
+      "sha256": "d98b33b6111257d2a4ec598330c209d65e5fc0e7c7ef8797a66dcfaead5493b8",
+      "bytes": 5375,
+      "category": "before_snapshot_workspace_metadata_supplement"
+    },
+    {
+      "archive_path": ".vscode/settings.json",
+      "sha256": "fa1c0143eaef1942427630d3a8453d0063a616cfee4f68bf3b6f5f151d864906",
+      "bytes": 558,
+      "category": "before_snapshot_general_VSCode_settings_supplement"
+    },
+    {
+      "archive_path": ".vscode/c_cpp_properties.json",
+      "sha256": "1d40a921a6f28b9ac3dfcd2613d0a666dd3d9a9a7f6f626028132db735fe020f",
+      "bytes": 168,
+      "category": "before_snapshot_C_CPP_workspace_settings_supplement"
+    },
+    {
+      "archive_path": ".vscode/launch.json",
+      "sha256": "c0edcbbf955c9a9f316eae95bff8c97715186f0a6482d52197bc2c0c5f8fb5b4",
+      "bytes": 11316,
+      "category": "08_38_selector_workspace_snapshot"
+    },
+    {
+      "archive_path": ".vscode/tasks.json",
+      "sha256": "9ae50dfd524a0ca23c5c7118a174297ab77fe1c6e3c9b41cfaed9a1e32bfc200",
+      "bytes": 3443,
+      "category": "08_38_selector_workspace_snapshot"
+    },
+    {
+      "archive_path": "docs/archive-origin/README-before-turn-response.md",
+      "sha256": "250cc7ffd803fce3b4a4cdfea89368726adc3b0f0648a92d399b4ebc15eebacf",
+      "bytes": 14616,
+      "category": "before_snapshot_readme_retained_for_context"
     },
     {
       "archive_path": "build/Debug/CarTest.elf",
-      "sha256": "025a1e243f1ca25aa4b3b2acdac36c70c754e37d10e409116486984e7304cd58",
-      "bytes": 1893164,
-      "category": "original_before_elf"
-    },
-    {
-      "archive_path": "build/DebugSteering/CarTest.elf",
-      "sha256": "10038df67b5bdcc14e02d2a0cf85ee8f720ce918f9bc1187aeb00b510a15e19d",
-      "bytes": 1893184,
-      "category": "original_before_elf"
+      "sha256": "82700194203b84c5bb32f534d60d78c5b6cbc7aadfcfa97fe67cf2c9be7e3715",
+      "bytes": 1894972,
+      "category": "original_after_0841_elf"
     },
     {
       "archive_path": "build/DebugBench/CarTest.elf",
-      "sha256": "d73d412c628698ddfeab07b04ec3e0eaea9ddc7289170fb6479bc1ee79de1e56",
-      "bytes": 1893704,
-      "category": "original_before_elf"
+      "sha256": "f93532d1636a2235bb26d54edff1c4bcb7ea7ba3f1cb510f7240474cb705fb09",
+      "bytes": 1895524,
+      "category": "original_after_0841_elf"
     },
     {
       "archive_path": "build/DebugFollow/CarTest.elf",
-      "sha256": "67b3592bd2be55c6feed21fed869bed7db8017ccd1cf5c20f5fab1cbc4760001",
-      "bytes": 1897896,
-      "category": "original_before_elf"
-    },
-    {
-      "archive_path": "build/DebugFollowNoLog/CarTest.elf",
-      "sha256": "3804b36122fe7c2f17e172254bc43d91044401951da4b04e22b0ff116ce6229d",
-      "bytes": 1891204,
-      "category": "original_before_elf"
-    },
-    {
-      "archive_path": "build/DebugFollowDiff5/CarTest.elf",
-      "sha256": "367fff2f92a2e62fd0799df891a3e522f95a33f66e439481f43db32a48087594",
-      "bytes": 1897916,
-      "category": "original_before_elf"
+      "sha256": "f1627a2477526629fbde4725b0a54777341b044f7a3ed9e5f3a17ee28c64d395",
+      "bytes": 1899716,
+      "category": "original_after_0841_elf"
     },
     {
       "archive_path": "build/DebugFollowDiff10/CarTest.elf",
-      "sha256": "53345d2917d09343a3aa936373d764240276e33902abaa3be1ec494b62b9b70d",
-      "bytes": 1897920,
-      "category": "original_before_elf"
+      "sha256": "a7cd1e238832577076179bd084c80c0830c3805a886cf85658c2c6ae3948b3f4",
+      "bytes": 1899740,
+      "category": "original_after_0841_elf"
+    },
+    {
+      "archive_path": "build/DebugFollowDiff5/CarTest.elf",
+      "sha256": "f5e28c9b00180ba3680908704011a204ca06c6dad5174e9654b92738775ec04c",
+      "bytes": 1899736,
+      "category": "original_after_0841_elf"
+    },
+    {
+      "archive_path": "build/DebugFollowNoLog/CarTest.elf",
+      "sha256": "36ecdaca7056da1002558f0201279be1cc9e7e78562f0c423efad513337d025b",
+      "bytes": 1893016,
+      "category": "original_after_0841_elf"
+    },
+    {
+      "archive_path": "build/DebugFollowTurn/CarTest.elf",
+      "sha256": "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48",
+      "bytes": 1899760,
+      "category": "original_after_0841_elf"
+    },
+    {
+      "archive_path": "build/DebugSteering/CarTest.elf",
+      "sha256": "201c79ff8e6a89cec24b6805fc603774ce4332eb430cddb2d43d879b04c01291",
+      "bytes": 1894992,
+      "category": "original_after_0841_elf"
     },
     {
       "archive_path": "openmv/adaptive_detector.py",
       "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
       "bytes": 44071,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/boundary_evidence.py",
       "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
       "bytes": 18818,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/config.py",
-      "sha256": "978a83467629261245c82e08739d1aa265b5cc6d2268ddaaaf372857f02541ea",
-      "bytes": 14957,
-      "category": "before_openmv_package"
+      "sha256": "49c0ff64555612688e551d11f5b2f95b8f0f0b224cb3dc3d9ae1d84bf629c551",
+      "bytes": 15197,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/fast_boundary.py",
-      "sha256": "90f29049074cd16ee2f1c5c9979323bc45860fcbc08444119a043a9e317441a1",
-      "bytes": 48574,
-      "category": "before_openmv_package"
+      "sha256": "3ae5a2a8375a713a2a8f2943867e29fb5905958314962e16a5a9f4db0144dffe",
+      "bytes": 49880,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/fast_gray.py",
-      "sha256": "94451601cadd9b94a951b0dc47be26b0f3189e61bdc3eaf182f57b325345512b",
-      "bytes": 29919,
-      "category": "before_openmv_package"
+      "sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
+      "bytes": 30014,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/fast_path.py",
-      "sha256": "9f38fc2d866e188055f1765139da66e26cdb0a1c22cd6dc0be9a01f18e57095a",
-      "bytes": 41453,
-      "category": "before_openmv_package"
+      "sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
+      "bytes": 41451,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/fast_single_edge.py",
-      "sha256": "42939467b4d1c6709295e908635aa739054d77a4ca6e7f033959b1dec8eb5bd3",
-      "bytes": 43750,
-      "category": "before_openmv_package"
+      "sha256": "9f6a2f709ce2636aac73025e2ffb40088575b87aadbe803cb971723d124f25e2",
+      "bytes": 43749,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/fast_topology.py",
       "sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
       "bytes": 42030,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/grayscale_adapter.py",
       "sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
       "bytes": 7589,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/line_detector.py",
       "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
       "bytes": 11979,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/main.py",
-      "sha256": "77a65c576bb13bf6f859d5c338f607a0220befe9be84d42562d9218ccc3ec586",
-      "bytes": 110557,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/PACKAGE_MANIFEST.json",
-      "sha256": "23ecf169b9297e492c051665a3ac0a78612c04e9f21c6228e76b60647bd7ec73",
-      "bytes": 33568,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/PROTOCOL_TEST_REPORT.md",
-      "sha256": "a5a393a9b70d85975bcbc5410ed14ccc192bf44e76659803a1fa6f978a557aa9",
-      "bytes": 3031,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/README.md",
-      "sha256": "db4fe797ceb9a24a756285164da13cceb483ca2ba48bbcd0388da83c236a6d8b",
-      "bytes": 5668,
-      "category": "before_openmv_package"
+      "sha256": "984c0ef101cdf6bb811bd36f0934ae3d9f71ecfc55a84ab6fe191b87b8f6682c",
+      "bytes": 120022,
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/reverse_control.py",
       "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
       "bytes": 7657,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/road_detector.py",
       "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
       "bytes": 26649,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/source_selector.py",
       "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
       "bytes": 8802,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/surface_detector.py",
       "sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
       "bytes": 42567,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/data/reverse-control-v1.csv",
-      "sha256": "29ada663067c954d338789b87b85e3806a5c376e2e28d155693ab63b96025a5f",
-      "bytes": 187,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/source-sha256.csv",
-      "sha256": "022d8844c35f786440ce8e6edad4cb990c8efbfcec8f2b3a1054ad0770d3f0b3",
-      "bytes": 884,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test-data/vision-protocol-v1.csv",
-      "sha256": "707364e6ee162cb69075fb3694691863f9c26101ecfb392d6aaf88113e3dce7f",
-      "bytes": 492,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_boundary.py",
-      "sha256": "30230c9f25df88650e14ae3ceba45df376ed8d27a5a33cc384bc82f0e78563e6",
-      "bytes": 22182,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_gray.py",
-      "sha256": "64cfef41cbb2cb9217cdb9fd9f3274fb576c93fbd8bb7082e4ae66d3ecc9fdfe",
-      "bytes": 18897,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_kernels_equivalence.py",
-      "sha256": "b2d5e5cd21b94818177fbd39f3623b00a2ce6c1dd868b354bee870aa860f2879",
-      "bytes": 13200,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_main.py",
-      "sha256": "6e9093f071618b12ce8b98a630ddd7763c9fb6f1ff1f58cccd4554d5932d7838",
-      "bytes": 30479,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_path.py",
-      "sha256": "46d6c0724047deb4b695bd5f890e3d67dda7e5f5a570846bfd675394f63839fc",
-      "bytes": 22510,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_fast_topology.py",
-      "sha256": "4dae1ae2140fe8f9b71e0c4466a235c7a6c6cfc2e208bc951ab73265938dae7d",
-      "bytes": 23075,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/test_openmv_protocol.py",
-      "sha256": "da768ca92c7d313cf5e3527cac20c2df00289d13302fb8477c3c8499202548a6",
-      "bytes": 1349,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/frozen_v7/v5_projected_scenes.py",
-      "sha256": "7220f24946569f6a9e0b988a2bcd229cfc83b52f0c9a42aa229483dc358104e3",
-      "bytes": 48884,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/run_v7_host_regression.py",
-      "sha256": "26a05bea8eaf71e282723fb9002edab50d74b4d619d71bcb2456ccc2a5b298a3",
-      "bytes": 7345,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_fast_single_edge.py",
-      "sha256": "ee0e21649e09129ecdb4eff36e54bc292cfdd9922c2e3131c8c3e48ba785530d",
-      "bytes": 12943,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_protocol_host.py",
-      "sha256": "59d3966f259dd82899ff63f496beaddae663c9aaab1986727e3d90e7bcd53264",
-      "bytes": 3467,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_reverse_control.py",
-      "sha256": "8f0a52a02d8eaedb41b2fdbcc36d271ba14d44938efe268c82fa8d33b4c07fff",
-      "bytes": 6766,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_singleedge_main.py",
-      "sha256": "cfd846262cf75ffd8d925213e578428f60eb8bfcecdbfd6d6d134ee787639050",
-      "bytes": 18326,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_two_routes.py",
-      "sha256": "246c5c520b6a820affa642d5d57cd84fdbe0fd2e0c20cf98a7c88b0f4f72780e",
-      "bytes": 16337,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_v7_overlay_accounting.py",
-      "sha256": "17b9852970156e63d70d2de24efdb08330f99ee7480d90294937f47693ccbe5c",
-      "bytes": 6921,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/test_v7_overlay_each_frame.py",
-      "sha256": "599bebbc60bff618a57977c9cc692c2bc3b2731f5947240af2138c10365de3bf",
-      "bytes": 6422,
-      "category": "before_openmv_package"
-    },
-    {
-      "archive_path": "openmv/tests/vision-protocol-v1.csv",
-      "sha256": "707364e6ee162cb69075fb3694691863f9c26101ecfb392d6aaf88113e3dce7f",
-      "bytes": 492,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/thresholding.py",
       "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
       "bytes": 12363,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
     },
     {
       "archive_path": "openmv/vision_protocol.py",
       "sha256": "86d80c5a81940b54175e056c085167baa4d2f13749e3c2f77eeb7f73671fef83",
       "bytes": 2601,
-      "category": "before_openmv_package"
+      "category": "after_openmv_runtime_source"
+    },
+    {
+      "archive_path": "openmv/PACKAGE_MANIFEST.json",
+      "sha256": "cf6566fe6e2856f13bbd7df47beb4c2d62bf5291e129ae4a579c4d42a7cfbc41",
+      "bytes": 45147,
+      "category": "after_openmv_package_documentation"
+    },
+    {
+      "archive_path": "openmv/README.md",
+      "sha256": "52a6395284509950d625682f0daa33a9fa681f1cd64536d15709932590577190",
+      "bytes": 4178,
+      "category": "after_openmv_package_documentation"
     },
     {
       "archive_path": "Drivers/CMSIS/Core/Include/cachel1_armv7.h",

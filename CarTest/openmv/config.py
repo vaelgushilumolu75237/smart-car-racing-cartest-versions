@@ -24,7 +24,7 @@ OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013"
+BUILD_ID = "CACHED_WIDTH_TURNRESPONSE_20261014"
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
@@ -48,13 +48,20 @@ SURFACE_MODES = ("gray_unified",)
 SURFACE_GRID_WIDTH = 80
 SURFACE_GRID_HEIGHT = 60
 SURFACE_PIXEL_SCALE = 2
-SURFACE_ROI_FLOOR_Y = 20  # Ignore the upper 40 full-resolution pixels.
+SURFACE_ROI_FLOOR_Y = 8  # Full-resolution y=16; preserves the upper turn band.
+# Full-frame weighting split: grid y=18 maps to full-resolution y=36.
+STEERING_SPLIT_IMAGE_Y = 36
+STEERING_SPLIT_GRID_Y = 18
+STEERING_FAR_WEIGHT = 0.20
+STEERING_NEAR_WEIGHT = 0.80
+TURN_RESPONSE_VERSION = "LOWER70_UPPER30_V1"
 
 # Frame-local Otsu starting values. Blocks span the whole road width and stay
 # inside the geometry ROI; each block's trust bit becomes a separate known mask.
 GRAY_THRESHOLD_MIN_CONTRAST = 18.0
 GRAY_THRESHOLD_SMOOTH_NEIGHBORS = False
 GRAY_THRESHOLD_BLOCKS = (
+    (0, 8, 80, 20),
     (0, 20, 80, 32),
     (0, 32, 80, 46),
     (0, 46, 80, 60),
@@ -147,7 +154,7 @@ SURFACE_FRAME_BUDGET_MS = 200
 ROAD_PARAMS = {
     "ROAD_GRID_WIDTH": 80,
     "ROAD_GRID_HEIGHT": 60,
-    "ROAD_FLOOR_Y": 20,
+    "ROAD_FLOOR_Y": 8,
     "ROAD_ROW_STEP": 2,
     "ROAD_SEED_ROWS": 16,
     "ROAD_SEED_MARGIN_X": 8,
@@ -272,7 +279,7 @@ QUADRATIC_TIE_MEAN_RESIDUAL_MARGIN_PX = 0.5
 QUADRATIC_MIN_CONSECUTIVE_SUPPORT_ROWS = 3
 
 # Temporal filtering smooths only fresh valid observations.
-OBSERVATION_FILTER_ALPHA = 0.45
+OBSERVATION_FILTER_ALPHA = 0.70
 # Connect only fresh valid frames within 200 ms; invalid frames still clear
 # immediately. This is not the UART send period or the STM32 timeout.
 OBSERVATION_FILTER_MAX_GAP_MS = 200

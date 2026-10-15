@@ -27,16 +27,39 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 
 option(CARTEST_ENABLE_BENCH "Compile the isolated overhead single-motor diagnostic path" OFF)
 option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
+option(CARTEST_ENABLE_FOLLOW_TURN "Compile the faster 70/30 Follow turn-response profile" OFF)
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
 set(CARTEST_FOLLOW_DIFF_PERMILLE "0" CACHE STRING
-    "Follow steering differential level in permille (0, 50, or 100)")
-set_property(CACHE CARTEST_FOLLOW_DIFF_PERMILLE PROPERTY STRINGS 0 50 100)
+    "Follow steering differential level in permille (0, 50, 100, or 200 for FollowTurn)")
+set_property(CACHE CARTEST_FOLLOW_DIFF_PERMILLE PROPERTY STRINGS 0 50 100 200)
 
-if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(0|50|100)$")
-  message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE must be 0, 50, or 100.")
+if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(0|50|100|200)$")
+  message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE must be 0, 50, 100, or 200 in the FollowTurn profile.")
 endif()
+if(CARTEST_ENABLE_FOLLOW_TURN)
+  if(NOT CARTEST_ENABLE_FOLLOW)
+    message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_TURN requires CARTEST_ENABLE_FOLLOW=ON.")
+  endif()
+  if(NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "200")
+    message(FATAL_ERROR "FollowTurn requires CARTEST_FOLLOW_DIFF_PERMILLE=200.")
+  endif()
+  set(_cartest_follow_inner_diff_permille "200")
+  set(_cartest_follow_normal_limit_permille "700")
+  set(_cartest_follow_output_ramp_step_permille "20")
+  set(_cartest_follow_servo_slew_step_us "60")
+else()
+  if(CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "200")
+    message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE=200 is reserved for CARTEST_ENABLE_FOLLOW_TURN=ON.")
+  endif()
+  set(_cartest_follow_inner_diff_permille "${CARTEST_FOLLOW_DIFF_PERMILLE}")
+  set(_cartest_follow_normal_limit_permille "600")
+  set(_cartest_follow_output_ramp_step_permille "10")
+  set(_cartest_follow_servo_slew_step_us "40")
+endif()
+set(_cartest_follow_startup_ramp_step_permille "10")
+set(_cartest_follow_hard_limit_permille "700")
 if(NOT CARTEST_ENABLE_FOLLOW AND NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "0")
   message(FATAL_ERROR "A nonzero Follow differential is legal only in a Follow profile.")
 endif()
@@ -81,9 +104,14 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _cartest_build_type_upper)
 set(_cartest_build_id_material
   "profile=${CARTEST_ENABLE_BENCH},${CARTEST_ENABLE_FOLLOW},${CARTEST_ENABLE_STEERING},${CARTEST_HARDWARE_ACCEPTED}\n"
+  "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
   "follow_diff_permille=${CARTEST_FOLLOW_DIFF_PERMILLE}\n"
-  "follow_base_permille=500;follow_normal_cap_permille=600;follow_hard_cap_permille=700\n"
+  "follow_inner_diff_permille=${_cartest_follow_inner_diff_permille}\n"
+  "follow_base_permille=500;follow_normal_cap_permille=${_cartest_follow_normal_limit_permille};follow_hard_cap_permille=${_cartest_follow_hard_limit_permille}\n"
+  "follow_startup_ramp_step_permille=${_cartest_follow_startup_ramp_step_permille}\n"
+  "follow_normal_ramp_step_permille=${_cartest_follow_output_ramp_step_permille}\n"
+  "follow_servo_normal_slew_step_us=${_cartest_follow_servo_slew_step_us}\n"
   "build_type=${CMAKE_BUILD_TYPE}\n"
   "c_compiler=${CMAKE_C_COMPILER_ID}-${CMAKE_C_COMPILER_VERSION}\n"
   "cxx_compiler=${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}\n"
@@ -165,6 +193,13 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_HARDWARE_ACCEPTED=$<BOOL:${CARTEST_HARDWARE_ACCEPTED}>
   CARTEST_RUNTIME_LOG_ENABLED=$<BOOL:${CARTEST_RUNTIME_LOG_ENABLED}>
   CARTEST_FOLLOW_DIFF_PERMILLE=${CARTEST_FOLLOW_DIFF_PERMILLE}
+  CARTEST_FOLLOW_INNER_DIFF_PERMILLE=${_cartest_follow_inner_diff_permille}
+  CARTEST_FOLLOW_TURN_PROFILE_COMPILED=$<BOOL:${CARTEST_ENABLE_FOLLOW_TURN}>
+  CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=${_cartest_follow_normal_limit_permille}
+  CARTEST_FOLLOW_HARD_LIMIT_PERMILLE=${_cartest_follow_hard_limit_permille}
+  CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=${_cartest_follow_startup_ramp_step_permille}
+  CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=${_cartest_follow_output_ramp_step_permille}
+  CARTEST_FOLLOW_SERVO_SLEW_STEP_US=${_cartest_follow_servo_slew_step_us}
 )
 
 # Compiler options

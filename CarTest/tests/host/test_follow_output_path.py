@@ -22,7 +22,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = PROJECT_ROOT / "Src" / "main.c"
 DEFAULT_EVIDENCE_DIR = (
-    PROJECT_ROOT / "test-data" / "differential-20261013" / "control" / "output-path"
+    PROJECT_ROOT / "test-data" / "turn-response-20261014" / "control" / "output-path"
 )
 FUNCTION_NAMES = (
     "prepare_follow_motor_targets",
@@ -56,10 +56,10 @@ PRELUDE = r'''#include <stdint.h>
 #define APP_MOTOR_CHANNEL_MASK 0x0fu
 #define APP_SWITCH_GPIO_PIN 0x00000080u
 #define APP_BENCH_LIMIT_PERMILLE 400u
-#define APP_FOLLOW_NORMAL_LIMIT_PERMILLE 600u
-#define APP_FOLLOW_HARD_LIMIT_PERMILLE 700u
+#define APP_FOLLOW_NORMAL_LIMIT_PERMILLE CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
+#define APP_FOLLOW_HARD_LIMIT_PERMILLE CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
 #define CAR_SERVO_SAFETY_SLEW_STEP_US 10u
-#define CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US 40u
+#define CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US CARTEST_FOLLOW_SERVO_SLEW_STEP_US
 #define TIM_CR1_CEN 0x0001u
 #define TIM_CCER_CC1E 0x0001u
 #define TIM_CCER_CC2E 0x0004u
@@ -449,6 +449,8 @@ static void case_first_frame_wait(uint32_t caller)
 {
     reset_mock(caller); ++cases_run;
     servo_apply(); expect_primask("first_frame_servo_request", caller);
+    expect_u32("first_frame_servo_request", "startup servo step remains 10us",
+               CAR_SERVO_SAFETY_SLEW_STEP_US, servo_request_slew_step_us);
     prepare_follow_motor_targets(mock_now_ms);
     expect_u32("first_frame_servo_request", "request_count", 1u,
                servo_request_calls);
@@ -500,7 +502,8 @@ static void case_first_frame_wait(uint32_t caller)
 }
 
 static void case_profile_differential_commit(uint32_t caller,
-                                             uint16_t differential)
+                                             uint16_t outer_differential,
+                                             uint16_t inner_differential)
 {
     reset_mock(caller); ++cases_run;
     app_config.follow_servo_left_us = 1100u;
@@ -516,18 +519,20 @@ static void case_profile_differential_commit(uint32_t caller,
     expect_u32("diff_startup", "actual servo frame qualifies startup",
                1u, follow_output_state.startup_qualified);
     expect_u32("diff_right_turn", "right endpoint targets outer left",
-               500u + differential, follow_output_state.target_left_permille);
+               500u + outer_differential, follow_output_state.target_left_permille);
     expect_u32("diff_right_turn", "right endpoint targets inner right",
-               500u - differential, follow_output_state.target_right_permille);
+               500u - inner_differential, follow_output_state.target_right_permille);
     motor_apply();
     mock_now_ms += 10u;
     prepare_follow_motor_targets(mock_now_ms);
     motor_apply();
     expect_u32("diff_right_turn", "left side advances one bounded step",
-               differential == 0u ? 500u : 510u,
+               outer_differential == 0u ? 500u :
+                   (uint32_t)(500u + CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE),
                applied_motor_follow_left_permille);
     expect_u32("diff_right_turn", "right side advances independently",
-               differential == 0u ? 500u : 490u,
+               inner_differential == 0u ? 500u :
+                   (uint32_t)(500u - CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE),
                applied_motor_follow_right_permille);
 
     /* The controller uses the applied, slew-limited compare. Requesting the
@@ -537,9 +542,10 @@ static void case_profile_differential_commit(uint32_t caller,
     servo_apply();
     prepare_follow_motor_targets(mock_now_ms);
     expect_u32("diff_applied_servo", "opposite request advances by only one normal-slew step",
-               2460u, applied_servo_pulse_us);
+               2500u - CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US,
+               applied_servo_pulse_us);
     expect_u32("diff_applied_servo", "diff remains tied to the committed right-turn pulse",
-               500u + differential, follow_output_state.target_left_permille);
+               500u + outer_differential, follow_output_state.target_left_permille);
 }
 
 static void case_active_hold_frozen(uint32_t caller)
@@ -555,9 +561,13 @@ static void case_active_hold_frozen(uint32_t caller)
     car_control_state.vision_hold_motor_left_permille = left;
     car_control_state.vision_hold_motor_right_permille = right;
     car_control_state.vision_hold_servo_pulse_us = pulse;
+    follow_output_state.startup_qualified = 1u;
     follow_ramp_started = 1u;
     start_existing_motor_outputs(left, right); start_existing_servo(pulse);
     servo_apply(); expect_primask("active_hold_servo", caller);
+    expect_u32("active_hold_servo", "qualified short hold retains normal servo rate",
+               CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US,
+               servo_request_slew_step_us);
     prepare_follow_motor_targets(mock_now_ms);
     motor_apply(); expect_primask("active_hold_motor", caller);
     expect_u32("active_hold", "vision_invalid", 0u,
@@ -791,7 +801,8 @@ int main(void)
     for (caller = 0u; caller <= 1u; ++caller) {
         case_first_frame_wait(caller);
         case_profile_differential_commit(
-            caller, (uint16_t)CARTEST_FOLLOW_DIFF_PERMILLE);
+            caller, (uint16_t)CARTEST_FOLLOW_DIFF_PERMILLE,
+            (uint16_t)CARTEST_FOLLOW_INNER_DIFF_PERMILLE);
         case_active_hold_frozen(caller);
         case_hold_expired(caller, 0u);
         case_hold_expired(caller, 1u);
@@ -935,6 +946,26 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                         f"/DCARTEST_HARDWARE_ACCEPTED={macro_value}",
                         "/Fe:" + str(exe_path), str(c_path),
                         str(PROJECT_ROOT / "App" / "follow_output.c")]
+        if diff_permille == 200:
+            compile_args.extend([
+                "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
+                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
+                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+                "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
+                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=20",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=60",
+                "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1",
+            ])
+        else:
+            compile_args.extend([
+                f"/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE={diff_permille}",
+                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=600",
+                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+                "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
+                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=10",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=40",
+                "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=0",
+            ])
         built = compiler_command(compiler, compile_args, temp)
         compile_log = built.stdout + built.stderr
         (evidence / f"{label}-compile.log").write_text(compile_log, encoding="utf-8")
@@ -1035,7 +1066,7 @@ def main() -> int:
     if version_result.returncode != 0 or version_match is None:
         failures.append("MSVC version evidence command failed or returned no banner")
     variants = []
-    for macro, diff_permille in ((1, 0), (1, 50), (1, 100), (0, 0)):
+    for macro, diff_permille in ((1, 0), (1, 50), (1, 100), (1, 200), (0, 0)):
         compile_rc, run_rc, _, run_log = compile_and_run(
             macro, diff_permille, c_text, args.compiler, evidence_dir)
         label = ("hardware-accepted" if macro else "hardware-locked") + \

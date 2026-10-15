@@ -49,26 +49,30 @@ if ($null -eq $launch -or
     throw "Expected launch.configurations to be an array; refusing to edit $launchPath"
 }
 
-$follow = @($launch.configurations | Where-Object { $_.name -match "DebugFollow" })
-if ($follow.Count -ne 1) {
-    throw "Expected exactly one DebugFollow launch entry; found $($follow.Count)."
-}
-$configuration = $follow[0]
-if (@($configuration.imagesAndSymbols).Count -ne 1) {
-    throw "The Follow launch entry must contain exactly one image/symbol pair."
-}
-
 $logLabel = "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)"
 $noLogLabel = "CarTest: Build DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)"
+$logName = "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)"
+$noLogName = "CarTest H743 - DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)"
 if ($Variant -eq "Log") {
     $preset = "DebugFollow"
-    $name = "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)"
+    $name = $logName
     $taskLabel = $logLabel
 }
 else {
     $preset = "DebugFollowNoLog"
-    $name = "CarTest H743 - DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)"
+    $name = $noLogName
     $taskLabel = $noLogLabel
+}
+
+$follow = @($launch.configurations | Where-Object {
+    @($logName, $noLogName) -ccontains [string]$_.name
+})
+if ($follow.Count -ne 1) {
+    throw "Expected exactly one selectable legacy Follow launch entry; found $($follow.Count)."
+}
+$configuration = $follow[0]
+if (@($configuration.imagesAndSymbols).Count -ne 1) {
+    throw "The selectable legacy Follow launch entry must contain exactly one image/symbol pair."
 }
 
 $currentImage = [string]$configuration.imagesAndSymbols[0].imageFileName
