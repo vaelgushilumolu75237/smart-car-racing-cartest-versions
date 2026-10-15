@@ -16,7 +16,7 @@ from fast_topology import FastTopologyGuard  # noqa: E402
 
 WIDTH = 80
 HEIGHT = 60
-FLOOR = config.SURFACE_ROI_FLOOR_Y
+FLOOR = 20
 LEFT = 27
 RIGHT = 52
 

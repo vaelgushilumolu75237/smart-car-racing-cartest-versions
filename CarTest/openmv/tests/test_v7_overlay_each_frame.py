@@ -134,7 +134,7 @@ class V7OverlayEachFrameTests(unittest.TestCase):
                     False, 0, 0, 6, 30.0, state, 100,
                     lambda: flushed.append("100"))
 
-        self.assertEqual(text_builder.call_count, 3)
+        self.assertEqual(text_builder.call_count, 2)
         self.assertEqual(flushed, ["0", "50", "99", "100"])
         self.assertEqual(state.draw_us, 100)
         self.assertEqual(state.flush_us, 100)

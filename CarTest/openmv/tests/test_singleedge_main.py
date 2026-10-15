@@ -145,7 +145,7 @@ class _FakeImage:
         pass
 
 
-def _grid_mask(mode, left=24, right=48, sparse=False, curve=False):
+def _grid_mask(mode, left=24, right=48, sparse=False):
     width = config.SURFACE_GRID_WIDTH
     height = config.SURFACE_GRID_HEIGHT
     floor = config.SURFACE_ROI_FLOOR_Y
@@ -161,21 +161,17 @@ def _grid_mask(mode, left=24, right=48, sparse=False, curve=False):
         luma = bytearray([220]) * (width * height)
     for y in rows:
         row = y * width
-        if curve:
-            curve_left = left + int((y - floor) * 8 /
-                                    (height - 1 - floor))
-            x0, x1 = curve_left, curve_left + (right - left)
-        elif mode == "both":
-            x0, x1 = left, right
-        elif mode == "left":
-            x0, x1 = left, width - 1
-        else:
-            x0, x1 = 0, right
         if sparse and mode == "left":
             for x in range(left):
                 road[row + x] = 0
                 edge[row + x] = 1
                 luma[row + x] = 25
+        if mode == "both":
+            x0, x1 = left, right
+        elif mode == "left":
+            x0, x1 = left, width - 1
+        else:
+            x0, x1 = 0, right
         for x in range(x0, x1 + 1):
             road[row + x] = 1
             edge[row + x] = 0
@@ -356,14 +352,14 @@ class SingleEdgeMainTests(unittest.TestCase):
         camera.uart = uart
 
         masks = (
-            _grid_mask("both", left=19, right=43, curve=True),
+            _grid_mask("both", left=24, right=48),
             _grid_mask("left", left=26, right=50, sparse=True),
-            _grid_mask("both", left=19, right=43, curve=True),
+            _grid_mask("both", left=24, right=48),
             _grid_mask("left", left=26, right=50, sparse=True),
-            _grid_mask("both", left=19, right=43, curve=True),
+            _grid_mask("both", left=24, right=48),
             _grid_mask("left", left=26, right=50, sparse=True),
             _grid_mask("left", left=26, right=50, sparse=True),
-            _grid_mask("both", left=19, right=43, curve=True),
+            _grid_mask("both", left=24, right=48),
             _grid_mask("left", left=26, right=50, sparse=True),
             _grid_mask("left", left=26, right=50, sparse=True),
         )
@@ -395,7 +391,6 @@ class SingleEdgeMainTests(unittest.TestCase):
                 trackers.append(self)
 
         filters = []
-        console = StringIO()
         base_filter = main._FreshObservationFilter
 
         class TrackingFilter(base_filter):
@@ -428,34 +423,15 @@ class SingleEdgeMainTests(unittest.TestCase):
             def detect(self, mask_info):
                 current = self.index
                 self.index += 1
-                candidate = dict(paths[current])
-                if candidate.get("valid"):
-                    packed = candidate["selected_row_ints"]
-                    for row_index in range(candidate["selected_row_count"]):
-                        offset = row_index * candidate["selected_row_stride"]
-                        y = packed[offset]
-                        # Keep the cached bilateral path continuous so the
-                        # later single-edge frames retain a real identity
-                        # anchor, while making the weighted aggregate differ
-                        # from the fixed geometric safety reference.
-                        left = 19 + int((y - config.SURFACE_ROI_FLOOR_Y) *
-                                        8 / (config.SURFACE_GRID_HEIGHT - 1 -
-                                             config.SURFACE_ROI_FLOOR_Y))
-                        packed[offset + 1] = left
-                        packed[offset + 2] = left + 24
-                return candidate
+                return dict(paths[current])
 
         class FakeBoundaryValidator:
             def __init__(self, settings):
                 pass
 
             @staticmethod
-            def gate_fast_path_candidate(candidate, *args):
-                count = candidate["selected_row_count"]
-                candidate["boundary_support_rows"] = bytearray(
-                    [1] * count)
-                candidate["boundary_support_count"] = count
-                return candidate
+            def gate_fast_path_candidate(*args):
+                return True
 
             @staticmethod
             def validate_selected_reference(*args):
@@ -480,25 +456,16 @@ class SingleEdgeMainTests(unittest.TestCase):
                 patch.object(main.fast_single_edge,
                              "FastSingleEdgeTracker", TrackingTracker), \
                 patch.object(main, "_FreshObservationFilter", TrackingFilter), \
-                patch.object(config, "DEBUG_ENABLED", True), \
-                patch.object(config, "DEBUG_PERIOD_MS", 0), \
+                patch.object(config, "DEBUG_ENABLED", False), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
                 patch.object(config, "PERF_GC_PERIOD_FRAMES", 1000), \
-                redirect_stdout(console):
+                redirect_stdout(StringIO()):
             with self.assertRaises(_StopFrames):
                 main._main_fast()
 
         self.assertEqual(len(uart.frames), 10)
         self.assertEqual(camera.flush_calls, 10)
         decoded = [_decode_observation(frame) for frame in uart.frames]
-        debug_lines = [line for line in console.getvalue().splitlines()
-                       if line.startswith("V7DBG ")]
-        self.assertTrue(debug_lines)
-        self.assertTrue(any("safe_ref=" in line and "wctrl=" in line and
-                            "rows_nf=" in line and "eff_nf=" in line and
-                            "raw_weighted=" in line and "road_why=" in line
-                            for line in debug_lines))
-        self.assertLess(max(len(line) for line in debug_lines), 1024)
         self.assertEqual(decoded[0]["valid"], 0)  # frame-budget rejection
         self.assertEqual(decoded[1]["valid"], 0)  # first single has no cache
         self.assertEqual((decoded[2]["valid"], decoded[2]["quality"]),
@@ -508,17 +475,14 @@ class SingleEdgeMainTests(unittest.TestCase):
         raw_single = main._normalize_fast_reference(38.0, 80)
         self.assertNotEqual(decoded[3]["error"], raw_single)
         raw_dual = main._normalize_fast_reference(36.0, 80)
-        weighted_dual = main._normalize_fast_reference(34.49, 80)
         self.assertEqual((decoded[4]["valid"], decoded[4]["quality"]),
                          (1, 1))  # single-to-dual transition stays filtered
         self.assertNotEqual(decoded[4]["error"], raw_dual)
-        self.assertEqual(decoded[2]["error"], weighted_dual)
-        self.assertNotEqual(decoded[2]["error"], raw_dual)
         self.assertEqual(decoded[5]["valid"], 0)  # late frame clears cache
         self.assertEqual(decoded[6]["valid"], 0)  # cache must reacquire
         self.assertEqual((decoded[7]["valid"], decoded[7]["quality"]),
                          (1, 1))
-        self.assertEqual(decoded[7]["error"], weighted_dual)  # RESET cleared EMA
+        self.assertEqual(decoded[7]["error"], raw_dual)  # RESET cleared EMA
         self.assertEqual((decoded[8]["valid"], decoded[8]["quality"]),
                          (1, 56))
         self.assertNotEqual(decoded[8]["error"], raw_single)

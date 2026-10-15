@@ -2,8 +2,6 @@
 
 本流程比较三份带 RAM 日志的固定 Follow ELF：`none` 为 d=0‰（左右 50/50），`medium` 为 d=50‰（转向时目标可达 55/45），`strong` 为 d=100‰（转向时目标可达 60/40）。直行请求为 500‰，软件 applied 常规上限为 600‰，硬上限为 700‰。这些是待实车验证的候选档。现有 VS Code Follow 启动项仍默认使用 `none`；`medium`、`strong` 不会自动切换，也不表示已经选出最佳档。
 
-新增的 `DebugFollowTurn` 属于独立三档响应 profile：转向目标 70/30、正常上限 700‰、舵机 60 µs/20 ms、电机每侧 20‰/10 ms。旧 `none/medium/strong` 三档的 ELF 白名单、400–600‰评分窗口和比较结论均不适用于它。本 best-of-three 分析器会明确拒绝包含 `DebugFollowTurn` 或 d=200‰ 的工件清单；不得把新 profile 标成 `strong`，也不得用旧 60/40 阈值给它评分。新 profile 的记录在生成独立的 turn-response 分析流程前只用于软件构建和响应仿真证据。
-
 ## 固件白名单与证据边界
 
 构建完成后使用 [`control/ARTIFACTS.json`](../test-data/differential-20261013/control/ARTIFACTS.json)。其中必须有且只有 `none`、`medium`、`strong` 三项，记录 `variant`、`diff_permille`、相对该 JSON 的 `elf_path`、ELF SHA-256、ROM build ID 和 `servo_center_us`。分析器会检查每份 ELF 的真实 SHA/build ID。日志 metadata、白名单 ELF、RAM 原始字节或 CSV 不匹配时，该次数据不能通过身份校验。不要用 `NoLog` ELF、旧 ELF 或仅凭文件名认档。

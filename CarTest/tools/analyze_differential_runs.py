@@ -173,19 +173,6 @@ def load_artifacts(path: Path, dataset_type: str) -> dict[str, Artifact]:
     if raw.get("schema_version") != 1:
         raise AnalysisError("ARTIFACTS.json schema_version must be 1")
     profiles = raw.get("profiles")
-    if isinstance(profiles, dict):
-        turn_profile_present = any(
-            "turn" in str(name).lower() or
-            (isinstance(profile, dict) and profile.get("diff_permille") == 200)
-            for name, profile in profiles.items()
-        )
-        if turn_profile_present:
-            raise AnalysisError(
-                "The best-of-three differential analyzer does not support "
-                "DebugFollowTurn (d=200, 70/30 targets, 60us servo and "
-                "20-permille motor steps). Use a turn-response-specific "
-                "analysis; do not score it with the legacy 0/50/100 thresholds."
-            )
     if not isinstance(profiles, dict) or set(profiles) != set(PROFILE_DIFF_PERMILLE):
         raise AnalysisError("ARTIFACTS.json must contain exactly none, medium, and strong profiles")
 

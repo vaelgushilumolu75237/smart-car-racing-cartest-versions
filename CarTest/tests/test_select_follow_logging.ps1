@@ -28,12 +28,7 @@ function Read-Launch {
 
 function Get-Follow {
     param($Launch)
-    $found = @($Launch.configurations | Where-Object {
-        @(
-            "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
-            "CarTest H743 - DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)"
-        ) -ccontains [string]$_.name
-    })
+    $found = @($Launch.configurations | Where-Object { $_.name -match "DebugFollow" })
     if ($found.Count -ne 1) { throw "Expected exactly one Follow launch entry." }
     return $found[0]
 }
@@ -64,14 +59,7 @@ function Assert-Variant {
 
 $initial = Read-Launch
 $menuCount = @($initial.configurations).Count
-$legacyFollowNames = @(
-    "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
-    "CarTest H743 - DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)"
-)
-if ($menuCount -ne 8) {
-    throw "Expected eight launch configurations after adding the turn-response gear; found $menuCount."
-}
-$otherBefore = @($initial.configurations | Where-Object { $legacyFollowNames -cnotcontains [string]$_.name } |
+$otherBefore = @($initial.configurations | Where-Object { $_.name -notmatch "DebugFollow" } |
     ForEach-Object { $_ | ConvertTo-Json -Depth 100 -Compress })
 $followBefore = Get-Follow $initial
 $selectedPreservedBefore = $followBefore | ConvertTo-Json -Depth 100 | ConvertFrom-Json
@@ -98,10 +86,10 @@ foreach ($property in @("type", "request", "cwd", "serverInterface", "serverInte
     $afterValue = $selectedAfter.$property | ConvertTo-Json -Depth 100 -Compress
     if ($beforeValue -cne $afterValue) { throw "Selector changed unrelated Follow property '$property'." }
 }
-$otherAfter = @((Read-Launch).configurations | Where-Object { $legacyFollowNames -cnotcontains [string]$_.name } |
+$otherAfter = @((Read-Launch).configurations | Where-Object { $_.name -notmatch "DebugFollow" } |
     ForEach-Object { $_ | ConvertTo-Json -Depth 100 -Compress })
 if ((ConvertTo-Json $otherBefore -Compress) -cne (ConvertTo-Json $otherAfter -Compress)) {
-    throw "Selector changed an unrelated launch entry or gear alias."
+    throw "Selector changed one of the three non-Follow launch entries."
 }
 
 & $selectorTarget -WorkspaceRoot $runRoot -Variant Log

@@ -98,19 +98,6 @@ class DifferentialAnalysisTests(unittest.TestCase):
         self.artifacts = self._artifact_data()
         self.artifacts_path.write_text(json.dumps(self.artifacts), encoding="utf-8")
 
-    def test_legacy_analyzer_explains_turn_profile_is_unsupported(self):
-        turn_artifacts = self._artifact_data()
-        turn_artifacts["profiles"]["DebugFollowTurn"] = {
-            "variant": "turn_response",
-            "diff_permille": 200,
-        }
-        self.artifacts_path.write_text(json.dumps(turn_artifacts), encoding="utf-8")
-        with self.assertRaisesRegex(
-            analyzer.AnalysisError,
-            "does not support DebugFollowTurn.*legacy 0/50/100 thresholds",
-        ):
-            analyzer.load_artifacts(self.artifacts_path, "synthetic")
-
     @staticmethod
     def _conditions(**overrides):
         result = {

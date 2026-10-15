@@ -334,7 +334,7 @@ class FastGrayMasks:
     def __init__(self, settings, debug=False):
         self.width = getattr(settings, "SURFACE_GRID_WIDTH", 80)
         self.height = getattr(settings, "SURFACE_GRID_HEIGHT", 60)
-        self.floor = getattr(settings, "SURFACE_ROI_FLOOR_Y", 8)
+        self.floor = getattr(settings, "SURFACE_ROI_FLOOR_Y", 20)
         self.scale = getattr(settings, "SURFACE_PIXEL_SCALE", 2)
         if (self.width != 80 or self.height != 60 or self.scale != 2):
             raise ValueError("fast_gray requires an 80x60 grid and scale 2")
@@ -362,8 +362,8 @@ class FastGrayMasks:
                                  (0, split_a, self.width, split_b),
                                  (0, split_b, self.width, self.height))
         if not isinstance(configured_blocks, (tuple, list)) or \
-                len(configured_blocks) < 1 or len(configured_blocks) > 4:
-            raise ValueError("GRAY_THRESHOLD_BLOCKS must contain 1..4 blocks")
+                len(configured_blocks) != 3:
+            raise ValueError("GRAY_THRESHOLD_BLOCKS must contain exactly three blocks")
         self.blocks = []
         for rect in configured_blocks:
             if not isinstance(rect, (tuple, list)) or len(rect) != 4:
@@ -376,23 +376,22 @@ class FastGrayMasks:
                     y1 > self.height or x0 > x1 or y0 > y1):
                 raise ValueError("threshold block is outside the grayscale ROI")
             self.blocks.append((x0, y0, x1, y1))
-        block_count = len(self.blocks)
-        for first in range(block_count):
+        for first in range(3):
             ax0, ay0, ax1, ay1 = self.blocks[first]
-            for second in range(first + 1, block_count):
+            for second in range(first + 1, 3):
                 bx0, by0, bx1, by1 = self.blocks[second]
                 if (min(ax1, bx1) > max(ax0, bx0) and
                         min(ay1, by1) > max(ay0, by0)):
                     raise ValueError("GRAY_THRESHOLD_BLOCKS must not overlap")
 
         self.debug = bool(debug)
-        self._block_count = len(self.blocks)
+        self._block_count = 3
         self._rectangles = array("I")
         for rect in self.blocks:
             for value in rect:
                 self._rectangles.append(value)
 
-        # All frame-sized buffers and all bounded uint32 histograms are owned by
+        # All frame-sized buffers and all three uint32 histograms are owned by
         # this instance and allocated once.  Threshold scratch is also stable.
         total = self.width * self.height
         self.luma = bytearray(total)

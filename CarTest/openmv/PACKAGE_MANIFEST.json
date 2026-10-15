@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
-  "build_id": "CACHED_WIDTH_RING_GUARD_20261015",
-  "release_status": "EXPERIMENTAL_RING_GUARD_HOST_TESTED_BOARD_VALIDATION_PENDING",
+  "package_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
+  "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
+  "release_status": "HOST_TESTED_OPENMV_BOARD_VALIDATION_PENDING",
   "runtime_api": {
     "v7_fast_pipeline": 7,
     "singleedge": 2,
@@ -11,10 +11,9 @@
       "module": "fast_path.py",
       "name": "CONFIDENCE_DIAGNOSTIC_ONLY",
       "value": true
-    },
-    "fast_ring_slope": 2
+    }
   },
-  "runtime_file_count": 18,
+  "runtime_file_count": 17,
   "runtime_files": [
     {
       "name": "adaptive_detector.py",
@@ -34,45 +33,40 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15458,
-      "sha256": "32C904101D7F39EBF3FA81C8CDEF6E4801C319F8CACCBC07E847B5D06659E689",
+      "size_bytes": 14957,
+      "sha256": "978A83467629261245C82E08739D1AA265B5CC6D2268DDAAAF372857F02541EA",
       "baseline_v7_sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
     },
     {
       "name": "fast_boundary.py",
-      "size_bytes": 51180,
-      "sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+      "size_bytes": 48574,
+      "sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
       "baseline_v7_sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
     },
     {
       "name": "fast_gray.py",
-      "size_bytes": 30014,
-      "sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+      "size_bytes": 29919,
+      "sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
       "baseline_v7_sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
     },
     {
       "name": "fast_path.py",
-      "size_bytes": 41451,
-      "sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+      "size_bytes": 41453,
+      "sha256": "9F38FC2D866E188055F1765139DA66E26CDB0A1C22CD6DC0BE9A01F18E57095A",
       "baseline_v7_sha256": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
     },
     {
-      "name": "fast_ring_slope.py",
-      "size_bytes": 75024,
-      "sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6"
-    },
-    {
       "name": "fast_single_edge.py",
-      "size_bytes": 43749,
-      "sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+      "size_bytes": 43750,
+      "sha256": "42939467B4D1C6709295E908635AA739054D77A4CA6E7F033959B1DEC8EB5BD3",
       "baseline_v7_sha256": null,
       "byte_identical_to_v7": false,
       "provenance": "added_for_singleedge_package"
@@ -103,8 +97,8 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 134574,
-      "sha256": "B984308126F7C6C1C4211DB437485CC0559233A603807A4CDCFD7829D21D180C",
+      "size_bytes": 110557,
+      "sha256": "77A65C576BB13BF6F859D5C338F607A0220BEFE9BE84D42562D9218CCC3EC586",
       "baseline_v7_sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
@@ -151,8 +145,8 @@
     },
     {
       "name": "vision_protocol.py",
-      "size_bytes": 3130,
-      "sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+      "size_bytes": 2601,
+      "sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
       "baseline_v7_sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
       "byte_identical_to_v7": true,
       "provenance": "unchanged_v7_source"
@@ -160,10 +154,9 @@
   ],
   "changed_runtime_files": [
     "config.py",
-    "fast_ring_slope.py",
     "main.py"
   ],
-  "upload_rule": "Upload exactly the 18 declared top-level production .py files from openmv/ together, then restart the OpenMV interpreter; do not mix package builds. .mpy compiler outputs are validation evidence, not deployment files.",
+  "upload_rule": "Copy every declared top-level runtime .py file together to the OpenMV filesystem root; do not mix versions.",
   "observation_protocol": {
     "version": 1,
     "frame_size_bytes": 12,
@@ -245,136 +238,92 @@
   },
   "host_test_results": [
     {
-      "key": "turn_response_weights",
-      "test_scope": "new_configuration_acceptance",
-      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
-      "exit_code": 0,
-      "tests_run": 7,
-      "passed": 7,
-      "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log",
-      "log_sha256": "FC7B1377F461CCB334791F7B738A8D9A00DEB1074F0163014D6D7B1FF9E59252",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log.exitcode"
-    },
-    {
-      "key": "ring_slope_host",
-      "test_scope": "ring_geometry_and_slope_fit_module_compatibility",
-      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_ring_slope_host.py",
-      "exit_code": 0,
-      "tests_run": 19,
-      "passed": 19,
-      "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log",
-      "log_sha256": "B507CCB6A25114E3807C76335AE3BBD20F02F347405C37C023AC0D38703258EF",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log.exitcode"
-    },
-    {
-      "key": "main_integration_ring_slope",
-      "test_scope": "ring_wire_and_slope_disabled_main_acceptance",
-      "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_main_ring_slope.py",
-      "exit_code": 0,
-      "tests_run": 2,
-      "passed": 2,
-      "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log",
-      "log_sha256": "A8B594E4F0B5772DEE2321D1C6FB089CFA09EA8E3CE6B680482A534DF145444D",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log.exitcode"
-    },
-    {
       "key": "protocol",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
       "exit_code": 0,
-      "tests_run": 8,
-      "passed": 8,
+      "tests_run": 6,
+      "passed": 6,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-protocol.log",
-      "log_sha256": "1267103497CF28516F9A4C7251355D2EE13DBFA46122EA01F42B0C02413246DB",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-protocol.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-protocol.log",
+      "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-protocol.log.exitcode"
     },
     {
       "key": "reverse_control",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
       "exit_code": 0,
       "tests_run": 9,
       "passed": 9,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log",
-      "log_sha256": "11A29B4505A60E474D85D30CB3099B81151EA951793F2F9892BC6D7DCCA4EDCA",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-reverse_control.log",
+      "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-reverse_control.log.exitcode"
     },
     {
       "key": "single_edge_13",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
       "exit_code": 0,
       "tests_run": 13,
       "passed": 13,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log",
-      "log_sha256": "C66FD16B6C883732B418A950DE653326DD0EAA13DA12321F3C8D2D37C2D601BB",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-single_edge_13.log",
+      "log_sha256": "38CDF3D3DB279E57AA0BCFBAE64AFFDFAC55370832A23462CAA63BAC0A075C7C",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-single_edge_13.log.exitcode"
     },
     {
       "key": "main_integration_7",
-      "test_scope": "new_configuration_acceptance",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
       "exit_code": 0,
       "tests_run": 7,
       "passed": 7,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log",
-      "log_sha256": "334715DFA1915C32B160F23A932F076310975E3075B4639B2A56B4352A800888",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-main_integration_7.log",
+      "log_sha256": "C87120FEAFDBF2C4010C9AB243BA7A73936C2A0E356E8A80AB3AE47EA3BF9F0A",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-main_integration_7.log.exitcode"
     },
     {
       "key": "two_routes",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
       "exit_code": 0,
       "tests_run": 12,
       "passed": 12,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-two_routes.log",
-      "log_sha256": "CE5191943373383F941B7D65D588055B4A133630B7CA91B7D0D842B00B2D4AE9",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-two_routes.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-two_routes.log",
+      "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-two_routes.log.exitcode"
     },
     {
       "key": "v7_overlay_each_frame",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
       "exit_code": 0,
       "tests_run": 2,
       "passed": 2,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log",
+      "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log",
       "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log.exitcode"
     },
     {
       "key": "v7_overlay_accounting",
-      "test_scope": "current_runtime_regression",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
       "exit_code": 0,
       "tests_run": 3,
       "passed": 3,
       "skipped": 0,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log",
+      "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log",
       "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log.exitcode"
     },
     {
       "key": "frozen_v7",
-      "test_scope": "legacy_frozen_behavioral_compatibility",
       "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
       "exit_code": 0,
       "tests_run": 79,
       "passed": 78,
       "skipped": 1,
-      "raw_log": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log",
-      "log_sha256": "B0CC97C58C8980D4B276E5C531427726F1148BDA418CBEB2739254BEFDB2A326",
-      "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log.exitcode"
+      "raw_log": "test-data/differential-20261013/vision/final/host-frozen_v7.log",
+      "log_sha256": "9A4AF7197D5BE749EEDDD748D2DE03EF9A64FE48208599D8DB086A3062BAE689",
+      "exit_code_file": "test-data/differential-20261013/vision/final/host-frozen_v7.log.exitcode"
     }
   ],
   "preserved_failed_attempts": [
@@ -417,522 +366,82 @@
   ],
   "known_limitations": [
     "A partial/crop-connected ring component may touch the ROI boundary without being the course exterior; connectivity, width and continuity do not prove semantic outer-boundary identity.",
-    "Only the eight supplied static IDE screenshots were replayed; no native-camera board runtime, continuous ring sequence, or vehicle track validation was performed.",
-    "The ring geometry guard is bounded and experimental, not a unique real-world classifier; perspective or cropped ordinary curves may still mimic accepted geometry.",
-    "The full eight-phase lost/reappear/second-loss ring sequence is not implemented.",
-    "The main-loop integration harness stubs grayscale mask construction, path detection and boundary validation; it tests the actual ring detector, authorization handoff, packet encoding and UART writes, not the complete image-to-UART runtime.",
-    "Bundled mpy-cross is MicroPython v1.25.0 emitting mpy v6.3; the OpenMV board runtime is MicroPython 1.28. Compile success does not prove board-version equivalence or execution."
+    "No real ring camera image or vehicle track validation was performed."
   ],
   "performance_and_hardware_validation": {
     "singleedge_pixel_search_backend": "preallocated Viper kernels",
     "conditional_topology_label_workspace": "preallocated 80x60 byte component map plus uint16 queue: 14,400 bytes (~14.1 KiB)",
     "conditional_topology_label_runtime": "up to one 8-connected traversal over the 80x60 grid when island evidence is present",
-    "openmv_micropython_viper_compile_tested": true,
+    "openmv_micropython_viper_compile_tested": false,
     "openmv_board_runtime_tested": false,
     "board_frame_rate_measured": false,
     "45_fps_accepted": false,
     "h743_reverse_uart_receive_tested": false,
     "vehicle_track_tested": false,
-    "note": "The bundled mpy-cross 1.25 -march=armv7em compile and host tests are software evidence only. They do not establish OpenMV MicroPython 1.28 board execution, timing, UART electrical behavior or vehicle track behavior.",
-    "h743_build_or_flash_performed": false,
-    "camera_upload_performed": false
+    "note": "CPython Viper shims and synthetic tests do not establish board compiler acceptance, timing, electrical correctness or track behavior."
   },
   "host_mpy_cross_validation": {
     "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
     "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
     "target_architecture": "armv7em",
-    "runtime_sources_per_variant": 18,
+    "runtime_sources_per_variant": 17,
     "variants": [
       {
         "route_mode": "cached_width",
-        "source_count": 18,
-        "source_names": [
-          "adaptive_detector.py",
-          "boundary_evidence.py",
-          "config.py",
-          "fast_boundary.py",
-          "fast_gray.py",
-          "fast_path.py",
-          "fast_ring_slope.py",
-          "fast_single_edge.py",
-          "fast_topology.py",
-          "grayscale_adapter.py",
-          "line_detector.py",
-          "main.py",
-          "reverse_control.py",
-          "road_detector.py",
-          "source_selector.py",
-          "surface_detector.py",
-          "thresholding.py",
-          "vision_protocol.py"
-        ],
-        "compiled": 18,
+        "source_count": 17,
+        "compiled": 17,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
-        "log_sha256": "1AEBA11BCE894C0E674BB748C63777E46A091CB6D72FFF8413ED7CCEB0D22C55",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode",
-        "compiled_files": [
-          {
-            "source": "adaptive_detector.py",
-            "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.mpy",
-            "output_bytes": 13987,
-            "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.exitcode"
-          },
-          {
-            "source": "boundary_evidence.py",
-            "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.mpy",
-            "output_bytes": 5745,
-            "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.exitcode"
-          },
-          {
-            "source": "config.py",
-            "source_sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.mpy",
-            "output_bytes": 9111,
-            "output_sha256": "98514B99F06D410E5FA858AC7301DE9AD979F1460D1930A4D47AA6E7B6D5BD0C",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.exitcode"
-          },
-          {
-            "source": "fast_boundary.py",
-            "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.mpy",
-            "output_bytes": 28464,
-            "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.exitcode"
-          },
-          {
-            "source": "fast_gray.py",
-            "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.mpy",
-            "output_bytes": 14063,
-            "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.exitcode"
-          },
-          {
-            "source": "fast_path.py",
-            "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.mpy",
-            "output_bytes": 23240,
-            "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.exitcode"
-          },
-          {
-            "source": "fast_ring_slope.py",
-            "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.mpy",
-            "output_bytes": 17126,
-            "output_sha256": "E9BFEC8324EB69C4A16549113CA39716C06C8C14B4FD632A907B76AC51D1C3A9",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.exitcode"
-          },
-          {
-            "source": "fast_single_edge.py",
-            "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.mpy",
-            "output_bytes": 27022,
-            "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.exitcode"
-          },
-          {
-            "source": "fast_topology.py",
-            "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.mpy",
-            "output_bytes": 14981,
-            "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.exitcode"
-          },
-          {
-            "source": "grayscale_adapter.py",
-            "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.mpy",
-            "output_bytes": 2242,
-            "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.exitcode"
-          },
-          {
-            "source": "line_detector.py",
-            "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.mpy",
-            "output_bytes": 4137,
-            "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.exitcode"
-          },
-          {
-            "source": "main.py",
-            "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.mpy",
-            "output_bytes": 43738,
-            "output_sha256": "6192C3E0849004847E7683C68197D76CB97714759853871B3AA34C7FE1344386",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.exitcode"
-          },
-          {
-            "source": "reverse_control.py",
-            "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.mpy",
-            "output_bytes": 2585,
-            "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.exitcode"
-          },
-          {
-            "source": "road_detector.py",
-            "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.mpy",
-            "output_bytes": 8430,
-            "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.exitcode"
-          },
-          {
-            "source": "source_selector.py",
-            "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.mpy",
-            "output_bytes": 2830,
-            "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.exitcode"
-          },
-          {
-            "source": "surface_detector.py",
-            "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.mpy",
-            "output_bytes": 11942,
-            "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.exitcode"
-          },
-          {
-            "source": "thresholding.py",
-            "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.mpy",
-            "output_bytes": 3680,
-            "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.exitcode"
-          },
-          {
-            "source": "vision_protocol.py",
-            "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.mpy",
-            "output_bytes": 1375,
-            "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.exitcode"
-          }
-        ]
+        "raw_log": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log",
+        "log_sha256": "0570385EE62E27D401C9515BBA3C80C54E54883EDEF8DAE243C8B6543CDC1F3C",
+        "exit_code_file": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
       },
       {
         "route_mode": "clipped_midpoint",
-        "source_count": 18,
-        "source_names": [
-          "adaptive_detector.py",
-          "boundary_evidence.py",
-          "config.py",
-          "fast_boundary.py",
-          "fast_gray.py",
-          "fast_path.py",
-          "fast_ring_slope.py",
-          "fast_single_edge.py",
-          "fast_topology.py",
-          "grayscale_adapter.py",
-          "line_detector.py",
-          "main.py",
-          "reverse_control.py",
-          "road_detector.py",
-          "source_selector.py",
-          "surface_detector.py",
-          "thresholding.py",
-          "vision_protocol.py"
-        ],
-        "compiled": 18,
+        "source_count": 17,
+        "compiled": 17,
         "failures": 0,
         "exit_code": 0,
         "target_architecture": "armv7em",
-        "raw_log": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-        "log_sha256": "377ED328A873CA15E5F56B30C7E2D758EFC10D95185894DF69420E2017A6024F",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode",
-        "compiled_files": [
-          {
-            "source": "adaptive_detector.py",
-            "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.mpy",
-            "output_bytes": 14004,
-            "output_sha256": "7F6BB7117C4DB78AD9B0A99DF09B99487D27D2FFFEAA8A5973E38BB7E172AF43",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.exitcode"
-          },
-          {
-            "source": "boundary_evidence.py",
-            "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.mpy",
-            "output_bytes": 5762,
-            "output_sha256": "F9BAE92812529CAC0350F0B028E01A125E4D69D5E8FFFA9EE2D583D7C68328FD",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.exitcode"
-          },
-          {
-            "source": "config.py",
-            "source_sha256": "780DA0A6E3BD01E6004919C389A2D0EE36D4427E67C1C434B5AA201E6B7DF31B",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.mpy",
-            "output_bytes": 9136,
-            "output_sha256": "63F2EBAE851295D149A0930B95A8CF7838ABC3B8327AD368FCFED4FA0064C91D",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.exitcode"
-          },
-          {
-            "source": "fast_boundary.py",
-            "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.mpy",
-            "output_bytes": 28481,
-            "output_sha256": "376EA3EB9D19CA21B926E8E875DFD933D845E3A25D92BE4A312EA5F22B1AF287",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.exitcode"
-          },
-          {
-            "source": "fast_gray.py",
-            "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.mpy",
-            "output_bytes": 14080,
-            "output_sha256": "08EC81B3AB2BEC76098C606A055A05AB9C57FE47968F71345907A8FADB9FE245",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.exitcode"
-          },
-          {
-            "source": "fast_path.py",
-            "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.mpy",
-            "output_bytes": 23257,
-            "output_sha256": "F7660D6A740E1394CBEE246F56E1D4D594FB0A072EB10ABFD6BE36D9ECF38930",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.exitcode"
-          },
-          {
-            "source": "fast_ring_slope.py",
-            "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.mpy",
-            "output_bytes": 17143,
-            "output_sha256": "66987C59D4B2CD08133D8166358E231C6E40D927E1B81BC5A83A3340CB8CDE0F",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.exitcode"
-          },
-          {
-            "source": "fast_single_edge.py",
-            "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.mpy",
-            "output_bytes": 27039,
-            "output_sha256": "D7363EEDA37304585CDE94801CFD22A41F89D44C3CD1A9FCA4A158E96F217D87",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.exitcode"
-          },
-          {
-            "source": "fast_topology.py",
-            "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.mpy",
-            "output_bytes": 14998,
-            "output_sha256": "6BDE7DD0DE24BB2280B4A36D4734E9F8C36AB0A3D305FF419D85F7E9E7AB6E7C",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.exitcode"
-          },
-          {
-            "source": "grayscale_adapter.py",
-            "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.mpy",
-            "output_bytes": 2259,
-            "output_sha256": "9F3692BEB60F7980BFA5198C6396BD85B28B627B34FD909B41B15570978CBECB",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.exitcode"
-          },
-          {
-            "source": "line_detector.py",
-            "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.mpy",
-            "output_bytes": 4154,
-            "output_sha256": "01525B465D783BFC4898573BD381E97D7C79CCBD5CDC47D623F5BA3ADCEFD5CE",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.exitcode"
-          },
-          {
-            "source": "main.py",
-            "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.mpy",
-            "output_bytes": 43755,
-            "output_sha256": "88823840882C8F347281435A4892A7397CDC1413694965ECAE006F7184C06C55",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.exitcode"
-          },
-          {
-            "source": "reverse_control.py",
-            "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.mpy",
-            "output_bytes": 2602,
-            "output_sha256": "59225710650530C166F470CB08BC204EBE84B9A1A5D903009293ECB599AEE0CA",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.exitcode"
-          },
-          {
-            "source": "road_detector.py",
-            "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.mpy",
-            "output_bytes": 8447,
-            "output_sha256": "B873E2F2F161250F3E756EB98875A4DAD6C8B56404E16AFB346815CD71551815",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.exitcode"
-          },
-          {
-            "source": "source_selector.py",
-            "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.mpy",
-            "output_bytes": 2847,
-            "output_sha256": "8D3A3C13155A50F53AC2A721FE2EF427C919627E31AC9A687B20511520E32DED",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.exitcode"
-          },
-          {
-            "source": "surface_detector.py",
-            "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.mpy",
-            "output_bytes": 11959,
-            "output_sha256": "FFB7A689F66DF7057BAA8E16E7CF858FAEA374646BB5BEB0B3E2E04F870F798A",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.exitcode"
-          },
-          {
-            "source": "thresholding.py",
-            "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.mpy",
-            "output_bytes": 3697,
-            "output_sha256": "5E01E40775A34B7FC85C3AEA1FDA612C7E4C1C6F3C01C59B1A95533EF4F8B08E",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.exitcode"
-          },
-          {
-            "source": "vision_protocol.py",
-            "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
-            "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.mpy",
-            "output_bytes": 1392,
-            "output_sha256": "C1ACD2C7208B26CF75B784DAE47C95170EC47F1326B104766DEF70627A697535",
-            "exit_code": 0,
-            "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.log",
-            "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.exitcode"
-          }
-        ]
+        "raw_log": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+        "log_sha256": "0FBE9F1DA7728D371DF01A703DFEF6FD3AD4EBBF42D32145779ED8D98C02E4F8",
+        "exit_code_file": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
       }
     ],
     "all_variants_exit_zero": true,
     "target_micro_python_v1_28_compiled": false,
     "micro_python_v1_28_compiler_available_in_ide": false,
     "target_board_runtime_tested": false,
-    "evidence_report": "../test-data/speed-ring-20261014/vision/REPORT.json",
-    "evidence_report_sha256": "58FD5FCFAE74796AF48DFDE9F902E18483B7CFD917C9654BC1CAC9365D0273A1",
-    "historical_for_build": "CACHED_WIDTH_RING_20261014",
-    "current_repair_scope": "Prior cached_width and clipped_midpoint compile records are historical. Current production openmv/ compilation is recorded in ring_guard_validation; clipped_midpoint was not rebuilt."
+    "evidence_report": "../test-data/differential-20261013/vision/REPORT.json",
+    "evidence_report_sha256": "DCDC26A7F68E622DD969C5E326F4CF8816ECED6F8B82DBA85B89FB7530EB4265"
   },
   "default_vision_backend": "fast",
   "fast_path_scope": "Confidence is diagnostic-only and single-edge fallback applies to the current fast real-time path. compare/legacy remain historical comparison baselines and are outside this delivery control path.",
-  "readme_sha256": "473D8AA839BB416D0CD541736F203615C47A9A947537BA0CE064339996708411",
+  "readme_sha256": "DB4FE797CEB9A24A756285164DA13CCEB483CA2BA48BBCD0388DA83C236A6D8B",
   "route_mode": "cached_width",
   "single_edge_routes": {
     "default_formal_route": "cached_width",
     "supported_build_pairs": [
       {
         "route_mode": "cached_width",
-        "build_id": "CACHED_WIDTH_RING_20261014"
+        "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013"
       },
       {
         "route_mode": "clipped_midpoint",
-        "build_id": "CLIPPED_MIDPOINT_RING_20261014"
+        "build_id": "CARTEST_OPENMV_CLIPPED_MIDPOINT_DIFFTRIAL_20261013"
       }
     ],
     "selected_package": {
       "mode": "cached_width",
-      "build_id": "CACHED_WIDTH_RING_20261014",
+      "build_id": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
       "singleedge_runtime_api": 2,
       "requirements": [
         "current-frame dark-to-white observed side is matched to a validated bilateral width cache",
         "width cache is populated only by a valid published bilateral observation",
         "fresh reverse RESET/KEEP lease remains valid"
       ],
-      "center_equation": "current edge plus/minus the smoothed bilateral width",
-      "turn_response": {
-        "version": "LOWER70_UPPER30_V1",
-        "image_split_y": 36,
-        "grid_split_y": 18,
-        "lower_70_percent_weight": 0.8,
-        "upper_30_percent_weight": 0.2,
-        "row_density_normalized_within_each_group": true,
-        "per_row_bilateral_pair_support_required": true,
-        "missing_group_renormalization": true,
-        "observation_filter_alpha": 0.7,
-        "safety_reference_is_separate_from_virtual_weighted_center": true
-      },
-      "ring_and_slope": {
-        "runtime_module": "fast_ring_slope.py",
-        "runtime_api_version": 1,
-        "ring_requires_current_supported_arc_and_connected_white_port": true,
-        "ring_seed_uses_nearest_safe_supported_row_within_four_grid_rows": true,
-        "ring_port_inset_margin_cells": 4,
-        "ring_port_inset_margin_percent_of_viewport": 5,
-        "ring_port_margin_is_steering_weight": false,
-        "ring_port_retains_known_white_two_cell_clearance": true,
-        "ring_entry_fresh_keep_frames": 3,
-        "ring_exit_requires_current_inner_edge_disappearance_and_forward_bilateral_frames": 3,
-        "slope_classifier_runtime_enabled": false,
-        "slope_hint_always_zero": true,
-        "slope_hint_flag_bit": 1,
-        "optional_slope_protocol_bit_retained": true
-      }
+      "center_equation": "current edge plus/minus the smoothed bilateral width"
     },
     "same_source_except_config": false,
     "protocol_unchanged": {
@@ -943,1331 +452,148 @@
     }
   },
   "two_route_evidence": {
-    "date": "2026-10-14",
+    "date": "2026-10-13",
     "evidence_revision": "final",
-    "evidence_dir": "test-data/speed-ring-20261014/vision/final",
-    "project": "CarTest OpenMV weighted response and ring route; slope classifier disabled",
+    "evidence_dir": "test-data/differential-20261013/vision/final",
+    "project": "CarTest OpenMV per-frame preview differential trial",
     "builds": {
-      "cached_width": "CACHED_WIDTH_RING_20261014",
-      "clipped_midpoint": "CLIPPED_MIDPOINT_RING_20261014"
+      "cached_width": "CARTEST_OPENMV_CACHED_WIDTH_DIFFTRIAL_20261013",
+      "clipped_midpoint": "CARTEST_OPENMV_CLIPPED_MIDPOINT_DIFFTRIAL_20261013"
     },
     "before_source_snapshot": {
-      "manifest": "test-data/turn-response-20261014/before/vision/BASELINE_MANIFEST.json",
-      "manifest_sha256": "BDAA00AA7A6C8F8DFCD48696E96FEAE9D1909CD990B3933D7A24D313AC1869B2",
-      "snapshot_root": "test-data/turn-response-20261014/before/vision",
-      "file_count": 61,
-      "existing_elf_count": 0,
+      "manifest": "test-data/differential-20261013/before/BASELINE_MANIFEST.json",
+      "manifest_sha256": "59C69EB7035D7C33DB2974CF0CF0D79088F6F2098CA6AEBD571CD529A709DA27",
+      "snapshot_root": "test-data/differential-20261013/before",
+      "file_count": 433,
+      "existing_elf_count": 5,
       "all_snapshot_files_reverified": true,
-      "verification_log": "test-data/speed-ring-20261014/vision/final/baseline-snapshot-verification.log"
-    },
-    "before_port_inset_snapshot": {
-      "manifest": "test-data/speed-ring-20261014/vision/pre-inset-port4/SHA256.json",
-      "manifest_sha256": "D64813F1AE7F1C5F10ED1769FC6EB6AC09228F2D0F33D0E42CD560B9C40E3CF0",
-      "file_count": 374,
-      "all_snapshot_files_reverified": true
+      "verification_log": "test-data/differential-20261013/vision/final/baseline-snapshot-verification.log"
     },
     "source_hashes": {
-      "path": "test-data/speed-ring-20261014/vision/final/source-hashes.csv",
-      "sha256": "6CA69ECDED403DDC0E821FAB2ACB8DF267D4C76FFAE2B0626ECC21C7CA64909C",
-      "source_count": 55
+      "path": "test-data/differential-20261013/vision/final/source-hashes.csv",
+      "sha256": "505070BD86204D2213DE1A5D5CD1CDE369CDE18422E125B79154440AD8D8A7F5",
+      "source_count": 46
     },
     "host_tests": [
       {
-        "key": "turn_response_weights",
-        "test_scope": "new_configuration_acceptance",
-        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_turn_response_weights.py",
-        "exit_code": 0,
-        "tests_run": 7,
-        "passed": 7,
-        "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log",
-        "log_sha256": "FC7B1377F461CCB334791F7B738A8D9A00DEB1074F0163014D6D7B1FF9E59252",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-turn_response_weights.log.exitcode"
-      },
-      {
-        "key": "ring_slope_host",
-        "test_scope": "ring_geometry_and_slope_fit_module_compatibility",
-        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_ring_slope_host.py",
-        "exit_code": 0,
-        "tests_run": 19,
-        "passed": 19,
-        "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log",
-        "log_sha256": "B507CCB6A25114E3807C76335AE3BBD20F02F347405C37C023AC0D38703258EF",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-ring_slope_host.log.exitcode"
-      },
-      {
-        "key": "main_integration_ring_slope",
-        "test_scope": "ring_wire_and_slope_disabled_main_acceptance",
-        "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_main_ring_slope.py",
-        "exit_code": 0,
-        "tests_run": 2,
-        "passed": 2,
-        "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log",
-        "log_sha256": "A8B594E4F0B5772DEE2321D1C6FB089CFA09EA8E3CE6B680482A534DF145444D",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_ring_slope.log.exitcode"
-      },
-      {
         "key": "protocol",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_protocol_host.py",
         "exit_code": 0,
-        "tests_run": 8,
-        "passed": 8,
+        "tests_run": 6,
+        "passed": 6,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-protocol.log",
-        "log_sha256": "1267103497CF28516F9A4C7251355D2EE13DBFA46122EA01F42B0C02413246DB",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-protocol.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-protocol.log",
+        "log_sha256": "EB71A08259BC67BB16A15F678951E89EB7A0FAE564463A15CBD9CA45BAADD579",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-protocol.log.exitcode"
       },
       {
         "key": "reverse_control",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_reverse_control.py",
         "exit_code": 0,
         "tests_run": 9,
         "passed": 9,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log",
-        "log_sha256": "11A29B4505A60E474D85D30CB3099B81151EA951793F2F9892BC6D7DCCA4EDCA",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-reverse_control.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-reverse_control.log",
+        "log_sha256": "25AAE27FE7F00D60D914BC566D7CE0C0272960191C13043338F45DF0FB8CC584",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-reverse_control.log.exitcode"
       },
       {
         "key": "single_edge_13",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_fast_single_edge.py",
         "exit_code": 0,
         "tests_run": 13,
         "passed": 13,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log",
-        "log_sha256": "C66FD16B6C883732B418A950DE653326DD0EAA13DA12321F3C8D2D37C2D601BB",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-single_edge_13.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-single_edge_13.log",
+        "log_sha256": "38CDF3D3DB279E57AA0BCFBAE64AFFDFAC55370832A23462CAA63BAC0A075C7C",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-single_edge_13.log.exitcode"
       },
       {
         "key": "main_integration_7",
-        "test_scope": "new_configuration_acceptance",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_singleedge_main.py",
         "exit_code": 0,
         "tests_run": 7,
         "passed": 7,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log",
-        "log_sha256": "334715DFA1915C32B160F23A932F076310975E3075B4639B2A56B4352A800888",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-main_integration_7.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-main_integration_7.log",
+        "log_sha256": "C87120FEAFDBF2C4010C9AB243BA7A73936C2A0E356E8A80AB3AE47EA3BF9F0A",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-main_integration_7.log.exitcode"
       },
       {
         "key": "two_routes",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_two_routes.py",
         "exit_code": 0,
         "tests_run": 12,
         "passed": 12,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-two_routes.log",
-        "log_sha256": "CE5191943373383F941B7D65D588055B4A133630B7CA91B7D0D842B00B2D4AE9",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-two_routes.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-two_routes.log",
+        "log_sha256": "FE14462AA38CB79126099622A13815A1F23F484488A4291FA85327BA2636A21E",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-two_routes.log.exitcode"
       },
       {
         "key": "v7_overlay_each_frame",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_each_frame.py",
         "exit_code": 0,
         "tests_run": 2,
         "passed": 2,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log",
+        "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log",
         "log_sha256": "2F28CFC627839ABB445E6FF33CF7DF047FBC20789C80A82788822345E388DDFF",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_each_frame.log.exitcode"
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_each_frame.log.exitcode"
       },
       {
         "key": "v7_overlay_accounting",
-        "test_scope": "current_runtime_regression",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\test_v7_overlay_accounting.py",
         "exit_code": 0,
         "tests_run": 3,
         "passed": 3,
         "skipped": 0,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log",
+        "raw_log": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log",
         "log_sha256": "607587B90D29C87266D11E40748BE664A22DC0601BAB4493800AC0D330E7FAD0",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-v7_overlay_accounting.log.exitcode"
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-v7_overlay_accounting.log.exitcode"
       },
       {
         "key": "frozen_v7",
-        "test_scope": "legacy_frozen_behavioral_compatibility",
         "command": "C:\\Users\\Overseas\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -B D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\tests\\run_v7_host_regression.py",
         "exit_code": 0,
         "tests_run": 79,
         "passed": 78,
         "skipped": 1,
-        "raw_log": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log",
-        "log_sha256": "B0CC97C58C8980D4B276E5C531427726F1148BDA418CBEB2739254BEFDB2A326",
-        "exit_code_file": "test-data/speed-ring-20261014/vision/final/host-frozen_v7.log.exitcode"
+        "raw_log": "test-data/differential-20261013/vision/final/host-frozen_v7.log",
+        "log_sha256": "9A4AF7197D5BE749EEDDD748D2DE03EF9A64FE48208599D8DB086A3062BAE689",
+        "exit_code_file": "test-data/differential-20261013/vision/final/host-frozen_v7.log.exitcode"
       }
     ],
-    "configuration_test_classes": {
-      "legacy_v7_compatibility": {
-        "runner_present": true,
-        "test_scope": "legacy_frozen_behavioral_compatibility",
-        "exit_code": 0,
-        "fixture_source_hashes_verified": true,
-        "temporary_test_copy_adaptation_count": 37,
-        "temporary_test_copy_adaptations": [
-          {
-            "count": 1,
-            "file": "test_fast_gray.py",
-            "reason": "default fixture follows expanded current ROI"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_gray.py",
-            "reason": "unknown original middle block shifts after new upper block"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_gray.py",
-            "reason": "histogram assertion covers configured block count"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_gray.py",
-            "reason": "expected block diagnostics follow four-block config"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_topology.py",
-            "reason": "default topology corridor spans current expanded ROI"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_topology.py",
-            "reason": "partial topology fixture removes whole current upper block"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_topology.py",
-            "reason": "keep ROI-edge-connected band at expanded ROI boundary"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "default detector masks cover current expanded ROI"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "allow explicit legacy floor for custom-floor tests"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "all-white invalid mask reports current ROI floor"
-          },
-          {
-            "count": 2,
-            "file": "test_fast_path.py",
-            "reason": "default and merge masks report selected ROI floor"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "merge fixture spans current full ROI"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "merge fixture reports current ROI floor"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "keep the explicit floor-20 kernel-bound test intact"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_path.py",
-            "reason": "active row count follows expanded ROI floor"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical BUILD literal to current package identity"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "add current confidence-diagnostic API to frozen test double"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "align fake grayscale output with expanded ROI"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "report current four configured grayscale blocks"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "assert debug reports current four trusted blocks"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "mock current per-row pair support consumed by controller"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt frozen packet spy to optional current slope flag"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "record optional flag while retaining packet assertions"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "forward optional slope flag through frozen packet spy"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "assert all legacy route frames still clear slope flag"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "update invalid packet spy tuple for optional flag"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "update short-write spy tuple for optional flag"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "update late-packet spy tuples for optional flag"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          },
-          {
-            "count": 1,
-            "file": "test_fast_main.py",
-            "reason": "adapt historical overlay assertion to current labels and flush stage"
-          }
-        ],
-        "claim_boundary": "Legacy V7 behavioral compatibility against the current runtime. This does not establish that the frozen executable or old config accepts the new turn-response tuning."
-      },
-      "current_turn_response_acceptance": {
-        "test_keys": [
-          "turn_response_weights",
-          "ring_slope_host",
-          "main_integration_ring_slope",
-          "main_integration_7"
-        ],
-        "test_scope": "new_configuration_acceptance",
-        "turn_response_version": "LOWER70_UPPER30_V1",
-        "actual_gray_builder_and_path_tested": true,
-        "actual_boundary_per_row_support_tested": true,
-        "serialized_main_uart_error_tested": true,
-        "both_single_edge_sources_tested": true
-      },
-      "ring_acceptance": {
-        "test_keys": [
-          "ring_slope_host",
-          "main_integration_ring_slope"
-        ],
-        "positive_left_right_arc_and_connected_port_synthetic_tests": true,
-        "port_inset_mirror_dark_unknown_and_multiple_port_tests": true,
-        "three_fresh_keep_entry_and_partial_inner_edge_hold_tested": true,
-        "exit_requires_current_disappearance_and_forward_continuation": true,
-        "exit_requires_side_specific_outward_near_crop_motion": true,
-        "inward_jump_and_unknown_edge_do_not_confirm_exit": true,
-        "port_inset_margin_cells": 4,
-        "port_inset_margin_percent_of_grid_width": 5,
-        "port_checks_current_known_white_and_two_cell_clearance": true,
-        "slope_fit_module_compatibility_tested": true,
-        "slope_classifier_runtime_enabled": false,
-        "runtime_slope_hint_always_zero_tested": true,
-        "serialized_slope_hint_flag_tested": false,
-        "static_photo_temporal_claim": false
-      }
-    },
-    "static_screenshot_replay": {
-      "available": true,
-      "runner": "test-data/speed-ring-20261014/vision/replay_host_frames.py",
-      "source_image_directory": "test-data/ring-slope-20261014/vision/inputs/original",
-      "preprocessing": "Pillow grayscale BOX resize to 160x120; screenshots contain IDE overlay text over resized full-resolution rows 0..39",
-      "raw_and_ignore_top40_variants": true,
-      "variants": {
-        "openmv": {
-          "available": true,
-          "summary": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/SUMMARY.json",
-          "summary_sha256": "D09D757FACFED58F4BFC874517D3036624141B498DDB29068913056CF059BC03",
-          "package_id": "CACHED_WIDTH_RING_20261014",
-          "static_input_count": 8,
-          "replayed_frame_variants": 16,
-          "valid_ring_candidate_count": 4,
-          "valid_ring_candidate_examples": [
-            {
-              "image_index": 3,
-              "variant": "raw_screenshot",
-              "side": "RIGHT",
-              "arc_rows": 33,
-              "arc_y_minmax": [
-                18,
-                51
-              ],
-              "vertex_xy": [
-                60,
-                33
-              ],
-              "intrusion_cells": 15,
-              "near_seed_xy": [
-                40,
-                51
-              ],
-              "reachable_port_xy": [
-                76,
-                21
-              ],
-              "clip_marker_x": 79,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  75,
-                  79
-                ],
-                "reachable_nearest_crop_margin_cells": 3,
-                "current_safe_inset_cells": 8,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 20,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 21,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 22,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 75,
-                    "x_max": 76
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/raw_screenshot/3.json"
-            },
-            {
-              "image_index": 3,
-              "variant": "ignore_top40",
-              "side": "RIGHT",
-              "arc_rows": 31,
-              "arc_y_minmax": [
-                20,
-                51
-              ],
-              "vertex_xy": [
-                60,
-                33
-              ],
-              "intrusion_cells": 15,
-              "near_seed_xy": [
-                40,
-                51
-              ],
-              "reachable_port_xy": [
-                76,
-                22
-              ],
-              "clip_marker_x": 79,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  75,
-                  79
-                ],
-                "reachable_nearest_crop_margin_cells": 3,
-                "current_safe_inset_cells": 4,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 22,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 75,
-                    "x_max": 76
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/ignore_top40/3.json"
-            },
-            {
-              "image_index": 5,
-              "variant": "raw_screenshot",
-              "side": "LEFT",
-              "arc_rows": 38,
-              "arc_y_minmax": [
-                19,
-                57
-              ],
-              "vertex_xy": [
-                17,
-                39
-              ],
-              "intrusion_cells": 7,
-              "near_seed_xy": [
-                44,
-                56
-              ],
-              "reachable_port_xy": [
-                4,
-                22
-              ],
-              "clip_marker_x": 0,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  0,
-                  4
-                ],
-                "reachable_nearest_crop_margin_cells": 4,
-                "current_safe_inset_cells": 6,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 20,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 21,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 22,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 24,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 25,
-                    "x_min": 4,
-                    "x_max": 4
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/raw_screenshot/5.json"
-            },
-            {
-              "image_index": 5,
-              "variant": "ignore_top40",
-              "side": "LEFT",
-              "arc_rows": 37,
-              "arc_y_minmax": [
-                20,
-                57
-              ],
-              "vertex_xy": [
-                17,
-                39
-              ],
-              "intrusion_cells": 7,
-              "near_seed_xy": [
-                44,
-                56
-              ],
-              "reachable_port_xy": [
-                4,
-                23
-              ],
-              "clip_marker_x": 0,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  0,
-                  4
-                ],
-                "reachable_nearest_crop_margin_cells": 4,
-                "current_safe_inset_cells": 4,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 22,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 24,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 25,
-                    "x_min": 4,
-                    "x_max": 4
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv/ignore_top40/5.json"
-            }
-          ],
-          "ring_port_inset_margin_cells": 4,
-          "ring_port_inset_margin_percent_of_grid_width": 5,
-          "top_overlay_rows_marked_unknown": [
-            0,
-            40
-          ],
-          "sensor_buffer_input": false,
-          "board_execution": false,
-          "temporal_sequence_assumed": false
-        },
-        "openmv_clipped_midpoint": {
-          "available": true,
-          "summary": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/SUMMARY.json",
-          "summary_sha256": "ABAC029391AABC5D31340B099662AB02CC2A9E4FBE84DB64A598DE25B534BCD2",
-          "package_id": "CLIPPED_MIDPOINT_RING_20261014",
-          "static_input_count": 8,
-          "replayed_frame_variants": 16,
-          "valid_ring_candidate_count": 4,
-          "valid_ring_candidate_examples": [
-            {
-              "image_index": 3,
-              "variant": "raw_screenshot",
-              "side": "RIGHT",
-              "arc_rows": 33,
-              "arc_y_minmax": [
-                18,
-                51
-              ],
-              "vertex_xy": [
-                60,
-                33
-              ],
-              "intrusion_cells": 15,
-              "near_seed_xy": [
-                40,
-                51
-              ],
-              "reachable_port_xy": [
-                76,
-                21
-              ],
-              "clip_marker_x": 79,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  75,
-                  79
-                ],
-                "reachable_nearest_crop_margin_cells": 3,
-                "current_safe_inset_cells": 8,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 20,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 21,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 22,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 75,
-                    "x_max": 76
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/raw_screenshot/3.json"
-            },
-            {
-              "image_index": 3,
-              "variant": "ignore_top40",
-              "side": "RIGHT",
-              "arc_rows": 31,
-              "arc_y_minmax": [
-                20,
-                51
-              ],
-              "vertex_xy": [
-                60,
-                33
-              ],
-              "intrusion_cells": 15,
-              "near_seed_xy": [
-                40,
-                51
-              ],
-              "reachable_port_xy": [
-                76,
-                22
-              ],
-              "clip_marker_x": 79,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  75,
-                  79
-                ],
-                "reachable_nearest_crop_margin_cells": 3,
-                "current_safe_inset_cells": 4,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 22,
-                    "x_min": 75,
-                    "x_max": 76
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 75,
-                    "x_max": 76
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/ignore_top40/3.json"
-            },
-            {
-              "image_index": 5,
-              "variant": "raw_screenshot",
-              "side": "LEFT",
-              "arc_rows": 38,
-              "arc_y_minmax": [
-                19,
-                57
-              ],
-              "vertex_xy": [
-                17,
-                39
-              ],
-              "intrusion_cells": 7,
-              "near_seed_xy": [
-                44,
-                56
-              ],
-              "reachable_port_xy": [
-                4,
-                22
-              ],
-              "clip_marker_x": 0,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  0,
-                  4
-                ],
-                "reachable_nearest_crop_margin_cells": 4,
-                "current_safe_inset_cells": 6,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 20,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 21,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 22,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 24,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 25,
-                    "x_min": 4,
-                    "x_max": 4
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/raw_screenshot/5.json"
-            },
-            {
-              "image_index": 5,
-              "variant": "ignore_top40",
-              "side": "LEFT",
-              "arc_rows": 37,
-              "arc_y_minmax": [
-                20,
-                57
-              ],
-              "vertex_xy": [
-                17,
-                39
-              ],
-              "intrusion_cells": 7,
-              "near_seed_xy": [
-                44,
-                56
-              ],
-              "reachable_port_xy": [
-                4,
-                23
-              ],
-              "clip_marker_x": 0,
-              "ring_state": "PREVIEW",
-              "port_inset_diagnostic": {
-                "required_inset_x": [
-                  0,
-                  4
-                ],
-                "reachable_nearest_crop_margin_cells": 4,
-                "current_safe_inset_cells": 4,
-                "current_safe_inset_rows": [
-                  {
-                    "y": 22,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 23,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 24,
-                    "x_min": 4,
-                    "x_max": 4
-                  },
-                  {
-                    "y": 25,
-                    "x_min": 4,
-                    "x_max": 4
-                  }
-                ]
-              },
-              "frame_json": "test-data/speed-ring-20261014/vision/replay_port4_final/openmv_clipped_midpoint/ignore_top40/5.json"
-            }
-          ],
-          "ring_port_inset_margin_cells": 4,
-          "ring_port_inset_margin_percent_of_grid_width": 5,
-          "top_overlay_rows_marked_unknown": [
-            0,
-            40
-          ],
-          "sensor_buffer_input": false,
-          "board_execution": false,
-          "temporal_sequence_assumed": false
-        }
-      },
-      "interpretation": "Static image geometry only. Each image starts with empty ring state and no fresh KEEP; candidates do not establish entry, an eight-stage ring sequence, a time sequence, or vehicle behavior. The port inset is a crop-side tolerance, not a steering weight or observed image-edge boundary."
-    },
     "mpy_cross": {
       "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
       "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
       "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
       "compiler_version_command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" --version",
       "compiler_version_exit_code": 0,
-      "compiler_version_log": "test-data/speed-ring-20261014/vision/final/mpy-cross-v1.25-version.log",
+      "compiler_version_log": "test-data/differential-20261013/vision/final/mpy-cross-v1.25-version.log",
       "target_architecture": "armv7em",
       "variants": [
         {
           "route_mode": "cached_width",
-          "source_count": 18,
-          "source_names": [
-            "adaptive_detector.py",
-            "boundary_evidence.py",
-            "config.py",
-            "fast_boundary.py",
-            "fast_gray.py",
-            "fast_path.py",
-            "fast_ring_slope.py",
-            "fast_single_edge.py",
-            "fast_topology.py",
-            "grayscale_adapter.py",
-            "line_detector.py",
-            "main.py",
-            "reverse_control.py",
-            "road_detector.py",
-            "source_selector.py",
-            "surface_detector.py",
-            "thresholding.py",
-            "vision_protocol.py"
-          ],
-          "compiled": 18,
+          "source_count": 17,
+          "compiled": 17,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log",
-          "log_sha256": "1AEBA11BCE894C0E674BB748C63777E46A091CB6D72FFF8413ED7CCEB0D22C55",
-          "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode",
-          "compiled_files": [
-            {
-              "source": "adaptive_detector.py",
-              "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.mpy",
-              "output_bytes": 13987,
-              "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/adaptive_detector.exitcode"
-            },
-            {
-              "source": "boundary_evidence.py",
-              "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.mpy",
-              "output_bytes": 5745,
-              "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/boundary_evidence.exitcode"
-            },
-            {
-              "source": "config.py",
-              "source_sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.mpy",
-              "output_bytes": 9111,
-              "output_sha256": "98514B99F06D410E5FA858AC7301DE9AD979F1460D1930A4D47AA6E7B6D5BD0C",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/config.exitcode"
-            },
-            {
-              "source": "fast_boundary.py",
-              "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.mpy",
-              "output_bytes": 28464,
-              "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_boundary.exitcode"
-            },
-            {
-              "source": "fast_gray.py",
-              "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.mpy",
-              "output_bytes": 14063,
-              "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_gray.exitcode"
-            },
-            {
-              "source": "fast_path.py",
-              "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.mpy",
-              "output_bytes": 23240,
-              "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_path.exitcode"
-            },
-            {
-              "source": "fast_ring_slope.py",
-              "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.mpy",
-              "output_bytes": 17126,
-              "output_sha256": "E9BFEC8324EB69C4A16549113CA39716C06C8C14B4FD632A907B76AC51D1C3A9",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_ring_slope.exitcode"
-            },
-            {
-              "source": "fast_single_edge.py",
-              "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.mpy",
-              "output_bytes": 27022,
-              "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_single_edge.exitcode"
-            },
-            {
-              "source": "fast_topology.py",
-              "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.mpy",
-              "output_bytes": 14981,
-              "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/fast_topology.exitcode"
-            },
-            {
-              "source": "grayscale_adapter.py",
-              "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.mpy",
-              "output_bytes": 2242,
-              "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/grayscale_adapter.exitcode"
-            },
-            {
-              "source": "line_detector.py",
-              "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.mpy",
-              "output_bytes": 4137,
-              "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/line_detector.exitcode"
-            },
-            {
-              "source": "main.py",
-              "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.mpy",
-              "output_bytes": 43738,
-              "output_sha256": "6192C3E0849004847E7683C68197D76CB97714759853871B3AA34C7FE1344386",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/main.exitcode"
-            },
-            {
-              "source": "reverse_control.py",
-              "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.mpy",
-              "output_bytes": 2585,
-              "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/reverse_control.exitcode"
-            },
-            {
-              "source": "road_detector.py",
-              "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.mpy",
-              "output_bytes": 8430,
-              "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/road_detector.exitcode"
-            },
-            {
-              "source": "source_selector.py",
-              "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.mpy",
-              "output_bytes": 2830,
-              "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/source_selector.exitcode"
-            },
-            {
-              "source": "surface_detector.py",
-              "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.mpy",
-              "output_bytes": 11942,
-              "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/surface_detector.exitcode"
-            },
-            {
-              "source": "thresholding.py",
-              "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.mpy",
-              "output_bytes": 3680,
-              "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/thresholding.exitcode"
-            },
-            {
-              "source": "vision_protocol.py",
-              "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.mpy",
-              "output_bytes": 1375,
-              "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/cached_width/vision_protocol.exitcode"
-            }
-          ]
+          "raw_log": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log",
+          "log_sha256": "0570385EE62E27D401C9515BBA3C80C54E54883EDEF8DAE243C8B6543CDC1F3C",
+          "exit_code_file": "test-data/differential-20261013/vision/final/compile-cached_width-v1.25-armv7em.log.exitcode"
         },
         {
           "route_mode": "clipped_midpoint",
-          "source_count": 18,
-          "source_names": [
-            "adaptive_detector.py",
-            "boundary_evidence.py",
-            "config.py",
-            "fast_boundary.py",
-            "fast_gray.py",
-            "fast_path.py",
-            "fast_ring_slope.py",
-            "fast_single_edge.py",
-            "fast_topology.py",
-            "grayscale_adapter.py",
-            "line_detector.py",
-            "main.py",
-            "reverse_control.py",
-            "road_detector.py",
-            "source_selector.py",
-            "surface_detector.py",
-            "thresholding.py",
-            "vision_protocol.py"
-          ],
-          "compiled": 18,
+          "source_count": 17,
+          "compiled": 17,
           "failures": 0,
           "exit_code": 0,
           "target_architecture": "armv7em",
-          "raw_log": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
-          "log_sha256": "377ED328A873CA15E5F56B30C7E2D758EFC10D95185894DF69420E2017A6024F",
-          "exit_code_file": "test-data/speed-ring-20261014/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode",
-          "compiled_files": [
-            {
-              "source": "adaptive_detector.py",
-              "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.mpy",
-              "output_bytes": 14004,
-              "output_sha256": "7F6BB7117C4DB78AD9B0A99DF09B99487D27D2FFFEAA8A5973E38BB7E172AF43",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/adaptive_detector.exitcode"
-            },
-            {
-              "source": "boundary_evidence.py",
-              "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.mpy",
-              "output_bytes": 5762,
-              "output_sha256": "F9BAE92812529CAC0350F0B028E01A125E4D69D5E8FFFA9EE2D583D7C68328FD",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/boundary_evidence.exitcode"
-            },
-            {
-              "source": "config.py",
-              "source_sha256": "780DA0A6E3BD01E6004919C389A2D0EE36D4427E67C1C434B5AA201E6B7DF31B",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.mpy",
-              "output_bytes": 9136,
-              "output_sha256": "63F2EBAE851295D149A0930B95A8CF7838ABC3B8327AD368FCFED4FA0064C91D",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/config.exitcode"
-            },
-            {
-              "source": "fast_boundary.py",
-              "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.mpy",
-              "output_bytes": 28481,
-              "output_sha256": "376EA3EB9D19CA21B926E8E875DFD933D845E3A25D92BE4A312EA5F22B1AF287",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_boundary.exitcode"
-            },
-            {
-              "source": "fast_gray.py",
-              "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.mpy",
-              "output_bytes": 14080,
-              "output_sha256": "08EC81B3AB2BEC76098C606A055A05AB9C57FE47968F71345907A8FADB9FE245",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_gray.exitcode"
-            },
-            {
-              "source": "fast_path.py",
-              "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.mpy",
-              "output_bytes": 23257,
-              "output_sha256": "F7660D6A740E1394CBEE246F56E1D4D594FB0A072EB10ABFD6BE36D9ECF38930",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_path.exitcode"
-            },
-            {
-              "source": "fast_ring_slope.py",
-              "source_sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.mpy",
-              "output_bytes": 17143,
-              "output_sha256": "66987C59D4B2CD08133D8166358E231C6E40D927E1B81BC5A83A3340CB8CDE0F",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_ring_slope.exitcode"
-            },
-            {
-              "source": "fast_single_edge.py",
-              "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.mpy",
-              "output_bytes": 27039,
-              "output_sha256": "D7363EEDA37304585CDE94801CFD22A41F89D44C3CD1A9FCA4A158E96F217D87",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_single_edge.exitcode"
-            },
-            {
-              "source": "fast_topology.py",
-              "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.mpy",
-              "output_bytes": 14998,
-              "output_sha256": "6BDE7DD0DE24BB2280B4A36D4734E9F8C36AB0A3D305FF419D85F7E9E7AB6E7C",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/fast_topology.exitcode"
-            },
-            {
-              "source": "grayscale_adapter.py",
-              "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.mpy",
-              "output_bytes": 2259,
-              "output_sha256": "9F3692BEB60F7980BFA5198C6396BD85B28B627B34FD909B41B15570978CBECB",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/grayscale_adapter.exitcode"
-            },
-            {
-              "source": "line_detector.py",
-              "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.mpy",
-              "output_bytes": 4154,
-              "output_sha256": "01525B465D783BFC4898573BD381E97D7C79CCBD5CDC47D623F5BA3ADCEFD5CE",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/line_detector.exitcode"
-            },
-            {
-              "source": "main.py",
-              "source_sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.mpy",
-              "output_bytes": 43755,
-              "output_sha256": "88823840882C8F347281435A4892A7397CDC1413694965ECAE006F7184C06C55",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/main.exitcode"
-            },
-            {
-              "source": "reverse_control.py",
-              "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.mpy",
-              "output_bytes": 2602,
-              "output_sha256": "59225710650530C166F470CB08BC204EBE84B9A1A5D903009293ECB599AEE0CA",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/reverse_control.exitcode"
-            },
-            {
-              "source": "road_detector.py",
-              "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.mpy",
-              "output_bytes": 8447,
-              "output_sha256": "B873E2F2F161250F3E756EB98875A4DAD6C8B56404E16AFB346815CD71551815",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/road_detector.exitcode"
-            },
-            {
-              "source": "source_selector.py",
-              "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.mpy",
-              "output_bytes": 2847,
-              "output_sha256": "8D3A3C13155A50F53AC2A721FE2EF427C919627E31AC9A687B20511520E32DED",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/source_selector.exitcode"
-            },
-            {
-              "source": "surface_detector.py",
-              "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.mpy",
-              "output_bytes": 11959,
-              "output_sha256": "FFB7A689F66DF7057BAA8E16E7CF858FAEA374646BB5BEB0B3E2E04F870F798A",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/surface_detector.exitcode"
-            },
-            {
-              "source": "thresholding.py",
-              "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.mpy",
-              "output_bytes": 3697,
-              "output_sha256": "5E01E40775A34B7FC85C3AEA1FDA612C7E4C1C6F3C01C59B1A95533EF4F8B08E",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/thresholding.exitcode"
-            },
-            {
-              "source": "vision_protocol.py",
-              "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
-              "output": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.mpy",
-              "output_bytes": 1392,
-              "output_sha256": "C1ACD2C7208B26CF75B784DAE47C95170EC47F1326B104766DEF70627A697535",
-              "exit_code": 0,
-              "log": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.log",
-              "exit_code_file": "test-data/speed-ring-20261014/vision/final/compiled/clipped_midpoint/vision_protocol.exitcode"
-            }
-          ]
+          "raw_log": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log",
+          "log_sha256": "0FBE9F1DA7728D371DF01A703DFEF6FD3AD4EBBF42D32145779ED8D98C02E4F8",
+          "exit_code_file": "test-data/differential-20261013/vision/final/compile-clipped_midpoint-v1.25-armv7em.log.exitcode"
         }
       ],
       "target_micro_python_v1_28_compiled": false,
@@ -2278,10 +604,10 @@
     "synthetic_numeric_fixture": {
       "fixture_kind": "synthetic_host_masks_only",
       "scenario_count": 11,
-      "numeric_results_csv": "test-data/speed-ring-20261014/vision/final/synthetic-numeric-results.csv",
-      "numeric_results_csv_sha256": "828FBD4466B255D0E76F782BE8A83EFF97577B9A956EFB96CCD7B5F33069E160",
-      "raw_log": "test-data/speed-ring-20261014/vision/final/synthetic-numeric-results.log",
-      "raw_log_sha256": "1519E9923D2D07B6847504A8208DF8FBA00BEC4CDAF9EACF6639DAB2B3826B95",
+      "numeric_results_csv": "test-data/differential-20261013/vision/final/synthetic-numeric-results.csv",
+      "numeric_results_csv_sha256": "A7AEABAE33C533042349D3624296462F18967E315F339EDF768B2C80DD9BAA14",
+      "raw_log": "test-data/differential-20261013/vision/final/synthetic-numeric-results.log",
+      "raw_log_sha256": "249C850CEB105C15C4341A4A7140C56F44E2A7FFFC85DF8A994348902A4FEF16",
       "same_frame_left_cached_center_x": 39.5,
       "same_frame_left_clip_edge_x": 26.5,
       "same_frame_left_clip_endpoint_x": 79,
@@ -2304,707 +630,16 @@
     "camera_upload_performed": false,
     "vehicle_track_tested": false,
     "notes": [
-      "Lower rows y>=36 carry aggregate weight 0.80 and upper rows y<36 carry 0.20; each available group is internally normalized.",
-      "The ROI expands to grid row 8/full-image y=16 with four Otsu blocks; the three original blocks from row 20 down remain unchanged.",
-      "Bilateral weighted rows require the existing per-row measured pair-support bit; unsupported rows are excluded without changing the existing global gate.",
-      "The weighted controller center is a virtual column and remains separate from the geometric safety reference. Missing groups renormalize with a diagnostic.",
-      "Weighting runs after current-frame path selection; it does not guarantee lane identity across whole-path candidate changes.",
-      "Ring ports use a configured 4-cell (5% of grid width) crop-side inset. This is a bounded port-search tolerance, not steering weighting; current known-white connectivity and the same full two-cell clearance still apply, and x=0/79 remain diagnostic crop markers only.",
-      "The IDE mpy-cross 1.25 run with -march=armv7em is compiler evidence, not board execution; MicroPython 1.28 compiler acceptance remains unverified.",
-      "Synthetic host masks and repeated-frame sequences are not camera recordings. The eight provided photos were static images with IDE text over the top region; the H743 core was unpowered during capture, so reverse STARTUPSTALE/cache=0 was expected and is not a live control-path fault.",
-      "Slope classification is disabled in the current runtime; main-loop observation packets always set slope hint 0. The optional protocol bit and isolated slope-fit module tests remain for compatibility only.",
-      "The separate eight-stage ring/speed document is future architecture only; this package does not implement or claim its end-to-end route behavior.",
-      "No OpenMV upload/board run, H743 build/flash, motor start, or vehicle track test was performed. Ring entry and incline transition are not established by these results."
+      "The V7 preview draws current-frame geometry every captured frame after detection and UART send, then flushes that frame to the IDE preview.",
+      "Preview drawing samples at most 13 row points including both ends; single-edge boundary and clipped-endpoint markers share those sampled rows.",
+      "The overlay timing includes 100 ms detail-cache formatting and every-frame drawing; preview flush is measured separately and capture-to-send age still ends at UART send.",
+      "The 1.25 IDE compiler run with -march=armv7em is host compiler evidence, not board execution.",
+      "No MicroPython 1.28 mpy-cross compiler was found in the installed IDE bundle; exact target compiler acceptance remains unverified.",
+      "Synthetic masks and host overlay doubles do not execute a camera frame or measure preview performance."
     ],
     "manifest_refresh_exit_code": 0,
     "generator_final_check_exit_code": 0,
-    "manifest_final_refresh_exit_code": 0,
-    "historical_for_build": "CACHED_WIDTH_RING_20261014",
-    "current_repair_scope": "Not rerun or rebuilt; this package record is historical only."
+    "manifest_final_refresh_exit_code": 0
   },
-  "readme": "README.md",
-  "historical_validation_note": "The preexisting host_test_results, two_route_evidence, and host_mpy_cross_validation records describe the prior CACHED_WIDTH_RING_20261014 package. They are retained as history. The clipped_midpoint package/evidence was not changed or regenerated for this release.",
-  "ring_guard_validation": {
-    "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
-    "status": "bounded experimental software repair; board validation pending",
-    "runtime_api": {
-      "fast_ring_slope": 2
-    },
-    "formal_upload_file_count": 18,
-    "formal_upload_files": [
-      "adaptive_detector.py",
-      "boundary_evidence.py",
-      "config.py",
-      "fast_boundary.py",
-      "fast_gray.py",
-      "fast_path.py",
-      "fast_ring_slope.py",
-      "fast_single_edge.py",
-      "fast_topology.py",
-      "grayscale_adapter.py",
-      "line_detector.py",
-      "main.py",
-      "reverse_control.py",
-      "road_detector.py",
-      "source_selector.py",
-      "surface_detector.py",
-      "thresholding.py",
-      "vision_protocol.py"
-    ],
-    "host_test_suite": {
-      "summary": "test-data/ring-ordinary-guard-20261015/validation/host/SUMMARY.json",
-      "suite_count": 9,
-      "tests_run_total": 159,
-      "all_passed": true,
-      "tests": [
-        {
-          "key": "test_turn_response_weights",
-          "command": "python -B openmv\\tests\\test_turn_response_weights.py",
-          "tests_run": 7,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_turn_response_weights.log",
-          "log_sha256": "7499dbf9a315b2ea201aec506debba554d6a4f0ab432ddc08c637f4519ea00d4",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_turn_response_weights.log.exitcode"
-        },
-        {
-          "key": "test_ring_slope_host",
-          "command": "python -B openmv\\tests\\test_ring_slope_host.py",
-          "tests_run": 26,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_ring_slope_host.log",
-          "log_sha256": "83f8ef75c5f66e2eaa0be64ef1f8389faaa4d9e9cbdf64b50ed7f959423d732b",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_ring_slope_host.log.exitcode"
-        },
-        {
-          "key": "test_ordinary_curve_ring_guard",
-          "command": "python -B openmv\\tests\\test_ordinary_curve_ring_guard.py",
-          "tests_run": 2,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_ordinary_curve_ring_guard.log",
-          "log_sha256": "6ea31f502f5dbc30eab029e637dd5da79b25bb32b8d3b3491545e87eeb77a07c",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_ordinary_curve_ring_guard.log.exitcode"
-        },
-        {
-          "key": "test_fast_main_ring_slope",
-          "command": "python -B openmv\\tests\\test_fast_main_ring_slope.py",
-          "tests_run": 5,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_main_ring_slope.log",
-          "log_sha256": "c4b776d2dd7887a70b7bf1530a66269ca590afa770485a2ac1f1a49b4fc2339e",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_main_ring_slope.log.exitcode"
-        },
-        {
-          "key": "test_protocol_host",
-          "command": "python -B openmv\\tests\\test_protocol_host.py",
-          "tests_run": 8,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_protocol_host.log",
-          "log_sha256": "65407a481993f414f15e03cba9b03579324a0246783f098ea65689a55fb6b648",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_protocol_host.log.exitcode"
-        },
-        {
-          "key": "test_singleedge_main",
-          "command": "python -B openmv\\tests\\test_singleedge_main.py",
-          "tests_run": 7,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_singleedge_main.log",
-          "log_sha256": "c12648447eabe1e107efa58e6d0959eb8a0d2dc8b87c2d70ec08f328e5221ed0",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_singleedge_main.log.exitcode"
-        },
-        {
-          "key": "test_fast_single_edge",
-          "command": "python -B openmv\\tests\\test_fast_single_edge.py",
-          "tests_run": 13,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_single_edge.log",
-          "log_sha256": "ac41a75b7650c6664b686905a36208798b443f02e13b41df71498f2f8466f0f9",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_single_edge.log.exitcode"
-        },
-        {
-          "key": "test_two_routes",
-          "command": "python -B openmv\\tests\\test_two_routes.py",
-          "tests_run": 12,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_two_routes.log",
-          "log_sha256": "b1c8a5986304be802af62026a23cd090acc8b6b671fc2d29731f41c45ad501c7",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_two_routes.log.exitcode"
-        },
-        {
-          "key": "run_v7_host_regression",
-          "command": "python -B openmv\\tests\\run_v7_host_regression.py",
-          "tests_run": 79,
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/host/run_v7_host_regression.log",
-          "log_sha256": "0999721b5a5e2a02db3fdb1771950046fc10eb8fcd27489c593b4eaa3046d9a3",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/run_v7_host_regression.log.exitcode"
-        }
-      ]
-    },
-    "bundled_mpy_cross": {
-      "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
-      "source_count": 18,
-      "compiled_count": 18,
-      "exit_code": 0,
-      "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
-      "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
-      "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
-      "target_architecture": "armv7em",
-      "board_runtime_version": "MicroPython 1.28.0",
-      "board_runtime_equivalence_proven": false,
-      "outputs_are_upload_artifacts": false,
-      "production_package_mpy_files_before": 0,
-      "production_package_mpy_files_after": 0,
-      "compiled_files": [
-        {
-          "source": "adaptive_detector.py",
-          "source_size_bytes": 44071,
-          "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\adaptive_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\adaptive_detector.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.mpy",
-          "output_size_bytes": 13987,
-          "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12"
-        },
-        {
-          "source": "boundary_evidence.py",
-          "source_size_bytes": 18818,
-          "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\boundary_evidence.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\boundary_evidence.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.mpy",
-          "output_size_bytes": 5745,
-          "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60"
-        },
-        {
-          "source": "config.py",
-          "source_size_bytes": 15458,
-          "source_sha256": "32C904101D7F39EBF3FA81C8CDEF6E4801C319F8CACCBC07E847B5D06659E689",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\config.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\config.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.mpy",
-          "output_size_bytes": 9117,
-          "output_sha256": "EB0641166478B05EA80DCFD68E96E5DE135258898B15CE0D4DB1C2BF113121C1"
-        },
-        {
-          "source": "fast_boundary.py",
-          "source_size_bytes": 51180,
-          "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_boundary.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_boundary.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.mpy",
-          "output_size_bytes": 28464,
-          "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A"
-        },
-        {
-          "source": "fast_gray.py",
-          "source_size_bytes": 30014,
-          "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_gray.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_gray.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.mpy",
-          "output_size_bytes": 14063,
-          "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8"
-        },
-        {
-          "source": "fast_path.py",
-          "source_size_bytes": 41451,
-          "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_path.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_path.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.mpy",
-          "output_size_bytes": 23240,
-          "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71"
-        },
-        {
-          "source": "fast_ring_slope.py",
-          "source_size_bytes": 75024,
-          "source_sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_ring_slope.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_ring_slope.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.mpy",
-          "output_size_bytes": 20813,
-          "output_sha256": "CA26AD35F04F1DD42683A38E5F3A50239417CA76594247C80D500A0D0AB703AF"
-        },
-        {
-          "source": "fast_single_edge.py",
-          "source_size_bytes": 43749,
-          "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_single_edge.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_single_edge.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.mpy",
-          "output_size_bytes": 27022,
-          "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009"
-        },
-        {
-          "source": "fast_topology.py",
-          "source_size_bytes": 42030,
-          "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_topology.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_topology.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.mpy",
-          "output_size_bytes": 14981,
-          "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37"
-        },
-        {
-          "source": "grayscale_adapter.py",
-          "source_size_bytes": 7589,
-          "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\grayscale_adapter.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\grayscale_adapter.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.mpy",
-          "output_size_bytes": 2242,
-          "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F"
-        },
-        {
-          "source": "line_detector.py",
-          "source_size_bytes": 11979,
-          "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\line_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\line_detector.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.mpy",
-          "output_size_bytes": 4137,
-          "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE"
-        },
-        {
-          "source": "main.py",
-          "source_size_bytes": 134574,
-          "source_sha256": "B984308126F7C6C1C4211DB437485CC0559233A603807A4CDCFD7829D21D180C",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\main.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\main.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.mpy",
-          "output_size_bytes": 45448,
-          "output_sha256": "99BF133613410240ED6E48AB856A36BC1D965EE767AC3D424E7175CCF96978B3"
-        },
-        {
-          "source": "reverse_control.py",
-          "source_size_bytes": 7657,
-          "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\reverse_control.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\reverse_control.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.mpy",
-          "output_size_bytes": 2585,
-          "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002"
-        },
-        {
-          "source": "road_detector.py",
-          "source_size_bytes": 26649,
-          "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\road_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\road_detector.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.mpy",
-          "output_size_bytes": 8430,
-          "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450"
-        },
-        {
-          "source": "source_selector.py",
-          "source_size_bytes": 8802,
-          "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\source_selector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\source_selector.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.mpy",
-          "output_size_bytes": 2830,
-          "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15"
-        },
-        {
-          "source": "surface_detector.py",
-          "source_size_bytes": 42567,
-          "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\surface_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\surface_detector.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.mpy",
-          "output_size_bytes": 11942,
-          "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1"
-        },
-        {
-          "source": "thresholding.py",
-          "source_size_bytes": 12363,
-          "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\thresholding.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\thresholding.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.mpy",
-          "output_size_bytes": 3680,
-          "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE"
-        },
-        {
-          "source": "vision_protocol.py",
-          "source_size_bytes": 3130,
-          "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
-          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\vision_protocol.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\vision_protocol.py",
-          "exit_code": 0,
-          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.log",
-          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.log.exitcode",
-          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.mpy",
-          "output_size_bytes": 1375,
-          "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435"
-        }
-      ]
-    },
-    "static_screenshot_replay": {
-      "report_json": "test-data/ring-ordinary-guard-20261015/vision/STATIC_SCREENSHOT_REPLAY_INDEPENDENT_CURVATURE_REPORT.json",
-      "report_sha256": "C0BE6F56E93505A2271048AB0FC27AE9D68E3BE29C90CCBB16D8F9F03DD2ED99",
-      "frame_count": 8,
-      "variant_count": 2,
-      "preview_focus_images": [
-        {
-          "image_index": 3,
-          "variant": "raw_screenshot",
-          "candidate_reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_residual_max": 2.0408676756509507,
-          "inner_fit_residual_max": 11.362834051313328,
-          "correlation": -0.23750955005912675,
-          "state": "PREVIEW",
-          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
-          "route_authorized": false
-        },
-        {
-          "image_index": 3,
-          "variant": "ignore_top40",
-          "candidate_reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_residual_max": 2.0547260612043416,
-          "inner_fit_residual_max": 10.649086870681145,
-          "correlation": -0.21979677979836112,
-          "state": "PREVIEW",
-          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
-          "route_authorized": false
-        },
-        {
-          "image_index": 5,
-          "variant": "raw_screenshot",
-          "candidate_reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_residual_max": 3.2517031255349025,
-          "inner_fit_residual_max": 7.94796480777789,
-          "correlation": -0.4441661601769875,
-          "state": "PREVIEW",
-          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
-          "route_authorized": false
-        },
-        {
-          "image_index": 5,
-          "variant": "ignore_top40",
-          "candidate_reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_residual_max": 3.2363062331997696,
-          "inner_fit_residual_max": 7.7452071816199215,
-          "correlation": -0.4367350425754598,
-          "state": "PREVIEW",
-          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
-          "route_authorized": false
-        }
-      ],
-      "fresh_keep_supplied": false,
-      "temporal_entry_or_exit_claimed": false
-    },
-    "geometry_diagnostics": {
-      "report_json": "test-data/ring-ordinary-guard-20261015/GEOMETRY_FIT_DIAGNOSTICS_INDEPENDENT_CURVATURE.json",
-      "report_sha256": "E6BFF3AC7BE4803EA0C335DF6C62E6D1A54C226B1E300962173184B001E6C2FA",
-      "software_trial_thresholds": {
-        "min_supported_outer_rows": 10,
-        "min_outer_y_span_cells": 12,
-        "straight_outer_max_residual_cells": 1.5,
-        "coherent_curve_min_outer_residual_cells": 0.75,
-        "coherent_curve_min_residual_correlation": 0.85,
-        "independent_curve_max_outer_residual_cells": 3.5,
-        "independent_curve_min_inner_residual_cells": 6.0,
-        "independent_curve_max_outer_to_inner_ratio": 0.5,
-        "independent_curve_max_residual_correlation": 0.0,
-        "independent_curve_min_width_range_cells": 6,
-        "independent_curve_min_residual_difference_cells": 6.0
-      },
-      "thresholds_are_physical_calibration": false,
-      "synthetic_fixtures": [
-        {
-          "name": "fixed_width_parallel_negative",
-          "side": "LEFT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 8.047619047619051,
-          "inner_fit_residual_max": 8.047619047619051,
-          "inner_outer_residual_correlation": 1.0,
-          "residual_difference_max": 0.0,
-          "width_range": 0
-        },
-        {
-          "name": "straight_outer_positive",
-          "side": "LEFT",
-          "valid": true,
-          "reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "STRAIGHT_OUTER",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 0.0,
-          "inner_fit_residual_max": 8.047619047619051,
-          "inner_outer_residual_correlation": null,
-          "residual_difference_max": 8.047619047619051,
-          "width_range": 13
-        },
-        {
-          "name": "scaled_coherent_outer_residual_0_75_to_1_5",
-          "side": "LEFT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 1.4285714285714306,
-          "inner_fit_residual_max": 10.904761904761905,
-          "inner_outer_residual_correlation": 0.9322869078264868,
-          "residual_difference_max": 9.476190476190474,
-          "width_range": 15
-        },
-        {
-          "name": "scaled_coherent_outer_residual_1_5_to_3_5",
-          "side": "LEFT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 1.7619047619047592,
-          "inner_fit_residual_max": 10.904761904761905,
-          "inner_outer_residual_correlation": 0.9673142754381909,
-          "residual_difference_max": 9.142857142857146,
-          "width_range": 14
-        },
-        {
-          "name": "independent_curvature_positive",
-          "side": "LEFT",
-          "valid": true,
-          "reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 3.2857142857142847,
-          "inner_fit_residual_max": 12.666666666666668,
-          "inner_outer_residual_correlation": -0.9885801023942218,
-          "residual_difference_max": 15.952380952380953,
-          "width_range": 25
-        },
-        {
-          "name": "outer_curvature_over_ceiling_negative",
-          "side": "LEFT",
-          "valid": false,
-          "reason": "OPPOSITE_EDGE_CURVED",
-          "fit_mode": "REJECT_CURVED_OUTER",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 6.285714285714292,
-          "inner_fit_residual_max": 12.666666666666668,
-          "inner_outer_residual_correlation": -0.9945201569967393,
-          "residual_difference_max": 18.95238095238096,
-          "width_range": 30
-        },
-        {
-          "name": "fixed_width_parallel_negative",
-          "side": "RIGHT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 8.047619047619047,
-          "inner_fit_residual_max": 8.047619047619051,
-          "inner_outer_residual_correlation": 1.0,
-          "residual_difference_max": 3.552713678800501e-15,
-          "width_range": 0
-        },
-        {
-          "name": "straight_outer_positive",
-          "side": "RIGHT",
-          "valid": true,
-          "reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "STRAIGHT_OUTER",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 0.0,
-          "inner_fit_residual_max": 8.047619047619051,
-          "inner_outer_residual_correlation": null,
-          "residual_difference_max": 8.047619047619051,
-          "width_range": 13
-        },
-        {
-          "name": "scaled_coherent_outer_residual_0_75_to_1_5",
-          "side": "RIGHT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 1.428571428571427,
-          "inner_fit_residual_max": 10.714285714285715,
-          "inner_outer_residual_correlation": 0.9209240413072355,
-          "residual_difference_max": 9.285714285714288,
-          "width_range": 15
-        },
-        {
-          "name": "scaled_coherent_outer_residual_1_5_to_3_5",
-          "side": "RIGHT",
-          "valid": false,
-          "reason": "PARALLEL_CURVE",
-          "fit_mode": "REJECT_PARALLEL_CURVE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 1.7619047619047628,
-          "inner_fit_residual_max": 10.714285714285715,
-          "inner_outer_residual_correlation": 0.9675297276823731,
-          "residual_difference_max": 8.952380952380953,
-          "width_range": 14
-        },
-        {
-          "name": "independent_curvature_positive",
-          "side": "RIGHT",
-          "valid": true,
-          "reason": "ARC_AND_CONNECTED_PORT",
-          "fit_mode": "INDEPENDENT_CURVATURE",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 3.2857142857142847,
-          "inner_fit_residual_max": 12.666666666666664,
-          "inner_outer_residual_correlation": -0.9885801023942218,
-          "residual_difference_max": 15.952380952380949,
-          "width_range": 25
-        },
-        {
-          "name": "outer_curvature_over_ceiling_negative",
-          "side": "RIGHT",
-          "valid": false,
-          "reason": "OPPOSITE_EDGE_CURVED",
-          "fit_mode": "REJECT_CURVED_OUTER",
-          "outer_fit_rows": 21,
-          "outer_fit_residual_max": 12.666666666666664,
-          "inner_fit_residual_max": 6.380952380952381,
-          "inner_outer_residual_correlation": -0.9945410967756514,
-          "residual_difference_max": 19.047619047619044,
-          "width_range": 30
-        }
-      ]
-    },
-    "pre_fix_negative_control": {
-      "log": "test-data/ring-ordinary-guard-20261015/failure-proof/pre-fix-negative-control.log",
-      "exit_code_file": "test-data/ring-ordinary-guard-20261015/failure-proof/pre-fix-negative-control.exitcode",
-      "exit_code": 1,
-      "preserved_original_failure": true
-    },
-    "frozen_ordinary_route_oracle": {
-      "directory": "openmv/tests/frozen_pre_ring/",
-      "provenance": "openmv/tests/frozen_pre_ring/PROVENANCE.json",
-      "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
-      "runtime_file_count": 17,
-      "test_only_not_upload_runtime": true,
-      "parity_cases": "6 ordinary profiles x 2 mirrors x 12 frames; center/error/protocol bytes compared to frozen pre-ring runtime"
-    },
-    "main_handoff_harness_scope": "The tests use stub grayscale mask construction, path detector and boundary validator; actual ring detector, current-route eligibility, main-loop selection, packet encoder and UART write are exercised. This is not a complete image-to-UART or board test.",
-    "protected_h743_elf_snapshot": {
-      "snapshot_manifest": "test-data/ring-ordinary-guard-20261015/before/SNAPSHOT_MANIFEST.json",
-      "snapshot_created_utc": "2026-10-15T00:44:29.1784092Z",
-      "elf_count": 9,
-      "all_hashes_unchanged": true,
-      "hashes": [
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/Debug/CarTest.elf",
-          "snapshot_sha256": "CBBBB978F1CAD127C14C0227A56DD699B7B814FD2EAD394FC55C0F3DFB8CAD66",
-          "current_sha256": "CBBBB978F1CAD127C14C0227A56DD699B7B814FD2EAD394FC55C0F3DFB8CAD66",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugBench/CarTest.elf",
-          "snapshot_sha256": "A8624494BCB336D71E11461E317552189230B3DD62AF59AE817BF0050AE925EB",
-          "current_sha256": "A8624494BCB336D71E11461E317552189230B3DD62AF59AE817BF0050AE925EB",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollow/CarTest.elf",
-          "snapshot_sha256": "3C781F9304B38F33D10EECF0861249671ECB54CA922E095C7A77794AF70BE0FA",
-          "current_sha256": "3C781F9304B38F33D10EECF0861249671ECB54CA922E095C7A77794AF70BE0FA",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowDiff10/CarTest.elf",
-          "snapshot_sha256": "3082B6EF7B1077053F43CBC61353D2122BDF8D309261D07951180FAD9FFA202A",
-          "current_sha256": "3082B6EF7B1077053F43CBC61353D2122BDF8D309261D07951180FAD9FFA202A",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowDiff5/CarTest.elf",
-          "snapshot_sha256": "4F385915582091C18F1B86276684B09B40D388DD9E092559981057E235F0DAFA",
-          "current_sha256": "4F385915582091C18F1B86276684B09B40D388DD9E092559981057E235F0DAFA",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowNoLog/CarTest.elf",
-          "snapshot_sha256": "2E1EAE1FDA16F56981C5DA06FB3B6DA899193A213B55C0C55D7115B28A2B7A5D",
-          "current_sha256": "2E1EAE1FDA16F56981C5DA06FB3B6DA899193A213B55C0C55D7115B28A2B7A5D",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowSpeedPI/CarTest.elf",
-          "snapshot_sha256": "36064E8C0CBBB7339F5236F6DEB70327C44075086120650888E559E256F08404",
-          "current_sha256": "36064E8C0CBBB7339F5236F6DEB70327C44075086120650888E559E256F08404",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowTurn/CarTest.elf",
-          "snapshot_sha256": "3CBCD7096C29E6DF7131B4DD7B3282A8B2C4E437735F84EA1297CCB88DA6D033",
-          "current_sha256": "3CBCD7096C29E6DF7131B4DD7B3282A8B2C4E437735F84EA1297CCB88DA6D033",
-          "unchanged": true
-        },
-        {
-          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugSteering/CarTest.elf",
-          "snapshot_sha256": "2633A19CE73E5D8A9193B2F8F8A16770A2459EDBD7B8AB92991B6AFC5FD85B19",
-          "current_sha256": "2633A19CE73E5D8A9193B2F8F8A16770A2459EDBD7B8AB92991B6AFC5FD85B19",
-          "unchanged": true
-        }
-      ],
-      "build_or_flash_performed": false
-    },
-    "pre_repair_snapshot": {
-      "package_id": "CACHED_WIDTH_RING_20261014",
-      "created_utc": "2026-10-15T00:44:29.1784092Z",
-      "package_file_count": 61,
-      "manifest": "test-data/ring-ordinary-guard-20261015/before/SNAPSHOT_MANIFEST.json",
-      "manifest_sha256": "37226D7244FD8155F4CF996AF1E3A145F7BC35312D759DDB666828A9EB3075F6",
-      "original_runfile_archive_count": 13
-    },
-    "hardware_validation": {
-      "camera_upload_performed": false,
-      "openmv_board_runtime_tested": false,
-      "h743_build_or_flash_performed": false,
-      "motor_start_performed": false,
-      "vehicle_track_tested": false
-    },
-    "limitations": [
-      "The guard is a bounded geometry discriminator, not a unique real-world ring classifier.",
-      "Cropped or perspective ordinary curves may still mimic these measured shapes.",
-      "The full eight-phase lost/reappear/second-loss route sequence is not implemented."
-    ]
-  },
-  "historical_evidence_build": "CACHED_WIDTH_RING_20261014"
+  "readme": "README.md"
 }

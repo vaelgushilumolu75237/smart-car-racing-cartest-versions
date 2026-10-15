@@ -506,7 +506,7 @@ class FastSingleEdgeTracker:
         self.height = int(_setting(settings, "SURFACE_GRID_HEIGHT", HEIGHT))
         if self.width != WIDTH or self.height != HEIGHT:
             raise ValueError("FastSingleEdgeTracker requires an 80x60 grid")
-        self.floor_y = int(_setting(settings, "SURFACE_ROI_FLOOR_Y", 8))
+        self.floor_y = int(_setting(settings, "SURFACE_ROI_FLOOR_Y", 20))
         if self.floor_y < 0 or self.floor_y >= self.height:
             raise ValueError("SURFACE_ROI_FLOOR_Y must be in 0..59")
         self.reference_y = float(_setting(settings, "ROAD_REFERENCE_Y", 40))

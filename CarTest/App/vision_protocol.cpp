@@ -3,10 +3,9 @@
 namespace {
 
 uint8_t valid_fields(uint8_t flags, uint8_t confidence, int16_t lateral_error) {
-    if ((flags & static_cast<uint8_t>(~VP_FLAG_ALLOWED_MASK)) != 0u) return 0;
+    if ((flags & static_cast<uint8_t>(~VP_FLAG_VALID)) != 0u) return 0;
     if ((flags & VP_FLAG_VALID) == 0u)
-        return flags == 0u && confidence == 0u && lateral_error == 0
-                   ? 1u : 0u;
+        return confidence == 0u && lateral_error == 0 ? 1u : 0u;
     return confidence <= VP_MAX_CONFIDENCE &&
            lateral_error >= VP_MIN_LATERAL_ERROR &&
            lateral_error <= VP_MAX_LATERAL_ERROR ? 1u : 0u;

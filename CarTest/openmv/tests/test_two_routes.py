@@ -346,8 +346,7 @@ class TwoRouteTests(unittest.TestCase):
         })
         self.assertTrue(all(point[1] < main._surface_pixel((0, HEIGHT - 1))[1]
                             for point in boundary_points))
-        self.assertIn("RG15 SINGLE_LEFT", image.strings[1][1])
-        self.assertLessEqual(len(image.strings), 5)
+        self.assertIn("D100 CLIP", image.strings[1][1])
         self.assertEqual(image.strings[0][1], "NOW V CLIP/SINGLE_LEFT")
 
         invalid_image = _OverlayImage()
@@ -361,10 +360,8 @@ class TwoRouteTests(unittest.TestCase):
             main._draw_gray_result(
                 invalid_image, invalid_selection, {}, {}, None, False,
                 0, 0, 5, 30.0)
-        invalid_text = " ".join(
-            value for point, value in invalid_image.strings)
-        self.assertIn("GKEEP", invalid_text)
-        self.assertLessEqual(len(invalid_image.strings), 5)
+        self.assertIn("NO_FRESH_KEEP", " ".join(
+            value for point, value in invalid_image.strings))
         self.assertEqual(invalid_image.strings[0][1], "NOW INVALID CLIP")
 
     def test_fallback_diagnostic_names_route_and_keeps_full_reason(self):

@@ -5,11 +5,7 @@
       "name": "default",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "OFF",
-        "CARTEST_ENABLE_FOLLOW_TURN": "OFF"
-      }
+      "binaryDir": "${sourceDir}/build/${presetName}"
     },
     {
       "name": "Debug",
@@ -93,26 +89,6 @@
       "cacheVariables": {
         "CARTEST_FOLLOW_DIFF_PERMILLE": "100"
       }
-    },
-    {
-      "name": "DebugFollowTurn",
-      "displayName": "DebugFollowTurn - 70/30 turn target; servo 60us/20ms; motor 20‰/10ms",
-      "inherits": "DebugFollow",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_ENABLE_FOLLOW_TURN": "ON",
-        "CARTEST_FOLLOW_DIFF_PERMILLE": "200"
-      }
-    },
-    {
-      "name": "DebugFollowSpeedPI",
-      "displayName": "DebugFollowSpeedPI - experimental independent encoder speed PI; target 2400 milli-RPS; RAM log ON",
-      "inherits": "DebugFollowTurn",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
-        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
-      }
     }
   ],
   "buildPresets": [
@@ -122,8 +98,6 @@
     { "name": "DebugFollow", "configurePreset": "DebugFollow" },
     { "name": "DebugFollowNoLog", "configurePreset": "DebugFollowNoLog" },
     { "name": "DebugFollowDiff5", "configurePreset": "DebugFollowDiff5" },
-    { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" },
-    { "name": "DebugFollowTurn", "configurePreset": "DebugFollowTurn" },
-    { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" }
+    { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" }
   ]
 }

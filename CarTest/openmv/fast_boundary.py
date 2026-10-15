@@ -458,16 +458,6 @@ class FastBoundaryEvidence:
 
         self._records = array("i", [0] * (MAX_ROWS * _ROW_STRIDE))
         self._row_output = array("i", [0] * (MAX_ROWS * _OUTPUT_STRIDE))
-        # Public row support is aligned with FastPathDetector's selected-row
-        # order and reflects per-row bilateral pass bits, not the aggregate
-        # gate ratio. The same buffer is reused for every candidate/frame.
-        self._path_pair_support = bytearray(MAX_ROWS)
-        self._path_pair_support_count = 0
-        # Retain this frame's local bilateral bits even when the aggregate
-        # boundary gate rejects the candidate. Ring geometry may inspect the
-        # same per-row evidence, but cannot treat unsupported rows as edges.
-        self._candidate_pair_support = bytearray(MAX_ROWS)
-        self._candidate_pair_support_count = 0
         self._metrics = array("i", [0] * 8)
         self._support_x = array("i", [0] * MAX_ROWS)
         self._support_y = array("i", [0] * MAX_ROWS)
@@ -579,7 +569,6 @@ class FastBoundaryEvidence:
     @micropython.native
     def _invalidate(self, candidate, evidence,
                     result_reason="BOUNDARY_EVIDENCE_REJECTED"):
-        self._clear_path_pair_support(candidate)
         if "geometry_reason" not in candidate:
             candidate["geometry_reason"] = candidate.get("reason")
         candidate["boundary_evidence"] = evidence
@@ -590,42 +579,6 @@ class FastBoundaryEvidence:
         candidate["center_x"] = None
         candidate["reference_center_x"] = None
         candidate["reference_lateral_error"] = 0
-
-    def _clear_path_pair_support(self, candidate=None):
-        support = self._path_pair_support
-        for index in range(self._path_pair_support_count):
-            support[index] = 0
-        self._path_pair_support_count = 0
-        if candidate is not None:
-            candidate["boundary_support_rows"] = support
-            candidate["boundary_support_count"] = 0
-
-    def _publish_path_pair_support(self, candidate, count):
-        support = self._path_pair_support
-        output = self._row_output
-        for index in range(count):
-            support[index] = 1 if output[index * _OUTPUT_STRIDE + 8] else 0
-        self._path_pair_support_count = count
-        candidate["boundary_support_rows"] = support
-        candidate["boundary_support_count"] = count
-
-    def _clear_candidate_pair_support(self, candidate=None):
-        support = self._candidate_pair_support
-        for index in range(self._candidate_pair_support_count):
-            support[index] = 0
-        self._candidate_pair_support_count = 0
-        if candidate is not None:
-            candidate["boundary_candidate_support_rows"] = support
-            candidate["boundary_candidate_support_count"] = 0
-
-    def _publish_candidate_pair_support(self, candidate, count):
-        support = self._candidate_pair_support
-        output = self._row_output
-        for index in range(count):
-            support[index] = 1 if output[index * _OUTPUT_STRIDE + 8] else 0
-        self._candidate_pair_support_count = count
-        candidate["boundary_candidate_support_rows"] = support
-        candidate["boundary_candidate_support_count"] = count
 
     def _stage_side(self, record_base, field_base, hit_x, y, inward_sign):
         hit_index = _coordinate_index(
@@ -1037,7 +990,6 @@ class FastBoundaryEvidence:
     def gate_road_candidate(self, candidate, luma, edge_mask, road_mask,
                             known_region, settings=None):
         """Gate an already selected road path with same-frame raw gray steps."""
-        self._clear_path_pair_support(candidate)
         if not candidate or not candidate.get("valid"):
             return candidate
         if candidate.get("selected_row_ints") is not None:
@@ -1082,8 +1034,6 @@ class FastBoundaryEvidence:
         ``[y,left,right,flags]`` records. The array must outlive this call;
         no selected-row dictionaries or per-row staging objects are built.
         """
-        self._clear_path_pair_support(candidate)
-        self._clear_candidate_pair_support(candidate)
         if not candidate or not candidate.get("valid"):
             return candidate
         source = self.settings if settings is None else settings
@@ -1137,12 +1087,10 @@ class FastBoundaryEvidence:
         else:
             self._stage_path_host()
         reason = self._run_staged_gate(count)
-        self._publish_candidate_pair_support(candidate, count)
         if reason != "OK":
             self._invalidate(candidate, evidence)
         else:
             candidate["boundary_evidence"] = evidence
-            self._publish_path_pair_support(candidate, count)
         return candidate
 
     @micropython.native

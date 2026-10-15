@@ -33,9 +33,7 @@ typedef enum {
 
 typedef enum {
     CAR_RUNTIME_LOG_STOP_NONE = 0u,
-    CAR_RUNTIME_LOG_STOP_MANUAL_STOP = 1u,
-    /* Kept as a source-compatible alias for the original numeric reason. */
-    CAR_RUNTIME_LOG_STOP_MANUAL_RELEASE = CAR_RUNTIME_LOG_STOP_MANUAL_STOP,
+    CAR_RUNTIME_LOG_STOP_MANUAL_RELEASE = 1u,
     CAR_RUNTIME_LOG_STOP_HARD_FAULT = 2u,
     CAR_RUNTIME_LOG_STOP_BENCH_COMPLETE = 3u,
     CAR_RUNTIME_LOG_STOP_SESSION_ENDED = 4u
@@ -69,11 +67,7 @@ enum {
     CAR_RUNTIME_LOG_VISION_TIMEOUT = 1u << 2,
     CAR_RUNTIME_LOG_VISION_LATEST_FRAME_PRESENT = 1u << 3,
     CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE = 1u << 4,
-    CAR_RUNTIME_LOG_VISION_HOLD_EXPIRED = 1u << 5,
-    /* Latest CRC/format-accepted RX bit; it does not imply trusted/fresh. */
-    CAR_RUNTIME_LOG_VISION_LATEST_SLOPE_HINT = 1u << 6,
-    /* Current FollowTurn assist command; remains set while its output is held. */
-    CAR_RUNTIME_LOG_VISION_SLOPE_ASSIST_COMMANDED = 1u << 7
+    CAR_RUNTIME_LOG_VISION_HOLD_EXPIRED = 1u << 5
 };
 
 #if defined(_MSC_VER)
@@ -178,15 +172,12 @@ typedef struct {
     uint8_t follow_session_active;
     uint8_t hard_fault_latched;
     uint8_t manual_run_request;
-    /* In-memory policy input for start-counter reconciliation; not serialized. */
-    uint8_t follow_profile_compiled;
-    uint32_t button_start_event_count;
-    uint32_t button_stop_generation;
     uint8_t vision_hold_active;
     uint8_t vision_hold_expired;
     uint8_t vision_hold_exit_cause;
     uint16_t vision_hold_elapsed_ms;
     uint8_t vision_hold_valid_count;
+    uint16_t application_event_flags;
 } car_runtime_log_sample_t;
 
 typedef struct CAR_RUNTIME_LOG_PACKED {
@@ -205,8 +196,8 @@ extern const car_runtime_log_descriptor_t car_runtime_log_rom_descriptor;
 void car_runtime_log_init(void);
 /* Invalidates only the fixed-size header; the record area is left untouched. */
 void car_runtime_log_invalidate(void);
-/* start_kind is a one-loop, caller-confirmed session edge. Follow is supplied
-   only after consuming a physical PE7 start; recovery never starts a session. */
+/* start_kind is a one-loop edge captured after car_control_tick proves that
+   the manual Follow or Bench session started. It is never inferred from vision. */
 void car_runtime_log_update(const car_runtime_log_sample_t *sample,
                             car_runtime_log_session_kind_t start_kind);
 uint8_t car_runtime_log_state(void);

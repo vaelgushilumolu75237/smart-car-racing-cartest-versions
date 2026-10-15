@@ -181,8 +181,9 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
             if (control->rx_recovery_flush_required != 0u) {
                 return;
             }
-            car_control_on_vision_frame_at_with_flags(
-                control, config, frame.sequence, frame.flags,
+            car_control_on_vision_frame_at(
+                control, config, frame.sequence,
+                (frame.flags & VP_FLAG_VALID) != 0u,
                 frame.confidence, frame.lateral_error, arrival_ms,
                 now_ms, pe7_raw_high);
             dispatch_new_rx_faults(rx, control);
