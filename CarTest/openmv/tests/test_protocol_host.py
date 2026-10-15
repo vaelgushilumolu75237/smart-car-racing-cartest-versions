@@ -33,7 +33,7 @@ PACKERS = (
 
 class VisionProtocolTests(unittest.TestCase):
     def test_package_build_and_runtime_api_identity(self):
-        expected_build = "CACHED_WIDTH_RING_20261014"
+        expected_build = "CACHED_WIDTH_RING_GUARD_20261015"
         self.assertEqual(config.BUILD_ID, expected_build)
         self.assertEqual(config.V7_RUNTIME_API_VERSION, 7)
         self.assertEqual(config.SINGLE_EDGE_ROUTE_MODE, "cached_width")

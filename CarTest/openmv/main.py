@@ -71,8 +71,8 @@ V7_RUNTIME_API_VERSION = 7
 V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
-RING_SLOPE_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_RING_20261014"
+RING_SLOPE_RUNTIME_API_VERSION = 2
+CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_RING_GUARD_20261015"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
@@ -258,6 +258,12 @@ class _FastRowWeightWorkspace:
             support = None
             support_count = -1
             if (not ring_candidate or not ring_candidate.get("valid") or
+                    not ring_candidate.get("route_authorized") or
+                    not ring_candidate.get("current_geometry_ok") or
+                    ring_candidate.get("path_row_count", 0) < 8 or
+                    ring_candidate.get("path_y_span", 0) < 12 or
+                    not ring_candidate.get("path_near_anchor") or
+                    ring_candidate.get("port_segments") != 1 or
                     not isinstance(ring_candidate.get("path_x_rows"), array)
                     or not isinstance(ring_candidate.get(
                         "path_valid_rows"), bytearray)):
@@ -394,11 +400,17 @@ class _FastRowWeightWorkspace:
                 info["reason"] = "RING_HEADING_INVALID"
                 info["source"] = "NONE"
                 return info
-            heading_contribution = _rounded_local(
-                heading_error * 0.5)
-            raw_error = raw_error + heading_contribution
             info["heading_error"] = heading_error
-            info["heading_contribution"] = heading_contribution
+            # Port heading remains diagnostic only. Ring steering uses the
+            # current connected-path rows through the ordinary row weights.
+            info["heading_contribution"] = 0
+        elif raw_error < -1000 or raw_error > 1000:
+            info["reason"] = "WEIGHTED_ERROR_OUT_OF_RANGE"
+            info["source"] = "NONE"
+            info["center_x"] = None
+            info["near_weight"] = 0.0
+            info["far_weight"] = 0.0
+            return info
         if raw_error < -1000:
             raw_error = -1000
         elif raw_error > 1000:
@@ -1515,40 +1527,57 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
                                    filtered_error, processing_ms, fps,
                                    weight_info=None):
     """Format compact details for the 100 ms text cache, never frame geometry."""
-    route_mode = getattr(config, "SINGLE_EDGE_ROUTE_MODE", "unknown")
-    route_label = ("CLIP" if route_mode == "clipped_midpoint" else
-                   "CACHE" if route_mode == "cached_width" else
-                   str(route_mode).upper())
     source = selection.get("source", "NONE") if valid else "NONE"
-    quality = selection.get("quality", 0) if valid else 0
     ring_state = selection.get("ring_state", "IDLE")
-    details0 = "D100 %s %s %s" % (
-        route_label, source.upper(), str(ring_state)[:8])
-    if valid and reference is not None:
-        reference_x = float(reference["x"])
-        reference_y = reference.get("y")
-        safe_y = "-" if reference_y is None else "%.0f" % reference_y
-        details1 = "D100 SAFE X%.0f Y%s" % (reference_x, safe_y)
-    else:
-        details1 = "D100 no current safe ref"
+    details0 = "RG15 %s %s" % (
+        source.upper(), str(ring_state)[:10])
     if valid and weight_info is not None and weight_info.get("valid"):
         center_x = weight_info.get("center_x")
         near_count = weight_info.get("near_count", 0)
         far_count = weight_info.get("far_count", 0)
         near_percent = int(weight_info.get("near_weight", 0.0) * 100 + 0.5)
         far_percent = int(weight_info.get("far_weight", 0.0) * 100 + 0.5)
-        details2 = "D100 WCTRL X%.1f N%d F%d" % (
-            center_x, near_count, far_count)
-        details3 = "D100 E%+d/%+d W%d/%d" % (
+        details3 = "E%+d/%+d W%d/%d" % (
             raw_error, filtered_error, near_percent, far_percent)
     elif valid:
-        details2 = "D100 WCTRL unavailable"
-        details3 = "D100 E%+d/%+d" % (raw_error, filtered_error)
+        details3 = "E%+d/%+d" % (raw_error, filtered_error)
     else:
-        reason = selection.get(
-            "single_edge_reason", selection.get("reason", "INVALID"))
-        details2 = "D100 %s" % str(reason)
-        details3 = "D100 no current control"
+        details3 = "E%+d/%+d INVALID" % (raw_error, filtered_error)
+    gate_reason = selection.get("ring_candidate_reason")
+    if not gate_reason:
+        gate_reason = (selection.get("single_edge_reason") or
+                       selection.get("reason", "NO_CANDIDATE"))
+    gate_codes = {
+        "PARALLEL_CURVE": "PAR",
+        "OPPOSITE_EDGE_CURVED": "OUTER",
+        "ARC_AND_CONNECTED_PORT": "PORT",
+        "NO_FRESH_KEEP": "KEEP",
+    }
+    gate_code = gate_codes.get(gate_reason, str(gate_reason)[:5])
+    fit_modes = {
+        "STRAIGHT_OUTER": "LINE",
+        "INDEPENDENT_CURVATURE": "INDEP",
+        "REJECT_PARALLEL_CURVE": "PAR",
+        "REJECT_CURVED_OUTER": "CURVE",
+    }
+    fit_mode = fit_modes.get(selection.get("ring_fit_mode"), "--")
+    outer_residual = selection.get("ring_outer_fit_residual_max")
+    inner_residual = selection.get("ring_inner_fit_residual_max")
+    outer_text = "-" if outer_residual is None else "%.1f" % float(
+        outer_residual)
+    inner_text = "-" if inner_residual is None else "%.1f" % float(
+        inner_residual)
+    correlation = selection.get("ring_residual_correlation")
+    correlation_text = ("--" if correlation is None else
+                        "%+.1f" % float(correlation))
+    details1 = "G%s/%s O%s I%s" % (
+        gate_code, fit_mode, outer_text, inner_text)
+    details2 = "P%d/%d A%d G%d C%s" % (
+        selection.get("ring_path_row_count", 0),
+        selection.get("ring_path_y_span", 0),
+        1 if selection.get("ring_route_authorized") else 0,
+        1 if selection.get("ring_candidate_reason") == "ARC_AND_CONNECTED_PORT"
+        else 0, correlation_text)
     return (details0[:24], details1[:24], details2[:24], details3[:24])
 
 
@@ -2494,14 +2523,31 @@ def _main_fast(duration_s=None, run_id=0):
             ("single_left", "single_right") else None)
         forward_continuation = _fast_forward_white_continuation(
             mask_info, road_result, config)
-        ring_info = ring_slope_tracker.update_ring_state(
-            reverse_fresh, reverse_parser.generation,
-            bool(selection.get("valid")), forward_continuation)
         topology = road_result.get("topology_evidence") or {}
         topology_clear = not (
             topology.get("branch_evidence") or topology.get("branch") or
             topology.get("ambiguous"))
-        if (ring_candidate.get("valid") and ring_info.get("active") and
+        normal_route_valid = bool(
+            selection.get("valid") and selection.get("source") == "road" and
+            boundary_reference.get("valid") and topology_clear)
+        ring_info = ring_slope_tracker.update_ring_state(
+            reverse_fresh, reverse_parser.generation,
+            normal_route_valid, forward_continuation, capture_end_ms,
+            time.ticks_diff)
+        ring_candidate["route_authorized"] = bool(
+            ring_info.get("route_authorized"))
+        ring_candidate["current_geometry_ok"] = bool(
+            ring_info.get("current_geometry_ok"))
+        if (ring_candidate.get("valid") and
+                ring_candidate.get("entry_geometry_ok") and
+                ring_candidate.get("current_geometry_ok") and
+                ring_candidate.get("path_row_count", 0) >= 8 and
+                ring_candidate.get("path_y_span", 0) >= 12 and
+                ring_candidate.get("path_near_anchor") and
+                ring_candidate.get("port_segments") == 1 and
+                ring_info.get("active") and
+                ring_info.get("route_authorized") and
+                ring_info.get("current_geometry_ok") and
                 reverse_fresh and selection.get("valid") and
                 selection.get("source") == "road" and
                 boundary_reference.get("valid") and topology_clear and
@@ -2523,6 +2569,26 @@ def _main_fast(duration_s=None, run_id=0):
             }
         selection["ring_state"] = ring_info.get("state", "IDLE")
         selection["ring_reason"] = ring_info.get("reason", "NOT_RUN")
+        selection["ring_route_authorized"] = bool(
+            ring_info.get("route_authorized"))
+        selection["ring_candidate_reason"] = ring_candidate.get(
+            "rejection_reason") or ring_candidate.get("reason", "NOT_RUN")
+        selection["ring_outer_fit_rows"] = ring_candidate.get(
+            "outer_fit_rows", 0)
+        selection["ring_outer_fit_residual_max"] = ring_candidate.get(
+            "outer_fit_residual_max")
+        selection["ring_inner_fit_residual_max"] = ring_candidate.get(
+            "inner_fit_residual_max")
+        selection["ring_residual_correlation"] = ring_candidate.get(
+            "inner_outer_residual_correlation")
+        selection["ring_residual_difference_max"] = ring_candidate.get(
+            "residual_difference_max")
+        selection["ring_width_range"] = ring_candidate.get("width_range")
+        selection["ring_fit_mode"] = ring_candidate.get("fit_mode")
+        selection["ring_path_row_count"] = ring_candidate.get(
+            "path_row_count", 0)
+        selection["ring_path_y_span"] = ring_candidate.get(
+            "path_y_span", 0)
         ring_detection_us = time.ticks_diff(
             time.ticks_us(), ring_start_us)
 
@@ -2786,7 +2852,10 @@ def _main_fast(duration_s=None, run_id=0):
                   "%s cache_rows=%d actual=%s/%s "
                   "safe_ref=%s wctrl=%s rows_nf=%d/%d eff_nf=%d/%d "
                   "reverse=%s/%s why=%s road_why=%s rows=%d scene=%s topology=%s "
-                  "ring=%s:%s/%d port=%s,%s seed=%s,%s slope=%s:%d "
+                  "ring=%s:%s/%d gate=%s fit=%s ofit=%d/%.2f ifit=%.2f "
+                  "corr=%s diff=%s width=%s path=%d/%d auth=%d geo=%d "
+                  "port=%s,%s seed=%s,%s "
+                  "slope=%s:%d "
                   "head=%+d "
                   "boundary=%s:%d/%d ref=%s raw_weighted=%d filt=%d "
                   "filter=%s "
@@ -2822,6 +2891,29 @@ def _main_fast(duration_s=None, run_id=0):
                       ring_info.get("state", "IDLE"),
                       ring_info.get("reason", "NOT_RUN"),
                       ring_info.get("pending_count", 0),
+                       selection.get("ring_candidate_reason", "NOT_RUN"),
+                      ring_candidate.get("fit_mode", "NONE"),
+                      ring_candidate.get("outer_fit_rows", 0),
+                      -1.0 if ring_candidate.get(
+                          "outer_fit_residual_max") is None else
+                          ring_candidate.get("outer_fit_residual_max"),
+                      -1.0 if ring_candidate.get(
+                          "inner_fit_residual_max") is None else
+                          ring_candidate.get("inner_fit_residual_max"),
+                      "-" if ring_candidate.get(
+                          "inner_outer_residual_correlation") is None else
+                          "%.2f" % ring_candidate.get(
+                              "inner_outer_residual_correlation"),
+                      "-" if ring_candidate.get(
+                          "residual_difference_max") is None else
+                          "%.2f" % ring_candidate.get(
+                              "residual_difference_max"),
+                      "-" if ring_candidate.get("width_range") is None else
+                          str(ring_candidate.get("width_range")),
+                       ring_candidate.get("path_row_count", 0),
+                       ring_candidate.get("path_y_span", 0),
+                       1 if ring_info.get("route_authorized") else 0,
+                       1 if ring_info.get("current_geometry_ok") else 0,
                       str(ring_candidate.get("port_x"))[:5],
                       str(ring_candidate.get("port_y"))[:5],
                       str(ring_candidate.get("near_seed_x"))[:5],

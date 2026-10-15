@@ -1,7 +1,7 @@
 {
-  "version": "v20261015-pi-trial",
-  "status": "experimental-pi-software-tested-ring-regression-reported",
-  "branch": "experimental/pi-trial",
-  "files": 327,
+  "version": "v20261015-ring-guard",
+  "status": "experimental-ring-guard-software-tested",
+  "branch": "experimental/ring-guard",
+  "files": 346,
   "hardware_actions": "none"
 }

@@ -2,6 +2,7 @@
 
 import contextlib
 import io
+import importlib.util
 import sys
 import types
 import unittest
@@ -11,14 +12,18 @@ from unittest.mock import patch
 
 
 OPENMV_DIR = Path(__file__).resolve().parents[1]
-if str(OPENMV_DIR) not in sys.path:
-    sys.path.insert(0, str(OPENMV_DIR))
+TEST_DIR = OPENMV_DIR / "tests"
+for _path in (OPENMV_DIR, TEST_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 sys.modules.setdefault("pyb", types.ModuleType("pyb"))
 sys.modules.setdefault("sensor", types.ModuleType("sensor"))
 
 import config
 import main
 import vision_protocol
+from test_ring_slope_host import (
+    _genuine_ring_fixture, _ordinary_band_fixture, _ring_fixture)
 
 
 WIDTH = 80
@@ -98,14 +103,16 @@ class _Sensor:
 
 
 class _UART:
-    def __init__(self, fake_time):
+    def __init__(self, fake_time, stop_after=1):
         self.fake_time = fake_time
         self.frames = []
+        self.stop_after = stop_after
 
     def write(self, frame):
         self.frames.append(bytes(frame))
-        # End the finite one-frame main-loop run after the packet is written.
-        self.fake_time.us = 1100000
+        # End the finite main-loop run after the selected packet count.
+        if len(self.frames) >= self.stop_after:
+            self.fake_time.us = 1100000
         return len(frame)
 
 
@@ -196,7 +203,9 @@ class _RingSlopeTracker:
         self.slope_hint = slope_hint
         self.ring = {"candidate": None, "state": "IDLE", "side_id": 0,
                      "active": False, "reason": "TEST_IDLE",
-                     "pending_count": 0}
+                     "pending_count": 0,
+                     "route_authorized": False,
+                     "current_geometry_ok": False}
         self.slope = {"hint": slope_hint, "stage": "TEST", "reason": "TEST"}
         self.slope_update_calls = 0
         self.candidate = None
@@ -214,6 +223,13 @@ class _RingSlopeTracker:
                 "near_seed_x": 49, "near_seed_y": 53,
                 "near_center_x": 49.0, "near_center_y": 53,
                 "heading_error": 600,
+                "entry_geometry_ok": True,
+                "current_geometry_ok": True,
+                "route_authorized": True,
+                "path_row_count": sum(valid),
+                "path_y_span": 51,
+                "path_near_anchor": True,
+                "port_segments": 1,
                 "port_x": 77, "port_y": 10, "clip_endpoint_x": 79,
                 "boundary_source": "RING_INNER_RIGHT",
                 "path_x_rows": path, "path_valid_rows": valid,
@@ -221,7 +237,9 @@ class _RingSlopeTracker:
             self.ring.update({"candidate": self.candidate,
                               "state": "INSIDE_RIGHT", "side_id": 2,
                               "side": "RIGHT", "active": True,
-                              "reason": "TEST_ACTIVE"})
+                              "reason": "TEST_ACTIVE",
+                              "route_authorized": True,
+                              "current_geometry_ok": True})
 
     def clear(self, reason="TEST_CLEAR"):
         self.ring.update({"state": "IDLE", "side_id": 0,
@@ -287,15 +305,128 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(len(fake_uart.frames), 1)
         return fake_uart.frames[0], output.getvalue(), tracker_instances[0]
 
-    def test_main_fast_ring_path_heading_and_weighted_error_reach_uart(self):
+    def _run_fixture_sequence(self, runtime_main, settings, fixture,
+                              stop_after):
+        runtime_main._load_fast_runtime()
+        runtime_main._load_singleedge_runtime()
+        masks, road_result, _support = fixture
+        fake_time = _Time()
+        fake_sensor = _Sensor()
+        fake_uart = _UART(fake_time, stop_after)
+
+        class FixtureGrayBuilder:
+            def __init__(self, _settings):
+                return None
+
+            def build(self, _image):
+                result = dict(masks)
+                result.update({
+                    "luma": bytearray(WIDTH * HEIGHT),
+                    "trusted_block_count": 4,
+                    "threshold_min": 10,
+                    "threshold_max": 20,
+                    "reason": "HOST_FIXTURE",
+                })
+                return result
+
+        class FixturePathDetector:
+            def __init__(self, _settings):
+                return None
+
+            def detect(self, _mask_info):
+                return road_result
+
+        class FixtureBoundaryValidator:
+            def __init__(self, _settings):
+                return None
+
+            @staticmethod
+            def gate_fast_path_candidate(candidate, *_args):
+                count = candidate.get("selected_row_count", 0)
+                candidate["boundary_support_rows"] = bytearray([1] * count)
+                candidate["boundary_support_count"] = count
+                candidate["boundary_evidence"] = {
+                    "reason": "HOST_FIXTURE", "bilateral_supported": count,
+                    "pairs_tested": count,
+                }
+                return candidate
+
+        output = io.StringIO()
+        with patch.object(runtime_main, "_configure_gray_sensor",
+                          return_value=1), \
+                patch.object(runtime_main, "sensor", fake_sensor), \
+                patch.object(runtime_main, "time", fake_time), \
+                patch.object(runtime_main, "_service_reverse_control",
+                             return_value=True), \
+                patch.object(runtime_main.fast_gray, "FastGrayMasks",
+                             FixtureGrayBuilder), \
+                patch.object(runtime_main.fast_path, "FastPathDetector",
+                             FixturePathDetector), \
+                patch.object(runtime_main.fast_boundary,
+                             "FastBoundaryEvidence",
+                             FixtureBoundaryValidator), \
+                patch.object(runtime_main.fast_single_edge,
+                             "FastSingleEdgeTracker", _SingleEdgeTracker), \
+                patch.object(runtime_main.pyb, "UART", return_value=fake_uart,
+                             create=True), \
+                patch.object(runtime_main, "_validate_selected_fast_boundary",
+                             side_effect=lambda selection, _road, _validator: (
+                                 selection,
+                                 {"x": 40.0, "y": 40.0, "kind": "ROAD"},
+                                 {"valid": True, "reason": "HOST_VALID"})), \
+                patch.object(settings, "DEBUG_ENABLED", True), \
+                patch.object(settings, "OVERLAY_ENABLED", False), \
+                contextlib.redirect_stdout(output):
+            runtime_main._main_fast(duration_s=1)
+        self.assertEqual(len(fake_uart.frames), stop_after)
+        return fake_uart.frames, output.getvalue()
+
+    def _load_baseline_main(self):
+        # Keep the exact pre-ring 17-file runtime beside the host tests so
+        # public checkpoints can reproduce the ordinary-route UART oracle
+        # without relying on a private test-data archive.
+        baseline_dir = TEST_DIR / "frozen_pre_ring"
+        names = ("config", "vision_protocol", "fast_gray", "fast_path",
+                 "fast_topology", "fast_boundary", "fast_single_edge",
+                 "reverse_control", "fast_ring_slope", "main")
+        saved_modules = {name: sys.modules.get(name) for name in names}
+        for name in names:
+            sys.modules.pop(name, None)
+        sys.path.insert(0, str(baseline_dir))
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "main", baseline_dir / "main.py")
+            baseline_main = importlib.util.module_from_spec(spec)
+            sys.modules["main"] = baseline_main
+            spec.loader.exec_module(baseline_main)
+            return baseline_dir, names, saved_modules, baseline_main
+        except Exception:
+            sys.path.remove(str(baseline_dir))
+            for name in names:
+                sys.modules.pop(name, None)
+            for name, module in saved_modules.items():
+                if module is not None:
+                    sys.modules[name] = module
+            raise
+
+    def _restore_current_modules(self, baseline_dir, names, saved_modules):
+        sys.path.remove(str(baseline_dir))
+        for name in names:
+            sys.modules.pop(name, None)
+        for name, module in saved_modules.items():
+            if module is not None:
+                sys.modules[name] = module
+
+    def test_main_fast_ring_path_uses_current_rows_without_heading_kick(self):
         frame, log, tracker = self._run_main_fast(True, 0)
         self.assertEqual(len(frame), 12)
         self.assertEqual(frame[6], 0x01)
         weighted_position = main._normalize_fast_reference(46.0, WIDTH)
         self.assertEqual(int.from_bytes(frame[8:10], "little", signed=True),
-                         min(1000, weighted_position + 300))
+                         weighted_position)
         self.assertIn("source=ring_right", log)
-        self.assertIn("head=+300", log)
+        self.assertIn("head=+0", log)
+        self.assertIn("auth=1 geo=1", log)
         self.assertIn("ring=INSIDE_RIGHT", log)
         self.assertIn("ref=49.0,53.0", log)
         self.assertIn("seed=49,53", log)
@@ -317,6 +448,78 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertFalse(main.SLOPE_CLASSIFIER_RUNTIME_ENABLED)
         self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:10]),
                          int.from_bytes(frame[10:12], "little"))
+
+    def test_real_detector_left_and_right_entry_reaches_uart_after_three_frames(self):
+        for side, source in ((1, "ring_left"), (2, "ring_right")):
+            with self.subTest(side=side):
+                fixture = _genuine_ring_fixture(side)
+                frames, log = self._run_fixture_sequence(
+                    main, config, fixture, stop_after=3)
+                self.assertEqual(len(frames), 3)
+                self.assertTrue(all(len(frame) == 12 for frame in frames))
+                self.assertEqual(frames[-1][6] & vision_protocol.FLAG_VALID,
+                                 vision_protocol.FLAG_VALID)
+                self.assertIn("source=" + source, log)
+                self.assertIn("auth=1 geo=1", log)
+                self.assertIn("gate=ARC_AND_CONNECTED_PORT", log)
+                self.assertIn("head=+0", log)
+                for frame in frames:
+                    self.assertEqual(
+                        vision_protocol.crc16_ccitt_false(frame[2:10]),
+                        int.from_bytes(frame[10:12], "little"))
+
+    def test_independent_curvature_entry_reaches_uart_after_three_frames(self):
+        for side, source in ((1, "ring_left"), (2, "ring_right")):
+            with self.subTest(side=side):
+                fixture = _ordinary_band_fixture(
+                    side, "u_curve", inner_scale=1.2, outer_scale=0.3,
+                    outer_sign=-1.0)
+                frames, log = self._run_fixture_sequence(
+                    main, config, fixture, stop_after=3)
+                self.assertEqual(len(frames), 3)
+                self.assertTrue(all(len(frame) == 12 for frame in frames))
+                self.assertEqual(frames[-1][6] & vision_protocol.FLAG_VALID,
+                                 vision_protocol.FLAG_VALID)
+                self.assertIn("source=" + source, log)
+                self.assertIn("fit=INDEPENDENT_CURVATURE", log)
+                self.assertIn("auth=1 geo=1", log)
+                self.assertIn("gate=ARC_AND_CONNECTED_PORT", log)
+                for frame in frames:
+                    self.assertEqual(
+                        vision_protocol.crc16_ccitt_false(frame[2:10]),
+                        int.from_bytes(frame[10:12], "little"))
+
+    def test_ordinary_parallel_curve_outputs_match_pre_ring_package(self):
+        profiles = ("straight", "bend", "sharp_bend", "s_curve",
+                    "reverse_s", "u_curve")
+        for side in (1, 2):
+            for profile in profiles:
+                with self.subTest(side=side, profile=profile):
+                    fixture = (_ring_fixture(side, port=True)
+                               if profile == "u_curve" else
+                               _ordinary_band_fixture(side, profile,
+                                                      port=True))
+                    baseline_dir, names, saved, baseline_main = \
+                        self._load_baseline_main()
+                    try:
+                        baseline_frames, _baseline_log = \
+                            self._run_fixture_sequence(
+                                baseline_main, baseline_main.config, fixture,
+                                stop_after=12)
+                    finally:
+                        self._restore_current_modules(
+                            baseline_dir, names, saved)
+                    current_frames, current_log = self._run_fixture_sequence(
+                        main, config, fixture, stop_after=12)
+                    self.assertEqual(current_frames, baseline_frames)
+                    self.assertIn("source=road", current_log)
+                    self.assertIn("auth=0 geo=0", current_log)
+                    self.assertEqual(len(current_frames), 12)
+                    for frame in current_frames:
+                        self.assertEqual(len(frame), 12)
+                        self.assertEqual(
+                            vision_protocol.crc16_ccitt_false(frame[2:10]),
+                            int.from_bytes(frame[10:12], "little"))
 
 
 if __name__ == "__main__":

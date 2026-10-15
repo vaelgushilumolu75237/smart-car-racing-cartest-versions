@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "package_id": "CACHED_WIDTH_RING_20261014",
-  "build_id": "CACHED_WIDTH_RING_20261014",
-  "release_status": "HOST_TESTED_OPENMV_BOARD_VALIDATION_PENDING",
+  "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
+  "build_id": "CACHED_WIDTH_RING_GUARD_20261015",
+  "release_status": "EXPERIMENTAL_RING_GUARD_HOST_TESTED_BOARD_VALIDATION_PENDING",
   "runtime_api": {
     "v7_fast_pipeline": 7,
     "singleedge": 2,
@@ -11,7 +11,8 @@
       "module": "fast_path.py",
       "name": "CONFIDENCE_DIAGNOSTIC_ONLY",
       "value": true
-    }
+    },
+    "fast_ring_slope": 2
   },
   "runtime_file_count": 18,
   "runtime_files": [
@@ -33,8 +34,8 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15452,
-      "sha256": "C195550AA170C57DE1B40BA4D3AEA7991BCA59987D8133225C707CCEF768D833",
+      "size_bytes": 15458,
+      "sha256": "32C904101D7F39EBF3FA81C8CDEF6E4801C319F8CACCBC07E847B5D06659E689",
       "baseline_v7_sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
@@ -65,8 +66,8 @@
     },
     {
       "name": "fast_ring_slope.py",
-      "size_bytes": 57986,
-      "sha256": "1C4B9CF4A587FA64CAEA0E8FB0D30E6C76F0290C1D9AE52656D48F87A8851E46"
+      "size_bytes": 75024,
+      "sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6"
     },
     {
       "name": "fast_single_edge.py",
@@ -102,8 +103,8 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 129600,
-      "sha256": "D314EB82B9ADE9C2CC6BF97054519C0C898D45540F0844C1939493FD2DEEFA4B",
+      "size_bytes": 134574,
+      "sha256": "B984308126F7C6C1C4211DB437485CC0559233A603807A4CDCFD7829D21D180C",
       "baseline_v7_sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
       "byte_identical_to_v7": false,
       "provenance": "modified_from_v7_for_cartest_singleedge"
@@ -159,15 +160,10 @@
   ],
   "changed_runtime_files": [
     "config.py",
-    "main.py",
-    "fast_gray.py",
-    "fast_path.py",
-    "fast_boundary.py",
-    "fast_single_edge.py",
     "fast_ring_slope.py",
-    "vision_protocol.py"
+    "main.py"
   ],
-  "upload_rule": "Copy every declared top-level runtime .py file together to the OpenMV filesystem root; do not mix versions.",
+  "upload_rule": "Upload exactly the 18 declared top-level production .py files from openmv/ together, then restart the OpenMV interpreter; do not mix package builds. .mpy compiler outputs are validation evidence, not deployment files.",
   "observation_protocol": {
     "version": 1,
     "frame_size_bytes": 12,
@@ -421,19 +417,25 @@
   ],
   "known_limitations": [
     "A partial/crop-connected ring component may touch the ROI boundary without being the course exterior; connectivity, width and continuity do not prove semantic outer-boundary identity.",
-    "No real ring camera image or vehicle track validation was performed."
+    "Only the eight supplied static IDE screenshots were replayed; no native-camera board runtime, continuous ring sequence, or vehicle track validation was performed.",
+    "The ring geometry guard is bounded and experimental, not a unique real-world classifier; perspective or cropped ordinary curves may still mimic accepted geometry.",
+    "The full eight-phase lost/reappear/second-loss ring sequence is not implemented.",
+    "The main-loop integration harness stubs grayscale mask construction, path detection and boundary validation; it tests the actual ring detector, authorization handoff, packet encoding and UART writes, not the complete image-to-UART runtime.",
+    "Bundled mpy-cross is MicroPython v1.25.0 emitting mpy v6.3; the OpenMV board runtime is MicroPython 1.28. Compile success does not prove board-version equivalence or execution."
   ],
   "performance_and_hardware_validation": {
     "singleedge_pixel_search_backend": "preallocated Viper kernels",
     "conditional_topology_label_workspace": "preallocated 80x60 byte component map plus uint16 queue: 14,400 bytes (~14.1 KiB)",
     "conditional_topology_label_runtime": "up to one 8-connected traversal over the 80x60 grid when island evidence is present",
-    "openmv_micropython_viper_compile_tested": false,
+    "openmv_micropython_viper_compile_tested": true,
     "openmv_board_runtime_tested": false,
     "board_frame_rate_measured": false,
     "45_fps_accepted": false,
     "h743_reverse_uart_receive_tested": false,
     "vehicle_track_tested": false,
-    "note": "CPython Viper shims and synthetic tests do not establish board compiler acceptance, timing, electrical correctness or track behavior."
+    "note": "The bundled mpy-cross 1.25 -march=armv7em compile and host tests are software evidence only. They do not establish OpenMV MicroPython 1.28 board execution, timing, UART electrical behavior or vehicle track behavior.",
+    "h743_build_or_flash_performed": false,
+    "camera_upload_performed": false
   },
   "host_mpy_cross_validation": {
     "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
@@ -873,11 +875,13 @@
     "micro_python_v1_28_compiler_available_in_ide": false,
     "target_board_runtime_tested": false,
     "evidence_report": "../test-data/speed-ring-20261014/vision/REPORT.json",
-    "evidence_report_sha256": "58FD5FCFAE74796AF48DFDE9F902E18483B7CFD917C9654BC1CAC9365D0273A1"
+    "evidence_report_sha256": "58FD5FCFAE74796AF48DFDE9F902E18483B7CFD917C9654BC1CAC9365D0273A1",
+    "historical_for_build": "CACHED_WIDTH_RING_20261014",
+    "current_repair_scope": "Prior cached_width and clipped_midpoint compile records are historical. Current production openmv/ compilation is recorded in ring_guard_validation; clipped_midpoint was not rebuilt."
   },
   "default_vision_backend": "fast",
   "fast_path_scope": "Confidence is diagnostic-only and single-edge fallback applies to the current fast real-time path. compare/legacy remain historical comparison baselines and are outside this delivery control path.",
-  "readme_sha256": "47F2855263041A4C0DBC2B46A3DC910BDA30487B77F45CDF7207A234EE18C8D6",
+  "readme_sha256": "473D8AA839BB416D0CD541736F203615C47A9A947537BA0CE064339996708411",
   "route_mode": "cached_width",
   "single_edge_routes": {
     "default_formal_route": "cached_width",
@@ -2314,7 +2318,693 @@
     ],
     "manifest_refresh_exit_code": 0,
     "generator_final_check_exit_code": 0,
-    "manifest_final_refresh_exit_code": 0
+    "manifest_final_refresh_exit_code": 0,
+    "historical_for_build": "CACHED_WIDTH_RING_20261014",
+    "current_repair_scope": "Not rerun or rebuilt; this package record is historical only."
   },
-  "readme": "README.md"
+  "readme": "README.md",
+  "historical_validation_note": "The preexisting host_test_results, two_route_evidence, and host_mpy_cross_validation records describe the prior CACHED_WIDTH_RING_20261014 package. They are retained as history. The clipped_midpoint package/evidence was not changed or regenerated for this release.",
+  "ring_guard_validation": {
+    "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
+    "status": "bounded experimental software repair; board validation pending",
+    "runtime_api": {
+      "fast_ring_slope": 2
+    },
+    "formal_upload_file_count": 18,
+    "formal_upload_files": [
+      "adaptive_detector.py",
+      "boundary_evidence.py",
+      "config.py",
+      "fast_boundary.py",
+      "fast_gray.py",
+      "fast_path.py",
+      "fast_ring_slope.py",
+      "fast_single_edge.py",
+      "fast_topology.py",
+      "grayscale_adapter.py",
+      "line_detector.py",
+      "main.py",
+      "reverse_control.py",
+      "road_detector.py",
+      "source_selector.py",
+      "surface_detector.py",
+      "thresholding.py",
+      "vision_protocol.py"
+    ],
+    "host_test_suite": {
+      "summary": "test-data/ring-ordinary-guard-20261015/validation/host/SUMMARY.json",
+      "suite_count": 9,
+      "tests_run_total": 159,
+      "all_passed": true,
+      "tests": [
+        {
+          "key": "test_turn_response_weights",
+          "command": "python -B openmv\\tests\\test_turn_response_weights.py",
+          "tests_run": 7,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_turn_response_weights.log",
+          "log_sha256": "7499dbf9a315b2ea201aec506debba554d6a4f0ab432ddc08c637f4519ea00d4",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_turn_response_weights.log.exitcode"
+        },
+        {
+          "key": "test_ring_slope_host",
+          "command": "python -B openmv\\tests\\test_ring_slope_host.py",
+          "tests_run": 26,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_ring_slope_host.log",
+          "log_sha256": "83f8ef75c5f66e2eaa0be64ef1f8389faaa4d9e9cbdf64b50ed7f959423d732b",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_ring_slope_host.log.exitcode"
+        },
+        {
+          "key": "test_ordinary_curve_ring_guard",
+          "command": "python -B openmv\\tests\\test_ordinary_curve_ring_guard.py",
+          "tests_run": 2,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_ordinary_curve_ring_guard.log",
+          "log_sha256": "6ea31f502f5dbc30eab029e637dd5da79b25bb32b8d3b3491545e87eeb77a07c",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_ordinary_curve_ring_guard.log.exitcode"
+        },
+        {
+          "key": "test_fast_main_ring_slope",
+          "command": "python -B openmv\\tests\\test_fast_main_ring_slope.py",
+          "tests_run": 5,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_main_ring_slope.log",
+          "log_sha256": "c4b776d2dd7887a70b7bf1530a66269ca590afa770485a2ac1f1a49b4fc2339e",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_main_ring_slope.log.exitcode"
+        },
+        {
+          "key": "test_protocol_host",
+          "command": "python -B openmv\\tests\\test_protocol_host.py",
+          "tests_run": 8,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_protocol_host.log",
+          "log_sha256": "65407a481993f414f15e03cba9b03579324a0246783f098ea65689a55fb6b648",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_protocol_host.log.exitcode"
+        },
+        {
+          "key": "test_singleedge_main",
+          "command": "python -B openmv\\tests\\test_singleedge_main.py",
+          "tests_run": 7,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_singleedge_main.log",
+          "log_sha256": "c12648447eabe1e107efa58e6d0959eb8a0d2dc8b87c2d70ec08f328e5221ed0",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_singleedge_main.log.exitcode"
+        },
+        {
+          "key": "test_fast_single_edge",
+          "command": "python -B openmv\\tests\\test_fast_single_edge.py",
+          "tests_run": 13,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_single_edge.log",
+          "log_sha256": "ac41a75b7650c6664b686905a36208798b443f02e13b41df71498f2f8466f0f9",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_fast_single_edge.log.exitcode"
+        },
+        {
+          "key": "test_two_routes",
+          "command": "python -B openmv\\tests\\test_two_routes.py",
+          "tests_run": 12,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/test_two_routes.log",
+          "log_sha256": "b1c8a5986304be802af62026a23cd090acc8b6b671fc2d29731f41c45ad501c7",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/test_two_routes.log.exitcode"
+        },
+        {
+          "key": "run_v7_host_regression",
+          "command": "python -B openmv\\tests\\run_v7_host_regression.py",
+          "tests_run": 79,
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/host/run_v7_host_regression.log",
+          "log_sha256": "0999721b5a5e2a02db3fdb1771950046fc10eb8fcd27489c593b4eaa3046d9a3",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/host/run_v7_host_regression.log.exitcode"
+        }
+      ]
+    },
+    "bundled_mpy_cross": {
+      "package_id": "CACHED_WIDTH_RING_GUARD_20261015",
+      "source_count": 18,
+      "compiled_count": 18,
+      "exit_code": 0,
+      "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
+      "compiler_sha256": "CCED6A90AD63E31E0EF319CC52A33D582005E828AEEF16ABCA01B15BA63B4B94",
+      "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+      "target_architecture": "armv7em",
+      "board_runtime_version": "MicroPython 1.28.0",
+      "board_runtime_equivalence_proven": false,
+      "outputs_are_upload_artifacts": false,
+      "production_package_mpy_files_before": 0,
+      "production_package_mpy_files_after": 0,
+      "compiled_files": [
+        {
+          "source": "adaptive_detector.py",
+          "source_size_bytes": 44071,
+          "source_sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\adaptive_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\adaptive_detector.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/adaptive_detector.mpy",
+          "output_size_bytes": 13987,
+          "output_sha256": "C2C1D06AA7C37FD88C12489A241C43A1265A0B833B6528F775152DD767648B12"
+        },
+        {
+          "source": "boundary_evidence.py",
+          "source_size_bytes": 18818,
+          "source_sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\boundary_evidence.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\boundary_evidence.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/boundary_evidence.mpy",
+          "output_size_bytes": 5745,
+          "output_sha256": "612380A1F961FBC5F43444366C86ED0E27DA523E4BFCFE174D8CE5B92CB2BF60"
+        },
+        {
+          "source": "config.py",
+          "source_size_bytes": 15458,
+          "source_sha256": "32C904101D7F39EBF3FA81C8CDEF6E4801C319F8CACCBC07E847B5D06659E689",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\config.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\config.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/config.mpy",
+          "output_size_bytes": 9117,
+          "output_sha256": "EB0641166478B05EA80DCFD68E96E5DE135258898B15CE0D4DB1C2BF113121C1"
+        },
+        {
+          "source": "fast_boundary.py",
+          "source_size_bytes": 51180,
+          "source_sha256": "C569C82F52DD7D81B8D77C665B1B847BE711C7439B21E9AB7901A81DD3B5E3F3",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_boundary.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_boundary.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_boundary.mpy",
+          "output_size_bytes": 28464,
+          "output_sha256": "85D6064B0740F651AD78CB08573E1FBB76E6AC9DD8D8EFA3926A0FFE18975D5A"
+        },
+        {
+          "source": "fast_gray.py",
+          "source_size_bytes": 30014,
+          "source_sha256": "B4C47E8340C345F7C24942F90660B6EE756381DBAA2A26111F77DB2F8BA5F335",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_gray.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_gray.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_gray.mpy",
+          "output_size_bytes": 14063,
+          "output_sha256": "B82E7FB653B1A3A086171713F027ED98BF527A4484648E43345C69900F76AEE8"
+        },
+        {
+          "source": "fast_path.py",
+          "source_size_bytes": 41451,
+          "source_sha256": "0709C70B75C7E8D9BABEBA302EA12E5E4CFFA3A365A1184AEF081D813384862A",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_path.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_path.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_path.mpy",
+          "output_size_bytes": 23240,
+          "output_sha256": "773FA2F5993C802F15C1D14C5F1E778DA41B142B67AF1FDAB99C707CC48B9C71"
+        },
+        {
+          "source": "fast_ring_slope.py",
+          "source_size_bytes": 75024,
+          "source_sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_ring_slope.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_ring_slope.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_ring_slope.mpy",
+          "output_size_bytes": 20813,
+          "output_sha256": "CA26AD35F04F1DD42683A38E5F3A50239417CA76594247C80D500A0D0AB703AF"
+        },
+        {
+          "source": "fast_single_edge.py",
+          "source_size_bytes": 43749,
+          "source_sha256": "9F6A2F709CE2636AAC73025E2FFB40088575B87AADBE803CB971723D124F25E2",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_single_edge.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_single_edge.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_single_edge.mpy",
+          "output_size_bytes": 27022,
+          "output_sha256": "B642F01C6A3E45B6D0355101AEA843CFD68DE8B54D8B6FE9F6AD83C9F04AF009"
+        },
+        {
+          "source": "fast_topology.py",
+          "source_size_bytes": 42030,
+          "source_sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\fast_topology.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\fast_topology.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/fast_topology.mpy",
+          "output_size_bytes": 14981,
+          "output_sha256": "7D81B00333E6D5591915894F30A3A9905A8D99FBD401B414AE4AC5D355DCBD37"
+        },
+        {
+          "source": "grayscale_adapter.py",
+          "source_size_bytes": 7589,
+          "source_sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\grayscale_adapter.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\grayscale_adapter.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/grayscale_adapter.mpy",
+          "output_size_bytes": 2242,
+          "output_sha256": "50AA7CA0DD492AA8C2A0374A332ADCB818911AD211E5CC2DE33DFA19D0DDA15F"
+        },
+        {
+          "source": "line_detector.py",
+          "source_size_bytes": 11979,
+          "source_sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\line_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\line_detector.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/line_detector.mpy",
+          "output_size_bytes": 4137,
+          "output_sha256": "2CC54E254BE81A66410B7579EB50D2CDC1BB9ACC2308FDD388AF6934422482AE"
+        },
+        {
+          "source": "main.py",
+          "source_size_bytes": 134574,
+          "source_sha256": "B984308126F7C6C1C4211DB437485CC0559233A603807A4CDCFD7829D21D180C",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\main.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\main.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/main.mpy",
+          "output_size_bytes": 45448,
+          "output_sha256": "99BF133613410240ED6E48AB856A36BC1D965EE767AC3D424E7175CCF96978B3"
+        },
+        {
+          "source": "reverse_control.py",
+          "source_size_bytes": 7657,
+          "source_sha256": "DA4563F755AF4A94FFB3F5AAE7361562DE6D8734367A71F714A3DA8748F49B14",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\reverse_control.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\reverse_control.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/reverse_control.mpy",
+          "output_size_bytes": 2585,
+          "output_sha256": "34F56C881CA0A9A330DB12FAA0BD1B0DDF9098C04888F406BC581EE36B045002"
+        },
+        {
+          "source": "road_detector.py",
+          "source_size_bytes": 26649,
+          "source_sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\road_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\road_detector.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/road_detector.mpy",
+          "output_size_bytes": 8430,
+          "output_sha256": "8047A55036CA64343299E0D654A540CF2E78330FEAB3B5701E350748628B6450"
+        },
+        {
+          "source": "source_selector.py",
+          "source_size_bytes": 8802,
+          "source_sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\source_selector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\source_selector.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/source_selector.mpy",
+          "output_size_bytes": 2830,
+          "output_sha256": "22236441880E05CC5AFDC03D347962C64FCA34100B43EBF2F5157C5C39F00F15"
+        },
+        {
+          "source": "surface_detector.py",
+          "source_size_bytes": 42567,
+          "source_sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\surface_detector.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\surface_detector.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/surface_detector.mpy",
+          "output_size_bytes": 11942,
+          "output_sha256": "4202ADC1FCBFA480DA843A6FD331D57552161955C69CE3C61C1133C011B477B1"
+        },
+        {
+          "source": "thresholding.py",
+          "source_size_bytes": 12363,
+          "source_sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\thresholding.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\thresholding.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/thresholding.mpy",
+          "output_size_bytes": 3680,
+          "output_sha256": "12A18CA83BA57B728E6B8475D0E2EB0918E9AB0A4CAB963A03EB3657EDF046BE"
+        },
+        {
+          "source": "vision_protocol.py",
+          "source_size_bytes": 3130,
+          "source_sha256": "92D81492E8FD8BC433893C8E3EA4D94C99C5E2B3554043AE4C1EBC64974FC52D",
+          "command": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7em -o D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\test-data\\ring-ordinary-guard-20261015\\validation\\compiled_mpy\\vision_protocol.mpy D:\\Codex\\smart-car-racing-codex-handoff\\smart-car-racing\\firmware\\vehicle\\CarTest\\openmv\\vision_protocol.py",
+          "exit_code": 0,
+          "log": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.log",
+          "exitcode_file": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.log.exitcode",
+          "output": "test-data/ring-ordinary-guard-20261015/validation/compiled_mpy/vision_protocol.mpy",
+          "output_size_bytes": 1375,
+          "output_sha256": "65BEEEC527EB8C9E8BD4CDAC5981737DAAF18673C3923BA6D8C435A687018435"
+        }
+      ]
+    },
+    "static_screenshot_replay": {
+      "report_json": "test-data/ring-ordinary-guard-20261015/vision/STATIC_SCREENSHOT_REPLAY_INDEPENDENT_CURVATURE_REPORT.json",
+      "report_sha256": "C0BE6F56E93505A2271048AB0FC27AE9D68E3BE29C90CCBB16D8F9F03DD2ED99",
+      "frame_count": 8,
+      "variant_count": 2,
+      "preview_focus_images": [
+        {
+          "image_index": 3,
+          "variant": "raw_screenshot",
+          "candidate_reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_residual_max": 2.0408676756509507,
+          "inner_fit_residual_max": 11.362834051313328,
+          "correlation": -0.23750955005912675,
+          "state": "PREVIEW",
+          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
+          "route_authorized": false
+        },
+        {
+          "image_index": 3,
+          "variant": "ignore_top40",
+          "candidate_reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_residual_max": 2.0547260612043416,
+          "inner_fit_residual_max": 10.649086870681145,
+          "correlation": -0.21979677979836112,
+          "state": "PREVIEW",
+          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
+          "route_authorized": false
+        },
+        {
+          "image_index": 5,
+          "variant": "raw_screenshot",
+          "candidate_reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_residual_max": 3.2517031255349025,
+          "inner_fit_residual_max": 7.94796480777789,
+          "correlation": -0.4441661601769875,
+          "state": "PREVIEW",
+          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
+          "route_authorized": false
+        },
+        {
+          "image_index": 5,
+          "variant": "ignore_top40",
+          "candidate_reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_residual_max": 3.2363062331997696,
+          "inner_fit_residual_max": 7.7452071816199215,
+          "correlation": -0.4367350425754598,
+          "state": "PREVIEW",
+          "state_reason": "PREVIEW_REQUIRES_FRESH_KEEP",
+          "route_authorized": false
+        }
+      ],
+      "fresh_keep_supplied": false,
+      "temporal_entry_or_exit_claimed": false
+    },
+    "geometry_diagnostics": {
+      "report_json": "test-data/ring-ordinary-guard-20261015/GEOMETRY_FIT_DIAGNOSTICS_INDEPENDENT_CURVATURE.json",
+      "report_sha256": "E6BFF3AC7BE4803EA0C335DF6C62E6D1A54C226B1E300962173184B001E6C2FA",
+      "software_trial_thresholds": {
+        "min_supported_outer_rows": 10,
+        "min_outer_y_span_cells": 12,
+        "straight_outer_max_residual_cells": 1.5,
+        "coherent_curve_min_outer_residual_cells": 0.75,
+        "coherent_curve_min_residual_correlation": 0.85,
+        "independent_curve_max_outer_residual_cells": 3.5,
+        "independent_curve_min_inner_residual_cells": 6.0,
+        "independent_curve_max_outer_to_inner_ratio": 0.5,
+        "independent_curve_max_residual_correlation": 0.0,
+        "independent_curve_min_width_range_cells": 6,
+        "independent_curve_min_residual_difference_cells": 6.0
+      },
+      "thresholds_are_physical_calibration": false,
+      "synthetic_fixtures": [
+        {
+          "name": "fixed_width_parallel_negative",
+          "side": "LEFT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 8.047619047619051,
+          "inner_fit_residual_max": 8.047619047619051,
+          "inner_outer_residual_correlation": 1.0,
+          "residual_difference_max": 0.0,
+          "width_range": 0
+        },
+        {
+          "name": "straight_outer_positive",
+          "side": "LEFT",
+          "valid": true,
+          "reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "STRAIGHT_OUTER",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 0.0,
+          "inner_fit_residual_max": 8.047619047619051,
+          "inner_outer_residual_correlation": null,
+          "residual_difference_max": 8.047619047619051,
+          "width_range": 13
+        },
+        {
+          "name": "scaled_coherent_outer_residual_0_75_to_1_5",
+          "side": "LEFT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 1.4285714285714306,
+          "inner_fit_residual_max": 10.904761904761905,
+          "inner_outer_residual_correlation": 0.9322869078264868,
+          "residual_difference_max": 9.476190476190474,
+          "width_range": 15
+        },
+        {
+          "name": "scaled_coherent_outer_residual_1_5_to_3_5",
+          "side": "LEFT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 1.7619047619047592,
+          "inner_fit_residual_max": 10.904761904761905,
+          "inner_outer_residual_correlation": 0.9673142754381909,
+          "residual_difference_max": 9.142857142857146,
+          "width_range": 14
+        },
+        {
+          "name": "independent_curvature_positive",
+          "side": "LEFT",
+          "valid": true,
+          "reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 3.2857142857142847,
+          "inner_fit_residual_max": 12.666666666666668,
+          "inner_outer_residual_correlation": -0.9885801023942218,
+          "residual_difference_max": 15.952380952380953,
+          "width_range": 25
+        },
+        {
+          "name": "outer_curvature_over_ceiling_negative",
+          "side": "LEFT",
+          "valid": false,
+          "reason": "OPPOSITE_EDGE_CURVED",
+          "fit_mode": "REJECT_CURVED_OUTER",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 6.285714285714292,
+          "inner_fit_residual_max": 12.666666666666668,
+          "inner_outer_residual_correlation": -0.9945201569967393,
+          "residual_difference_max": 18.95238095238096,
+          "width_range": 30
+        },
+        {
+          "name": "fixed_width_parallel_negative",
+          "side": "RIGHT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 8.047619047619047,
+          "inner_fit_residual_max": 8.047619047619051,
+          "inner_outer_residual_correlation": 1.0,
+          "residual_difference_max": 3.552713678800501e-15,
+          "width_range": 0
+        },
+        {
+          "name": "straight_outer_positive",
+          "side": "RIGHT",
+          "valid": true,
+          "reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "STRAIGHT_OUTER",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 0.0,
+          "inner_fit_residual_max": 8.047619047619051,
+          "inner_outer_residual_correlation": null,
+          "residual_difference_max": 8.047619047619051,
+          "width_range": 13
+        },
+        {
+          "name": "scaled_coherent_outer_residual_0_75_to_1_5",
+          "side": "RIGHT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 1.428571428571427,
+          "inner_fit_residual_max": 10.714285714285715,
+          "inner_outer_residual_correlation": 0.9209240413072355,
+          "residual_difference_max": 9.285714285714288,
+          "width_range": 15
+        },
+        {
+          "name": "scaled_coherent_outer_residual_1_5_to_3_5",
+          "side": "RIGHT",
+          "valid": false,
+          "reason": "PARALLEL_CURVE",
+          "fit_mode": "REJECT_PARALLEL_CURVE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 1.7619047619047628,
+          "inner_fit_residual_max": 10.714285714285715,
+          "inner_outer_residual_correlation": 0.9675297276823731,
+          "residual_difference_max": 8.952380952380953,
+          "width_range": 14
+        },
+        {
+          "name": "independent_curvature_positive",
+          "side": "RIGHT",
+          "valid": true,
+          "reason": "ARC_AND_CONNECTED_PORT",
+          "fit_mode": "INDEPENDENT_CURVATURE",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 3.2857142857142847,
+          "inner_fit_residual_max": 12.666666666666664,
+          "inner_outer_residual_correlation": -0.9885801023942218,
+          "residual_difference_max": 15.952380952380949,
+          "width_range": 25
+        },
+        {
+          "name": "outer_curvature_over_ceiling_negative",
+          "side": "RIGHT",
+          "valid": false,
+          "reason": "OPPOSITE_EDGE_CURVED",
+          "fit_mode": "REJECT_CURVED_OUTER",
+          "outer_fit_rows": 21,
+          "outer_fit_residual_max": 12.666666666666664,
+          "inner_fit_residual_max": 6.380952380952381,
+          "inner_outer_residual_correlation": -0.9945410967756514,
+          "residual_difference_max": 19.047619047619044,
+          "width_range": 30
+        }
+      ]
+    },
+    "pre_fix_negative_control": {
+      "log": "test-data/ring-ordinary-guard-20261015/failure-proof/pre-fix-negative-control.log",
+      "exit_code_file": "test-data/ring-ordinary-guard-20261015/failure-proof/pre-fix-negative-control.exitcode",
+      "exit_code": 1,
+      "preserved_original_failure": true
+    },
+    "frozen_ordinary_route_oracle": {
+      "directory": "openmv/tests/frozen_pre_ring/",
+      "provenance": "openmv/tests/frozen_pre_ring/PROVENANCE.json",
+      "package_id": "CACHED_WIDTH_TURNRESPONSE_20261014",
+      "runtime_file_count": 17,
+      "test_only_not_upload_runtime": true,
+      "parity_cases": "6 ordinary profiles x 2 mirrors x 12 frames; center/error/protocol bytes compared to frozen pre-ring runtime"
+    },
+    "main_handoff_harness_scope": "The tests use stub grayscale mask construction, path detector and boundary validator; actual ring detector, current-route eligibility, main-loop selection, packet encoder and UART write are exercised. This is not a complete image-to-UART or board test.",
+    "protected_h743_elf_snapshot": {
+      "snapshot_manifest": "test-data/ring-ordinary-guard-20261015/before/SNAPSHOT_MANIFEST.json",
+      "snapshot_created_utc": "2026-10-15T00:44:29.1784092Z",
+      "elf_count": 9,
+      "all_hashes_unchanged": true,
+      "hashes": [
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/Debug/CarTest.elf",
+          "snapshot_sha256": "CBBBB978F1CAD127C14C0227A56DD699B7B814FD2EAD394FC55C0F3DFB8CAD66",
+          "current_sha256": "CBBBB978F1CAD127C14C0227A56DD699B7B814FD2EAD394FC55C0F3DFB8CAD66",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugBench/CarTest.elf",
+          "snapshot_sha256": "A8624494BCB336D71E11461E317552189230B3DD62AF59AE817BF0050AE925EB",
+          "current_sha256": "A8624494BCB336D71E11461E317552189230B3DD62AF59AE817BF0050AE925EB",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollow/CarTest.elf",
+          "snapshot_sha256": "3C781F9304B38F33D10EECF0861249671ECB54CA922E095C7A77794AF70BE0FA",
+          "current_sha256": "3C781F9304B38F33D10EECF0861249671ECB54CA922E095C7A77794AF70BE0FA",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowDiff10/CarTest.elf",
+          "snapshot_sha256": "3082B6EF7B1077053F43CBC61353D2122BDF8D309261D07951180FAD9FFA202A",
+          "current_sha256": "3082B6EF7B1077053F43CBC61353D2122BDF8D309261D07951180FAD9FFA202A",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowDiff5/CarTest.elf",
+          "snapshot_sha256": "4F385915582091C18F1B86276684B09B40D388DD9E092559981057E235F0DAFA",
+          "current_sha256": "4F385915582091C18F1B86276684B09B40D388DD9E092559981057E235F0DAFA",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowNoLog/CarTest.elf",
+          "snapshot_sha256": "2E1EAE1FDA16F56981C5DA06FB3B6DA899193A213B55C0C55D7115B28A2B7A5D",
+          "current_sha256": "2E1EAE1FDA16F56981C5DA06FB3B6DA899193A213B55C0C55D7115B28A2B7A5D",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowSpeedPI/CarTest.elf",
+          "snapshot_sha256": "36064E8C0CBBB7339F5236F6DEB70327C44075086120650888E559E256F08404",
+          "current_sha256": "36064E8C0CBBB7339F5236F6DEB70327C44075086120650888E559E256F08404",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugFollowTurn/CarTest.elf",
+          "snapshot_sha256": "3CBCD7096C29E6DF7131B4DD7B3282A8B2C4E437735F84EA1297CCB88DA6D033",
+          "current_sha256": "3CBCD7096C29E6DF7131B4DD7B3282A8B2C4E437735F84EA1297CCB88DA6D033",
+          "unchanged": true
+        },
+        {
+          "path": "deliverables/github-checkpoints/worktree/CarTest/build/DebugSteering/CarTest.elf",
+          "snapshot_sha256": "2633A19CE73E5D8A9193B2F8F8A16770A2459EDBD7B8AB92991B6AFC5FD85B19",
+          "current_sha256": "2633A19CE73E5D8A9193B2F8F8A16770A2459EDBD7B8AB92991B6AFC5FD85B19",
+          "unchanged": true
+        }
+      ],
+      "build_or_flash_performed": false
+    },
+    "pre_repair_snapshot": {
+      "package_id": "CACHED_WIDTH_RING_20261014",
+      "created_utc": "2026-10-15T00:44:29.1784092Z",
+      "package_file_count": 61,
+      "manifest": "test-data/ring-ordinary-guard-20261015/before/SNAPSHOT_MANIFEST.json",
+      "manifest_sha256": "37226D7244FD8155F4CF996AF1E3A145F7BC35312D759DDB666828A9EB3075F6",
+      "original_runfile_archive_count": 13
+    },
+    "hardware_validation": {
+      "camera_upload_performed": false,
+      "openmv_board_runtime_tested": false,
+      "h743_build_or_flash_performed": false,
+      "motor_start_performed": false,
+      "vehicle_track_tested": false
+    },
+    "limitations": [
+      "The guard is a bounded geometry discriminator, not a unique real-world ring classifier.",
+      "Cropped or perspective ordinary curves may still mimic these measured shapes.",
+      "The full eight-phase lost/reappear/second-loss route sequence is not implemented."
+    ]
+  },
+  "historical_evidence_build": "CACHED_WIDTH_RING_20261014"
 }

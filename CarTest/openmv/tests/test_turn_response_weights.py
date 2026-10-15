@@ -80,7 +80,8 @@ class TurnResponseWeightTests(unittest.TestCase):
         self.workspace = main._FastRowWeightWorkspace()
 
     def test_new_package_identity_and_full_frame_split(self):
-        self.assertEqual(config.BUILD_ID, "CACHED_WIDTH_RING_20261014")
+        self.assertEqual(config.BUILD_ID,
+                         "CACHED_WIDTH_RING_GUARD_20261015")
         self.assertEqual(config.SURFACE_ROI_FLOOR_Y, 8)
         self.assertEqual(config.STEERING_SPLIT_IMAGE_Y, 36)
         self.assertEqual(config.STEERING_SPLIT_GRID_Y, 18)
@@ -94,7 +95,7 @@ class TurnResponseWeightTests(unittest.TestCase):
             (0, 8, 80, 20), (0, 20, 80, 32),
             (0, 32, 80, 46), (0, 46, 80, 60)))
         self.assertEqual(main.SINGLEEDGE_ROUTE_BUILD_IDS, (
-            ("cached_width", "CACHED_WIDTH_RING_20261014"),
+            ("cached_width", "CACHED_WIDTH_RING_GUARD_20261015"),
             ("clipped_midpoint", "CLIPPED_MIDPOINT_RING_20261014")))
         self.assertTrue(main._validate_fast_config())
 
