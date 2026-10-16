@@ -41,6 +41,8 @@ fast_boundary = None
 fast_single_edge = None
 reverse_control = None
 fast_ring_slope = None
+contour_route = None
+contour_trace = None
 
 
 class _LazyAdaptiveDetector:
@@ -72,7 +74,8 @@ V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
-CACHED_WIDTH_BUILD_ID = "CACHED_WIDTH_CORRECTION_FIRST_20261015"
+CONTOUR_RUNTIME_API_VERSION = 1
+CACHED_WIDTH_BUILD_ID = "CONTOUR_REPAIR_20261016"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
@@ -82,6 +85,7 @@ SINGLEEDGE_ROUTE_BUILD_IDS = (
 _V6_RUNTIME_MODULES = ()
 _V7_RUNTIME_MODULES = ()
 _SINGLEEDGE_RUNTIME_MODULES = ()
+_CONTOUR_RUNTIME_MODULES = ()
 
 
 def _load_v6_runtime():
@@ -136,6 +140,36 @@ def _load_fast_runtime():
         ("fast_boundary.py", fast_boundary),
     )
     return _V7_RUNTIME_MODULES
+
+
+def _load_contour_runtime():
+    """Load and validate the bounded contour-route and trace modules."""
+    global contour_route, contour_trace, _CONTOUR_RUNTIME_MODULES
+    try:
+        if contour_route is None:
+            contour_route = __import__("contour_route")
+        if contour_trace is None:
+            contour_trace = __import__("contour_trace")
+    except ImportError as exc:
+        raise ImportError(
+            "contour recovery bundle is incomplete (%s); install matching "
+            "contour_route.py and contour_trace.py" % exc)
+    _CONTOUR_RUNTIME_MODULES = (
+        ("contour_route.py", contour_route),
+        ("contour_trace.py", contour_trace),
+    )
+    for filename, module in _CONTOUR_RUNTIME_MODULES:
+        version = getattr(module, "RUNTIME_API_VERSION", None)
+        backend = getattr(module, "COMPILER_BACKEND", None)
+        if version != CONTOUR_RUNTIME_API_VERSION:
+            raise RuntimeError(
+                "contour bundle mismatch: %s API is %s, expected %d" % (
+                    filename, version, CONTOUR_RUNTIME_API_VERSION))
+        if backend != "python-bounded":
+            raise RuntimeError(
+                "contour bundle mismatch: %s backend is %s, expected "
+                "python-bounded" % (filename, backend))
+    return _CONTOUR_RUNTIME_MODULES
 
 
 def _load_singleedge_runtime():
@@ -1222,6 +1256,11 @@ def _validate_v7_runtime_apis():
 
 def _validate_fast_config():
     _validate_v7_runtime_apis()
+    contour_enabled = getattr(config, "CONTOUR_RECOVERY_ENABLED", None)
+    if not isinstance(contour_enabled, bool):
+        raise ValueError("V7 CONTOUR_RECOVERY_ENABLED must be bool")
+    if contour_enabled:
+        _load_contour_runtime()
     if getattr(fast_path, "CONFIDENCE_DIAGNOSTIC_ONLY", False) is not True:
         raise RuntimeError(
             "single-edge bundle mismatch: fast_path confidence gate mode")
@@ -1475,6 +1514,93 @@ def _draw_sparse_road_contour(img, rows):
         img.draw_line((right0[0], right0[1], right1[0], right1[1]), color=96)
 
 
+def _draw_contour_trace_side(img, points, support, count, side):
+    """Mark sampled trace points that carry current known-dark support."""
+    if not isinstance(points, array) or not isinstance(support, bytearray):
+        return
+    if (isinstance(count, bool) or not isinstance(count, int) or count < 0):
+        return
+    count = min(count, len(support), len(points) // 2)
+    supported_count = 0
+    for index in range(count):
+        offset = index * 2
+        y = points[offset]
+        x = points[offset + 1]
+        if (support[index] == 1 and
+                config.SURFACE_ROI_FLOOR_Y <= y < config.SURFACE_GRID_HEIGHT
+                and 0 < x < config.SURFACE_GRID_WIDTH - 1):
+            supported_count += 1
+    sample_count = _preview_row_sample_count(supported_count)
+    for sample_index in range(sample_count):
+        target = _preview_row_sample_index(
+            supported_count, sample_index, sample_count)
+        ordinal = 0
+        for index in range(count):
+            offset = index * 2
+            y = points[offset]
+            x = points[offset + 1]
+            if (support[index] != 1 or
+                    y < config.SURFACE_ROI_FLOOR_Y or
+                    y >= config.SURFACE_GRID_HEIGHT or x <= 0 or
+                    x >= config.SURFACE_GRID_WIDTH - 1):
+                continue
+            if ordinal == target:
+                boundary_x = float(x) - 0.5 if side == "left" else \
+                    float(x) + 0.5
+                img.draw_cross(_surface_pixel((boundary_x, y)), color=96)
+                break
+            ordinal += 1
+
+
+def _draw_contour_route_overlay(img, result, trace_info):
+    """Show current supported trace edges and validator-approved row mids."""
+    if (not isinstance(trace_info, dict) or
+            trace_info.get("used") is not True or
+            not isinstance(result, dict) or not result.get("valid")):
+        return
+    _draw_contour_trace_side(
+        img, trace_info.get("left_points"),
+        trace_info.get("left_dark_support"), trace_info.get("Lcount", 0),
+        "left")
+    _draw_contour_trace_side(
+        img, trace_info.get("right_points"),
+        trace_info.get("right_dark_support"), trace_info.get("Rcount", 0),
+        "right")
+    rows = result.get("selected_row_ints")
+    count = result.get("selected_row_count", 0)
+    support = result.get("boundary_support_rows")
+    if (not isinstance(rows, array) or isinstance(count, bool) or
+            not isinstance(count, int) or count < 1 or count > 60 or
+            result.get("selected_row_stride") != 4 or
+            len(rows) < count * 4 or not isinstance(support, bytearray) or
+            result.get("boundary_support_count") != count or
+            len(support) < count):
+        return
+    supported_count = 0
+    for index in range(count):
+        if support[index] == 1:
+            supported_count += 1
+    sample_count = _preview_row_sample_count(supported_count)
+    previous_midpoint = None
+    for sample_index in range(sample_count):
+        target = _preview_row_sample_index(
+            supported_count, sample_index, sample_count)
+        ordinal = 0
+        for index in range(count):
+            if support[index] != 1:
+                continue
+            if ordinal == target:
+                offset = index * 4
+                center_x = (rows[offset + 1] + rows[offset + 2]) * 0.5
+                midpoint = _surface_pixel((center_x, rows[offset]))
+                if previous_midpoint is not None:
+                    img.draw_line((previous_midpoint[0], previous_midpoint[1],
+                                   midpoint[0], midpoint[1]), color=255)
+                previous_midpoint = midpoint
+                break
+            ordinal += 1
+
+
 def _normalize_fast_reference(x, width):
     """Normalize the exact controller point using the protocol's W-1 center."""
     half = (width - 1) * 0.5
@@ -1485,27 +1611,13 @@ def _normalize_fast_reference(x, width):
 
 
 def _compose_ordinary_steering_error(position_error, preview_candidate):
-    """Return control, rejection reason, and the applied preview amount."""
-    rejection_reason = None
-    applied_contribution = preview_candidate
-    if position_error * preview_candidate < 0:
-        remaining = 20 - abs(position_error)
-        if remaining <= 0:
-            applied_contribution = 0
-            rejection_reason = "OPPOSES_POSITION_CORRECTION"
-        else:
-            magnitude = (abs(preview_candidate) * remaining) // 20
-            if preview_candidate < 0:
-                applied_contribution = -magnitude
-            else:
-                applied_contribution = magnitude
-            rejection_reason = "CONFLICT_FADE"
-    steering_error = position_error + applied_contribution
+    """Add ordinary position and preview errors, bounded by protocol limits."""
+    steering_error = position_error + preview_candidate
     if steering_error < -1000:
         steering_error = -1000
     elif steering_error > 1000:
         steering_error = 1000
-    return steering_error, rejection_reason, applied_contribution
+    return steering_error, None, preview_candidate
 
 
 def _fast_forward_white_continuation(mask_info, road_result, settings):
@@ -1662,6 +1774,52 @@ def _validate_selected_fast_boundary(selection, road_result, validator):
     return rejected, None, validation
 
 
+def _gate_contour_candidate(candidate, prior_result, validator, mask_info,
+                            settings):
+    """Keep the original path failure if contour rows miss the old gate."""
+    try:
+        validator.gate_fast_path_candidate(
+            candidate, mask_info.get("luma"), mask_info.get("edge_mask"),
+            mask_info.get("road_mask"), mask_info.get("known_region"),
+            settings)
+    except Exception as exc:
+        candidate["valid"] = False
+        candidate["quality"] = 0
+        candidate["reason"] = "BOUNDARY_EXCEPTION"
+        candidate["lateral_error"] = 0
+        return prior_result, "BOUNDARY_EXCEPTION", exc
+    if not candidate.get("valid"):
+        return prior_result, "BOUNDARY_%s" % candidate.get(
+            "reason", "REJECTED"), None
+    return candidate, None, None
+
+
+def _approved_bilateral_cache_candidate(selection, road_result,
+                                        boundary_reference, mask_info):
+    """Expose current road rows to the width cache only after both gates."""
+    if (not selection or not selection.get("valid") or
+            selection.get("source") != "road" or
+            selection.get("result") is not road_result or
+            not boundary_reference or
+            not boundary_reference.get("valid") or mask_info is None or
+            not road_result or not road_result.get("valid")):
+        return None
+    road_result["boundary_source"] = "OBSERVED_BOTH"
+    road_result["inferred"] = False
+    road_result["inference_flags"] = 0
+    road_result["observed_both_rows"] = road_result.get(
+        "selected_row_count", 0)
+    road_result["observed_left_rows"] = road_result.get(
+        "selected_row_count", 0)
+    road_result["observed_right_rows"] = road_result.get(
+        "selected_row_count", 0)
+    road_result["inferred_rows"] = 0
+    selection["boundary_source"] = "OBSERVED_BOTH"
+    selection["inferred"] = False
+    selection["inference_flags"] = 0
+    return road_result
+
+
 def _service_reverse_control(uart, parser, input_buffer, drain_state,
                              now_ms, ticks_diff):
     """Poll and read one bounded reverse-control chunk without allocations.
@@ -1761,21 +1919,36 @@ def _selected_actual_boundaries(selection, road_result, reference, valid):
 
     source = selection.get("source")
     if source == "road" or source in ("ring_left", "ring_right"):
-        rows = road_result.get("selected_rows", ())
+        rows = road_result.get("selected_rows")
         reference_y = float(reference["y"])
-        for index in range(len(rows)):
-            row = rows[index]
-            if abs(float(row.get("y", -1000000)) - reference_y) > 0.01:
-                continue
-            boundary = row.get("boundary")
-            if isinstance(boundary, dict):
-                left = boundary.get("left")
-                right = boundary.get("right")
-                if left is not None and len(left) >= 1:
-                    left_x = float(left[0])
-                if right is not None and len(right) >= 1:
-                    right_x = float(right[0])
-            break
+        if rows is not None:
+            for index in range(len(rows)):
+                row = rows[index]
+                if abs(float(row.get("y", -1000000)) - reference_y) > 0.01:
+                    continue
+                boundary = row.get("boundary")
+                if isinstance(boundary, dict):
+                    left = boundary.get("left")
+                    right = boundary.get("right")
+                    if left is not None and len(left) >= 1:
+                        left_x = float(left[0])
+                    if right is not None and len(right) >= 1:
+                        right_x = float(right[0])
+                break
+        else:
+            packed = road_result.get("selected_row_ints")
+            count = road_result.get("selected_row_count", 0)
+            stride = road_result.get("selected_row_stride")
+            if (isinstance(packed, array) and stride == 4 and
+                    isinstance(count, int) and not isinstance(count, bool) and
+                    0 <= count <= 60 and len(packed) >= count * 4):
+                for index in range(count):
+                    offset = index * 4
+                    if abs(float(packed[offset]) - reference_y) > 0.01:
+                        continue
+                    left_x = float(packed[offset + 1]) - 0.5
+                    right_x = float(packed[offset + 2]) + 0.5
+                    break
     elif source in ("single_left", "single_right"):
         result = selection.get("result") or {}
         boundary = result.get("actual_boundary")
@@ -1879,7 +2052,6 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
         position_error = weight_info.get("position_error", 0)
         heading_error = weight_info.get("heading_error", 0)
         contribution = weight_info.get("heading_contribution", 0)
-        rejection_reason = weight_info.get("preview_rejection_reason")
         near_percent = int(weight_info.get("near_weight", 0.0) * 100 + 0.5)
         far_percent = int(weight_info.get("far_weight", 0.0) * 100 + 0.5)
         if source in ("ring_left", "ring_right"):
@@ -1889,25 +2061,11 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
             details3 = "W%d/%d %s" % (
                 far_percent, near_percent, gate_reason)
         else:
-            if rejection_reason in ("OPPOSES_POSITION_CORRECTION",
-                                    "CONFLICT_FADE"):
-                details1 = "POS%+d A%+d CAN%+d" % (
-                    position_error, contribution,
-                    weight_info.get("preview_candidate", contribution))
-            else:
-                details1 = "POS%+d A%+d C%.1f" % (
-                    position_error, contribution,
-                    weight_info.get("preview_curvature_cells", 0.0))
+            details1 = "POS%+d A%+d CAN%+d" % (
+                position_error, contribution,
+                weight_info.get("preview_candidate", contribution))
             details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
-            if rejection_reason in ("OPPOSES_POSITION_CORRECTION",
-                                    "CONFLICT_FADE"):
-                details3 = ("CORR_FIRST" if rejection_reason ==
-                            "OPPOSES_POSITION_CORRECTION" else
-                            "CONFLICT_FADE")
-                reference_error = weight_info.get("reference_error")
-                if reference_error is not None:
-                    details3 += " R%+d" % reference_error
-            elif weight_info.get("preview_valid"):
+            if weight_info.get("preview_valid"):
                 details3 = "N%.1f,%d F%.1f,%d" % (
                     weight_info["preview_near_x"],
                     weight_info["preview_near_y"],
@@ -1931,7 +2089,8 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
 def _draw_gray_result(img, selection, surface_result, road_result,
                       reference, valid, raw_ctrl, filtered_error,
                       processing_ms, fps, text_cache=None,
-                      weight_info=None):
+                      weight_info=None, contour_trace_info=None,
+                      contour_used=False):
     """Draw only current-frame geometry and cached text on the current image."""
     if not config.OVERLAY_ENABLED:
         return
@@ -1941,29 +2100,33 @@ def _draw_gray_result(img, selection, surface_result, road_result,
             _draw_sparse_surface_contour(
                 img, surface_result.get("sections", ()))
         elif source == "road":
-            selected_rows = road_result.get("selected_rows", ())
-            _draw_sparse_road_contour(img, selected_rows)
-            previous_center = None
-            row_count = len(selected_rows)
-            sample_count = _preview_row_sample_count(row_count)
-            for sample_index in range(sample_count):
-                index = _preview_row_sample_index(
-                    row_count, sample_index, sample_count)
-                row = selected_rows[index]
-                center_x = row.get("center")
-                if center_x is None:
-                    center_x = (float(row["left"]) +
-                                float(row["right"])) * 0.5
-                center_pixel = _surface_pixel((center_x, row["y"]))
-                if previous_center is not None:
-                    img.draw_line((previous_center[0], previous_center[1],
-                                   center_pixel[0], center_pixel[1]),
-                                  color=255)
-                previous_center = center_pixel
+            if contour_used:
+                _draw_contour_route_overlay(
+                    img, road_result, contour_trace_info)
+            else:
+                selected_rows = road_result.get("selected_rows") or ()
+                _draw_sparse_road_contour(img, selected_rows)
+                previous_center = None
+                row_count = len(selected_rows)
+                sample_count = _preview_row_sample_count(row_count)
+                for sample_index in range(sample_count):
+                    index = _preview_row_sample_index(
+                        row_count, sample_index, sample_count)
+                    row = selected_rows[index]
+                    center_x = row.get("center")
+                    if center_x is None:
+                        center_x = (float(row["left"]) +
+                                    float(row["right"])) * 0.5
+                    center_pixel = _surface_pixel((center_x, row["y"]))
+                    if previous_center is not None:
+                        img.draw_line((previous_center[0], previous_center[1],
+                                       center_pixel[0], center_pixel[1]),
+                                      color=255)
+                    previous_center = center_pixel
         elif source in ("ring_left", "ring_right"):
             candidate = selection.get("ring_candidate") or {}
             _draw_sparse_road_contour(
-                img, road_result.get("selected_rows", ()))
+                img, road_result.get("selected_rows") or ())
             path_x = candidate.get("path_x_rows")
             path_valid = candidate.get("path_valid_rows")
             if (isinstance(path_x, array) and
@@ -2096,7 +2259,8 @@ class _V7OverlayState:
 def _render_v7_preview_frame(img, selection, surface_result, road_result,
                              reference, valid, raw_ctrl, filtered_error,
                              processing_ms, fps, overlay_state, now_ms,
-                             flush_func=None, weight_info=None):
+                             flush_func=None, weight_info=None,
+                             contour_trace_info=None, contour_used=False):
     """Draw every captured frame, refresh details at 100 ms, then flush it.
 
     This runs only after detection and the observation UART write. The flush
@@ -2123,7 +2287,8 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
         _draw_gray_result(
             img, selection, surface_result, road_result, reference, valid,
             raw_ctrl, filtered_error, processing_ms, fps,
-            overlay_state.text_cache, weight_info)
+            overlay_state.text_cache, weight_info, contour_trace_info,
+            contour_used)
         overlay_state.draw_us = time.ticks_diff(
             time.ticks_us(), draw_start_us)
     if flush_func is None:
@@ -2205,7 +2370,7 @@ def _invalid_road(reason):
 
 
 _V7_PERF_STAGES = (
-    "capture", "masks", "path_topology", "boundary", "ring",
+    "capture", "masks", "path_topology", "contour", "boundary", "ring",
     "row_weight",
     "reference_filter",
     "pack_uart", "capture_to_send", "overlay", "preview_flush", "debug",
@@ -2538,6 +2703,9 @@ def _main_fast(duration_s=None, run_id=0):
     boundary_validator = fast_boundary.FastBoundaryEvidence(config)
     single_edge_tracker = fast_single_edge.FastSingleEdgeTracker(config)
     ring_slope_tracker = fast_ring_slope.FastRingSlope(config)
+    contour_recovery = (
+        contour_route.ContourRouteRecovery(config)
+        if config.CONTOUR_RECOVERY_ENABLED else None)
     reverse_parser = reverse_control.ReverseControlParser(
         reverse_control.DEFAULT_TIMEOUT_MS)
     sensor_get_exposure = getattr(sensor, "get_exposure_us", None)
@@ -2568,9 +2736,12 @@ def _main_fast(duration_s=None, run_id=0):
     sensor_id_text = ("0x%04X" % (sensor_id & 0xFFFF)
                       if isinstance(sensor_id, int) else
                       "unavailable" if sensor_id is None else str(sensor_id))
+    contour_backend = (
+        getattr(contour_trace, "COMPILER_BACKEND", "UNKNOWN")
+        if contour_recovery is not None else "disabled")
     print("V7_BUILD=%s backend=fast route=%s v7_api=%d single_api=%d "
           "ring_slope_api=%d ring_slope_backend=%s slope_classifier=disabled "
-          "slope_hint=always0 "
+          "slope_hint=always0 contour_api=%d contour_backend=%s "
           "sensor_id=%s "
           "camera=160x120 grid=80x60 floor=%d budget=%dms "
           "detail_text=%dms preview=per_frame uart=3@115200/8N1 exposure_us=%s "
@@ -2582,6 +2753,7 @@ def _main_fast(duration_s=None, run_id=0):
               SINGLEEDGE_RUNTIME_API_VERSION,
               RING_SLOPE_RUNTIME_API_VERSION,
               getattr(fast_ring_slope, "COMPILER_BACKEND", "UNKNOWN"),
+              CONTOUR_RUNTIME_API_VERSION, contour_backend,
               sensor_id_text,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
@@ -2727,19 +2899,71 @@ def _main_fast(duration_s=None, run_id=0):
             road_result = _invalid_road("DETECTOR_EXCEPTION")
         path_end_us = time.ticks_us()
 
+        # Keep all contour diagnostics and overlay eligibility frame-local;
+        # the reusable recovery workspace itself retains its trace buffers.
+        contour_candidate = None
+        contour_trace_info = None
+        contour_attempted = False
+        contour_used = False
+        contour_reason = ("DISABLED" if contour_recovery is None else
+                          "NO_MASK" if mask_info is None else
+                          "NOT_NEEDED" if road_result.get("valid") else
+                          "NOT_RUN")
+        contour_lcount = 0
+        contour_rcount = 0
+        contour_us = 0
+        if (contour_recovery is not None and mask_info is not None and
+                not road_result.get("valid")):
+            contour_attempted = True
+            contour_start_us = time.ticks_us()
+            prior_road_result = road_result
+            try:
+                recovered_result = contour_recovery.detect(
+                    mask_info, prior_road_result)
+                contour_trace_info = contour_recovery.trace_info
+                contour_reason = contour_recovery.reason
+                contour_lcount = contour_recovery.Lcount
+                contour_rcount = contour_recovery.Rcount
+                if (recovered_result is not prior_road_result and
+                        isinstance(recovered_result, dict) and
+                        recovered_result.get("valid") and
+                        contour_recovery.used):
+                    contour_candidate = recovered_result
+                    road_result = recovered_result
+                    contour_used = True
+            except Exception as exc:
+                detector_error = "CONTOUR:%s" % exc
+                contour_reason = "EXCEPTION"
+            finally:
+                contour_us = time.ticks_diff(
+                    time.ticks_us(), contour_start_us)
+
         boundary_start_us = time.ticks_us()
         if (mask_info is not None and road_result.get("valid")):
-            try:
-                boundary_validator.gate_fast_path_candidate(
-                    road_result, mask_info.get("luma"),
-                    mask_info.get("edge_mask"), mask_info.get("road_mask"),
-                    mask_info.get("known_region"), config)
-            except Exception as exc:
-                detector_error = "BOUNDARY:%s" % exc
-                road_result["valid"] = False
-                road_result["quality"] = 0
-                road_result["reason"] = "BOUNDARY_EXCEPTION"
-                road_result["lateral_error"] = 0
+            if contour_candidate is road_result:
+                road_result, contour_gate_reason, contour_gate_error = \
+                    _gate_contour_candidate(
+                        road_result, prior_road_result, boundary_validator,
+                        mask_info, config)
+                if contour_gate_reason is not None:
+                    contour_reason = contour_gate_reason
+                    contour_candidate = None
+                    contour_used = False
+                if contour_gate_error is not None:
+                    detector_error = "BOUNDARY:%s" % contour_gate_error
+            else:
+                try:
+                    boundary_validator.gate_fast_path_candidate(
+                        road_result, mask_info.get("luma"),
+                        mask_info.get("edge_mask"),
+                        mask_info.get("road_mask"),
+                        mask_info.get("known_region"), config)
+                except Exception as exc:
+                    detector_error = "BOUNDARY:%s" % exc
+                    road_result["valid"] = False
+                    road_result["quality"] = 0
+                    road_result["reason"] = "BOUNDARY_EXCEPTION"
+                    road_result["lateral_error"] = 0
         boundary_end_us = time.ticks_us()
 
         reference_start_us = time.ticks_us()
@@ -2761,6 +2985,13 @@ def _main_fast(duration_s=None, run_id=0):
             selection, reference, boundary_reference = \
                 _validate_selected_fast_boundary(
                     selection, road_result, boundary_validator)
+        if (contour_candidate is road_result and
+                not selection.get("valid")):
+            contour_reason = "REFERENCE_%s" % boundary_reference.get(
+                "reason", "REJECTED")
+            road_result = prior_road_result
+            contour_candidate = None
+            contour_used = False
 
         single_candidate = None
         single_diagnostic_reason = (
@@ -2841,23 +3072,8 @@ def _main_fast(duration_s=None, run_id=0):
                     "source": "NONE",
                 }
 
-        bilateral_cache_candidate = None
-        if (selection.get("valid") and selection.get("source") == "road" and
-                boundary_reference.get("valid") and mask_info is not None):
-            road_result["boundary_source"] = "OBSERVED_BOTH"
-            road_result["inferred"] = False
-            road_result["inference_flags"] = 0
-            road_result["observed_both_rows"] = road_result.get(
-                "selected_row_count", 0)
-            road_result["observed_left_rows"] = road_result.get(
-                "selected_row_count", 0)
-            road_result["observed_right_rows"] = road_result.get(
-                "selected_row_count", 0)
-            road_result["inferred_rows"] = 0
-            selection["boundary_source"] = "OBSERVED_BOTH"
-            selection["inferred"] = False
-            selection["inference_flags"] = 0
-            bilateral_cache_candidate = road_result
+        bilateral_cache_candidate = _approved_bilateral_cache_candidate(
+            selection, road_result, boundary_reference, mask_info)
 
         if reverse_fresh and reverse_parser.poll(
                 time.ticks_ms(), time.ticks_diff):
@@ -3179,11 +3395,20 @@ def _main_fast(duration_s=None, run_id=0):
             detector_error_count += 1
             latest_detector_error = _short_v7_detector_error(detector_error)
 
+        contour_selected = bool(
+            contour_used and valid and selection.get("valid") and
+            selection.get("source") == "road" and
+            selection.get("result") is road_result and
+            contour_candidate is road_result)
+
         _render_v7_preview_frame(
             img, selection, no_surface_result, road_result, reference,
             valid, raw_error, filtered_error,
             capture_to_send_us // 1000, clock.fps(), overlay_state,
-            time.ticks_ms(), weight_info=weight_info)
+            time.ticks_ms(), weight_info=weight_info,
+            contour_trace_info=(contour_trace_info
+                                if contour_selected else None),
+            contour_used=contour_selected)
         overlay_us = overlay_state.draw_us
         preview_flush_us = overlay_state.flush_us
 
@@ -3214,14 +3439,6 @@ def _main_fast(duration_s=None, run_id=0):
             actual_left, actual_right, actual_reference = \
                 _format_selected_actual_diagnostic(
                     selection, road_result, reference, valid)
-            preview_rejection_reason = weight_info.get(
-                "preview_rejection_reason")
-            if preview_rejection_reason == "OPPOSES_POSITION_CORRECTION":
-                preview_block = "CORR_FIRST"
-            elif preview_rejection_reason == "CONFLICT_FADE":
-                preview_block = "CONFLICT_FADE"
-            else:
-                preview_block = "-"
             reference_row_y = weight_info.get("reference_row_y")
             reference_error = weight_info.get("reference_error")
             reference_row_text = ("-" if reference_row_y is None else
@@ -3238,7 +3455,8 @@ def _main_fast(duration_s=None, run_id=0):
                   "port=%s,%s seed=%s,%s "
                   "slope=%s:%d "
                   "preview=%+d preview_candidate=%+d bend=%.2f "
-                  "preview_block=%s "
+                  "preview_block=- "
+                  "contour=%d/%d:%s:%d/%d "
                   "rowref=%s reference_error=%s "
                   "boundary=%s:%d/%d ref=%s pos_weighted=%d raw_ctrl=%d filt=%d "
                   "filter=%s "
@@ -3305,7 +3523,11 @@ def _main_fast(duration_s=None, run_id=0):
                       weight_info.get("heading_contribution", 0),
                       weight_info.get("preview_candidate", 0),
                       weight_info.get("preview_curvature_cells", 0.0),
-                      preview_block, reference_row_text,
+                      1 if contour_attempted else 0,
+                      1 if contour_selected else 0,
+                      str(contour_reason)[:16],
+                      contour_lcount, contour_rcount,
+                      reference_row_text,
                       reference_error_text,
                       boundary.get("reason", "NOT_RUN"),
                       boundary.get("bilateral_supported", 0),
@@ -3333,6 +3555,7 @@ def _main_fast(duration_s=None, run_id=0):
         perf.record("capture", capture_us)
         perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
         perf.record("path_topology", time.ticks_diff(path_end_us, path_start_us))
+        perf.record("contour", contour_us)
         perf.record("boundary", time.ticks_diff(boundary_end_us, boundary_start_us))
         perf.record("ring", ring_us)
         perf.record("row_weight", time.ticks_diff(

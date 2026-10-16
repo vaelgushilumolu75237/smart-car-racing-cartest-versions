@@ -3545,6 +3545,27 @@ int main(void)
             car_control_state.fault_latched == 0u) {
             car_servo_safety_acknowledge(&servo_safety);
         }
+        if (follow_start_event != 0u &&
+            app_config.follow_mode_compiled != 0u) {
+            uint8_t manual_start_accepted = 0u;
+            uint32_t start_event_primask = __get_PRIMASK();
+            __disable_irq();
+            /* Rebuild the inputs while the ISR button/fast-stop state is
+               stable; the earlier loop snapshot may predate a physical stop. */
+            inputs = make_inputs(HAL_GetTick(), pe7_is_high(), loop_gap_fault);
+            if (manual_run_button.run_request != 0u &&
+                manual_run_button.stop_pending == 0u &&
+                manual_run_button.start_pending == 0u) {
+                manual_start_accepted =
+                    car_control_begin_manual_follow_start(
+                        &car_control_state, &app_config, &inputs);
+            }
+            __set_PRIMASK(start_event_primask);
+            if (manual_start_accepted != 0u) {
+                /* A previous local KEEP may have left applied outputs active. */
+                emergency_stop_hardware();
+            }
+        }
         enforce_motor_hardware_lock();
         if (car_control_state.rx_recovery_flush_required != 0u) {
             flush_uart_and_parser();

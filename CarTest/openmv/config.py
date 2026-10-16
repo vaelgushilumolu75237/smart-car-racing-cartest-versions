@@ -24,12 +24,13 @@ OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "CACHED_WIDTH_CORRECTION_FIRST_20261015"
+BUILD_ID = "CONTOUR_REPAIR_20261016"
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
 LEGACY_BUILD_ID = "SIXTH_V4_BOUNDARY_GUARD_20261003"
 VISION_BACKEND = "fast"  # Explicit diagnostics: "compare"; V4: "legacy".
+CONTOUR_RECOVERY_ENABLED = True  # Bounded Python fallback for eligible path misses.
 
 FRAME_SIZE_NAME = "QQVGA"
 IMAGE_WIDTH = 160

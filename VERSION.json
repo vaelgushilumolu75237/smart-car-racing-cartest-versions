@@ -1,7 +1,7 @@
 {
-  "version": "v20261015-correction-first",
+  "version": "v20261016-contour-repair",
   "status": "experimental-software-tested-road-pending",
-  "branch": "fix/correction-first",
-  "files": 349,
+  "branch": "fix/contour-repair",
+  "files": 356,
   "hardware_actions": "none"
 }

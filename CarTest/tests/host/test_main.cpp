@@ -4007,6 +4007,216 @@ void test_follow_toggle_drives_manual_controller_session()
              control.manual_run_request, 0u);
 }
 
+void test_manual_follow_start_restarts_reverse_resync()
+{
+    const car_config_t config = make_follow_config();
+    car_control_t control{};
+    car_manual_button_t button{};
+    start_follow_by_physical_pe7(&control, &config, 40u, 100u);
+    CHECK_EQ("fixture begins with a running stale Follow session",
+             control.mode, CAR_MODE_FOLLOW_RUNNING);
+    CHECK_EQ("fixture has the old local KEEP gate", control.reverse_control_keep_seen, 1u);
+    CHECK_EQ("fixture has old local fresh observations",
+             control.reverse_control_fresh_frames,
+             CAR_CONTROL_RECOVERY_REQUIRED_FRAMES);
+
+    car_manual_button_init(&button, 1u, 0u);
+    car_manual_button_poll_high(&button, 1u, 20u);
+    CHECK_EQ("one armed PE7 low edge creates one physical start event",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_START);
+    car_manual_button_start_consumed(&button);
+    const uint32_t generation_before = control.reverse_control_reset_generation;
+    car_inputs_t start = make_inputs(125u, false);
+    start.manual_run_request = button.run_request;
+    start.manual_stop_pending = button.stop_pending;
+    start.manual_button_startup_release_confirmed =
+        button.startup_release_confirmed;
+    CHECK_EQ("physical Follow start requests one new reverse RESET lifecycle",
+             car_control_begin_manual_follow_start(&control, &config, &start),
+             1u);
+    CHECK_EQ("new start increments reset generation once",
+             control.reverse_control_reset_generation, generation_before + 1u);
+    CHECK_EQ("new start clears old local KEEP gate",
+             control.reverse_control_keep_seen, 0u);
+    CHECK_EQ("new start clears old local fresh-frame gate",
+             control.reverse_control_fresh_frames, 0u);
+    CHECK_EQ("new start closes the transport recovery gate",
+             control.reverse_reset_transport_gate_open, 0u);
+    CHECK_EQ("new start flushes stale queued camera data",
+             control.rx_recovery_flush_required, 1u);
+    CHECK_EQ("new start immediately removes the previous drive permission",
+             control.road_drive_allowed, 0u);
+    CHECK_EQ("new start ends the previous Follow session",
+             control.follow_session_active, 0u);
+    CHECK_EQ("manual request remains latched during RESET/KEEP/fresh wait",
+             control.manual_run_request, 1u);
+    CHECK_EQ("one button request remains latched while waiting",
+             button.run_request, 1u);
+
+    CHECK_EQ("held low level cannot create another start event",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("held button leaves no second pending start",
+             button.start_pending, 0u);
+    car_control_tick(&control, &config, &start);
+    CHECK_EQ("held request cannot reuse old KEEP/fresh gates",
+             control.mode, CAR_MODE_RECOVERY_WAIT);
+    CHECK_EQ("held request does not repeat RESET",
+             control.reverse_control_reset_generation, generation_before + 1u);
+
+    car_control_rx_recovery_flush_complete(&control);
+    car_control_reverse_control_reset_started(&control);
+    car_reverse_control_tx_t tx{};
+    car_reverse_control_init(&tx, 1000u);
+    car_reverse_control_request_reset(&tx, 1000u);
+    std::array<uint8_t, CAR_REVERSE_CONTROL_FRAME_SIZE> frame{};
+    for (uint32_t timestamp = 1000u; timestamp <= 1200u; timestamp += 50u) {
+        for (uint8_t index = 0u; index < CAR_REVERSE_CONTROL_FRAME_SIZE; ++index) {
+            uint8_t byte = 0u;
+            CHECK_EQ("new lifecycle emits complete scheduled RESET bytes",
+                     car_reverse_control_next_byte(&tx, timestamp, 0u, &byte),
+                     1u);
+            frame[index] = byte;
+        }
+        CHECK_EQ("each startup resync frame carries RESET",
+                 frame[3], CAR_REVERSE_CONTROL_RESET);
+        CHECK_EQ("RESET phase stays closed until all five frames complete",
+                 control.reverse_reset_transport_gate_open, 0u);
+        if (tx.reset_phase_complete != 0u) {
+            car_control_reverse_control_reset_phase_complete(&control);
+        }
+    }
+    CHECK_EQ("five RESET frames finish the independent reverse phase",
+             tx.reset_phase_complete, 1u);
+    CHECK_EQ("RESET completion opens only the transport recovery gate",
+             control.reverse_reset_transport_gate_open, 1u);
+    uint8_t byte = 0u;
+    CHECK_EQ("KEEP cannot begin before the RESET interval expires",
+             car_reverse_control_next_byte(&tx, 1249u, 1u, &byte), 0u);
+    for (uint8_t index = 0u; index < CAR_REVERSE_CONTROL_FRAME_SIZE; ++index) {
+        CHECK_EQ("KEEP follows the completed five-frame RESET phase",
+                 car_reverse_control_next_byte(&tx, 1250u, 1u, &byte), 1u);
+        frame[index] = byte;
+    }
+    CHECK_EQ("new lease is KEEP", frame[3], CAR_REVERSE_CONTROL_KEEP);
+    car_control_reverse_control_keep_started(&control);
+    CHECK_EQ("controller records KEEP only after its complete frame",
+             control.reverse_control_keep_seen, 1u);
+    CHECK_EQ("KEEP begins with a fresh three-observation gate",
+             control.reverse_control_fresh_frames, 0u);
+
+    const uint32_t reset_generation_after_start =
+        control.reverse_control_reset_generation;
+    send_frame_at(&control, &config, 1u, false, 0u, 0,
+                  1251u, 1251u, false);
+    CHECK_EQ("invalid visual observations do not start another RESET",
+             control.reverse_control_reset_generation,
+             reset_generation_after_start);
+    CHECK_EQ("invalid visual observations do not count as fresh route frames",
+             control.reverse_control_fresh_frames, 0u);
+
+    for (uint16_t sequence = 2u; sequence <= 4u; ++sequence) {
+        const uint32_t timestamp = 1250u + sequence;
+        send_frame_at(&control, &config, sequence, true, 80u, 0,
+                      timestamp, timestamp, false);
+        CHECK_EQ("Follow remains stopped until three post-KEEP observations",
+                 control.follow_session_active, 0u);
+        CHECK_EQ("post-KEEP observations advance the fresh gate one at a time",
+                 control.reverse_control_fresh_frames,
+                 static_cast<uint8_t>(sequence - 1u));
+    }
+    car_inputs_t latched_request = make_inputs(1260u, false);
+    latched_request.manual_run_request = button.run_request;
+    latched_request.manual_button_startup_release_confirmed =
+        button.startup_release_confirmed;
+    car_control_tick(&control, &config, &latched_request);
+    CHECK_EQ("one original physical request starts after RESET/KEEP/three frames",
+             control.mode, CAR_MODE_FOLLOW_RUNNING);
+    CHECK_EQ("fresh startup restores Follow session permission",
+             control.road_drive_allowed, 1u);
+
+    car_manual_button_poll_high(&button, 1u, 1300u);
+    car_manual_button_poll_high(&button, 1u, 1320u);
+    CHECK_EQ("rearmed second low edge becomes a stop",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_STOP);
+    car_inputs_t stopped = latched_request;
+    stopped.manual_run_request = button.run_request;
+    stopped.manual_stop_pending = button.stop_pending;
+    const uint32_t stopped_generation = control.reverse_control_reset_generation;
+    CHECK_EQ("fresh stop state cancels a stale queued start event",
+             car_control_begin_manual_follow_start(&control, &config, &stopped),
+             0u);
+    CHECK_EQ("stop rejection does not enqueue a start RESET",
+             control.reverse_control_reset_generation, stopped_generation);
+
+    car_control_t faulted = control;
+    faulted.fault = CAR_FAULT_ENCODER_INIT;
+    faulted.fault_latched = 1u;
+    faulted.mode = CAR_MODE_FAULT_LATCHED;
+    car_inputs_t fault_start = make_inputs(1330u, false);
+    fault_start.manual_run_request = 1u;
+    fault_start.manual_button_startup_release_confirmed = 1u;
+    CHECK_EQ("hard fault rejects a physical start resync",
+             car_control_begin_manual_follow_start(
+                 &faulted, &config, &fault_start),
+             0u);
+    CHECK_EQ("hard fault rejection leaves reset generation unchanged",
+             faulted.reverse_control_reset_generation, stopped_generation);
+
+    car_control_t stop_race_control{};
+    car_manual_button_t stop_race_button{};
+    start_follow_by_physical_pe7(&stop_race_control, &config, 80u, 100u);
+    car_manual_button_init(&stop_race_button, 1u, 200u);
+    car_manual_button_poll_high(&stop_race_button, 1u, 220u);
+    CHECK_EQ("race fixture captures a physical start event",
+             car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_START);
+    car_manual_button_start_consumed(&stop_race_button);
+    car_inputs_t stale_start_snapshot = make_inputs(201u, false);
+    stale_start_snapshot.manual_run_request = stop_race_button.run_request;
+    stale_start_snapshot.manual_stop_pending = stop_race_button.stop_pending;
+    car_manual_button_poll_high(&stop_race_button, 1u, 210u);
+    car_manual_button_poll_high(&stop_race_button, 1u, 230u);
+    CHECK_EQ("a stop arriving before deferred start handoff wins",
+             car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_STOP);
+    car_inputs_t raced_stop = make_inputs(231u, false);
+    raced_stop.manual_run_request = stop_race_button.run_request;
+    raced_stop.manual_stop_pending = stop_race_button.stop_pending;
+    const uint32_t race_generation =
+        stop_race_control.reverse_control_reset_generation;
+    CHECK_EQ("deferred start handoff rejects the fresh physical stop state",
+             car_control_begin_manual_follow_start(
+                 &stop_race_control, &config, &raced_stop),
+             0u);
+    CHECK_EQ("start-stop race does not enqueue a RESET after stop",
+             stop_race_control.reverse_control_reset_generation,
+             race_generation);
+    car_manual_button_stop_consumed(&stop_race_button);
+    car_inputs_t refreshed_after_stop = make_inputs(232u, false);
+    refreshed_after_stop.manual_run_request = stop_race_button.run_request;
+    refreshed_after_stop.manual_stop_pending = stop_race_button.stop_pending;
+    uint8_t handoff_accepted_after_consumed_stop = 0u;
+    if (stop_race_button.run_request != 0u &&
+        stop_race_button.stop_pending == 0u &&
+        stop_race_button.start_pending == 0u) {
+        handoff_accepted_after_consumed_stop =
+            car_control_begin_manual_follow_start(
+                &stop_race_control, &config, &refreshed_after_stop);
+    }
+    CHECK_EQ("captured pre-stop input is stale after stop consumption",
+             stale_start_snapshot.manual_run_request, 1u);
+    CHECK_EQ("live physical request remains cleared after stop consumption",
+             refreshed_after_stop.manual_run_request, 0u);
+    CHECK_EQ("start handoff recheck skips a consumed stop race",
+             handoff_accepted_after_consumed_stop, 0u);
+    CHECK_EQ("consumed stop race still does not enqueue RESET",
+             stop_race_control.reverse_control_reset_generation,
+             race_generation);
+}
+
 void test_follow_visual_hold_requires_real_outputs_and_full_recovery()
 {
     const car_config_t config = make_follow_config();
@@ -4435,6 +4645,41 @@ car_runtime_log_sample_t make_runtime_log_follow_sample(uint32_t now_ms)
     sample.vision_confidence = 90u;
     sample.vision_sequence = 7u;
     return sample;
+}
+
+void test_runtime_log_keeps_manual_start_resync_wait()
+{
+    car_runtime_log_init();
+    car_runtime_log_sample_t sample = make_runtime_log_follow_sample(100u);
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
+    CHECK_EQ("resync-wait log fixture starts a Follow session",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_ACTIVE);
+
+    sample.now_ms = 150u;
+    sample.mode = CAR_MODE_RECOVERY_WAIT;
+    sample.follow_session_active = 0u;
+    sample.recovery_active = 1u;
+    sample.recovery_frame_count = 0u;
+    sample.manual_run_request = 1u;
+    sample.servo_applied_us = 0u;
+    sample.left_applied_permille = 0u;
+    sample.right_applied_permille = 0u;
+    sample.motor_ccr1_counts = 0u;
+    sample.motor_ccr2_counts = 0u;
+    sample.motor_ccr3_counts = 0u;
+    sample.motor_ccr4_counts = 0u;
+    sample.vision_flags = 0u;
+    car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
+    CHECK_EQ("manual start RESET wait does not freeze the RAM log",
+             car_runtime_log_state(), CAR_RUNTIME_LOG_STATE_ACTIVE);
+    CHECK_EQ("RESET wait publishes its zero-output recovery row",
+             car_runtime_log_storage.records[1].mode,
+             CAR_MODE_RECOVERY_WAIT);
+    CHECK_EQ("RESET wait record shows no applied left duty",
+             car_runtime_log_storage.records[1].left_applied_permille, 0u);
+    CHECK((car_runtime_log_storage.records[1].event_flags &
+           CAR_RUNTIME_LOG_EVENT_STOP) == 0u,
+          "retained manual request is not logged as a stop");
 }
 
 void test_runtime_log_session_fault_recovery_and_stop()
@@ -5854,6 +6099,8 @@ int main(int argc, char **argv)
     run_case("exact_vision_timeout", test_exact_vision_timeout_and_late_frame);
     run_case("follow_toggle_actual_controller",
              test_follow_toggle_drives_manual_controller_session);
+    run_case("manual_start_reverse_resync",
+             test_manual_follow_start_restarts_reverse_resync);
     run_case("follow_hold_requires_applied_outputs",
              test_follow_visual_hold_requires_real_outputs_and_full_recovery);
     run_case("follow_hold_exact_deadline_transport",
@@ -5867,6 +6114,8 @@ int main(int argc, char **argv)
     run_case("encoder_wrap_half_range", test_encoder_wrap_and_half_range_rejection);
     run_case("runtime_log_session_fault_recovery_stop",
              test_runtime_log_session_fault_recovery_and_stop);
+      run_case("runtime_log_manual_start_resync_wait",
+               test_runtime_log_keeps_manual_start_resync_wait);
     run_case("runtime_log_captured_start_same_iteration_hard_fault",
              test_runtime_log_captured_start_then_same_iteration_hard_fault);
     run_case("runtime_log_bench_one_shot_freeze",

@@ -317,6 +317,12 @@ void car_control_reverse_control_reset_started(car_control_t *control);
 void car_control_reverse_control_keep_started(car_control_t *control);
 void car_control_reverse_control_reset_phase_complete(car_control_t *control);
 
+/* Begin a new Follow session from one consumed physical PE7 start event. */
+uint8_t car_control_begin_manual_follow_start(
+    car_control_t *control,
+    const car_config_t *config,
+    const car_inputs_t *inputs);
+
 /* Recoverable receive errors stop outputs and require three fresh observations. */
 void car_control_note_fault(car_control_t *control, car_fault_t fault);
 

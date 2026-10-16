@@ -706,6 +706,49 @@ void car_control_reverse_control_keep_started(car_control_t *control)
     }
 }
 
+uint8_t car_control_begin_manual_follow_start(
+    car_control_t *control,
+    const car_config_t *config,
+    const car_inputs_t *inputs)
+{
+    if (control == 0 || config_is_valid(config) == 0u || inputs == 0 ||
+        config->follow_mode_compiled == 0u ||
+        inputs->manual_run_request == 0u ||
+        inputs->manual_stop_pending != 0u ||
+        inputs->loop_gap_fault != 0u ||
+        inputs->encoder_fault != 0u ||
+        inputs->clock_or_timer_fault != 0u ||
+        control->fault_latched != 0u ||
+        control->mode == CAR_MODE_FAULT_LATCHED ||
+        is_hard_fault(control->fault) != 0u ||
+        control->isr_stop_request != 0u ||
+        is_hard_fault((car_fault_t)control->isr_stop_fault) != 0u) {
+        return 0u;
+    }
+
+    /* A physical start is a new controller/camera lease. Stop any output
+       left by a stale local KEEP decision and discard the old route gate. */
+    finish_vision_hold(control, CAR_VISION_HOLD_EXIT_NONE);
+    control->vision_hold_restart_required = 0u;
+    stop_outputs(control);
+    control->follow_session_active = 0u;
+    control->mode = CAR_MODE_RECOVERY_WAIT;
+    control->recovery_active = 1u;
+    control->recovery_was_faulted = 0u;
+    control->recovery_frame_count = 0u;
+    control->recovery_have_sequence = 0u;
+    clear_trusted_observation(control);
+
+    request_reverse_control_reset(control);
+    control->reverse_reset_transport_gate_open = 0u;
+    control->reverse_transport_recovery_frame_count = 0u;
+    control->reverse_transport_have_sequence = 0u;
+    control->reverse_transport_last_sequence = 0u;
+    control->reverse_transport_last_arrival_ms = 0u;
+    control->rx_recovery_flush_required = 1u;
+    return 1u;
+}
+
 void car_control_on_vision_frame_at_with_flags(
     car_control_t *control,
     const car_config_t *config,

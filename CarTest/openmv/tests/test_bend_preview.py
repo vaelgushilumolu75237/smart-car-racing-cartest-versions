@@ -3,7 +3,9 @@ from array import array
 import unittest
 from test_turn_response_weights import (
     config, main, fast_gray, fast_path, _path_candidate, _BufferImage)
+import fast_boundary
 import fast_single_edge
+from contour_route import ContourRouteRecovery
 
 
 def aggregate(workspace, points, support=None, valid=True):
@@ -15,61 +17,73 @@ def aggregate(workspace, points, support=None, valid=True):
     return workspace.aggregate(selection, candidate, config)
 
 
+def _paired_contour_frame():
+    width = config.SURFACE_GRID_WIDTH
+    height = config.SURFACE_GRID_HEIGHT
+    floor = config.SURFACE_ROI_FLOOR_Y
+    road = bytearray(width * height)
+    edge = bytearray(width * height)
+    luma = bytearray([25]) * (width * height)
+    known = bytearray([1]) * (width * height)
+    for y in range(height - 1):
+        row = y * width
+        for x in range(25, 55):
+            road[row + x] = 255
+            luma[row + x] = 220
+        for x in range(width):
+            if road[row + x] == 0:
+                edge[row + x] = 1
+    return {
+        "width": width, "height": height, "floor": floor,
+        "road_mask": road, "edge_mask": edge,
+        "luma": luma, "known_region": known,
+        "valid": True,
+    }
+
+
+def _clear_prior(reason="INSUFFICIENT_FRESH_ROWS"):
+    return {
+        "valid": False, "reason": reason, "scene": "ROAD_CANDIDATE",
+        "topology_evidence": {
+            "reason": "PARTIAL_KNOWN_ROI", "ambiguous": False,
+            "branch_evidence": False, "island_evidence": False,
+        },
+    }
+
+
 class BendPreviewTests(unittest.TestCase):
     def setUp(self):
         self.w = main._FastRowWeightWorkspace()
 
-    def test_correction_priority_blocks_opposing_previews_from_reported_cases(self):
+    def test_opposing_previews_are_added_and_mirrored(self):
         cases = (
-            (-85, 380, -85, 0),
-            (85, -380, 85, 0),
-            (-30, 354, -30, 0),
-            (30, -354, 30, 0),
+            (-25, 330, 305, 330),
+            (25, -330, -305, -330),
+            (-43, 354, 311, 354),
+            (43, -354, -311, -354),
         )
         for position, candidate, expected, applied in cases:
             with self.subTest(position=position, contribution=candidate):
                 steering, reason, actual = \
                     main._compose_ordinary_steering_error(position, candidate)
                 self.assertEqual(steering, expected)
-                self.assertEqual(reason, "OPPOSES_POSITION_CORRECTION")
+                self.assertIsNone(reason)
                 self.assertEqual(actual, applied)
 
-    def test_opposing_preview_fades_at_twenty_pixel_boundary(self):
+    def test_zero_opposing_and_mirrored_previews_keep_the_candidate(self):
         cases = (
-            (-19, 400, 1, "CONFLICT_FADE", 20),
-            (19, -400, -1, "CONFLICT_FADE", -20),
-            (-20, 380, -20, "OPPOSES_POSITION_CORRECTION", 0),
-            (20, -380, 20, "OPPOSES_POSITION_CORRECTION", 0),
-            (-21, 380, -21, "OPPOSES_POSITION_CORRECTION", 0),
-            (21, -380, 21, "OPPOSES_POSITION_CORRECTION", 0),
+            (-1, 381, 380, 381),
+            (1, -381, -380, -381),
+            (-10, 354, 344, 354),
+            (10, -354, -344, -354),
+            (-10, 381, 371, 381),
+            (10, -381, -371, -381),
         )
-        for position, candidate, expected, expected_reason, applied in cases:
+        for position, candidate, expected, applied in cases:
             with self.subTest(position=position, contribution=candidate):
                 self.assertEqual(main._compose_ordinary_steering_error(
                     position, candidate),
-                    (expected, expected_reason, applied))
-
-        left19 = main._compose_ordinary_steering_error(-19, 400)[0]
-        left20 = main._compose_ordinary_steering_error(-20, 400)[0]
-        right19 = main._compose_ordinary_steering_error(19, -400)[0]
-        right20 = main._compose_ordinary_steering_error(20, -400)[0]
-        self.assertEqual(abs(left20 - left19), 21)
-        self.assertEqual(abs(right20 - right19), 21)
-
-    def test_conflict_fade_small_errors_and_negative_rounding_are_mirrored(self):
-        cases = (
-            (-1, 381, 360, "CONFLICT_FADE", 361),
-            (1, -381, -360, "CONFLICT_FADE", -361),
-            (-10, 354, 167, "CONFLICT_FADE", 177),
-            (10, -354, -167, "CONFLICT_FADE", -177),
-            (-10, 381, 180, "CONFLICT_FADE", 190),
-            (10, -381, -180, "CONFLICT_FADE", -190),
-        )
-        for position, candidate, expected, expected_reason, applied in cases:
-            with self.subTest(position=position, contribution=candidate):
-                self.assertEqual(main._compose_ordinary_steering_error(
-                    position, candidate),
-                    (expected, expected_reason, applied))
+                    (expected, None, applied))
         self.assertEqual(main._compose_ordinary_steering_error(0, 381),
                          (381, None, 381))
         self.assertEqual(main._compose_ordinary_steering_error(0, -354),
@@ -86,10 +100,16 @@ class BendPreviewTests(unittest.TestCase):
         self.assertEqual(
             main._compose_ordinary_steering_error(-900, -400),
             (-1000, None, -400))
+        self.assertEqual(
+            main._compose_ordinary_steering_error(1000, -1000),
+            (0, None, -1000))
+        self.assertEqual(
+            main._compose_ordinary_steering_error(-1000, 1000),
+            (0, None, 1000))
 
         first = main._compose_ordinary_steering_error(-10, 400)
         second = main._compose_ordinary_steering_error(-10, -400)
-        self.assertEqual(first, (190, "CONFLICT_FADE", 200))
+        self.assertEqual(first, (390, None, 400))
         self.assertEqual(second, (-410, None, -400))
 
     def test_supported_reference_error_is_diagnostic_only_and_near_y40(self):
@@ -149,57 +169,59 @@ class BendPreviewTests(unittest.TestCase):
             result["reference_error"],
             main._normalize_fast_reference(42, config.SURFACE_GRID_WIDTH))
 
-    def test_integrated_bend_preview_cannot_reverse_large_position_error(self):
+    def test_integrated_mirrored_bend_previews_are_applied(self):
         right_bend = [(y, x - 4) for y, x in
                       [(y, 46 if y < 33 else 38 if y < 46 else 36)
                        for y in range(20, 59)]]
         left_bend = [(y, 79 - x) for y, x in right_bend]
         left = dict(aggregate(self.w, right_bend))
         right = dict(aggregate(self.w, left_bend))
-        self.assertLess(left["position_error"], -20)
+        self.assertLess(left["position_error"], 0)
         self.assertGreater(left["preview_candidate"], 0)
-        self.assertEqual(left["heading_contribution"], 0)
-        self.assertEqual(left["steering_error"], left["position_error"])
-        self.assertEqual(left["preview_rejection_reason"],
-                         "OPPOSES_POSITION_CORRECTION")
-        self.assertGreater(right["position_error"], 20)
+        self.assertEqual(left["heading_contribution"],
+                         left["preview_candidate"])
+        self.assertEqual(left["steering_error"], 311)
+        self.assertIsNone(left["preview_rejection_reason"])
+        self.assertGreater(right["position_error"], 0)
         self.assertLess(right["preview_candidate"], 0)
-        self.assertEqual(right["heading_contribution"], 0)
-        self.assertEqual(right["steering_error"], right["position_error"])
-        self.assertEqual(right["preview_rejection_reason"],
-                         "OPPOSES_POSITION_CORRECTION")
+        self.assertEqual(right["heading_contribution"],
+                         right["preview_candidate"])
+        self.assertEqual(right["steering_error"], -311)
+        self.assertIsNone(right["preview_rejection_reason"])
 
-    def test_overlay_shows_correction_first_with_position_preview_and_control(self):
+    def test_overlay_shows_position_applied_candidate_and_control(self):
         text = main._build_gray_overlay_text_cache(
             {"valid": True, "source": "road", "ring_state": "IDLE"},
-            {}, {}, None, True, -85, -80, 0, 20.0,
+            {}, {}, None, True, 305, 305, 0, 20.0,
             weight_info={
-                "valid": True, "position_error": -85,
-                "heading_error": 354, "heading_contribution": 0,
-                "preview_candidate": 380,
+                "valid": True, "position_error": -25,
+                "heading_error": 330, "heading_contribution": 330,
+                "preview_candidate": 330,
                 "preview_curvature_cells": 2.0, "preview_valid": True,
-                "preview_rejection_reason": "OPPOSES_POSITION_CORRECTION",
+                "preview_rejection_reason": None,
+                "preview_near_x": 42.0, "preview_near_y": 40,
+                "preview_far_x": 45.0, "preview_far_y": 22,
                 "reference_error": 24,
             })
-        self.assertTrue(any("POS-85 A+0 CAN+380" in line for line in text))
-        self.assertTrue(any("CTRL-85" in line for line in text))
-        self.assertTrue(any("CORR_FIRST R+24" in line for line in text))
+        self.assertTrue(any("POS-25 A+330 CAN+330" in line for line in text))
+        self.assertTrue(any("CTRL+305" in line for line in text))
 
-        faded_text = main._build_gray_overlay_text_cache(
+        mirrored_text = main._build_gray_overlay_text_cache(
             {"valid": True, "source": "road", "ring_state": "IDLE"},
-            {}, {}, None, True, 190, 160, 0, 20.0,
+            {}, {}, None, True, 311, 311, 0, 20.0,
             weight_info={
-                "valid": True, "position_error": -10,
-                "heading_error": 381, "heading_contribution": 200,
-                "preview_candidate": 400,
+                "valid": True, "position_error": -43,
+                "heading_error": 354, "heading_contribution": 354,
+                "preview_candidate": 354,
                 "preview_curvature_cells": 1.5, "preview_valid": True,
-                "preview_rejection_reason": "CONFLICT_FADE",
+                "preview_rejection_reason": None,
+                "preview_near_x": 42.0, "preview_near_y": 40,
+                "preview_far_x": 45.0, "preview_far_y": 22,
                 "reference_error": -12,
             })
-        self.assertTrue(any("POS-10 A+200 CAN+400" in line
-                            for line in faded_text))
-        self.assertTrue(any("CONFLICT_FADE R-12" in line
-                            for line in faded_text))
+        self.assertTrue(any("POS-43 A+354 CAN+354" in line
+                            for line in mirrored_text))
+        self.assertTrue(any("CTRL+311" in line for line in mirrored_text))
 
     def test_equal_position_but_opposite_heading_changes_control(self):
         right = [(y, 46 if y < 33 else 38 if y < 46 else 36)
@@ -266,6 +288,102 @@ class BendPreviewTests(unittest.TestCase):
         self.assertTrue(result["preview_valid"])
         self.assertEqual(result["heading_contribution"], 0)
         self.assertGreaterEqual(result["preview_far_y"], 40)
+
+    def test_contour_recovery_is_gated_before_selection_and_bilateral_cache(self):
+        frame = _paired_contour_frame()
+        prior = _clear_prior()
+        recovery = ContourRouteRecovery(config)
+        candidate = recovery.detect(frame, prior)
+        self.assertIsNot(candidate, prior)
+        self.assertTrue(candidate["valid"])
+        self.assertIsNone(candidate["selected_rows"])
+
+        selection = {
+            "valid": True, "quality": candidate["quality"],
+            "lateral_error": candidate["lateral_error"],
+            "source": "road", "result": candidate,
+            "comparison": {},
+        }
+        validator = fast_boundary.FastBoundaryEvidence(config)
+        self.assertIsNone(main._approved_bilateral_cache_candidate(
+            selection, candidate, {"valid": False}, frame))
+        validator.gate_fast_path_candidate(
+            candidate, frame["luma"], frame["edge_mask"],
+            frame["road_mask"], frame["known_region"], config)
+        self.assertTrue(candidate["valid"], candidate["reason"])
+        selection, reference, boundary_reference = \
+            main._validate_selected_fast_boundary(
+                selection, candidate, validator)
+        self.assertTrue(boundary_reference["valid"], boundary_reference)
+        self.assertTrue(selection["valid"])
+        self.assertEqual(reference["kind"], "reference_y_current_contour_bilateral")
+
+        cache = fast_single_edge.FastSingleEdgeTracker(config)
+        approved = main._approved_bilateral_cache_candidate(
+            selection, candidate, boundary_reference, frame)
+        self.assertIs(approved, candidate)
+        self.assertGreater(cache.observe_bilateral(
+            approved, frame["luma"], frame["edge_mask"],
+            frame["road_mask"], frame["known_region"], True, True), 0)
+        rows_before = cache.cache_rows
+        self.assertGreater(rows_before, 0)
+
+        boundary_fail_frame = _paired_contour_frame()
+        boundary_fail_frame["edge_mask"] = bytearray(
+            config.SURFACE_GRID_WIDTH * config.SURFACE_GRID_HEIGHT)
+        boundary_fail_prior = _clear_prior("NO_PAIRED_EDGES")
+        boundary_fail_original = dict(boundary_fail_prior)
+        unverified = recovery.detect(
+            boundary_fail_frame, boundary_fail_prior)
+        self.assertIsNot(unverified, boundary_fail_prior)
+        unverified, gate_reason, gate_error = main._gate_contour_candidate(
+            unverified, boundary_fail_prior, validator,
+            boundary_fail_frame, config)
+        self.assertIs(unverified, boundary_fail_prior)
+        self.assertTrue(gate_reason.startswith("BOUNDARY_"), gate_reason)
+        self.assertIsNone(gate_error)
+        self.assertEqual(boundary_fail_original, boundary_fail_prior)
+        self.assertIsNone(main._approved_bilateral_cache_candidate(
+            {"valid": False, "source": "NONE", "result": None},
+            boundary_fail_prior, {"valid": False}, boundary_fail_frame))
+        self.assertEqual(rows_before, cache.cache_rows)
+
+        ambiguous = _clear_prior("AMBIGUOUS_ROAD")
+        ambiguous["scene"] = "AMBIGUOUS_CANDIDATE"
+        original = dict(ambiguous)
+        self.assertIs(ambiguous, recovery.detect(frame, ambiguous))
+        self.assertEqual(original, ambiguous)
+        self.assertIsNone(main._approved_bilateral_cache_candidate(
+            {"valid": False, "source": "NONE", "result": None},
+            ambiguous, {"valid": False}, frame))
+        self.assertEqual(rows_before, cache.cache_rows)
+
+    def test_invalid_frame_does_not_draw_a_persisted_contour_trace(self):
+        class _Image:
+            def __init__(self):
+                self.lines = []
+                self.crosses = []
+
+            def draw_line(self, line, color):
+                self.lines.append((line, color))
+
+            def draw_cross(self, point, color):
+                self.crosses.append((point, color))
+
+            def draw_string(self, point, value, **kwargs):
+                pass
+
+        recovery = ContourRouteRecovery(config)
+        frame = _paired_contour_frame()
+        result = recovery.detect(frame, _clear_prior())
+        self.assertTrue(result["valid"])
+        image = _Image()
+        main._draw_gray_result(
+            image, {"valid": False, "source": "NONE"}, {}, result,
+            None, False, 0, 0, 0, 0.0, text_cache=(),
+            contour_trace_info=recovery.trace_info, contour_used=False)
+        self.assertEqual([], image.lines)
+        self.assertEqual([], image.crosses)
 
     def test_two_disconnected_reference_chains_disable_preview(self):
         points = [(y, 40) for y in range(20, 38)]

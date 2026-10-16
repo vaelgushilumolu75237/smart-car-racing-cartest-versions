@@ -1,16 +1,19 @@
 {
-  "schema_version": 4,
-  "package_id": "CACHED_WIDTH_CORRECTION_FIRST_20261015",
-  "build_id": "CACHED_WIDTH_CORRECTION_FIRST_20261015",
+  "schema_version": 5,
+  "package_id": "CONTOUR_REPAIR_20261016",
+  "build_id": "CONTOUR_REPAIR_20261016",
   "release_status": "SOFTWARE_TESTED_VEHICLE_VALIDATION_PENDING",
   "route_mode": "cached_width",
   "runtime_api": {
     "v7_fast_pipeline": 7,
     "singleedge": 2,
     "reverse_control": 1,
-    "fast_ring_slope": 2
+    "fast_ring_slope": 2,
+    "contour_trace": 1,
+    "contour_route": 1
   },
-  "runtime_file_count": 18,
+  "contour_backend": "python-bounded",
+  "runtime_file_count": 20,
   "runtime_files": [
     {
       "name": "adaptive_detector.py",
@@ -30,11 +33,27 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15651,
-      "sha256": "bf70808cb912bbbf281e6b8a3d11b1bf475f77a59954030d6a8bdb71406c7b14",
-      "before_edit_sha256": "b648807ac912e11a7aea154eb9e35ce30f06db70c6ca7cfdeafa2db1b3a3a533",
+      "size_bytes": 15721,
+      "sha256": "55ef7028a0addce969b6da5e518d6a61879ee318a5feeb574059017d262946f7",
+      "before_edit_sha256": "bf70808cb912bbbf281e6b8a3d11b1bf475f77a59954030d6a8bdb71406c7b14",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "9de489bdc1378ce838bad6e4d32ef459ac28eb12d714a9e3c2f7ea32ce923b9e"
+      "compiled_sha256": "35201150a9bc27b8a6b4d5c0b2f12ed33e07053416ef08ea4a8d7ebcadd2fb0f"
+    },
+    {
+      "name": "contour_route.py",
+      "size_bytes": 24944,
+      "sha256": "de21856c4ba8727d40b2e6e53d0b3eeeb0256cdc3d079c352d68e792f743f9f0",
+      "before_edit_sha256": null,
+      "mpy_cross_exit_code": 0,
+      "compiled_sha256": "c877ee4182babf4c4d367a8ba65f19337ed76d932eea01faca4339174290d3ab"
+    },
+    {
+      "name": "contour_trace.py",
+      "size_bytes": 38011,
+      "sha256": "43441f31090daaad2f4c27cd64318fcbd7c56c301c07253fe4cbdfebbb694ddb",
+      "before_edit_sha256": null,
+      "mpy_cross_exit_code": 0,
+      "compiled_sha256": "f7154436fcba56fe2d4cc5772f7baaa1b3ff362f098c9195f84686d84f890e1a"
     },
     {
       "name": "fast_boundary.py",
@@ -102,11 +121,11 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 152030,
-      "sha256": "26dca7313cebbc6da8c62a2068c4a82acd26a43c1038175e8002c5a604f6a5ed",
-      "before_edit_sha256": "15dd6d2766e0f9b18fc83418066fc47937b5e501d7b21215d00538d1e8d70bd1",
+      "size_bytes": 161928,
+      "sha256": "c244ee0b2ec56108d88ae25e7f3d98861e97f495124e62d24caa37267b9301b9",
+      "before_edit_sha256": "26dca7313cebbc6da8c62a2068c4a82acd26a43c1038175e8002c5a604f6a5ed",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "641d030008c9ab9c7edd037f47e67ad02ccea6402a1274053809e9e2fef46e81"
+      "compiled_sha256": "7519e5a0b707761db0363d2d51268af689e0dd9fea3a8decfaf78f2cdc4a0d9c"
     },
     {
       "name": "reverse_control.py",
@@ -157,9 +176,9 @@
       "compiled_sha256": "65beeec527eb8c9e8bd4cdac5981737daaf18673c3923ba6d8c435a687018435"
     }
   ],
-  "upload_rule": "Upload all 18 top-level .py files together and restart the interpreter. Do not upload tests or mix versions.",
-  "readme_sha256": "eed605c63af681b0e89fd1515facba6d651be05020deca5c50c306f7f6480fba",
-  "before_edit_snapshot": "test-data/straight-exit-20261015/baseline/current",
+  "upload_rule": "Upload all 20 top-level .py source files together and restart. Do not upload host MPY files, tests or mix versions.",
+  "readme_sha256": "31177f07edfb40157cf3344bbb41cb74c5eed173a404b20ef54cbab3eec9d539",
+  "before_edit_snapshot": "test-data/failure3-20261015/baseline/SNAPSHOT_MANIFEST.json",
   "position_weights": {
     "lower70": 0.8,
     "upper30": 0.2
@@ -177,28 +196,118 @@
     "contribution_limit_norm": 400,
     "control_limit_norm": 1000,
     "ring_override_changed": false,
-    "current_position_priority": {
-      "opposing_preview_cancel_at_abs_position_norm": 20,
-      "inside_tolerance": "fade candidate magnitude by (20-abs(position))/20; truncate magnitude then restore sign",
-      "same_direction_unchanged": true,
-      "reference_error_diagnostic_only": true
-    }
+    "composition": "bounded sum of current position and geometry-qualified preview; no sign-only rejection"
   },
   "observation_protocol": "12-byte V1; CRC-16/CCITT-FALSE; 115200 8N1; confidence diagnostic only",
   "reverse_control_protocol": "8-byte RESET/KEEP; 250ms fresh lease",
+  "h743_manual_start": "Physical PE7 start rebuilds RESET/KEEP and fresh-observation gates; stop wins; invalid route does not repeatedly reset",
+  "paired_h743_presets": [
+    {
+      "preset": "Debug",
+      "exit_code": 0,
+      "elf": "build/Debug/CarTest.elf",
+      "sha256": "679354fac9d57f6b8cd07c0f2fbfe1eb056c4482932a1281346116cbdc95958b",
+      "runtime_log_build_id": "cf225148dcd446579bf50f0bcb0057d4",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-Debug.log"
+    },
+    {
+      "preset": "DebugSteering",
+      "exit_code": 0,
+      "elf": "build/DebugSteering/CarTest.elf",
+      "sha256": "981470c16590a1ec7092dda2e605358fae45d812345ae95c8ab064e5c68b8d68",
+      "runtime_log_build_id": "a50a1d5cfd4eb7574ae271d94a286bd0",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugSteering.log"
+    },
+    {
+      "preset": "DebugBench",
+      "exit_code": 0,
+      "elf": "build/DebugBench/CarTest.elf",
+      "sha256": "106b9c3592ee437ed87dc6f7e5f4a90a57d7f0e8c2defa0c502a959a97086cea",
+      "runtime_log_build_id": "d2d844fb84c07a710e4a860f52579b1b",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugBench.log"
+    },
+    {
+      "preset": "DebugFollow",
+      "exit_code": 0,
+      "elf": "build/DebugFollow/CarTest.elf",
+      "sha256": "872bcbd9b24c67ef45740fbe822ad558e40c348792bdac4846425e0d049bbb6c",
+      "runtime_log_build_id": "73e3ef50835f4096e3886b06d05ddc94",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollow.log"
+    },
+    {
+      "preset": "DebugFollowNoLog",
+      "exit_code": 0,
+      "elf": "build/DebugFollowNoLog/CarTest.elf",
+      "sha256": "b605fc4a690f77b538bacd348b16315c92fe844155c2c0f4e594ba7bad0b5830",
+      "runtime_log_build_id": "2b4f7364f4635aa3cd8d4943b81fd358",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollowNoLog.log"
+    },
+    {
+      "preset": "DebugFollowDiff5",
+      "exit_code": 0,
+      "elf": "build/DebugFollowDiff5/CarTest.elf",
+      "sha256": "254e52df0d91d03521b65b00eacb8b79185a46c091d7fe61bf8887348de17a4b",
+      "runtime_log_build_id": "74b68e0976e65e687633ef8947db469c",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollowDiff5.log"
+    },
+    {
+      "preset": "DebugFollowDiff10",
+      "exit_code": 0,
+      "elf": "build/DebugFollowDiff10/CarTest.elf",
+      "sha256": "1d985f5835aef0cb5a190207e53429496bbe9079a106bc3c330531a9dfc543fc",
+      "runtime_log_build_id": "9046451064f37e9d19a9ad85035658d2",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollowDiff10.log"
+    },
+    {
+      "preset": "DebugFollowTurn",
+      "exit_code": 0,
+      "elf": "build/DebugFollowTurn/CarTest.elf",
+      "sha256": "a900264effe88afcbefc67353e29f1c55d4adfa82d05dd17504c0733d67c335c",
+      "runtime_log_build_id": "4114828739af94606c11ee2157252c77",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollowTurn.log"
+    },
+    {
+      "preset": "DebugFollowSpeedPI",
+      "exit_code": 0,
+      "elf": "build/DebugFollowSpeedPI/CarTest.elf",
+      "sha256": "3f15d073977dbc6f7dd93ef27377dfc3548886124edcdc76df93e73f452607f5",
+      "runtime_log_build_id": "5597d01cc576888592ed24d4452eea96",
+      "storage_address": "0x24001180",
+      "build_log": "test-data/contour-repair-20261016/h743-validation/build-DebugFollowSpeedPI.log"
+    }
+  ],
+  "recommended_h743_profile": "DebugFollowTurn",
   "host_tests": {
-    "suite_count": 10,
-    "tests_run": 179,
-    "all_passed": true,
+    "active_openmv": {
+      "run": 136,
+      "skipped": 0,
+      "passed": 136
+    },
+    "frozen_v7": {
+      "run": 79,
+      "skipped": 1,
+      "failed": 0
+    },
+    "h743_cases": 67,
+    "h743_assertions": 6948,
+    "h743_failures": 0,
     "board_equivalence_skipped": true,
-    "evidence": "test-data/straight-exit-20261015/vision-validation/host/SUMMARY.json"
+    "evidence": "test-data/contour-repair-20261016/vision-validation/integrated-final-summary.json"
   },
   "host_mpy_cross_validation": {
-    "compiler": "MicroPython v1.25.0; mpy-cross v6.3",
+    "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
     "target": "armv7em",
-    "files_compiled": 18,
+    "files_compiled": 20,
     "all_passed": true,
-    "evidence": "test-data/straight-exit-20261015/vision-validation/mpy-cross/SUMMARY.json"
+    "evidence": "test-data/contour-repair-20261016/vision-validation/integrated-final-summary.json"
   },
   "hardware_validation": {
     "openmv_board_timing": false,
@@ -207,10 +316,13 @@
     "vehicle_cornering": false
   },
   "known_limitations": [
-    "Video replay includes compression and overlay; top-overlay masking is a separate sensitivity variant, not raw sensor evidence.",
-    "Preview parameters are initial software-tested values, not optimal measured gains.",
-    "H743 motor/steering firmware and safety policy are unchanged.",
-    "Historical clipped-midpoint package is not maintained or regenerated.",
-    "Opposing-preview tolerance is an initial software choice, not vehicle calibration."
+    "Supplied C excerpt ported under explicit 255/0/125 pixel convention; full original project unavailable. Geometry utilities are from description, not original implementations.",
+    "Fixed-pixel normal offsets are not used for driving without matching calibration.",
+    "Annotated video replays did not recover additional valid frames; replay geometry is not native sensor evidence.",
+    "Pure Python contour runtime and heap remain unmeasured on OpenMV.",
+    "Compiler v1.25 is older than board runtime v1.28; compilation does not establish runtime equivalence.",
+    "Ring remains experimental; no new ring/slope/zebra controller from unavailable original bodies.",
+    "Historical clipped-midpoint package is not maintained.",
+    "Host validation and ELF builds are not road acceptance."
   ]
 }
