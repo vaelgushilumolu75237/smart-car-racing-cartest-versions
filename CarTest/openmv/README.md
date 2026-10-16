@@ -1,6 +1,8 @@
 # CarTest OpenMV production package
 
-Current package: `CONTOUR_REPAIR_20261016`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+Current package: `CONTOUR_ARRAYFIX_20261016`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+
+This compatibility revision replaces array-times-integer buffer allocation that fails on MicroPython. Steering and route decisions, H743 source and paired ELFs are unchanged from the contour-repair checkpoint. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the error, upload steps and validation limits.
 
 ## Normal steering
 

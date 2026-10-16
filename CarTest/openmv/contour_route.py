@@ -5,9 +5,7 @@ candidate that still needs the existing selected-boundary validator; it does
 not authorize steering and never invents a calibrated normal offset.
 """
 
-from array import array
-
-from contour_trace import ContourTraceWorkspace, WHITE
+from contour_trace import ContourTraceWorkspace, WHITE, _array_fill
 
 
 RUNTIME_API_VERSION = 1
@@ -159,15 +157,15 @@ class ContourRouteRecovery:
         self.reason = "NOT_RUN"
         self.Lcount = 0
         self.Rcount = 0
-        self._left_x = array("h", [-1]) * height
-        self._right_x = array("h", [-1]) * height
+        self._left_x = _array_fill("h", -1, height)
+        self._right_x = _array_fill("h", -1, height)
         self._left_seen = bytearray(height)
         self._right_seen = bytearray(height)
         self._row_ambiguous = bytearray(height)
         self._row_valid = bytearray(height)
-        self._row_width = array("H", [0]) * height
-        self._row_center_twice = array("i", [0]) * height
-        self.selected_row_ints = array("i", [0]) * (height * 4)
+        self._row_width = _array_fill("H", 0, height)
+        self._row_center_twice = _array_fill("i", 0, height)
+        self.selected_row_ints = _array_fill("i", 0, height * 4)
         self.selected_row_stride = 4
         self.selected_row_count = 0
         self._prior_result = None

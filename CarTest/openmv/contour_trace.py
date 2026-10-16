@@ -33,6 +33,35 @@ SEED_TOO_FAR = "ROAD_TOO_FAR_FROM_CENTER"
 _DY = (-1, 0, 1, 0)
 _DX = (0, 1, 0, -1)
 
+# MicroPython v1.28 intentionally does not implement array * integer. The host
+# interpreter does, which allowed the original fixed-storage allocations to
+# pass local tests while failing on the camera. Keep zero-filled allocations
+# byte-backed, using one fixed-length array allocation and a temporary zero
+# bytearray; write non-zero initial values after allocation.
+_ARRAY_ITEM_BYTES = {
+    "b": 1,
+    "B": 1,
+    "h": 2,
+    "H": 2,
+    "i": 4,
+    "I": 4,
+    "f": 4,
+}
+
+
+def _array_fill(typecode, value, count):
+    if not _valid_int(count) or count < 0:
+        raise ValueError("array fill count must be a non-negative integer")
+    try:
+        item_bytes = _ARRAY_ITEM_BYTES[typecode]
+    except KeyError:
+        raise ValueError("unsupported array typecode")
+    result = array(typecode, bytearray(count * item_bytes))
+    if value != 0:
+        for index in range(count):
+            result[index] = value
+    return result
+
 
 def _info_value(info, name, default=None):
     getter = getattr(info, "get", None)
@@ -134,27 +163,27 @@ class ContourTraceWorkspace:
         self.iteration_budget = iteration_budget
         self.record_events = bool(record_events)
         self._state_mask = state_table_size - 1
-        self._state_position = array("I", [0]) * state_table_size
+        self._state_position = _array_fill("I", 0, state_table_size)
         self._state_code = bytearray(state_table_size)
 
-        self.left_points = array("H", [0]) * (max_points * 2)
-        self.right_points = array("H", [0]) * (max_points * 2)
+        self.left_points = _array_fill("H", 0, max_points * 2)
+        self.right_points = _array_fill("H", 0, max_points * 2)
         self.left_dark_support = bytearray(max_points)
         self.right_dark_support = bytearray(max_points)
         self.left_directions = bytearray(max_points)
         self.right_directions = bytearray(max_points)
-        self.left_errors = array("b", [0]) * max_points
-        self.right_errors = array("b", [0]) * max_points
-        self.left_lost_history = array("H", [0]) * max_points
-        self.right_lost_history = array("H", [0]) * max_points
-        self.left_row_support = array("H", [0]) * height
-        self.right_row_support = array("H", [0]) * height
+        self.left_errors = _array_fill("b", 0, max_points)
+        self.right_errors = _array_fill("b", 0, max_points)
+        self.left_lost_history = _array_fill("H", 0, max_points)
+        self.right_lost_history = _array_fill("H", 0, max_points)
+        self.left_row_support = _array_fill("H", 0, height)
+        self.right_row_support = _array_fill("H", 0, height)
         event_capacity = iteration_budget if self.record_events else 0
         self.event_side = bytearray(event_capacity)
-        self.event_points = array("H", [0]) * (event_capacity * 2)
+        self.event_points = _array_fill("H", 0, event_capacity * 2)
         self.event_directions = bytearray(event_capacity)
-        self.event_errors = array("b", [0]) * event_capacity
-        self.event_lost = array("H", [0]) * event_capacity
+        self.event_errors = _array_fill("b", 0, event_capacity)
+        self.event_lost = _array_fill("H", 0, event_capacity)
         self.event_actions = bytearray(event_capacity)
         self.event_count = 0
         self.left_count = 0
@@ -642,12 +671,12 @@ class ContourPostWorkspace:
         self.width = width
         self.height = height
         self.max_samples = max_samples
-        self.filtered_points = array("i", [0]) * (2 * max_samples)
-        self.resampled_points = array("f", [0.0]) * (2 * max_samples)
+        self.filtered_points = _array_fill("i", 0, 2 * max_samples)
+        self.resampled_points = _array_fill("f", 0.0, 2 * max_samples)
         self.resample_breaks = bytearray(max_samples)
-        self.offset_points = array("f", [0.0]) * (2 * max_samples)
+        self.offset_points = _array_fill("f", 0.0, 2 * max_samples)
         self.offset_valid = bytearray(max_samples)
-        self.corner_indices = array("H", [0]) * max_samples
+        self.corner_indices = _array_fill("H", 0, max_samples)
         self.resample_truncated = False
         self.resampled_count = 0
         self.corner_count = 0

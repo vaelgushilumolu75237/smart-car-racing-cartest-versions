@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
-  "package_id": "CONTOUR_REPAIR_20261016",
-  "build_id": "CONTOUR_REPAIR_20261016",
+  "package_id": "CONTOUR_ARRAYFIX_20261016",
+  "build_id": "CONTOUR_ARRAYFIX_20261016",
   "release_status": "SOFTWARE_TESTED_VEHICLE_VALIDATION_PENDING",
   "route_mode": "cached_width",
   "runtime_api": {
@@ -33,27 +33,27 @@
     },
     {
       "name": "config.py",
-      "size_bytes": 15721,
-      "sha256": "55ef7028a0addce969b6da5e518d6a61879ee318a5feeb574059017d262946f7",
-      "before_edit_sha256": "bf70808cb912bbbf281e6b8a3d11b1bf475f77a59954030d6a8bdb71406c7b14",
+      "size_bytes": 15723,
+      "sha256": "7a32865d8953a02327e151ed89c233374853e96bc0bbe247431a5c8e10737209",
+      "before_edit_sha256": "55ef7028a0addce969b6da5e518d6a61879ee318a5feeb574059017d262946f7",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "35201150a9bc27b8a6b4d5c0b2f12ed33e07053416ef08ea4a8d7ebcadd2fb0f"
+      "compiled_sha256": "d88af115fe584cca30a9a8381ecbd79f1614756763c7b726c6613a5b9f0714e2"
     },
     {
       "name": "contour_route.py",
-      "size_bytes": 24944,
-      "sha256": "de21856c4ba8727d40b2e6e53d0b3eeeb0256cdc3d079c352d68e792f743f9f0",
-      "before_edit_sha256": null,
+      "size_bytes": 24945,
+      "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+      "before_edit_sha256": "de21856c4ba8727d40b2e6e53d0b3eeeb0256cdc3d079c352d68e792f743f9f0",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "c877ee4182babf4c4d367a8ba65f19337ed76d932eea01faca4339174290d3ab"
+      "compiled_sha256": "88809dc9fdc8e8252c8d82bad6d3b0adc75b8cdfaccf5c939347c5a4b2f44f34"
     },
     {
       "name": "contour_trace.py",
-      "size_bytes": 38011,
-      "sha256": "43441f31090daaad2f4c27cd64318fcbd7c56c301c07253fe4cbdfebbb694ddb",
-      "before_edit_sha256": null,
+      "size_bytes": 38987,
+      "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+      "before_edit_sha256": "43441f31090daaad2f4c27cd64318fcbd7c56c301c07253fe4cbdfebbb694ddb",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "f7154436fcba56fe2d4cc5772f7baaa1b3ff362f098c9195f84686d84f890e1a"
+      "compiled_sha256": "c5d26da51018bea96810b76c00a41a93924778d8e8bab7a0050e943478099b93"
     },
     {
       "name": "fast_boundary.py",
@@ -121,11 +121,11 @@
     },
     {
       "name": "main.py",
-      "size_bytes": 161928,
-      "sha256": "c244ee0b2ec56108d88ae25e7f3d98861e97f495124e62d24caa37267b9301b9",
-      "before_edit_sha256": "26dca7313cebbc6da8c62a2068c4a82acd26a43c1038175e8002c5a604f6a5ed",
+      "size_bytes": 161930,
+      "sha256": "713e35aa7e01c3781a2fa6fc92bb257fbad1b010c8b0b13ead29becb253eca15",
+      "before_edit_sha256": "c244ee0b2ec56108d88ae25e7f3d98861e97f495124e62d24caa37267b9301b9",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "7519e5a0b707761db0363d2d51268af689e0dd9fea3a8decfaf78f2cdc4a0d9c"
+      "compiled_sha256": "884c247a1250c86ae3070e47910a225325a6690c94cb7d2d85d76832dd9315de"
     },
     {
       "name": "reverse_control.py",
@@ -177,8 +177,8 @@
     }
   ],
   "upload_rule": "Upload all 20 top-level .py source files together and restart. Do not upload host MPY files, tests or mix versions.",
-  "readme_sha256": "31177f07edfb40157cf3344bbb41cb74c5eed173a404b20ef54cbab3eec9d539",
-  "before_edit_snapshot": "test-data/failure3-20261015/baseline/SNAPSHOT_MANIFEST.json",
+  "readme_sha256": "d607f56931424a6ff7fb2734df0d0cb554b8ca14c4fffbc63d6809f05a52b1d5",
+  "before_edit_snapshot": "test-data/contour-arrayfix-20261016/baseline/SNAPSHOT_MANIFEST.json",
   "position_weights": {
     "lower70": 0.8,
     "upper30": 0.2
@@ -287,9 +287,9 @@
   "recommended_h743_profile": "DebugFollowTurn",
   "host_tests": {
     "active_openmv": {
-      "run": 136,
+      "run": 139,
       "skipped": 0,
-      "passed": 136
+      "passed": 139
     },
     "frozen_v7": {
       "run": 79,
@@ -300,14 +300,15 @@
     "h743_assertions": 6948,
     "h743_failures": 0,
     "board_equivalence_skipped": true,
-    "evidence": "test-data/contour-repair-20261016/vision-validation/integrated-final-summary.json"
+    "evidence": "test-data/contour-arrayfix-20261016/vision-validation/integrated-final-summary.json",
+    "h743_tests_reused_from_previous_repair": true
   },
   "host_mpy_cross_validation": {
     "compiler": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
     "target": "armv7em",
     "files_compiled": 20,
     "all_passed": true,
-    "evidence": "test-data/contour-repair-20261016/vision-validation/integrated-final-summary.json"
+    "evidence": "test-data/contour-arrayfix-20261016/vision-validation/integrated-final-summary.json"
   },
   "hardware_validation": {
     "openmv_board_timing": false,
@@ -323,6 +324,18 @@
     "Compiler v1.25 is older than board runtime v1.28; compilation does not establish runtime equivalence.",
     "Ring remains experimental; no new ring/slope/zebra controller from unavailable original bodies.",
     "Historical clipped-midpoint package is not maintained.",
-    "Host validation and ELF builds are not road acceptance."
-  ]
+    "Host validation and ELF builds are not road acceptance.",
+    "Array compatibility regression uses a host array subclass rejecting multiplication; actual MicroPython/OpenMV execution is unverified."
+  ],
+  "compatibility_hotfix": {
+    "scope": "Fixed array repetition in buffer initialization; existing algorithm methods unchanged after initialization normalization",
+    "operations_replaced": 21,
+    "initialization": "Fixed-length zero bytearray constructor; nonzero values assigned once at initialization",
+    "previous_build": "CONTOUR_REPAIR_20261016",
+    "h743_rebuilt_this_hotfix": false,
+    "micro_python_execution": false,
+    "strict_array_host_simulation": true,
+    "lead_review": "test-data/contour-arrayfix-20261016/LEAD_REVIEW.json",
+    "h743_source_and_elf_unchanged": true
+  }
 }

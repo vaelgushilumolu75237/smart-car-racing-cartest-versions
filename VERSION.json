@@ -1,7 +1,7 @@
 {
-  "version": "v20261016-contour-repair",
-  "status": "experimental-software-tested-road-pending",
-  "branch": "fix/contour-repair",
-  "files": 356,
+  "version": "v20261016-contour-arrayfix",
+  "status": "experimental-array-runtime-compatibility-tested-road-pending",
+  "branch": "fix/contour-arrayfix",
+  "files": 358,
   "hardware_actions": "none"
 }
