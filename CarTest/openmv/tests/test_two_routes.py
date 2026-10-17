@@ -215,7 +215,7 @@ class TwoRouteTests(unittest.TestCase):
         mask = _record_extra_dark_step(_mask("left"), x=45)
         result = tracker.detect(mask, True)
         self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "AMBIGUOUS_SINGLE_EDGE_IDENTITY")
+        self.assertEqual(result["reason"], "AMBIGUOUS_SINGLE_EDGE_CHAIN")
 
     def test_both_reliable_sides_are_rejected_as_ambiguous(self):
         tracker = _tracker(ROUTE_CLIPPED_MIDPOINT)
@@ -245,7 +245,7 @@ class TwoRouteTests(unittest.TestCase):
             short["edge_mask"][row:row + WIDTH] = bytes(WIDTH)
         result = tracker.detect(short, True)
         self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "SINGLE_EDGE_CONTINUITY_OR_SUPPORT")
+        self.assertEqual(result["reason"], "SINGLE_EDGE_SUPPORT_ROWS")
 
         discontinuous = _mask("left")
         for y in range(FLOOR + 20, HEIGHT):
@@ -259,8 +259,11 @@ class TwoRouteTests(unittest.TestCase):
                 discontinuous["edge_mask"][row + x] = 0
                 discontinuous["luma"][row + x] = 220
         result = tracker.detect(discontinuous, True)
-        self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "SINGLE_EDGE_CONTINUITY_OR_SUPPORT")
+        self.assertTrue(result["valid"], result["reason"])
+        self.assertEqual(result["selected_row_count"], HEIGHT - FLOOR - 20)
+        self.assertEqual(result["selected_row_ints"][0], FLOOR + 20)
+        self.assertEqual(result["selected_row_ints"][(
+            result["selected_row_count"] - 1) * 5], HEIGHT - 1)
 
     def test_side_switch_requires_a_published_bilateral_reacquisition(self):
         tracker = _tracker(ROUTE_CLIPPED_MIDPOINT)
@@ -270,7 +273,7 @@ class TwoRouteTests(unittest.TestCase):
         switched = tracker.detect(_mask("right"), True)
         self.assertFalse(switched["valid"])
         self.assertEqual(switched["reason"],
-                         "SINGLE_EDGE_SIDE_SWITCH_REQUIRES_BILATERAL")
+                         "SINGLE_EDGE_SIDE_SWITCH_PENDING")
 
         dual = _mask("both")
         accepted = tracker.observe_bilateral(

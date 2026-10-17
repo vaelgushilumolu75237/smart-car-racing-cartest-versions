@@ -10,183 +10,184 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $wrapper = Join-Path $projectRoot 'tools\read_run_status.ps1'
-$reader = Join-Path $projectRoot 'tools\run_status_reader.py'
 $fakeSource = Join-Path $PSScriptRoot 'support\FakeRunStatusCubeProgrammer.cs'
+$fixtureBuilder = Join-Path $PSScriptRoot 'support\make_status_fixtures.py'
 $python = (Get-Command -Name 'python.exe' -ErrorAction Stop).Source
 $powershellExe = Join-Path $PSHOME 'powershell.exe'
+$resolvedElf = (Resolve-Path -LiteralPath $Elf).Path
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
-
-$fakeDirectory = Join-Path $OutputRoot 'fake cli with spaces'
+$fakeDirectory = Join-Path $OutputRoot 'fake status cli with spaces'
 New-Item -ItemType Directory -Path $fakeDirectory -Force | Out-Null
 $fakeExe = Join-Path $fakeDirectory 'STM32_Programmer_CLI.exe'
 Add-Type -TypeDefinition (Get-Content -LiteralPath $fakeSource -Raw -Encoding UTF8) `
     -OutputAssembly $fakeExe -OutputType ConsoleApplication
 
-$resolvedElf = (Resolve-Path -LiteralPath $Elf).Path
-$resolvedHeader = (Resolve-Path -LiteralPath $HeaderFixture).Path
-$resolvedScalars = (Resolve-Path -LiteralPath $ScalarFixture).Path
-$beforeHash = (Get-FileHash -LiteralPath $resolvedElf -Algorithm SHA256).Hash.ToLowerInvariant()
-$planLines = @(& $python $reader plan --elf $resolvedElf)
-if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the selected ELF for the status fake CLI test.' }
-$plan = ($planLines -join [Environment]::NewLine) | ConvertFrom-Json
-if ($plan.scalar_read.size -gt 4096 -or $plan.header_read.size -ne 64) {
-    throw 'The status reader planned a memory read outside its explicit bounds.'
-}
-
+$fixtureRoot = Join-Path $OutputRoot 'target-matched synthetic fixtures'
+$fixtureBuilderOutput = @(& $python $fixtureBuilder --elf $resolvedElf --out $fixtureRoot)
+if ($LASTEXITCODE -ne 0) { throw 'Could not synthesize matching ELF status fixtures.' }
+$fixtureInfo = ($fixtureBuilderOutput -join [Environment]::NewLine) | ConvertFrom-Json
+$descriptorFixture = Join-Path $fixtureRoot 'flash-rom-descriptor.bin'
+$scalarFixture = Join-Path $fixtureRoot 'scalar-region.bin'
+$headerFixture = Join-Path $fixtureRoot 'runtime-log-header.bin'
 $serial = '1234567890'
-$savedEnvironment = @{}
 $environmentNames = @(
-    'RUN_STATUS_FAKE_ARGS_PATH', 'RUN_STATUS_FAKE_CALL_INDEX_PATH',
-    'RUN_STATUS_FAKE_EXPECTED_SN', 'RUN_STATUS_FAKE_SCALAR_ADDRESS',
-    'RUN_STATUS_FAKE_SCALAR_SIZE', 'RUN_STATUS_FAKE_HEADER_ADDRESS',
-    'RUN_STATUS_FAKE_SCALAR_FIXTURE', 'RUN_STATUS_FAKE_HEADER_FIXTURE',
-    'RUN_STATUS_FAKE_MODE'
+    'RUN_STATUS_FAKE_ARGS_PATH', 'RUN_STATUS_FAKE_EXPECTED_SN',
+    'RUN_STATUS_FAKE_DESCRIPTOR_ADDRESS', 'RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE',
+    'RUN_STATUS_FAKE_SCALAR_ADDRESS', 'RUN_STATUS_FAKE_SCALAR_SIZE',
+    'RUN_STATUS_FAKE_SCALAR_FIXTURE', 'RUN_STATUS_FAKE_HEADER_ADDRESS',
+    'RUN_STATUS_FAKE_HEADER_FIXTURE', 'RUN_STATUS_FAKE_MODE',
+    'RUN_STATUS_FAKE_FREQ', 'RUN_STATUS_FAKE_SHARED', 'RUN_STATUS_FAKE_PROBES',
+    'RUN_STATUS_FAKE_ACTUAL_FREQ'
 )
+$savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
 
-function Assert-SafeUploadArguments {
-    param([string]$ArgumentsPath)
-    $lines = @(Get-Content -LiteralPath $ArgumentsPath -Encoding UTF8)
-    if ($lines.Count -ne 2) { throw "Expected exactly 2 RAM status reads, found $($lines.Count)." }
-    $forbidden = @('port=JTAG', 'mode=NORMAL', '-rst', '--reset', '-hardrst', '-halt', '--halt', '--download', '--erase', '-go', '--run')
-    foreach ($line in $lines) {
-        $tokens = $line.Split([char]9)
-        if ($tokens.Count -ne 10 -or $tokens[0] -ne '-c' -or
-            $tokens[1] -ne 'port=SWD' -or $tokens[2] -ne 'mode=HOTPLUG' -or
-            $tokens[3] -ne 'freq=1000' -or $tokens[4] -ne 'shared' -or
-            $tokens[5] -ne "sn=$serial" -or $tokens[6] -ne '--upload') {
-            throw "Unexpected RAM-read argv: $line"
-        }
-        foreach ($token in $tokens) {
-            if ($forbidden -contains $token) { throw "Forbidden operation argument observed: $token" }
-        }
-    }
-    $one = $lines[0].Split([char]9)
-    $two = $lines[1].Split([char]9)
-    if ($one[7] -ne $plan.scalar_read.address -or
-        [int]$one[8] -ne $plan.scalar_read.size -or
-        $two[7] -ne $plan.header_read.address -or [int]$two[8] -ne 64) {
-        throw 'The CLI read addresses/sizes do not match the actual ELF symbols and 64-byte header.'
-    }
-}
-
 function Invoke-StatusCase {
-    param([string]$Name, [string]$Mode, [switch]$DryRun, [string]$ElfPath = $resolvedElf)
+    param(
+        [string]$Name,
+        [string]$Mode = 'success',
+        [string]$Frequency = '1000',
+        [string]$Shared = 'true',
+        [string]$ActualFrequency = '950',
+        [switch]$DryRun,
+        [string]$DescriptorPath = $descriptorFixture
+    )
     $caseRoot = Join-Path $OutputRoot $Name
     New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
     $argsLog = Join-Path $caseRoot 'fake-cli-args.tsv'
-    $callIndex = Join-Path $caseRoot 'fake-cli-call-index.txt'
     $env:RUN_STATUS_FAKE_ARGS_PATH = $argsLog
-    $env:RUN_STATUS_FAKE_CALL_INDEX_PATH = $callIndex
     $env:RUN_STATUS_FAKE_EXPECTED_SN = $serial
-    $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = $plan.scalar_read.address
-    $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$plan.scalar_read.size
-    $env:RUN_STATUS_FAKE_HEADER_ADDRESS = $plan.header_read.address
-    $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $resolvedScalars
-    $env:RUN_STATUS_FAKE_HEADER_FIXTURE = $resolvedHeader
+    $env:RUN_STATUS_FAKE_DESCRIPTOR_ADDRESS = [string]$fixtureInfo.descriptor_address
+    $env:RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE = $DescriptorPath
+    $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = [string]$fixtureInfo.scalar_address
+    $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$fixtureInfo.scalar_size
+    $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $scalarFixture
+    $env:RUN_STATUS_FAKE_HEADER_ADDRESS = [string]$fixtureInfo.header_address
+    $env:RUN_STATUS_FAKE_HEADER_FIXTURE = $headerFixture
     $env:RUN_STATUS_FAKE_MODE = $Mode
+    $env:RUN_STATUS_FAKE_FREQ = $Frequency
+    $env:RUN_STATUS_FAKE_SHARED = if ($Shared -match '^(true|1)$') { '1' } else { '0' }
+    $env:RUN_STATUS_FAKE_PROBES = $serial
+    $env:RUN_STATUS_FAKE_ACTUAL_FREQ = $ActualFrequency
 
-    $outputRoot = Join-Path $caseRoot 'output root'
-    $childArguments = @(
-        '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-        '-File', $wrapper,
-        '-Elf', $ElfPath,
-        '-OutDirectory', $outputRoot,
-        '-ProgrammerCLI', $fakeExe,
-        '-ProbeSN', $serial
-    )
-    if ($DryRun) { $childArguments += '-DryRun' }
+    $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', $wrapper, '-Elf', $resolvedElf,
+        '-OutDirectory', (Join-Path $caseRoot 'output'),
+        '-ProgrammerCLI', $fakeExe, '-ProbeSN', $serial,
+        '-ConnectionFrequencyKhz', $Frequency, '-SharedConnection', $Shared)
+    if ($DryRun) { $arguments += '-DryRun' }
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $childOutput = @(& $powershellExe @childArguments 2>&1)
+        $output = @(& $powershellExe @arguments 2>&1)
         $exitCode = $LASTEXITCODE
-    }
-    finally { $ErrorActionPreference = $previousPreference }
-    $text = (($childOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
+    } finally { $ErrorActionPreference = $previousPreference }
+    $text = (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
     Set-Content -LiteralPath (Join-Path $caseRoot 'wrapper-output.log') -Value $text -Encoding UTF8
-    Set-Content -LiteralPath (Join-Path $caseRoot 'wrapper-exitcode.txt') -Value ([string]$exitCode) -Encoding ASCII
-    return [PSCustomObject]@{ CaseRoot = $caseRoot; OutputRoot = $outputRoot; ArgsLog = $argsLog; ExitCode = $exitCode; Output = $text }
+    return [PSCustomObject]@{ CaseRoot = $caseRoot; ArgsLog = $argsLog; ExitCode = $exitCode; Output = $text }
 }
 
 function Get-StatusRunDirectory {
-    param([string]$Root)
-    $dirs = @(Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending)
-    if ($dirs.Count -eq 0) { return $null }
-    return $dirs[0]
+    param([string]$CaseRoot)
+    $root = Join-Path $CaseRoot 'output'
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) { return $null }
+    return Get-ChildItem -LiteralPath $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+
+function Assert-ReadSequence {
+    param([string]$ArgsLog, [string[]]$Frequencies, [bool]$Shared = $true)
+    $lines = @(Get-Content -LiteralPath $ArgsLog -Encoding UTF8)
+    if ($lines.Count -ne $Frequencies.Count) { throw "Expected $($Frequencies.Count) reads, got $($lines.Count)." }
+    $descriptorAddress = [string]$fixtureInfo.descriptor_address
+    $scalarAddress = [string]$fixtureInfo.scalar_address
+    $headerAddress = [string]$fixtureInfo.header_address
+    if ($Frequencies.Count -eq 4) {
+        $expectedAddresses = @($descriptorAddress, $descriptorAddress, $scalarAddress, $headerAddress)
+        $expectedSizes = @(64, 64, [int]$fixtureInfo.scalar_size, 64)
+    } else {
+        $expectedAddresses = @($descriptorAddress, $scalarAddress, $headerAddress)
+        $expectedSizes = @(64, [int]$fixtureInfo.scalar_size, 64)
+    }
+    for ($i = 0; $i -lt $lines.Count; ++$i) {
+        $tokens = $lines[$i].Split([char]9)
+        $offset = 4
+        if ($Shared) {
+            if ($tokens[$offset] -ne 'shared') { throw "Read $i did not use shared mode." }
+            $offset++
+        } elseif ($tokens[$offset] -eq 'shared') {
+            throw "Read $i unexpectedly used shared mode."
+        }
+        if ($tokens.Count -ne $offset + 5 -or $tokens[0] -ne '-c' -or
+            $tokens[1] -ne 'port=SWD' -or $tokens[2] -ne 'mode=HOTPLUG' -or
+            $tokens[3] -ne ("freq={0}" -f $Frequencies[$i]) -or
+            $tokens[$offset] -ne "sn=$serial" -or $tokens[$offset + 1] -ne '--upload' -or
+            $tokens[$offset + 2] -ne $expectedAddresses[$i] -or
+            [int]$tokens[$offset + 3] -ne $expectedSizes[$i]) {
+            throw "Unexpected bounded read ${i}: $($lines[$i])"
+        }
+    }
 }
 
 try {
-    $success = Invoke-StatusCase -Name 'fake-cli-success-idle-header' -Mode 'success'
-    if ($success.ExitCode -ne 0) { throw "Fake status read should succeed: $($success.Output)" }
-    Assert-SafeUploadArguments -ArgumentsPath $success.ArgsLog
-    $successRun = Get-StatusRunDirectory -Root $success.OutputRoot
-    if (-not $successRun) { throw 'Successful fake status read did not create a timestamped diagnostics directory.' }
-    $statusPath = Join-Path $successRun.FullName 'run-status.json'
-    $status = Get-Content -LiteralPath $statusPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($status.status -ne 'success' -or $status.runtime_log_header.state_name -ne 'idle' -or
-        $status.runtime_log_header.count -ne 0 -or
-        -not $status.runtime_log_header.build_id_matches_elf -or
-        $status.runtime_log_header.header_crc_status -ne 'valid' -or
-        $status.runtime_log_header.record_payload_read -or $status.diagnostic_is_run_record) {
-        throw 'The current matching ELF/header did not produce an IDLE-only diagnostic status.'
-    }
-    foreach ($required in @('scalar-region.bin', 'runtime-log-header.bin', 'read-plan.json',
-                            'python-plan.log', 'python-decode.log',
-                            'cubeprogrammer-scalars.log', 'cubeprogrammer-header.log')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $successRun.FullName $required) -PathType Leaf)) {
-            throw "Successful diagnostic did not preserve $required."
-        }
+    $success = Invoke-StatusCase -Name 'IDLE-status-with-shared-string-true' -Mode success -Shared 'true'
+    if ($success.ExitCode -ne 0) { throw "Target-matched IDLE status failed: $($success.Output)" }
+    Assert-ReadSequence -ArgsLog $success.ArgsLog -Frequencies @('1000', '1000', '1000')
+    $successRun = Get-StatusRunDirectory $success.CaseRoot
+    $status = Get-Content -LiteralPath (Join-Path $successRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($status.runtime_log_header.state_name -ne 'idle' -or
+        $status.runtime_log_header.count -ne 0 -or $status.csv_created -or
+        $status.reads_are_atomic_together -ne $false -or
+        $status.flash_descriptor.status -ne 'matched' -or
+        $status.connection.actual_frequency_khz -ne 950) {
+        throw 'Status report did not preserve IDLE/no-CSV, non-atomic reads, descriptor, and actual rate.'
     }
 
-    $failure = Invoke-StatusCase -Name 'fake-cli-connect-error' -Mode 'connect-error'
-    if ($failure.ExitCode -eq 0) { throw 'Fake DEV_CONNECT_ERR was incorrectly reported as success.' }
-    $failureRun = Get-StatusRunDirectory -Root $failure.OutputRoot
-    if (-not $failureRun) { throw 'Failed fake CLI read did not retain its diagnostics directory.' }
-    $failureStatus = Get-Content -LiteralPath (Join-Path $failureRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $failureCalls = @(Get-Content -LiteralPath $failure.ArgsLog -Encoding UTF8)
-    if ($failureStatus.status -ne 'failed' -or $failureCalls.Count -ne 1 -or
-        $failureStatus.error -notmatch 'DEV_CONNECT_ERR' -or
-        (Test-Path -LiteralPath (Join-Path $failureRun.FullName 'runtime-log-header.bin'))) {
-        throw 'Connection failure must remain failed and must not invent a header/scalar snapshot.'
+    $exclusive = Invoke-StatusCase -Name 'legacy-string-false-works-in-powershell-child' -Mode success -Shared 'false'
+    if ($exclusive.ExitCode -ne 0) { throw "String-bool false did not bind in PowerShell child: $($exclusive.Output)" }
+    Assert-ReadSequence -ArgsLog $exclusive.ArgsLog -Frequencies @('1000', '1000', '1000') -Shared:$false
+
+    $fallback = Invoke-StatusCase -Name 'fallback-1000-to-400' -Mode 'connect-error-1000' -Frequency '1000' -Shared 'true' -ActualFrequency '375'
+    if ($fallback.ExitCode -ne 0) { throw "Status connection fallback failed: $($fallback.Output)" }
+    Assert-ReadSequence -ArgsLog $fallback.ArgsLog -Frequencies @('1000', '400', '400', '400')
+    $fallbackRun = Get-StatusRunDirectory $fallback.CaseRoot
+    $fallbackStatus = Get-Content -LiteralPath (Join-Path $fallbackRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($fallbackStatus.connection.frequency_khz -ne 400 -or
+        $fallbackStatus.connection.actual_frequency_khz -ne 375 -or
+        $fallbackStatus.connection.attempts[0].error_class -ne 'core_inaccessible') {
+        throw 'Status fallback did not reuse the successful rate or retain the failed attempt.'
     }
 
-    $dry = Invoke-StatusCase -Name 'dry-run-no-cli' -Mode 'success' -DryRun
-    if ($dry.ExitCode -ne 0) { throw "DryRun should succeed without connecting: $($dry.Output)" }
+    $wrongDescriptor = Join-Path $OutputRoot 'wrong-status-descriptor.bin'
+    $bad = [IO.File]::ReadAllBytes($descriptorFixture)
+    $bad[28] = $bad[28] -bxor 1
+    [IO.File]::WriteAllBytes($wrongDescriptor, $bad)
+    $mismatch = Invoke-StatusCase -Name 'wrong-elf-no-ram-read' -Mode success -DescriptorPath $wrongDescriptor
+    if ($mismatch.ExitCode -eq 0) { throw 'Wrong target Flash descriptor unexpectedly passed status read.' }
+    $mismatchRun = Get-StatusRunDirectory $mismatch.CaseRoot
+    $mismatchStatus = Get-Content -LiteralPath (Join-Path $mismatchRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($mismatchStatus.error_class -ne 'elf_mismatch' -or
+        @(Get-Content -LiteralPath $mismatch.ArgsLog).Count -ne 1 -or
+        (Test-Path -LiteralPath (Join-Path $mismatchRun.FullName 'scalar-region.bin'))) {
+        throw 'Flash descriptor mismatch was not fail-fast before RAM scalar reads.'
+    }
+
+    $dry = Invoke-StatusCase -Name 'dry-run-no-target-command' -Mode success -DryRun
+    if ($dry.ExitCode -ne 0) { throw "Status DryRun failed: $($dry.Output)" }
     $dryJson = $dry.Output | ConvertFrom-Json
     if ($dryJson.status -ne 'dry_run' -or $dryJson.connected -or
-        $dryJson.reads.Count -ne 2 -or (Test-Path -LiteralPath $dry.ArgsLog) -or
-        (Test-Path -LiteralPath $dry.OutputRoot)) {
-        throw 'DryRun must print the two plans and leave the fake CLI/output directory untouched.'
+        $dryJson.reads.Count -ne 3 -or (Test-Path -LiteralPath $dry.ArgsLog)) {
+        throw 'Status DryRun must list Flash/scalar/header reads without running the CLI.'
     }
-    foreach ($read in $dryJson.reads) {
-        $tokens = @($read.arguments)
-        if ($tokens[0] -ne '-c' -or $tokens[1] -ne 'port=SWD' -or
-            $tokens[2] -ne 'mode=HOTPLUG' -or $tokens[3] -ne 'freq=1000' -or
-            $tokens[4] -ne 'shared' -or $tokens[6] -ne '--upload') {
-            throw 'DryRun printed an unsafe or incomplete CubeProgrammer command.'
-        }
-        if (@($tokens | Where-Object { $_ -in @('-rst', '--reset', '-halt', '--halt', '--download', '--erase', '-go', '--run') }).Count -gt 0) {
-            throw 'DryRun included a forbidden reset, halt, flash, or run option.'
-        }
+    if (@($dryJson.reads[0].arguments)[0] -ne '-c' -or
+        @($dryJson.reads[0].arguments)[3] -ne 'freq=1000' -or
+        @($dryJson.reads[0].arguments)[4] -ne 'shared' -or
+        @($dryJson.reads[0].arguments)[6] -ne '--upload') {
+        throw 'Status DryRun did not use the shared 1000 kHz Flash-first plan.'
     }
 
-    $missingPath = Join-Path (Join-Path $OutputRoot 'missing-elf-preflight-failure') 'does-not-exist.elf'
-    $missing = Invoke-StatusCase -Name 'missing-elf-preflight-failure' -Mode 'success' -ElfPath $missingPath
-    if ($missing.ExitCode -eq 0) { throw 'Missing ELF unexpectedly succeeded.' }
-    $missingRun = Get-StatusRunDirectory -Root $missing.OutputRoot
-    if (-not $missingRun) { throw 'Missing ELF did not produce preflight failure JSON.' }
-    $missingStatus = Get-Content -LiteralPath (Join-Path $missingRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($missingStatus.status -ne 'failed' -or $missingStatus.stage -ne 'preflight' -or
-        [string]::IsNullOrWhiteSpace([string]$missingStatus.script_stack_trace)) {
-        throw 'Missing ELF failure must have status=failed and a preserved stack location.'
-    }
-
-    $afterHash = (Get-FileHash -LiteralPath $resolvedElf -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($afterHash -ne $beforeHash) { throw 'Status diagnostic modified the selected ELF.' }
-    Write-Output 'PASS fake CLI success/IDLE header, two bounded HOTPLUG reads, DEV_CONNECT_ERR failure, safe DryRun, missing-ELF failure, and unchanged ELF'
+    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
+    Write-Output "Evidence: $OutputRoot"
 }
 finally {
     foreach ($name in $environmentNames) {

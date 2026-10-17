@@ -21,6 +21,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = PROJECT_ROOT / "Src" / "main.c"
+COMMISSIONING_HEADER = PROJECT_ROOT / "Inc" / "commissioning.h"
 DEFAULT_EVIDENCE_DIR = (
     PROJECT_ROOT / "test-data" / "turn-response-20261014" / "control" / "output-path"
 )
@@ -55,7 +56,7 @@ PRELUDE = r'''#include <stdint.h>
 
 #define CAR_SERVO_SAFETY_MIN_US 1100u
 #define CAR_SERVO_SAFETY_MAX_US 2500u
-#define CAR_CONTROL_VISION_HOLD_MS 1000u
+#define CAR_CONTROL_VISION_HOLD_MS CARTEST_HOST_HOLD_DEADLINE_MS
 #define APP_MOTOR_CHANNEL_MASK 0x0fu
 #define APP_SWITCH_GPIO_PIN 0x00000080u
 #define APP_BENCH_LIMIT_PERMILLE 400u
@@ -127,6 +128,7 @@ typedef struct {
     uint16_t vision_hold_base_duty_permille;
     uint16_t follow_servo_target_us;
     uint16_t vision_hold_servo_pulse_us;
+    uint16_t vision_hold_applied_servo_pulse_us;
     uint16_t steering_servo_target_us;
     uint16_t bench_requested_duty_permille;
     uint32_t vision_last_valid_ms;
@@ -141,6 +143,7 @@ typedef struct {
     car_fault_t fault;
     car_fault_t isr_stop_fault;
 } car_control_state_t;
+typedef car_control_state_t car_control_t;
 
 typedef struct {
     uint8_t debug_steering_mode_compiled;
@@ -595,21 +598,24 @@ static void case_slope_hint_ignored_by_main(uint32_t caller)
 
 static void case_active_hold_frozen(uint32_t caller)
 {
-    const uint16_t left = 91u, right = 107u, pulse = 1584u;
+    const uint16_t left = 91u, right = 107u;
+    const uint16_t applied_pulse = 1600u, held_target = 1900u;
     reset_mock(caller); ++cases_run;
     mock_now_ms = 5000u;
     speed_observer_result.sample_ms = mock_now_ms;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
-    car_control_state.vision_last_valid_ms = 4001u; /* age 999 ms */
+    car_control_state.vision_last_valid_ms = 2001u; /* age 2999 ms */
     car_control_state.vision_last_frame_alive_ms = 4751u; /* age 249 ms */
     car_control_state.vision_hold_motor_left_permille = left;
     car_control_state.vision_hold_motor_right_permille = right;
-    car_control_state.vision_hold_servo_pulse_us = pulse;
+    car_control_state.vision_hold_servo_pulse_us = held_target;
+    car_control_state.vision_hold_applied_servo_pulse_us = applied_pulse;
     follow_output_state.startup_qualified = 1u;
     follow_ramp_started = 1u;
-    start_existing_motor_outputs(left, right); start_existing_servo(pulse);
+    start_existing_motor_outputs(left, right);
+    start_existing_servo(applied_pulse);
     servo_apply(); expect_primask("active_hold_servo", caller);
     expect_u32("active_hold_servo", "qualified short hold retains normal servo rate",
                CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US,
@@ -618,10 +624,23 @@ static void case_active_hold_frozen(uint32_t caller)
     motor_apply(); expect_primask("active_hold_motor", caller);
     expect_u32("active_hold", "vision_invalid", 0u,
                car_control_state.vision_valid);
-    expect_u32("active_hold", "held_servo_request", pulse,
+    expect_u32("active_hold", "held_servo_request_uses_saved_error_target",
+               held_target,
                servo_request_follow_target);
-    expect_u32("active_hold", "held_servo_compare", pulse,
+    expect_u32("active_hold", "entry_applied_pulse_is_not_frozen_target",
+               applied_pulse,
+               car_control_state.vision_hold_applied_servo_pulse_us);
+    expect_u32("active_hold", "servo_keeps_approaching_held_target",
+               (uint32_t)(applied_pulse +
+                   (held_target - applied_pulse <
+                            CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US
+                        ? held_target - applied_pulse
+                        : CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US)),
                applied_servo_pulse_us);
+    expect_u32("active_hold", "source_valid_rx_timestamp_is_not_refreshed",
+               2001u, car_control_state.vision_last_valid_ms);
+    expect_u32("active_hold", "hold_remains_before_source_deadline",
+               1u, car_control_state.vision_hold_active);
     expect_u32("active_hold", "held_left_duty", left,
                applied_motor_follow_left_permille);
     expect_u32("active_hold", "held_right_duty", right,
@@ -635,14 +654,14 @@ static void case_active_hold_frozen(uint32_t caller)
 static void case_hold_expired(uint32_t caller, uint8_t transport_expired)
 {
     const char *name = transport_expired ? "hold_transport_250ms" :
-                                           "hold_valid_1000ms";
+                                           "hold_valid_3000ms";
     reset_mock(caller); ++cases_run;
     mock_now_ms = 6000u;
     speed_observer_result.sample_ms = mock_now_ms;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
-    car_control_state.vision_last_valid_ms = transport_expired ? 5501u : 5000u;
+    car_control_state.vision_last_valid_ms = transport_expired ? 5501u : 3000u;
     car_control_state.vision_last_frame_alive_ms = transport_expired ? 5750u : 5751u;
     car_control_state.vision_hold_motor_left_permille = 90u;
     car_control_state.vision_hold_motor_right_permille = 100u;
@@ -973,17 +992,41 @@ old_spec.loader.exec_module(old_module)
 # Preserve the servo_apply scenarios/assertions while using a brace-aware extractor
 # for main.c's forward declaration and initializing the live Follow request.
 old_module.extract_function = lambda text: new_module.extract_function(text, "servo_apply")[0]
+commissioning_source = (root / "App" / "commissioning.c").read_text(encoding="utf-8-sig")
+selector, _ = new_module.extract_function(
+    commissioning_source, "car_control_follow_servo_output_target_us")
+old_module.PRELUDE = old_module.PRELUDE.replace(
+    "static uint16_t car_control_follow_servo_output_target_us(\n"
+    "    const car_control_state_t *state);",
+    "typedef car_control_state_t car_control_t;\n"
+    "uint16_t car_control_follow_servo_output_target_us(\n"
+    "    const car_control_t *state);",
+)
+old_module.SUPPORT = old_module.SUPPORT.replace(
+    "static uint16_t car_control_follow_servo_output_target_us(\n"
+    "    const car_control_state_t *state)\n"
+    "{\n"
+    "    return state->follow_servo_target_us;\n"
+    "}\n",
+    "",
+)
+old_module.SUPPORT += "\n" + selector + "\n"
 old_module.SUPPORT = old_module.SUPPORT.replace(
     "car_control_state.follow_session_active = 1u;",
     "car_control_state.follow_session_active = 1u;\n"
     "        car_control_state.manual_run_request = 1u;")
-rc, _ = old_module.compile_and_run(root / "Src" / "main.c", "cl", expect_negative=False)
+follow_slew_step_us = old_module.configured_follow_servo_slew_step_us()
+rc, _ = old_module.compile_and_run(
+    root / "Src" / "main.c", "cl", expect_negative=False,
+    follow_slew_step_us=follow_slew_step_us)
 raise SystemExit(rc)
 '''
 
 
 def extract_function(source: str, name: str) -> tuple[str, int]:
-    pattern = re.compile(r"(?m)^static\b[^;{}]*\b" + re.escape(name) + r"\s*\(")
+    pattern = re.compile(
+        r"(?m)^static\b[^;{}]*\b" + re.escape(name) + r"\s*\(|^uint16_t\s+"
+        + re.escape(name) + r"\s*\(")
     marker = None
     opening = -1
     for candidate in pattern.finditer(source):
@@ -1085,8 +1128,8 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                 "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
                 "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
-                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=20",
-                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=60",
+                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120",
                 "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1",
             ])
         else:
@@ -1157,26 +1200,53 @@ def main() -> int:
     evidence_dir = args.output_dir.resolve()
     if not source_path.is_file():
         raise SystemExit(f"production source not found: {source_path}")
+    commissioning_text = COMMISSIONING_HEADER.read_text(encoding="utf-8-sig")
+    hold_match = re.search(r"\bCAR_CONTROL_VISION_HOLD_MS\s*=\s*(\d+)u", commissioning_text)
+    if hold_match is None or int(hold_match.group(1)) != 3000:
+        raise SystemExit("commissioning.h must define CAR_CONTROL_VISION_HOLD_MS = 3000u")
+    prelude = PRELUDE.replace(
+        "#define CAR_CONTROL_VISION_HOLD_MS CARTEST_HOST_HOLD_DEADLINE_MS",
+        "#define CAR_CONTROL_VISION_HOLD_MS {}u".format(hold_match.group(1)),
+    )
+    if "CARTEST_HOST_HOLD_DEADLINE_MS" in prelude:
+        raise SystemExit("host PRELUDE hold deadline placeholder was not replaced")
     evidence_dir.mkdir(parents=True, exist_ok=True)
     source_bytes = source_path.read_bytes()
     source_text = source_bytes.decode("utf-8-sig")
+    commissioning_path = PROJECT_ROOT / "App" / "commissioning.c"
+    commissioning_bytes = commissioning_path.read_bytes()
+    commissioning_text = commissioning_bytes.decode("utf-8-sig")
     extracted = []
     provenance = []
     for name in FUNCTION_NAMES:
         fn, line = extract_function(source_text, name)
         extracted.append(fn)
         provenance.append({"name": name, "source_line": line,
+                           "source_file": str(source_path),
                            "sha256": sha256(fn.encode("utf-8"))})
-    c_text = PRELUDE + "\n" + "\n\n".join(extracted) + "\n\n" + SUPPORT
+    selector, selector_line = extract_function(
+        commissioning_text, "car_control_follow_servo_output_target_us")
+    extracted.insert(0, selector)
+    provenance.append({
+        "name": "car_control_follow_servo_output_target_us",
+        "source_line": selector_line,
+        "source_file": str(commissioning_path),
+        "sha256": sha256(selector.encode("utf-8")),
+    })
+    c_text = prelude + "\n" + "\n\n".join(extracted) + "\n\n" + SUPPORT
     harness_path = evidence_dir / "follow_output_path_harness.c"
     harness_path.write_text(c_text, encoding="ascii")
     record = {
         "source_path": str(source_path),
         "source_sha256": sha256(source_bytes),
+        "commissioning_source_path": str(commissioning_path),
+        "commissioning_source_sha256": sha256(commissioning_bytes),
         "test_script_path": str(Path(__file__).resolve()),
         "test_script_sha256": sha256(Path(__file__).read_bytes()),
         "compiler_requested": args.compiler,
         "functions_extracted_from_production_main": provenance,
+        "commissioning_hold_deadline_ms": int(hold_match.group(1)),
+        "deadline_cases": [2999, 3000],
         "harness_sha256": sha256(c_text.encode("ascii")),
         "evidence_boundary": (
             "The extracted main.c request/gate/commit/emergency-stop decisions are real. "

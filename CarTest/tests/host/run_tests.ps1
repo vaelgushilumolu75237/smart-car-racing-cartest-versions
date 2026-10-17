@@ -1,3 +1,7 @@
+param(
+    [switch]$COnly
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -72,7 +76,8 @@ $objectFiles = @(
     (Join-Path $runDirectory "follow_output_turn.obj"),
     (Join-Path $runDirectory "speed_observer.obj"),
     (Join-Path $runDirectory "speed_pi.obj"),
-    (Join-Path $runDirectory "follow_speed_pi.obj")
+    (Join-Path $runDirectory "follow_speed_pi.obj"),
+    (Join-Path $runDirectory "servo_safety_turn.obj")
 )
 $testExecutable = Join-Path $runDirectory "CarTestHostTests.exe"
 $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
@@ -105,6 +110,9 @@ $batchLines = @(
     "echo === Compile commissioning.c as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[0])`" `"$(Join-Path $projectRoot 'App\commissioning.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile isolated FollowTurn servo limiter as C11 ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120 /Dcar_servo_safety_init=car_servo_turn_safety_init /Dcar_servo_safety_request=car_servo_turn_safety_request /Dcar_servo_safety_request_selected=car_servo_turn_safety_request_selected /Dcar_servo_safety_request_selected_with_slew=car_servo_turn_safety_request_selected_with_slew /Dcar_servo_safety_stop=car_servo_turn_safety_stop /Dcar_servo_safety_acknowledge=car_servo_turn_safety_acknowledge /Dcar_servo_safety_timer_clock_hz=car_servo_turn_safety_timer_clock_hz /Dcar_servo_safety_apply_fixed_hsi64_profile=car_servo_turn_safety_apply_fixed_hsi64_profile /Dcar_servo_safety_validate_timer=car_servo_turn_safety_validate_timer /Dcar_servo_safety_stop_action=car_servo_turn_safety_stop_action /Fo`"$($objectFiles[16])`" `"$(Join-Path $projectRoot 'App\servo_safety.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile servo_safety.c as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[1])`" `"$(Join-Path $projectRoot 'App\servo_safety.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
@@ -133,7 +141,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[11])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile isolated FollowTurn slope-assist helper as C11 ===",
-    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=20 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile read-only run block reason classifier as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[9])`" `"$(Join-Path $projectRoot 'App\run_block_reason.c')`"",
@@ -148,7 +156,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_SPEED_PI_ENABLED=1 /Fo`"$($objectFiles[15])`" `"$(Join-Path $projectRoot 'App\follow_speed_pi.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link actual CarTest pure modules and host assertions ===",
-    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`"",
+    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Run host assertions from CarTest project root ===",
     "`"$testExecutable`"",
@@ -182,6 +190,18 @@ $batchLines = @(
     "popd",
     "exit /b %TEST_EXIT%"
 )
+if ($COnly) {
+    $pythonTestsStart = [Array]::IndexOf(
+        $batchLines,
+        "echo === Extract and compile production servo_apply PRIMASK negative and positive controls ===")
+    if ($pythonTestsStart -lt 0) {
+        throw "Could not locate Python-test boundary for -COnly host run."
+    }
+    $batchLines = @($batchLines[0..($pythonTestsStart - 1)] + @(
+        "popd",
+        "exit /b %TEST_EXIT%"
+    ))
+}
 $batchFile = Join-Path $runDirectory "run-host-tests.cmd"
 [System.IO.File]::WriteAllLines($batchFile, $batchLines, [System.Text.Encoding]::ASCII)
 $capturedOutputFile = Join-Path $runDirectory "console-output.txt"

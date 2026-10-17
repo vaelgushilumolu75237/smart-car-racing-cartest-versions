@@ -334,7 +334,7 @@ def main() -> int:
              "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
              "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
              "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
-             "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=20",
+             "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
              "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
              "/I" + str(PROJECT_ROOT / "Inc"),
              "/Fe:" + str(executable), str(c_file),

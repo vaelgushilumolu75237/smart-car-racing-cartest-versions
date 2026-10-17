@@ -274,6 +274,27 @@ def extract_function(source: str, name: str) -> str:
     raise AssertionError("Unbalanced function body for " + name)
 
 
+def extract_external_function(source: str, name: str, return_type: str) -> str:
+    pattern = re.compile(
+        r"(?m)^[ \t]*" + re.escape(return_type) + r"[ \t]+" +
+        re.escape(name) + r"\s*\([^;{}]*?\)\s*\{",
+        re.DOTALL,
+    )
+    match = pattern.search(source)
+    if match is None:
+        return ""
+    brace = source.find("{", match.start(), match.end())
+    depth = 0
+    for index in range(brace, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[match.start():index + 1]
+    raise AssertionError("Unbalanced function body for " + name)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=PROJECT_ROOT / "Src/main.c")
@@ -284,6 +305,9 @@ def main() -> int:
     args = parser.parse_args()
     source_path = args.source.resolve()
     source = source_path.read_text(encoding="utf-8")
+    runtime_log_source = (PROJECT_ROOT / "App" / "runtime_log.c").read_text(
+        encoding="utf-8"
+    )
 
     max_helper = extract_function(source, "runtime_log_max_u16")
     start_edge = extract_function(source, "runtime_log_start_edge")
@@ -292,11 +316,14 @@ def main() -> int:
     debug_snapshot = extract_function(source, "publish_debug_snapshot")
     capture = extract_function(source, "runtime_log_capture_sample")
     publish = extract_function(source, "runtime_log_publish_sample")
+    hold_progress = extract_external_function(
+        runtime_log_source, "car_runtime_log_pack_hold_progress", "uint8_t"
+    )
     if args.expect_legacy_channel_mismatch:
         if not (max_helper and capture):
             raise SystemExit("Legacy channel control is missing runtime-log capture helpers")
     elif not (max_helper and start_edge and channels_helper and publish_channels and
-              debug_snapshot and publish):
+              debug_snapshot and publish and hold_progress):
         raise SystemExit("Could not extract the production runtime logger helpers from " + str(source_path))
 
     if not args.expect_legacy_channel_mismatch:
@@ -336,7 +363,8 @@ def main() -> int:
         1,
     )
     function_text = "\n\n".join(part for part in (
-        max_helper, start_edge, channels_helper, publish_channels, capture, publish
+        max_helper, start_edge, channels_helper, publish_channels, capture, publish,
+        hold_progress,
     ) if part)
     expected_mixed = 1 if args.expect_mixed else 0
     harness_main = r'''

@@ -56,9 +56,9 @@
     (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700) || \
     (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
     (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 20) || \
-    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 60)
-#error "FollowTurn requires the validated 70/30, 60us/20ms, 20-permille/10ms profile."
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120)
+#error "FollowTurn requires the validated 70/30, 120us/20ms, 40-permille/10ms profile."
 #endif
 #else
 #if (CARTEST_FOLLOW_DIFF_PERMILLE != 0) && \
@@ -80,8 +80,8 @@
     (!CARTEST_FOLLOW_MODE_COMPILED || !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
      !CARTEST_HARDWARE_ACCEPTED || \
      CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700 || \
-     CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 20 || \
-     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 60 || \
+     CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40 || \
+     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120 || \
      CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS != 2400 || \
      CARTEST_FOLLOW_SPEED_PI_KP_Q16 != 13107 || \
      CARTEST_FOLLOW_SPEED_PI_KI_Q16 != 26214 || \
@@ -2543,10 +2543,7 @@ static void servo_apply(void)
 {
     uint32_t primask;
     const uint16_t follow_pulse =
-        car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
-        car_control_state.vision_hold_active != 0u
-            ? car_control_state.vision_hold_servo_pulse_us
-            : car_control_state.follow_servo_target_us;
+        car_control_follow_servo_output_target_us(&car_control_state);
     const uint16_t debug_pulse = car_control_state.steering_servo_target_us;
     output_generation_snapshot_t generations;
     const uint8_t follow_mode =
@@ -3248,20 +3245,14 @@ static car_runtime_log_sample_t runtime_log_capture_sample(uint32_t now_ms)
 
     if (sample.mode == (uint8_t)CAR_MODE_FOLLOW_VISION_HOLD) {
         uint32_t hold_elapsed = (uint32_t)(now_ms - vision_last_valid_ms);
-        uint32_t hold_ticks;
         if (hold_elapsed > CAR_CONTROL_VISION_HOLD_MS) {
             hold_elapsed = CAR_CONTROL_VISION_HOLD_MS;
         }
         sample.vision_hold_elapsed_ms = (uint16_t)hold_elapsed;
-        hold_ticks = hold_elapsed / 20u;
-        if (hold_ticks > 50u) {
-            hold_ticks = 50u;
-        }
-        /* Mode 12 retains the fixed record ABI by packing elapsed 20 ms
-           ticks above the low two recovery-frame-count bits. */
-        sample.recovery_frame_count =
-            (uint8_t)((hold_ticks << 2) |
-                      (sample.vision_hold_valid_count & 0x03u));
+        /* Mode 12 retains its 64-byte ABI: 50 ms progress ticks occupy the
+           high six bits and the low two bits retain consecutive recovery. */
+        sample.recovery_frame_count = car_runtime_log_pack_hold_progress(
+            hold_elapsed, sample.vision_hold_valid_count);
     }
     return sample;
 }
@@ -3576,7 +3567,10 @@ int main(void)
             /* A late third route frame may resume the session logically, but
                it cannot reuse outputs from the expired hold. Stop TIM3 now,
                complete the servo pulse stop path, then require a new first
-               servo frame and fresh motor ramp. */
+               servo frame and fresh motor ramp. Close controller permission
+               in this loop before any output stage can reuse the old frame. */
+            car_control_state.road_drive_allowed = 0u;
+            car_control_state.follow_output_duty_permille = 0u;
             emergency_stop_hardware();
             follow_ramp_started = 0u;
             car_follow_output_reset(&follow_output_state);

@@ -9,8 +9,20 @@ extern "C" {
 
 enum {
     CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u,
-    CAR_CONTROL_VISION_HOLD_MS = 1000u
+    CAR_CONTROL_VISION_HOLD_MS = 3000u
 };
+
+/* D1 .bss RAM snapshot for CubeIDE Live Watch / debugger reads. Entry is the
+   publication token and is written after the associated data fields. */
+extern volatile uint32_t car_vision_hold_snapshot_entry;
+extern volatile int32_t car_vision_hold_snapshot_error_norm;
+extern volatile uint32_t car_vision_hold_snapshot_sequence;
+extern volatile uint32_t car_vision_hold_snapshot_source_rx_ms;
+extern volatile uint32_t car_vision_hold_snapshot_entered_ms;
+extern volatile uint32_t car_vision_hold_snapshot_target_us;
+extern volatile uint32_t car_vision_hold_snapshot_applied_us;
+extern volatile uint32_t car_vision_hold_snapshot_left_permille;
+extern volatile uint32_t car_vision_hold_snapshot_right_permille;
 
 /* Keep existing Live Watch numbers stable; append runtime states only. */
 typedef enum {
@@ -212,7 +224,8 @@ typedef struct {
     volatile uint32_t isr_uart_generation;   /* USART1 ISR writer only. */
     /* Set once per reset when the physical Bench target is selected. */
     uint8_t profile_command_issued;
-    /* Follow camera-loss hold: only a sequenced valid=0 observation starts it. */
+    /* Follow camera-loss hold freezes the last trusted steering source and
+       the two currently applied wheel outputs at one qualified entry. */
     uint8_t manual_run_request;
     uint8_t vision_hold_active;
     uint8_t vision_hold_expired;
@@ -222,7 +235,10 @@ typedef struct {
     uint16_t vision_hold_last_sequence;
     uint32_t vision_hold_last_arrival_ms;
     uint32_t vision_hold_entries;
-    uint32_t vision_hold_started_ms;
+    uint32_t vision_hold_started_ms; /* Hold entry time; deadline uses valid RX. */
+    int16_t vision_hold_error_norm;
+    uint16_t vision_hold_source_sequence;
+    uint32_t vision_hold_source_rx_ms;
     uint8_t vision_hold_exit_cause;
     uint32_t vision_last_frame_alive_ms;
     uint16_t vision_last_frame_sequence;
@@ -232,7 +248,8 @@ typedef struct {
     uint16_t applied_servo_pulse_us;
     uint16_t applied_motor_left_permille;
     uint16_t applied_motor_right_permille;
-    uint16_t vision_hold_servo_pulse_us;
+    uint16_t vision_hold_servo_pulse_us; /* Held target mapped from saved error. */
+    uint16_t vision_hold_applied_servo_pulse_us; /* Entry pulse, diagnostics only. */
     uint16_t vision_hold_base_duty_permille;
     uint16_t vision_hold_motor_left_permille;
     uint16_t vision_hold_motor_right_permille;
@@ -274,6 +291,11 @@ void car_control_note_applied_outputs(car_control_t *control,
                                       uint16_t servo_applied_us,
                                       uint16_t motor_left_applied_permille,
                                       uint16_t motor_right_applied_permille);
+
+/* Follow's servo safety layer keeps slewing toward the saved route target
+   throughout hold; this does not authorize output by itself. */
+uint16_t car_control_follow_servo_output_target_us(
+    const car_control_t *control);
 
 /* Feed only a complete vp_unpack()-validated frame from the UART parser. */
 void car_control_on_vision_frame(car_control_t *control,

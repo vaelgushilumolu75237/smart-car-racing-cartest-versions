@@ -180,13 +180,27 @@ class _BoundaryValidator:
 
 class _SingleEdgeTracker:
     cache_rows = 0
+    freeze_calls = 0
+    skip_calls = 0
 
     def __init__(self, _settings):
-        return None
+        type(self).freeze_calls = 0
+        type(self).skip_calls = 0
 
     @staticmethod
     def clear(_reason):
         return None
+
+    def begin_frame(self):
+        return None
+
+    def skip_frame(self, _reason="DETECT_NOT_CALLED"):
+        type(self).skip_calls += 1
+        return None
+
+    def freeze_diagnostic_snapshot(self):
+        type(self).freeze_calls += 1
+        return True
 
     @staticmethod
     def observe_bilateral(*_args):

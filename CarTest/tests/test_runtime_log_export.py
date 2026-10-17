@@ -112,7 +112,11 @@ class RuntimeLogExportTests(unittest.TestCase):
         hold = hold_rows[0]
         self.assertEqual(hold["vision_hold_active"], 1)
         self.assertEqual(hold["vision_hold_expired"], 0)
-        self.assertEqual(hold["vision_hold_elapsed_ms"], 640)
+        hold_offset = next(64 + index * 64 for index in range(len(self.rows))
+                           if self.base[64 + index * 64 + 58] == 12)
+        expected_hold_ticks = self.base[hold_offset + 62] >> 2
+        self.assertEqual(hold["vision_hold_elapsed_ms"],
+                         self.header["hold_quantum_ms"] * expected_hold_ticks)
         self.assertEqual(hold["vision_hold_valid_count"], 2)
         self.assertEqual(hold["recovery_frame_count"], 2)
         for row in self.rows:
@@ -122,7 +126,8 @@ class RuntimeLogExportTests(unittest.TestCase):
 
         corruptions = []
         too_long = bytearray(self.base)
-        too_long[64 + 64 + 62] = (51 << 2) | 1
+        maximum_ticks = 50 if self.header["hold_quantum_ms"] == 20 else 60
+        too_long[64 + 64 + 62] = ((maximum_ticks + 1) << 2) | 1
         corruptions.append(refresh_crcs(too_long))
 
         both_states = bytearray(self.base)
@@ -198,7 +203,7 @@ class RuntimeLogExportTests(unittest.TestCase):
 
     def test_header_magic_version_crc_build_id_and_reserved_bytes(self):
         self.assert_rejected(self.replace_header(lambda data: data.__setitem__(slice(0, 4), b"BAD!")))
-        self.assert_rejected(self.replace_header(lambda data: struct.pack_into("<H", data, 4, 2)))
+        self.assert_rejected(self.replace_header(lambda data: struct.pack_into("<H", data, 4, 3)))
         corrupt_crc = bytearray(self.base)
         corrupt_crc[40] ^= 0x01
         self.assert_rejected(bytes(corrupt_crc))
@@ -360,6 +365,101 @@ class RuntimeLogExportTests(unittest.TestCase):
                 raw_path.write_bytes(self.base)
                 with self.assertRaises(exporter.ExportError):
                     exporter.decode_buffer(OTHER_PROFILE_ELF, raw_path)
+
+
+class RuntimeLogVersionContractTests(unittest.TestCase):
+    """Use the preserved 249-record V1 run to exercise real ELF/descriptor decoding."""
+
+    elf = PROJECT_ROOT / "test-data" / "failure3-20261015" / "baseline" / "build" / "DebugFollowTurn" / "CarTest.elf"
+    raw = PROJECT_ROOT / "logs" / "runs" / "20261015-234044-791-13908" / "runtime-log.bin"
+
+    @classmethod
+    def setUpClass(cls):
+        if not cls.elf.is_file() or not cls.raw.is_file():
+            raise unittest.SkipTest("Preserved V1 ELF and runtime-log fixture are unavailable")
+        cls.base = cls.raw.read_bytes()
+
+    @staticmethod
+    def _replace_descriptor_version(source_elf, target_elf, version):
+        blob, sections, symbols = exporter._parse_elf(source_elf)
+        symbol = symbols[exporter.DESCRIPTOR_SYMBOL]
+        section = sections[symbol.section_index]
+        offset = section.offset + symbol.value - section.address
+        changed = bytearray(blob)
+        struct.pack_into("<H", changed, offset + 8, version)
+        target_elf.write_bytes(changed)
+
+    @staticmethod
+    def _payload_with_version_and_hold(source, version, ticks):
+        data = bytearray(source)
+        struct.pack_into("<H", data, 4, version)
+        record_count = struct.unpack_from("<I", data, 16)[0]
+        hold_offsets = [64 + index * 64 for index in range(record_count)
+                        if data[64 + index * 64 + 58] == 12]
+        if not hold_offsets:
+            raise AssertionError("V1 run fixture has no mode-12 record")
+        struct.pack_into("<B", data, hold_offsets[0] + 62, ticks << 2)
+        return refresh_crcs(data)
+
+    def test_real_v1_elf_descriptor_and_249_record_run_decode(self):
+        layout, header, rows = exporter.decode_buffer(self.elf, self.raw)
+        self.assertEqual(layout.descriptor["log_version"], 1)
+        self.assertEqual(header["hold_quantum_ms"], 20)
+        self.assertEqual(len(rows), 249)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            descriptor_path = Path(temp_dir) / "flash-rom-descriptor-test.bin"
+            descriptor_path.write_bytes(layout.descriptor_bytes)
+            self.assertTrue(exporter.validate_flash_descriptor(self.elf, descriptor_path)["matches_elf"])
+
+    def test_v1_20ms_quantum_and_50_tick_maximum(self):
+        good = self._payload_with_version_and_hold(self.base, 1, 50)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = Path(temp_dir) / "v1.bin"
+            raw.write_bytes(good)
+            _layout, header, rows = exporter.decode_buffer(self.elf, raw)
+        hold = next(row for row in rows if row["mode"] == 12)
+        self.assertEqual(header["hold_quantum_ms"], 20)
+        self.assertEqual(hold["vision_hold_elapsed_ms"], 1000)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = Path(temp_dir) / "v1-too-long.bin"
+            raw.write_bytes(self._payload_with_version_and_hold(self.base, 1, 51))
+            with self.assertRaisesRegex(exporter.ExportError, "above 1000 ms"):
+                exporter.decode_buffer(self.elf, raw)
+
+    def test_v2_50ms_quantum_and_60_tick_maximum_follow_the_rom_descriptor(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            v2_elf = root / "CarTest.elf"
+            self._replace_descriptor_version(self.elf, v2_elf, 2)
+            self.assertEqual(exporter.inspect_elf(v2_elf).descriptor["log_version"], 2)
+            good_raw = root / "v2.bin"
+            good_raw.write_bytes(self._payload_with_version_and_hold(self.base, 2, 60))
+            layout, header, rows = exporter.decode_buffer(v2_elf, good_raw)
+            hold = next(row for row in rows if row["mode"] == 12)
+            self.assertEqual(layout.descriptor["log_version"], 2)
+            self.assertEqual(header["hold_quantum_ms"], 50)
+            self.assertEqual(hold["vision_hold_elapsed_ms"], 3000)
+
+            bad_raw = root / "v2-too-long.bin"
+            bad_raw.write_bytes(self._payload_with_version_and_hold(self.base, 2, 61))
+            with self.assertRaisesRegex(exporter.ExportError, "above 3000 ms"):
+                exporter.decode_buffer(v2_elf, bad_raw)
+
+            descriptor = root / "descriptor.bin"
+            descriptor.write_bytes(layout.descriptor_bytes)
+            self.assertTrue(exporter.validate_flash_descriptor(v2_elf, descriptor)["matches_elf"])
+            descriptor_bytes = bytearray(descriptor.read_bytes())
+            descriptor_bytes[8] = 1
+            descriptor.write_bytes(descriptor_bytes)
+            with self.assertRaisesRegex(exporter.ExportError, "Flash ROM descriptor mismatch"):
+                exporter.validate_flash_descriptor(v2_elf, descriptor)
+
+            descriptor.write_bytes(bytes([0xFF]) * 64)
+            with self.assertRaises(exporter.ExportError) as caught:
+                exporter.validate_flash_descriptor(v2_elf, descriptor)
+            self.assertIn("selected address has no valid RLDS descriptor", str(caught.exception))
+            self.assertIn("actual target build ID is unknown", str(caught.exception))
+            self.assertNotIn("target contains", str(caught.exception))
 
 
 if __name__ == "__main__":

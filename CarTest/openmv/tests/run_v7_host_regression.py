@@ -27,7 +27,7 @@ FROZEN_MANIFEST = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.jso
 FROZEN_ZIP = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.zip"
 FROZEN_INVENTORY = FROZEN_DIR / "source-sha256.csv"
 BUILD_OLD = "SIXTH_V7_FAST_GRAY_RT45_20261005"
-BUILD_NEW = "CONTOUR_ARRAYFIX_20261016"
+BUILD_NEW = "AGGRESSIVE_TURN_20261016"
 TEST_NAMES = (
     "test_fast_gray.py",
     "test_fast_topology.py",
@@ -327,7 +327,7 @@ def main():
         environment.pop("V7_REQUIRE_BOARD_KERNEL_EQUIVALENCE", None)
         print("SUITE_CLASS=FROZEN_V7_BEHAVIORAL_COMPATIBILITY")
         print("FIXTURE_SOURCE_HASHES=VERIFIED_UNCHANGED")
-        print("TARGET_RUNTIME_CONFIG=CURRENT_RING_20261014")
+        print("TARGET_RUNTIME_CONFIG=AGGRESSIVE_TURN_20261016")
         print("TEMPORARY_TEST_COPY_ADAPTATIONS=" +
               json.dumps(adaptations_applied, sort_keys=True))
         completed = subprocess.run(

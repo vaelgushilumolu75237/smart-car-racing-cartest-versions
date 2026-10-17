@@ -10,8 +10,8 @@ param(
     [ValidatePattern('^[A-Za-z0-9_-]{1,64}$')]
     [string]$ProbeSN,
 
-    [ValidateSet('1000', '4000')]
-    [int]$ConnectionFrequencyKhz = 4000,
+    [ValidateSet(100, 400, 1000)]
+    [int]$ConnectionFrequencyKhz = 1000,
 
     [switch]$SharedConnection,
 
@@ -30,8 +30,23 @@ $script:RunDirectory = $null
 $script:Stage = 'preflight'
 $script:RunCsvPath = $null
 $script:DecodeMetadataPath = $null
+$script:StatusSnapshotPath = $null
+$script:DiagnosticFailure = $null
 $script:CliLogs = New-Object System.Collections.Generic.List[string]
 $script:StartedAtUtc = [DateTime]::UtcNow.ToString('o')
+$script:SharedConnectionValue = $true
+if ($PSBoundParameters.ContainsKey('SharedConnection')) {
+    $script:SharedConnectionValue = [bool]$SharedConnection.IsPresent
+}
+$script:StartingFrequencyKhz = $ConnectionFrequencyKhz
+$script:ActiveFrequencyKhz = $ConnectionFrequencyKhz
+$script:ActualFrequencyKhz = $null
+$script:SelectedProbeSN = $null
+$script:ConnectionAttempts = New-Object System.Collections.Generic.List[object]
+$script:ErrorClass = $null
+$script:Connected = $false
+$script:RunCsvValidated = $false
+$script:FlashDescriptorValidation = $null
 
 function Resolve-ProgrammerCli {
     if ($ProgrammerCLI) {
@@ -94,6 +109,68 @@ function Resolve-PythonExe {
     return $command.Source
 }
 
+function Resolve-ProbeSerial {
+    $logPath = Join-Path $script:RunDirectory 'probe-list.log'
+    $arguments = @('-l', 'st-link-only')
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& $script:ProgrammerPath @arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $previousPreference }
+    $text = (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
+    Set-Content -LiteralPath $logPath -Value $text -Encoding UTF8
+    if ($exitCode -ne 0) {
+        $script:ErrorClass = 'probe_absent'
+        throw "ST-Link probe enumeration failed (exit $exitCode). See $logPath. $text"
+    }
+    $serials = @([regex]::Matches($text, '(?im)^\s*ST-LINK\s+SN\s*:\s*([A-Za-z0-9_-]+)\s*$') |
+        ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    if ($ProbeSN) {
+        $match = @($serials | Where-Object { $_ -ieq $ProbeSN })
+        if ($match.Count -ne 1) {
+            $script:ErrorClass = 'probe_absent'
+            throw "Requested ST-Link probe '$ProbeSN' was not found by '-l st-link-only'. See $logPath."
+        }
+        $script:SelectedProbeSN = $match[0]
+    } elseif ($serials.Count -eq 1) {
+        $script:SelectedProbeSN = $serials[0]
+    } elseif ($serials.Count -eq 0) {
+        $script:ErrorClass = 'probe_absent'
+        throw "No ST-Link probe was found by '-l st-link-only'. See $logPath."
+    } else {
+        $script:ErrorClass = 'probe_ambiguous'
+        throw "Multiple ST-Link probes were found; pass -ProbeSN explicitly. Found: $($serials -join ', '). See $logPath."
+    }
+    $selection = [ordered]@{
+        enumeration_arguments = $arguments
+        selected_probe_sn = $script:SelectedProbeSN
+        enumerated_probe_serials = $serials
+        selection_was_explicit = [bool]$ProbeSN
+    }
+    $selection | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'probe-selection.json') -Encoding UTF8
+}
+
+function Get-ConnectionFrequencies {
+    if ($script:Connected) { return @($script:ActiveFrequencyKhz) }
+    return @(@(1000, 400, 100) | Where-Object { $_ -le $script:StartingFrequencyKhz })
+}
+
+function Resolve-ToolErrorClass {
+    param([string]$Message, [string]$Stage)
+    if ($script:ErrorClass) { return $script:ErrorClass }
+    if ($Stage -match 'descriptor' -and $Message -match 'descriptor mismatch') { return 'elf_mismatch' }
+    if ($Message -match 'DEV_CONNECT_ERR|Unable to get core ID|No STM32 target found|Cannot connect to target|cannot connect to target') { return 'core_inaccessible' }
+    if ($Stage -match 'decode|validate|python|header' -or $Message -match 'CRC|schema|header|descriptor') { return 'decode' }
+    return 'ram_read'
+}
+
+function Save-ConnectionAttempts {
+    if (-not $script:RunDirectory) { return }
+    $script:ConnectionAttempts.ToArray() | ConvertTo-Json -Depth 8 |
+        Set-Content -LiteralPath (Join-Path $script:RunDirectory 'connection-attempts.json') -Encoding UTF8
+}
+
 function Invoke-PythonJson {
     param(
         [Parameter(Mandatory = $true)][string[]]$Arguments,
@@ -133,12 +210,12 @@ function Invoke-PythonJson {
 }
 
 function Get-HotPlugConnectionArguments {
-    $arguments = @('-c', 'port=SWD', 'mode=HOTPLUG', "freq=$ConnectionFrequencyKhz")
-    if ($SharedConnection) {
+    $arguments = @('-c', 'port=SWD', 'mode=HOTPLUG', "freq=$script:ActiveFrequencyKhz")
+    if ($script:SharedConnectionValue) {
         $arguments += 'shared'
     }
-    if ($ProbeSN) {
-        $arguments += "sn=$ProbeSN"
+    if ($script:SelectedProbeSN) {
+        $arguments += "sn=$script:SelectedProbeSN"
     }
     return $arguments
 }
@@ -154,6 +231,60 @@ function New-HotPlugArguments {
     return $arguments
 }
 
+function Invoke-StatusSnapshot {
+    $script:Stage = 'read-status-snapshot'
+    $statusScript = Join-Path $PSScriptRoot 'read_run_status.ps1'
+    $diagnosticRoot = Join-Path $script:RunDirectory 'status-read'
+    $statusJson = Join-Path $script:RunDirectory 'status-snapshot.json'
+    $logPath = Join-Path $script:RunDirectory 'status-read-wrapper.log'
+    try {
+        if (-not (Test-Path -LiteralPath $statusScript -PathType Leaf)) {
+            throw "Status reader wrapper is missing: $statusScript"
+        }
+        $powershellPath = (Get-Process -Id $PID -ErrorAction Stop).Path
+        $arguments = @(
+            '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', $statusScript,
+            '-Elf', [IO.Path]::GetFullPath($Elf),
+            '-OutDirectory', $diagnosticRoot,
+            '-ProgrammerCLI', $script:ProgrammerPath,
+            '-Python', $script:PythonExe,
+            '-ConnectionFrequencyKhz', [string]$script:ActiveFrequencyKhz,
+            '-SharedConnection', [string][bool]$script:SharedConnectionValue,
+            '-NoFrequencyFallback'
+        )
+        if ($script:SelectedProbeSN) { $arguments += @('-ProbeSN', $script:SelectedProbeSN) }
+
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $output = @(& $powershellPath @arguments 2>&1)
+            $exitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $previousPreference }
+        $lines = @($output | ForEach-Object { $_.ToString() })
+        Set-Content -LiteralPath $logPath -Value ($lines -join [Environment]::NewLine) -Encoding UTF8
+
+        $candidate = Get-ChildItem -LiteralPath $diagnosticRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1
+        $nestedStatus = if ($candidate) { Join-Path $candidate.FullName 'run-status.json' } else { $null }
+        if ($nestedStatus -and (Test-Path -LiteralPath $nestedStatus -PathType Leaf)) {
+            Copy-Item -LiteralPath $nestedStatus -Destination $statusJson -Force
+            $script:StatusSnapshotPath = $statusJson
+        }
+        if ($exitCode -ne 0) {
+            $script:DiagnosticFailure = "read_run_status.ps1 exited with code $exitCode. See $logPath."
+        }
+        if (-not $script:StatusSnapshotPath) {
+            $script:DiagnosticFailure = "Status reader did not create run-status.json. See $logPath."
+        }
+    }
+    catch {
+        $script:DiagnosticFailure = $_.Exception.Message
+        try { Set-Content -LiteralPath $logPath -Value $script:DiagnosticFailure -Encoding UTF8 } catch { }
+    }
+}
+
 function Invoke-HotPlugUpload {
     param(
         [Parameter(Mandatory = $true)][string]$Tag,
@@ -161,46 +292,72 @@ function Invoke-HotPlugUpload {
         [Parameter(Mandatory = $true)][long]$Size,
         [Parameter(Mandatory = $true)][string]$Destination
     )
-    $arguments = New-HotPlugArguments -Address $Address -Size $Size -Destination $Destination
-    $logPath = Join-Path $script:RunDirectory ("cubeprogrammer-{0}.log" -f $Tag)
-    $script:CliLogs.Add($logPath)
-    $script:Stage = "hotplug-$Tag"
-    $previousPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = 'Continue'
-        $output = @(& $script:ProgrammerPath @arguments 2>&1)
-        $exitCode = $LASTEXITCODE
-        $text = (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
-    }
-    catch {
-        $text = $_.Exception.Message
+    $frequencies = @(Get-ConnectionFrequencies)
+    for ($index = 0; $index -lt $frequencies.Count; ++$index) {
+        $script:ActiveFrequencyKhz = [int]$frequencies[$index]
+        $arguments = New-HotPlugArguments -Address $Address -Size $Size -Destination $Destination
+        $attemptNumber = $index + 1
+        $logPath = Join-Path $script:RunDirectory ("cubeprogrammer-{0}-attempt-{1:D2}-{2}.log" -f $Tag, $attemptNumber, $script:ActiveFrequencyKhz)
+        $script:CliLogs.Add($logPath)
+        $script:Stage = "hotplug-$Tag"
+        $exitCode = $null
+        $text = ''
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $output = @(& $script:ProgrammerPath @arguments 2>&1)
+            $exitCode = $LASTEXITCODE
+            $text = (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
+        } catch {
+            $text = $_.Exception.Message
+        } finally { $ErrorActionPreference = $previousPreference }
         Set-Content -LiteralPath $logPath -Value $text -Encoding UTF8
-        throw "Could not execute STM32CubeProgrammer during $Tag upload. See $logPath. $text"
-    }
-    finally {
-        $ErrorActionPreference = $previousPreference
-    }
-    $logLines = foreach ($line in $output) {
-        if ($line -is [System.Management.Automation.ErrorRecord]) {
-            "stderr: {0}" -f $line.ToString()
+        $actualFrequency = $null
+        if ($text -match '(?im)^\s*SWD\s+freq\s*:\s*(\d+)\s*KHz\s*$') {
+            $actualFrequency = [int]$Matches[1]
         }
-        else {
-            "stdout: {0}" -f $line.ToString()
+        $attemptErrorClass = if ($exitCode -eq 0) { $null } else {
+            Resolve-ToolErrorClass -Message $text -Stage $script:Stage
         }
-    }
-    Set-Content -LiteralPath $logPath -Value ($logLines -join [Environment]::NewLine) -Encoding UTF8
-    if ($exitCode -ne 0) {
-        $hint = if ($text -match 'DEV_CONNECT_ERR') {
-            ' DEV_CONNECT_ERR means no usable RAM header or payload was read. Keep vehicle power on; verify ProbeSN and SWD wiring, and end any debugger/IDE connection occupying the probe before retrying. Disconnecting a debugger does not stop the vehicle. Before export, use PE7 stop, verify the logger is FROZEN state=2, and keep power applied.'
-        } else { '' }
-        throw "STM32CubeProgrammer failed during $Tag upload (exit $exitCode). See $logPath.$hint $text"
-    }
-    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
-        throw "STM32CubeProgrammer reported success but did not create $Destination. See $logPath."
-    }
-    $actualSize = (Get-Item -LiteralPath $Destination).Length
-    if ($actualSize -ne $Size) {
-        throw "STM32CubeProgrammer wrote $actualSize bytes for a $Size-byte $Tag upload. See $logPath."
+        $attempt = [ordered]@{
+            tag = $Tag
+            attempt = $attemptNumber
+            requested_frequency_khz = $script:ActiveFrequencyKhz
+            actual_frequency_khz = $actualFrequency
+            shared_connection = [bool]$script:SharedConnectionValue
+            probe_sn = $script:SelectedProbeSN
+            arguments = $arguments
+            exit_code = $exitCode
+            error_class = $attemptErrorClass
+            full_output = $text
+            log = $logPath
+        }
+        $script:ConnectionAttempts.Add($attempt)
+        Save-ConnectionAttempts
+        if ($exitCode -eq 0) {
+            if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
+                $script:ErrorClass = 'ram_read'
+                $attempt.error_class = $script:ErrorClass
+                Save-ConnectionAttempts
+                throw "STM32CubeProgrammer reported success but did not create $Destination. See $logPath."
+            }
+            $actualSize = (Get-Item -LiteralPath $Destination).Length
+            if ($actualSize -ne $Size) {
+                $script:ErrorClass = 'ram_read'
+                $attempt.error_class = $script:ErrorClass
+                Save-ConnectionAttempts
+                throw "STM32CubeProgrammer wrote $actualSize bytes for a $Size-byte $Tag upload. See $logPath."
+            }
+            if ($actualFrequency) { $script:ActualFrequencyKhz = $actualFrequency }
+            $script:Connected = $true
+            return
+        }
+        if ($attemptErrorClass -eq 'core_inaccessible' -and -not $script:Connected -and
+            $index + 1 -lt $frequencies.Count) {
+            continue
+        }
+        $script:ErrorClass = $attemptErrorClass
+        throw "STM32CubeProgrammer failed during $Tag upload (exit $exitCode; error_class=$attemptErrorClass). See $logPath. $text"
     }
 }
 
@@ -208,7 +365,7 @@ function Get-RunMetadata {
     param([string]$Status, [string]$ErrorMessage, [object]$Layout, [object]$Header)
     $rawFiles = @()
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
-        foreach ($name in @('header-initial.bin', 'runtime-log.bin', 'header-final.bin')) {
+        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin')) {
             $path = Join-Path $script:RunDirectory $name
             if (Test-Path -LiteralPath $path -PathType Leaf) {
                 $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
@@ -225,25 +382,37 @@ function Get-RunMetadata {
         started_at_utc = $script:StartedAtUtc
         finished_at_utc = [DateTime]::UtcNow.ToString('o')
         error = $ErrorMessage
+        error_class = $script:ErrorClass
         elf = if ($Layout) { $Layout.elf_path } else { [IO.Path]::GetFullPath($Elf) }
         elf_sha256 = if ($Layout) { $Layout.elf_sha256 } else { $null }
         storage_address = if ($Layout) { $Layout.storage_address } else { $null }
         storage_size = if ($Layout) { $Layout.storage_size } else { $null }
         build_id = if ($Layout) { $Layout.build_id } else { $null }
+        log_version = if ($Layout) { [int]$Layout.descriptor.log_version } else { $null }
+        holdQuantum_ms = if ($Layout) {
+            if ([int]$Layout.descriptor.log_version -eq 1) { 20 } else { 50 }
+        } else { $null }
         probe_serial_supplied = [bool]$ProbeSN
-        connection_frequency_khz = $ConnectionFrequencyKhz
-        shared_connection = [bool]$SharedConnection
-        connection = "SWD HOTPLUG freq=$ConnectionFrequencyKhz$(if ($SharedConnection) { ' shared' })"
+        probe_sn = $script:SelectedProbeSN
+        requested_connection_frequency_khz = $script:StartingFrequencyKhz
+        connection_frequency_khz = $script:ActiveFrequencyKhz
+        actual_connection_frequency_khz = $script:ActualFrequencyKhz
+        shared_connection = [bool]$script:SharedConnectionValue
+        connection = "SWD HOTPLUG freq=$($script:ActiveFrequencyKhz)$(if ($script:SharedConnectionValue) { ' shared' })$(if ($script:SelectedProbeSN) { ' sn=' + $script:SelectedProbeSN })"
+        connection_attempts = $script:ConnectionAttempts.ToArray()
+        flash_descriptor = $script:FlashDescriptorValidation
         initial_header = $Header
         record_count = if ($Header) { [int]$Header.count } else { $null }
         dropped_count = if ($Header) { [int]$Header.dropped_count } else { $null }
         buffer_full = if ($Header) { [bool]$Header.buffer_full } else { $null }
         records_truncated = if ($Header) { [bool]$Header.records_truncated } else { $null }
-        csv = if ($Status -eq 'success' -and $script:RunCsvPath -and
+        csv = if ($script:RunCsvValidated -and $script:RunCsvPath -and
                   (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf)) {
             $script:RunCsvPath
         } else { $null }
         planned_csv_path = $script:RunCsvPath
+        status_snapshot = if ($script:StatusSnapshotPath) { $script:StatusSnapshotPath } else { $null }
+        diagnostic_failure = $script:DiagnosticFailure
         raw_sha256 = $rawHash
         cubeprogrammer_logs = @($script:CliLogs)
         raw_files = $rawFiles
@@ -290,23 +459,48 @@ try {
 
     if ($DryRun) {
         $cliPath = if ($ProgrammerCLI) { [IO.Path]::GetFullPath($ProgrammerCLI) } else { '<auto-detected when run>' }
+        $script:ActiveFrequencyKhz = $script:StartingFrequencyKhz
+        $script:SelectedProbeSN = if ($ProbeSN) { $ProbeSN } else { '<unique probe from -l st-link-only>' }
         $sampleArgs = New-HotPlugArguments -Address $headerAddress -Size 64 -Destination '<run-directory>\header-initial.bin'
         $secondRead = @(Get-HotPlugConnectionArguments) + @('--upload', $storageAddress, '<64 + frozen_count * 64>', '<run-directory>\runtime-log.bin')
         $finalRead = @(Get-HotPlugConnectionArguments) + @('--upload', $storageAddress, '64', '<run-directory>\header-final.bin')
+        $statusReader = Join-Path $PSScriptRoot 'run_status_reader.py'
+        $statusPlan = Invoke-PythonJson -Arguments @($statusReader, 'plan', '--elf', $elfPath) `
+            -LogPath (Join-Path $script:RunDirectory 'python-status-plan.log')
+        $statusScalarRead = New-HotPlugArguments -Address $statusPlan.scalar_read.address `
+            -Size ([long]$statusPlan.scalar_read.size) -Destination '<run-directory>\status-read\scalar-region.bin'
+        $statusHeaderRead = New-HotPlugArguments -Address $statusPlan.header_read.address `
+            -Size 64 -Destination '<run-directory>\status-read\runtime-log-header.bin'
+        $descriptorRead = New-HotPlugArguments -Address $layout.descriptor_address `
+            -Size 64 -Destination '<run-directory>\flash-rom-descriptor.bin'
         $plan = [ordered]@{
             dry_run = $true
             selected_elf = $layout.elf_path
             elf_sha256 = $layout.elf_sha256
             build_id = $layout.build_id
             programmer_cli = $cliPath
-            connection_frequency_khz = $ConnectionFrequencyKhz
-            shared_connection = [bool]$SharedConnection
+            probe_enumeration_arguments = @('-l', 'st-link-only')
+            frequency_attempts_khz = @(Get-ConnectionFrequencies)
+            requested_connection_frequency_khz = $script:StartingFrequencyKhz
+            connection_frequency_khz = $script:ActiveFrequencyKhz
+            shared_connection = [bool]$script:SharedConnectionValue
             probe_serial_supplied = [bool]$ProbeSN
+            flash_descriptor_read = $descriptorRead
             ram_address = $storageAddress
             ram_size = $storageSize
             first_read = $sampleArgs
             second_read = $secondRead
             final_read = $finalRead
+            status_snapshot = [ordered]@{
+                selected_elf = $statusPlan.elf_path
+                log_version = $statusPlan.log_version
+                hold_quantum_ms = $statusPlan.hold_quantum_ms
+                scalar_symbols = $statusPlan.scalar_symbols
+                descriptor_read = $descriptorRead
+                scalar_read = $statusScalarRead
+                header_read = $statusHeaderRead
+                record_area_read = $false
+            }
             output_directory = $script:RunDirectory
         }
         $plan | ConvertTo-Json -Depth 5
@@ -314,6 +508,8 @@ try {
     }
 
     $script:ProgrammerPath = Resolve-ProgrammerCli
+    $script:Stage = 'enumerate-probe'
+    Resolve-ProbeSerial
     $probeArguments = New-HotPlugArguments -Address $headerAddress -Size 64 -Destination 'x'
     $forbiddenArguments = @('mode=NORMAL', '-rst', '-halt', '--download', '--erase', '-go', '--run')
     foreach ($argument in $probeArguments) {
@@ -322,11 +518,34 @@ try {
         }
     }
 
+    $descriptorPath = Join-Path $script:RunDirectory 'flash-rom-descriptor.bin'
+    $script:Stage = 'read-flash-descriptor'
+    Invoke-HotPlugUpload -Tag 'flash-descriptor' -Address ([string]$layout.descriptor_address) `
+        -Size 64 -Destination $descriptorPath
+    $script:Stage = 'validate-flash-descriptor'
+    $script:FlashDescriptorValidation = Invoke-PythonJson -Arguments @(
+        $validator, 'check-descriptor', '--elf', $elfPath, '--descriptor', $descriptorPath
+    ) -LogPath (Join-Path $script:RunDirectory 'python-check-flash-descriptor.log')
+
     $initialHeaderPath = Join-Path $script:RunDirectory 'header-initial.bin'
     $script:Stage = 'read-initial-header'
     Invoke-HotPlugUpload -Tag 'header-initial' -Address $headerAddress -Size 64 -Destination $initialHeaderPath
     $script:Stage = 'validate-initial-header'
-    $initialHeader = Invoke-PythonJson -Arguments @($validator, 'check-header', '--elf', $elfPath, '--header', $initialHeaderPath) -LogPath (Join-Path $script:RunDirectory 'python-check-initial-header.log')
+    $initialHeader = Invoke-PythonJson -Arguments @($validator, 'check-header', '--elf', $elfPath,
+        '--header', $initialHeaderPath, '--allow-idle') -LogPath (Join-Path $script:RunDirectory 'python-check-initial-header.log')
+
+    if ([int]$initialHeader.state -eq 0) {
+        Invoke-StatusSnapshot
+        $script:Stage = 'idle-no-run'
+        $idleMessage = 'Runtime log is idle; no run has been recorded. No run.csv was created.'
+        $metadata = Get-RunMetadata -Status 'idle' -ErrorMessage $idleMessage -Layout $layout -Header $initialHeader
+        $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
+        [Console]::Error.WriteLine($idleMessage)
+        if ($script:StatusSnapshotPath) {
+            [Console]::Error.WriteLine("Status snapshot: $script:StatusSnapshotPath")
+        }
+        exit 2
+    }
 
     $payloadSize = [long]$initialHeader.payload_size
     if ($payloadSize -lt 64 -or $payloadSize -gt $storageSize) {
@@ -363,29 +582,45 @@ try {
     $decodeLog = Join-Path $script:RunDirectory 'python-decode.log'
     $null = Invoke-PythonJson -Arguments @($validator, 'decode', '--elf', $elfPath, '--raw', $rawPath,
         '--out-csv', $script:RunCsvPath, '--metadata', $script:DecodeMetadataPath) -LogPath $decodeLog
+    if (-not (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf) -or
+        (Get-Item -LiteralPath $script:RunCsvPath).Length -le 0 -or
+        -not (Test-Path -LiteralPath $script:DecodeMetadataPath -PathType Leaf)) {
+        $script:ErrorClass = 'decode'
+        throw 'Decoder did not produce a nonempty CSV and metadata file.'
+    }
+    $script:RunCsvValidated = $true
+    Invoke-StatusSnapshot
     $decodeMetadata = Get-Content -LiteralPath $script:DecodeMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $script:Stage = 'complete'
-    $metadata = Get-RunMetadata -Status 'success' -ErrorMessage $null -Layout $layout -Header $initialHeader
+    $completionStatus = if ($script:DiagnosticFailure) { 'success_with_warnings' } else { 'success' }
+    $metadata = Get-RunMetadata -Status $completionStatus -ErrorMessage $script:DiagnosticFailure -Layout $layout -Header $initialHeader
     $metadata['record_count'] = [int]$decodeMetadata.record_count
     $metadata['dropped_count'] = [int]$decodeMetadata.dropped_count
     $metadata['buffer_full'] = [bool]$decodeMetadata.buffer_full
     $metadata['records_truncated'] = [bool]$decodeMetadata.records_truncated
     $metadata['raw_sha256'] = (Get-FileHash -LiteralPath $rawPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
+    $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
+    foreach ($warning in @($script:DiagnosticFailure)) {
+        if ($warning) { [Console]::Error.WriteLine("Warning: $warning") }
+    }
     Write-Output $script:RunCsvPath
     exit 0
 }
 catch {
     $errorMessage = $_.Exception.Message
-    if ($script:RunCsvPath -and (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf)) {
+    if (-not $script:ErrorClass) {
+        $script:ErrorClass = Resolve-ToolErrorClass -Message $errorMessage -Stage $script:Stage
+    }
+    if (-not $script:RunCsvValidated -and $script:RunCsvPath -and (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf)) {
         Remove-Item -LiteralPath $script:RunCsvPath -Force
     }
-    if ($script:DecodeMetadataPath -and (Test-Path -LiteralPath $script:DecodeMetadataPath -PathType Leaf)) {
+    if (-not $script:RunCsvValidated -and $script:DecodeMetadataPath -and (Test-Path -LiteralPath $script:DecodeMetadataPath -PathType Leaf)) {
         Remove-Item -LiteralPath $script:DecodeMetadataPath -Force
     }
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
         try {
-            $metadata = Get-RunMetadata -Status 'failed' -ErrorMessage $errorMessage -Layout $layout -Header $initialHeader
+            $failureStatus = if ($script:RunCsvValidated) { 'success_with_warnings' } else { 'failed' }
+            $metadata = Get-RunMetadata -Status $failureStatus -ErrorMessage $errorMessage -Layout $layout -Header $initialHeader
             $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
         }
         catch {

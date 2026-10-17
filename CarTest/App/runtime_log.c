@@ -283,6 +283,20 @@ uint8_t car_runtime_log_state(void)
     return car_runtime_log_storage.header.state;
 }
 
+uint8_t car_runtime_log_pack_hold_progress(uint32_t hold_elapsed_ms,
+                                           uint8_t recovery_valid_count)
+{
+    uint32_t hold_ticks = hold_elapsed_ms / CAR_RUNTIME_LOG_PERIOD_MS;
+    const uint32_t maximum_hold_ticks =
+        CAR_CONTROL_VISION_HOLD_MS / CAR_RUNTIME_LOG_PERIOD_MS;
+
+    if (hold_ticks > maximum_hold_ticks) {
+        hold_ticks = maximum_hold_ticks;
+    }
+    return (uint8_t)((hold_ticks << 2u) |
+                     (recovery_valid_count & 0x03u));
+}
+
 static void begin_session(uint32_t now_ms,
                           car_runtime_log_session_kind_t session_kind,
                           uint32_t button_start_generation)
@@ -446,7 +460,7 @@ static uint8_t recovery_count_for_events(
     const car_runtime_log_sample_t *sample)
 {
     if (sample->mode == (uint8_t)CAR_MODE_FOLLOW_VISION_HOLD) {
-        /* Mode 12 packs elapsed 20 ms hold ticks into the upper six bits. */
+        /* Mode 12 packs elapsed 50 ms hold ticks into the upper six bits. */
         return (uint8_t)(sample->recovery_frame_count & 0x03u);
     }
     return sample->recovery_frame_count;

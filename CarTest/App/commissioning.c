@@ -2,6 +2,10 @@
 #include "car_calibration.h"
 #include "vision_protocol.h"
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 #define CAR_DEFAULT_VISION_TIMEOUT_MS 250u
 #define CAR_HARD_BENCH_LIMIT_PM       400u
 #define CAR_HARD_FOLLOW_LIMIT_PM      700u
@@ -19,6 +23,50 @@
 #define CAR_RECOVERY_MAX_QUEUE_MS     100u
 #define CAR_FOLLOW_KP_PERMILLE        700u
 #define CAR_FOLLOW_RAMP_STEP_PM       10u
+
+/* The linker maps ordinary .bss to RAM_D1 at 0x24000000. Keep each exported
+   debugger scalar naturally aligned and zero-initialized for reset validity. */
+volatile uint32_t car_vision_hold_snapshot_entry;
+volatile int32_t car_vision_hold_snapshot_error_norm;
+volatile uint32_t car_vision_hold_snapshot_sequence;
+volatile uint32_t car_vision_hold_snapshot_source_rx_ms;
+volatile uint32_t car_vision_hold_snapshot_entered_ms;
+volatile uint32_t car_vision_hold_snapshot_target_us;
+volatile uint32_t car_vision_hold_snapshot_applied_us;
+volatile uint32_t car_vision_hold_snapshot_left_permille;
+volatile uint32_t car_vision_hold_snapshot_right_permille;
+
+static void hold_snapshot_publish_barrier(void)
+{
+#if defined(__arm__) || defined(__thumb__)
+    __asm volatile("dmb" ::: "memory");
+#elif defined(__GNUC__)
+    __asm volatile("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+}
+
+static void publish_hold_entry_snapshot(const car_control_t *control)
+{
+    if (control == 0 || control->vision_hold_entries == 0u) {
+        return;
+    }
+    car_vision_hold_snapshot_error_norm =
+        (int32_t)control->vision_hold_error_norm;
+    car_vision_hold_snapshot_sequence = control->vision_hold_source_sequence;
+    car_vision_hold_snapshot_source_rx_ms = control->vision_hold_source_rx_ms;
+    car_vision_hold_snapshot_entered_ms = control->vision_hold_started_ms;
+    car_vision_hold_snapshot_target_us = control->vision_hold_servo_pulse_us;
+    car_vision_hold_snapshot_applied_us =
+        control->vision_hold_applied_servo_pulse_us;
+    car_vision_hold_snapshot_left_permille =
+        control->vision_hold_motor_left_permille;
+    car_vision_hold_snapshot_right_permille =
+        control->vision_hold_motor_right_permille;
+    hold_snapshot_publish_barrier();
+    car_vision_hold_snapshot_entry = control->vision_hold_entries;
+}
 
 void car_config_init_application(car_config_t *config,
                                  uint8_t bench_mode_compiled,
@@ -251,6 +299,19 @@ void car_control_note_applied_outputs(car_control_t *control,
     control->applied_motor_right_permille = motor_right_applied_permille;
 }
 
+uint16_t car_control_follow_servo_output_target_us(
+    const car_control_t *control)
+{
+    if (control == 0) {
+        return 0u;
+    }
+    if (control->mode == CAR_MODE_FOLLOW_VISION_HOLD &&
+        control->vision_hold_active != 0u) {
+        return control->vision_hold_servo_pulse_us;
+    }
+    return control->follow_servo_target_us;
+}
+
 static void stop_outputs(car_control_t *control)
 {
     stop_bench(control);
@@ -342,7 +403,10 @@ static void enter_soft_fault(car_control_t *control, car_fault_t fault)
     }
 
     control->fault = fault;
-    finish_vision_hold(control, CAR_VISION_HOLD_EXIT_COMM_FAULT);
+    finish_vision_hold(
+        control, fault == CAR_FAULT_SWITCH_RELEASE
+                     ? CAR_VISION_HOLD_EXIT_MANUAL_STOP
+                     : CAR_VISION_HOLD_EXIT_COMM_FAULT);
     control->fault_latched = 0u;
     ++control->fault_generation;
     if (fault != CAR_FAULT_SWITCH_RELEASE) {
@@ -872,6 +936,8 @@ void car_control_on_vision_frame_at_with_flags(
                 control->applied_servo_output_active == 0u ||
                 control->applied_servo_pulse_us < config->servo_min_us ||
                 control->applied_servo_pulse_us > config->servo_max_us ||
+                control->have_valid_vision == 0u ||
+                control->have_sequence == 0u ||
                 control->applied_motor_left_permille == 0u ||
                 control->applied_motor_right_permille == 0u ||
                 control->applied_motor_left_permille >
@@ -887,12 +953,19 @@ void car_control_on_vision_frame_at_with_flags(
             control->vision_hold_restart_required = 0u;
             control->vision_hold_valid_count = 0u;
             control->vision_hold_have_sequence = 0u;
-            /* This is the route-trust timestamp that defines the 1000 ms
-               deadline, not the later valid=0 detector-arrival time. */
-            control->vision_hold_started_ms = control->vision_last_valid_ms;
+            /* Preserve source timing separately from the exact deadline. */
+            control->vision_hold_started_ms = now_ms;
+            control->vision_hold_error_norm = control->vision_error_norm;
+            control->vision_hold_source_sequence = control->vision_sequence;
+            control->vision_hold_source_rx_ms = control->vision_last_valid_ms;
             control->vision_hold_exit_cause = CAR_VISION_HOLD_EXIT_NONE;
             ++control->vision_hold_entries;
-            control->vision_hold_servo_pulse_us =
+            if (control->vision_hold_entries == 0u) {
+                ++control->vision_hold_entries;
+            }
+            control->vision_hold_servo_pulse_us = follow_servo_target(
+                config, control->vision_hold_error_norm);
+            control->vision_hold_applied_servo_pulse_us =
                 control->applied_servo_pulse_us;
             control->vision_hold_motor_left_permille =
                 control->applied_motor_left_permille;
@@ -900,6 +973,7 @@ void car_control_on_vision_frame_at_with_flags(
                 control->applied_motor_right_permille;
             control->vision_hold_base_duty_permille =
                 control->follow_output_duty_permille;
+            publish_hold_entry_snapshot(control);
             control->road_drive_allowed = 1u;
             return;
         }
@@ -944,6 +1018,7 @@ void car_control_on_vision_frame_at_with_flags(
                normal first-servo-frame / motor-ramp gate from zero. */
             control->vision_hold_restart_required = 1u;
             control->follow_output_duty_permille = 0u;
+            control->road_drive_allowed = 0u;
         } else {
             control->follow_output_duty_permille =
                 control->vision_hold_base_duty_permille;
@@ -960,7 +1035,8 @@ void car_control_on_vision_frame_at_with_flags(
         control->recovery_have_sequence = 0u;
         control->follow_last_ramp_ms = now_ms;
         control->follow_session_active = 1u;
-        control->road_drive_allowed = 1u;
+        control->road_drive_allowed =
+            control->vision_hold_restart_required == 0u ? 1u : 0u;
         return;
     }
 

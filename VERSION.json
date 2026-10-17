@@ -1,7 +1,7 @@
 {
-  "version": "v20261016-contour-arrayfix",
-  "status": "experimental-array-runtime-compatibility-tested-road-pending",
-  "branch": "fix/contour-arrayfix",
-  "files": 358,
+  "version": "v20261017-aggressive-turn",
+  "status": "experimental-software-tested-road-pending",
+  "branch": "fix/aggressive-turn",
+  "files": 368,
   "hardware_actions": "none"
 }

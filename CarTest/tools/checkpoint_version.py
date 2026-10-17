@@ -26,6 +26,13 @@ ROOT_FILES = ("CMakeLists.txt", "CMakePresets.json", "CarTest.code-workspace",
 SKIP_DIRS = {"__pycache__", ".git", "logs", "tmp", "node_modules"}
 SKIP_SUFFIXES = {".pyc", ".obj", ".o", ".exe", ".dll", ".png", ".jpg",
                  ".jpeg", ".mp4", ".avi", ".bin", ".log"}
+# Only these synthetic/source fixtures are public; never copy the vehicle-data
+# tree wholesale. They are required by the shipped host regression commands.
+PUBLIC_TEST_FIXTURES = (
+    "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.json",
+    "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
+    "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
+)
 
 
 def run_git(*args: str) -> str:
@@ -134,6 +141,13 @@ def main():
     for name in ROOT_FILES:
         if (source / name).is_file():
             shutil.copy2(source / name, target / name)
+    for name in PUBLIC_TEST_FIXTURES:
+        fixture = source / name
+        if not fixture.is_file() or fixture.is_symlink():
+            raise RuntimeError(f"Required public regression fixture is missing or linked: {name}")
+        destination = target / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(fixture, destination)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
         output = target / "build" / elf.parent.name / elf.name

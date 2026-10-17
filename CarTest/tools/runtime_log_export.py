@@ -26,7 +26,12 @@ DESCRIPTOR_MAGIC = b"RLDS"
 HEADER_MAGIC = b"RLOG"
 ENDIAN_TAG = 0x12345678
 DESCRIPTOR_VERSION = 1
-LOG_VERSION = 1
+LOG_VERSION_V1 = 1
+LOG_VERSION_V2 = 2
+# Decoding follows the semantic version recorded in the selected ELF descriptor.
+LOG_VERSION = LOG_VERSION_V2
+SUPPORTED_LOG_VERSIONS = (LOG_VERSION_V1, LOG_VERSION_V2)
+HOLD_QUANTUM_MS = {LOG_VERSION_V1: 20, LOG_VERSION_V2: 50}
 HEADER_SIZE = 64
 RECORD_SIZE = 64
 CAPACITY = 6144
@@ -140,6 +145,7 @@ class ElfLayout:
     storage_address: int
     storage_size: int
     descriptor_address: int
+    descriptor_bytes: bytes
     build_id: bytes
     descriptor: Dict[str, int]
 
@@ -244,6 +250,13 @@ def _require_symbol(symbols: Dict[str, Symbol], name: str) -> Symbol:
     return symbol
 
 
+def _hold_quantum_ms(log_version: int) -> int:
+    quantum = HOLD_QUANTUM_MS.get(log_version)
+    if quantum is None:
+        _fail("Unsupported runtime log semantic version {}".format(log_version))
+    return quantum
+
+
 def inspect_elf(elf_path: Union[os.PathLike, str]) -> ElfLayout:
     path = Path(elf_path).resolve()
     if path.name.lower() != "cartest.elf":
@@ -290,10 +303,12 @@ def inspect_elf(elf_path: Union[os.PathLike, str]) -> ElfLayout:
     buffer_size, endian_tag = struct.unpack_from("<II", descriptor, 20)
     build_id = descriptor[28:44]
     reserved = descriptor[44:64]
-    if (descriptor_version, descriptor_size, log_version, header_size, record_size,
-            capacity, period, alignment, buffer_size, endian_tag) != (
-            DESCRIPTOR_VERSION, 64, LOG_VERSION, HEADER_SIZE, RECORD_SIZE,
-            CAPACITY, PERIOD_MS, ALIGNMENT, BUFFER_SIZE, ENDIAN_TAG):
+    if (descriptor_version != DESCRIPTOR_VERSION or descriptor_size != 64 or
+            log_version not in SUPPORTED_LOG_VERSIONS or
+            (header_size, record_size, capacity, period, alignment,
+             buffer_size, endian_tag) != (
+                HEADER_SIZE, RECORD_SIZE, CAPACITY, PERIOD_MS, ALIGNMENT,
+                BUFFER_SIZE, ENDIAN_TAG)):
         _fail("ROM descriptor schema values do not match this exporter")
     if not any(build_id):
         _fail("ROM descriptor build ID is empty")
@@ -318,6 +333,7 @@ def inspect_elf(elf_path: Union[os.PathLike, str]) -> ElfLayout:
         storage_address=storage.value,
         storage_size=storage.size,
         descriptor_address=descriptor_symbol.value,
+        descriptor_bytes=descriptor,
         build_id=build_id,
         descriptor=descriptor_values,
     )
@@ -327,7 +343,43 @@ def _crc32(data: bytes) -> int:
     return zlib.crc32(data) & 0xFFFFFFFF
 
 
-def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int, str, bool]]:
+def validate_flash_descriptor(elf_path: Union[os.PathLike, str],
+                              descriptor_path: Union[os.PathLike, str]) -> Dict[str, object]:
+    """Require the target's read-only Flash descriptor to match the selected ELF."""
+    layout = inspect_elf(elf_path)
+    try:
+        observed = Path(descriptor_path).read_bytes()
+    except OSError as exc:
+        _fail("Cannot read uploaded Flash ROM descriptor: {}".format(exc))
+    if len(observed) != HEADER_SIZE:
+        _fail("Flash ROM descriptor read must be exactly 64 bytes (found {})".format(
+            len(observed)))
+    if observed != layout.descriptor_bytes:
+        if observed[:4] != DESCRIPTOR_MAGIC:
+            _fail(
+                "Flash ROM descriptor mismatch at 0x{:08X}: selected CarTest.elf "
+                "expects build ID {}; selected address has no valid RLDS descriptor, "
+                "so actual target build ID is unknown; full 64-byte descriptors differ"
+                .format(layout.descriptor_address, layout.build_id.hex())
+            )
+        observed_build_id = observed[28:44].hex()
+        _fail(
+            "Flash ROM descriptor mismatch at 0x{:08X}: selected CarTest.elf "
+            "expects build ID {}, target contains {}; full 64-byte descriptors differ"
+            .format(layout.descriptor_address, layout.build_id.hex(), observed_build_id)
+        )
+    return {
+        "status": "matched",
+        "matches_elf": True,
+        "address": "0x{:08X}".format(layout.descriptor_address),
+        "size": HEADER_SIZE,
+        "build_id": layout.build_id.hex(),
+        "descriptor_sha256": hashlib.sha256(observed).hexdigest(),
+    }
+
+
+def _parse_header(header_bytes: bytes, layout: ElfLayout,
+                  allow_idle: bool = False) -> Dict[str, Union[int, str, bool]]:
     if len(header_bytes) != HEADER_SIZE:
         _fail("Runtime log header must be exactly {} bytes".format(HEADER_SIZE))
     if header_bytes[:4] != HEADER_MAGIC:
@@ -339,7 +391,8 @@ def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int
     build_id = header_bytes[44:60]
     stop_reason = header_bytes[60]
     reserved = header_bytes[61:64]
-    expected_values = (LOG_VERSION, HEADER_SIZE, RECORD_SIZE, CAPACITY, PERIOD_MS)
+    expected_values = (layout.descriptor["log_version"], HEADER_SIZE, RECORD_SIZE,
+                       CAPACITY, PERIOD_MS)
     if (version, header_size, record_size, capacity, period) != expected_values:
         _fail("Runtime log header schema does not match the ROM descriptor")
     zeroed_header = bytearray(header_bytes)
@@ -354,8 +407,37 @@ def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int
             "0x{:08X}: selected CarTest.elf expects {}, header contains {}"
             .format(layout.storage_address, layout.build_id.hex(), build_id.hex())
         )
+    hold_quantum_ms = _hold_quantum_ms(version)
     if state == STATE_IDLE:
-        _fail("Runtime log is idle; no run has been recorded")
+        if not allow_idle:
+            _fail("Runtime log is idle; no run has been recorded")
+        if (flags != 0 or count != 0 or session_id != 0 or start_ms != 0 or
+                stop_ms != 0 or dropped_count != 0 or records_crc != 0 or
+                stop_reason != 0):
+            _fail("IDLE runtime log header contains run data")
+        return {
+            "version": version,
+            "header_size": header_size,
+            "record_size": record_size,
+            "capacity": capacity,
+            "period_ms": period,
+            "hold_quantum_ms": hold_quantum_ms,
+            "state": state,
+            "state_name": "idle",
+            "flags": flags,
+            "buffer_full": False,
+            "records_truncated": False,
+            "count": count,
+            "session_id": session_id,
+            "start_ms": start_ms,
+            "stop_ms": stop_ms,
+            "dropped_count": dropped_count,
+            "records_crc32": records_crc,
+            "header_crc32": header_crc,
+            "build_id": build_id.hex(),
+            "stop_reason": stop_reason,
+            "stop_reason_name": "none",
+        }
     if state == STATE_ACTIVE:
         _fail("Runtime log is active; stop and freeze the run before exporting")
     if state != STATE_FROZEN:
@@ -382,6 +464,7 @@ def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int
         "record_size": record_size,
         "capacity": capacity,
         "period_ms": period,
+        "hold_quantum_ms": hold_quantum_ms,
         "state": state,
         "state_name": "frozen",
         "flags": flags,
@@ -400,18 +483,21 @@ def _parse_header(header_bytes: bytes, layout: ElfLayout) -> Dict[str, Union[int
     }
 
 
-def inspect_header(elf_path: Union[os.PathLike, str], header_path: Union[os.PathLike, str]) -> Dict[str, Union[int, str, bool]]:
+def inspect_header(elf_path: Union[os.PathLike, str], header_path: Union[os.PathLike, str],
+                   allow_idle: bool = False) -> Dict[str, Union[int, str, bool]]:
     layout = inspect_elf(elf_path)
     try:
         header = Path(header_path).read_bytes()
     except OSError as exc:
         _fail("Cannot read runtime log header: {}".format(exc))
-    parsed = _parse_header(header, layout)
-    parsed["payload_size"] = HEADER_SIZE + int(parsed["count"]) * RECORD_SIZE
+    parsed = _parse_header(header, layout, allow_idle=allow_idle)
+    parsed["payload_size"] = (HEADER_SIZE if parsed["state"] == STATE_IDLE else
+                               HEADER_SIZE + int(parsed["count"]) * RECORD_SIZE)
     return parsed
 
 
-def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> Dict[str, Union[int, str, bool]]:
+def _parse_record(record: bytes, session_id: int, start_ms: int, index: int,
+                  log_version: int = LOG_VERSION_V1) -> Dict[str, Union[int, str, bool]]:
     if len(record) != RECORD_SIZE:
         _fail("Runtime log record {} is truncated".format(index))
     t_ms, record_session = struct.unpack_from("<II", record, 0)
@@ -446,11 +532,17 @@ def _parse_record(record: bytes, session_id: int, start_ms: int, index: int) -> 
         _fail("Runtime log record {} marks vision hold active and expired".format(index))
     if mode == 12:
         hold_ticks = recovery_frame_count >> 2
-        if hold_ticks > 50:
-            _fail("Runtime log record {} has a hold duration above 1000 ms".format(index))
+        if log_version not in SUPPORTED_LOG_VERSIONS:
+            _fail("Runtime log record {} has unsupported semantic version {}".format(
+                index, log_version))
+        max_hold_ticks = 50 if log_version == LOG_VERSION_V1 else 60
+        if hold_ticks > max_hold_ticks:
+            maximum_ms = max_hold_ticks * _hold_quantum_ms(log_version)
+            _fail("Runtime log record {} has a hold duration above {} ms".format(
+                index, maximum_ms))
         if not (vision_hold_active or vision_hold_expired):
             _fail("Runtime log mode 12 is missing active/expired hold flags")
-        hold_elapsed_ms = hold_ticks * 20
+        hold_elapsed_ms = hold_ticks * _hold_quantum_ms(log_version)
         hold_valid_count = recovery_frame_count & 0x03
         decoded_recovery_count = hold_valid_count
     else:
@@ -547,7 +639,8 @@ def decode_buffer(elf_path: Union[os.PathLike, str], raw_path: Union[os.PathLike
     for index in range(int(header["count"])):
         offset = index * RECORD_SIZE
         rows.append(_parse_record(payload[offset:offset + RECORD_SIZE],
-                                  int(header["session_id"]), int(header["start_ms"]), index))
+                                  int(header["session_id"]), int(header["start_ms"]), index,
+                                  log_version=int(header["version"])))
     if rows[0]["t_ms"] != header["start_ms"]:
         _fail("First runtime log record time does not match header start_ms")
     if not rows[0]["event_start"]:
@@ -617,6 +710,9 @@ def _layout_json(layout: ElfLayout) -> Dict[str, object]:
         "storage_size": layout.storage_size,
         "descriptor_symbol": DESCRIPTOR_SYMBOL,
         "descriptor_address": "0x{:08X}".format(layout.descriptor_address),
+        "descriptor_size": len(layout.descriptor_bytes),
+        "descriptor_bytes_hex": layout.descriptor_bytes.hex(),
+        "descriptor_sha256": hashlib.sha256(layout.descriptor_bytes).hexdigest(),
         "build_id": layout.build_id.hex(),
         "descriptor": layout.descriptor,
     }
@@ -634,9 +730,15 @@ def command_check_header(args: argparse.Namespace) -> int:
         header = Path(args.header).read_bytes()
     except OSError as exc:
         _fail("Cannot read runtime log header: {}".format(exc))
-    parsed = _parse_header(header, layout)
-    parsed["payload_size"] = HEADER_SIZE + int(parsed["count"]) * RECORD_SIZE
+    parsed = _parse_header(header, layout, allow_idle=args.allow_idle)
+    parsed["payload_size"] = (HEADER_SIZE if parsed["state"] == STATE_IDLE else
+                               HEADER_SIZE + int(parsed["count"]) * RECORD_SIZE)
     print(json.dumps(parsed, sort_keys=True))
+    return 0
+
+
+def command_check_descriptor(args: argparse.Namespace) -> int:
+    print(json.dumps(validate_flash_descriptor(args.elf, args.descriptor), sort_keys=True))
     return 0
 
 
@@ -648,6 +750,8 @@ def command_decode(args: argparse.Namespace) -> int:
     metadata = {
         "elf": _layout_json(layout),
         "log": header,
+        "log_version": int(header["version"]),
+        "holdQuantum_ms": int(header["hold_quantum_ms"]),
         "record_count": len(rows),
         "dropped_count": int(header["dropped_count"]),
         "buffer_full": bool(header["buffer_full"]),
@@ -684,7 +788,15 @@ def build_parser() -> argparse.ArgumentParser:
     header_parser = subparsers.add_parser("check-header", help="validate a 64-byte frozen RAM header")
     header_parser.add_argument("--elf", required=True)
     header_parser.add_argument("--header", required=True)
+    header_parser.add_argument("--allow-idle", action="store_true",
+                               help="accept a CRC/build-matched IDLE header for status reporting")
     header_parser.set_defaults(func=command_check_header)
+
+    descriptor_parser = subparsers.add_parser(
+        "check-descriptor", help="compare an uploaded 64-byte Flash descriptor with the selected ELF")
+    descriptor_parser.add_argument("--elf", required=True)
+    descriptor_parser.add_argument("--descriptor", required=True)
+    descriptor_parser.set_defaults(func=command_check_descriptor)
 
     decode_parser = subparsers.add_parser("decode", help="validate uploaded bytes and atomically write CSV")
     decode_parser.add_argument("--elf", required=True)

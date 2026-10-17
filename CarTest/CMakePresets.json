@@ -96,7 +96,7 @@
     },
     {
       "name": "DebugFollowTurn",
-      "displayName": "DebugFollowTurn - 70/30 turn target; servo 60us/20ms; motor 20‰/10ms",
+      "displayName": "DebugFollowTurn - 70/30 turn target; servo 120us/20ms; motor 40 permille/10ms",
       "inherits": "DebugFollow",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {

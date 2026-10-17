@@ -1,8 +1,20 @@
 # CarTest OpenMV production package
 
-Current package: `CONTOUR_ARRAYFIX_20261016`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+Current package: `AGGRESSIVE_TURN_20261016`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
 
-This compatibility revision replaces array-times-integer buffer allocation that fails on MicroPython. Steering and route decisions, H743 source and paired ELFs are unchanged from the contour-repair checkpoint. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the error, upload steps and validation limits.
+The previous MicroPython array-allocation compatibility fix is retained. This release retains RAM diagnostics and paired H743 3000ms last-error hold, repairs single-edge segment selection, and increases the normal FollowTurn output rates. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the historical allocation issue, and the current steering-hold guide below for this release.
+
+## Steering-chain diagnostics and paired H743 hold
+
+This release changes single-edge recovery and the normal FollowTurn slew/ramp rates. Optional RAM-only diagnostics are enabled by default for this diagnostic release: 128 records of 32 bytes, rolling oldest-first and frozen after the first successfully sent valid-to-invalid transition. Freezing diagnostics never freezes detection or UART transmission. No per-frame print is added; the independent `diag_trace` performance stage accounts for record overhead. Disable `STEERING_DIAG_ENABLED` to avoid allocating the buffer.
+
+After manually stopping the vehicle with PE7, stop the camera script without resetting the interpreter and call `steering_diag_dump()` in the REPL. Save the BEGIN/END text for offline comparison. Power loss, reset, or re-running clears camera RAM. Camera and MCU clocks are independent; do not treat their absolute difference as UART latency.
+
+The paired H743 firmware retains the last trusted received error for at most 3000ms from its receive time. Servo motion may finish toward that existing target through the existing endpoint protection; each motor holds its actual entry duty. Communications faults and manual stop still override the hold. MCU log semantic version is 2 with the same 64-byte layout; the new decoder remains compatible with version 1. See `../docs/AGGRESSIVE_TURN_20261016_CN.md` for paired upload/export and acceptance steps.
+
+## Single-edge segment recovery
+
+Single-edge recovery follows the nearest supported segment from bottom to top; a local bad row no longer vetoes all valid segments. Single-edge-only limits are five rows, six grid rows of span, up to three missing rows and a 16-cell identity-anchor radius. A short segment may use its closest actually supported reference row. Opposite-side recovery needs two consecutive candidates and overlapping accepted centers within 12 cells; no overlap cannot authorize a side switch. True transitions, measured-width provenance, clear road corridors and unresolved branch rejection remain required. Detailed rejection diagnostics use an independent extension and do not change the 32-byte camera trace or 12-byte UART protocol.
 
 ## Normal steering
 
@@ -30,7 +42,7 @@ The paired H743 repair restarts RESET/KEEP for each consumed physical PE7 start 
 
 Ring routing remains experimental with its existing current-geometry and authorization gates. No new ring override, slope classifier, pitch-sensor behavior or finish-line stop is introduced. The missing `find_circle`, `GetExpectSpeed` and `find_zebra` bodies are not presented as reproduced originals. Normal-turn and ring tests remain separate.
 
-Observation protocol remains 12-byte V1, CRC-16/CCITT-FALSE, 115200 8N1; confidence stays diagnostic. Reverse control remains 8-byte RESET/KEEP with a 250ms lease. Current motor/servo settings, first complete PWM checks, 1000ms vision-loss cutoff and three-frame recovery are retained. PWM telemetry is not a mechanical angle measurement.
+Observation protocol remains 12-byte V1, CRC-16/CCITT-FALSE, 115200 8N1; confidence stays diagnostic. Reverse control remains 8-byte RESET/KEEP with a 250ms lease. FollowTurn normal servo slew is 120us/20ms and each motor changes at most 40 permille/10ms. Startup ramps, endpoints, 70/30 maximum differential targets, first complete PWM checks, 3000ms vision-loss cutoff and three-frame recovery are retained. PWM telemetry is not a mechanical angle measurement.
 
 ## Validation and delivery
 

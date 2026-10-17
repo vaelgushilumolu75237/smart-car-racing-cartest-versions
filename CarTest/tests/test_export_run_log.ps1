@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $projectRoot 'tools\export_run_log.ps1'
 $validator = Join-Path $projectRoot 'tools\runtime_log_export.py'
+$statusReader = Join-Path $projectRoot 'tools\run_status_reader.py'
 $fakeSource = Join-Path $PSScriptRoot 'support\FakeCubeProgrammer.cs'
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -20,17 +21,59 @@ $fakeExe = Join-Path $fakeDirectory 'STM32_Programmer_CLI.exe'
 Add-Type -TypeDefinition (Get-Content -LiteralPath $fakeSource -Raw -Encoding UTF8) `
     -OutputAssembly $fakeExe -OutputType ConsoleApplication
 
-$pythonCommand = Get-Command -Name 'python.exe' -ErrorAction Stop
-$inspectOutput = @(& $pythonCommand.Source $validator inspect --elf (Resolve-Path -LiteralPath $Elf).Path)
-if ($LASTEXITCODE -ne 0) {
-    throw 'Python could not inspect the selected ELF for the fake-CLI integration test.'
-}
-$layout = ($inspectOutput -join [Environment]::NewLine) | ConvertFrom-Json
-$serial = '1234567890'
+$python = (Get-Command -Name 'python.exe' -ErrorAction Stop).Source
 $powershellExe = Join-Path $PSHOME 'powershell.exe'
+$resolvedElf = (Resolve-Path -LiteralPath $Elf).Path
+$inspect = @(& $python $validator inspect --elf $resolvedElf)
+if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the selected ELF for fake CLI tests.' }
+$layout = ($inspect -join [Environment]::NewLine) | ConvertFrom-Json
+$statusPlanLines = @(& $python $statusReader plan --elf $resolvedElf)
+if ($LASTEXITCODE -ne 0) { throw 'Could not inspect status read plan for fake CLI tests.' }
+$statusPlan = ($statusPlanLines -join [Environment]::NewLine) | ConvertFrom-Json
+$serial = '1234567890'
+
+$descriptorFixture = Join-Path $OutputRoot 'target-flash-descriptor.bin'
+$descriptorBytes = New-Object byte[] 64
+for ($i = 0; $i -lt 64; ++$i) {
+    $descriptorBytes[$i] = [Convert]::ToByte($layout.descriptor_bytes_hex.Substring($i * 2, 2), 16)
+}
+[IO.File]::WriteAllBytes($descriptorFixture, $descriptorBytes)
+$scalarFixture = Join-Path $OutputRoot 'status-scalar-region.bin'
+[IO.File]::WriteAllBytes($scalarFixture, (New-Object byte[] ([int]$statusPlan.scalar_read.size)))
+
+$fixtureBytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Fixture).Path)
+$fixtureHeaderPath = Join-Path $OutputRoot 'fixture-header.bin'
+$fixtureHeaderBytes = New-Object byte[] 64
+[Array]::Copy($fixtureBytes, 0, $fixtureHeaderBytes, 0, 64)
+[IO.File]::WriteAllBytes($fixtureHeaderPath, $fixtureHeaderBytes)
+$fixtureHeaderJson = @(& $python $validator check-header --elf $resolvedElf --header $fixtureHeaderPath)
+if ($LASTEXITCODE -ne 0) { throw 'The synthetic logger fixture header does not match the selected ELF.' }
+$fixtureHeader = ($fixtureHeaderJson -join [Environment]::NewLine) | ConvertFrom-Json
+
+$environmentNames = @(
+    'RUNTIME_LOG_FAKE_BUFFER_PATH', 'RUNTIME_LOG_FAKE_ARGS_PATH',
+    'RUNTIME_LOG_FAKE_CALL_INDEX_PATH', 'RUNTIME_LOG_FAKE_EXPECTED_ADDRESS',
+    'RUNTIME_LOG_FAKE_EXPECTED_SN', 'RUNTIME_LOG_FAKE_FREQ',
+    'RUNTIME_LOG_FAKE_SHARED', 'RUNTIME_LOG_FAKE_MODE',
+    'RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS', 'RUNTIME_LOG_FAKE_DESCRIPTOR_PATH',
+    'RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS', 'RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH',
+    'RUNTIME_LOG_FAKE_STATUS_SCALAR_SIZE', 'RUNTIME_LOG_FAKE_PROBES',
+    'RUNTIME_LOG_FAKE_ACTUAL_FREQ'
+)
+$savedEnvironment = @{}
+foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
 
 function Invoke-FakeExport {
-    param([string]$Name, [string]$Mode, [string]$Frequency = '4000', [bool]$Shared = $false)
+    param(
+        [string]$Name,
+        [string]$Mode = 'success',
+        [string]$Frequency = '1000',
+        [bool]$Shared = $true,
+        [string]$ActualFrequency = '950',
+        [bool]$PassProbeSN = $true,
+        [string]$Probes = $serial,
+        [string]$DescriptorPath = $descriptorFixture
+    )
     $caseRoot = Join-Path $OutputRoot $Name
     New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
     $argsLog = Join-Path $caseRoot 'fake-cli-args.tsv'
@@ -43,26 +86,31 @@ function Invoke-FakeExport {
     $env:RUNTIME_LOG_FAKE_FREQ = $Frequency
     $env:RUNTIME_LOG_FAKE_SHARED = if ($Shared) { '1' } else { '0' }
     $env:RUNTIME_LOG_FAKE_MODE = $Mode
+    $env:RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS = [string]$layout.descriptor_address
+    $env:RUNTIME_LOG_FAKE_DESCRIPTOR_PATH = $DescriptorPath
+    $env:RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS = [string]$statusPlan.scalar_read.address
+    $env:RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH = $scalarFixture
+    $env:RUNTIME_LOG_FAKE_STATUS_SCALAR_SIZE = [string]$statusPlan.scalar_read.size
+    $env:RUNTIME_LOG_FAKE_PROBES = $Probes
+    $env:RUNTIME_LOG_FAKE_ACTUAL_FREQ = $ActualFrequency
 
     $childArguments = @(
         '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', $exportScript,
-        '-Elf', (Resolve-Path -LiteralPath $Elf).Path,
-        '-OutDirectory', (Join-Path $caseRoot 'output root with spaces'),
+        '-Elf', $resolvedElf,
+        '-OutDirectory', (Join-Path $caseRoot 'out x'),
         '-ProgrammerCLI', $fakeExe,
-        '-ProbeSN', $serial,
         '-ConnectionFrequencyKhz', $Frequency
     )
+    if ($PassProbeSN) { $childArguments += @('-ProbeSN', $serial) }
     if ($Shared) { $childArguments += '-SharedConnection' }
+    else { $childArguments += '-SharedConnection:$false' }
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
         $childOutput = @(& $powershellExe @childArguments 2>&1)
         $exitCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $previousPreference
-    }
+    } finally { $ErrorActionPreference = $previousPreference }
     $text = (($childOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
     Set-Content -LiteralPath (Join-Path $caseRoot 'wrapper-output.log') -Value $text -Encoding UTF8
     return [PSCustomObject]@{ CaseRoot = $caseRoot; ArgsLog = $argsLog; ExitCode = $exitCode; Output = $text }
@@ -70,212 +118,154 @@ function Invoke-FakeExport {
 
 function Get-ExportRunDirectory {
     param([string]$CaseRoot)
-    $root = Join-Path $CaseRoot 'output root with spaces'
-    return Get-ChildItem -LiteralPath $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    return Get-ChildItem -LiteralPath (Join-Path $CaseRoot 'out x') -Directory |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 function Assert-HotPlugUploadArguments {
-    param([string]$ArgsLog, [string]$Frequency = '4000', [bool]$Shared = $false)
+    param(
+        [string]$ArgsLog,
+        [string[]]$ExpectedFrequencies,
+        [bool]$Shared = $true,
+        [int[]]$ExpectedSizes = @(64, 64, [int]$fixtureHeader.payload_size, 64, 64, [int]$statusPlan.scalar_read.size, 64)
+    )
     $lines = @(Get-Content -LiteralPath $ArgsLog -Encoding UTF8)
-    if ($lines.Count -ne 3) {
-        throw "Expected exactly three fake CLI uploads, found $($lines.Count)."
+    if ($ExpectedFrequencies.Count -eq 8 -and $ExpectedSizes.Count -eq 7) {
+        $ExpectedSizes = @(64) + $ExpectedSizes
     }
-    $expectedSizes = @(64, [int](64 + ([int]$fixtureHeader.count * 64)), 64)
-    $expectedUploadIndex = 4 + [int]$Shared + 1
-    $expectedCount = $expectedUploadIndex + 4
-    for ($index = 0; $index -lt $lines.Count; ++$index) {
-        $tokens = $lines[$index].Split([char]9)
-        if ($tokens.Count -ne $expectedCount -or $tokens[0] -ne '-c' -or
-            $tokens[1] -ne 'port=SWD' -or $tokens[2] -ne 'mode=HOTPLUG' -or
-            $tokens[3] -ne "freq=$Frequency" -or
-            ($Shared -and $tokens[4] -ne 'shared') -or
-            $tokens[$expectedUploadIndex - 1] -ne "sn=$serial" -or
-            $tokens[$expectedUploadIndex] -ne '--upload' -or
-            $tokens[$expectedUploadIndex + 1] -ne $layout.storage_address -or
-            [int]$tokens[$expectedUploadIndex + 2] -ne $expectedSizes[$index]) {
-            throw "Fake CLI call $($index + 1) did not match the HOTPLUG upload allowlist: $($lines[$index])"
+    if ($lines.Count -ne $ExpectedFrequencies.Count -or $lines.Count -ne $ExpectedSizes.Count) {
+        throw "Expected $($ExpectedFrequencies.Count) uploads, found $($lines.Count)."
+    }
+    $expectedAddresses = @(
+        [string]$layout.descriptor_address,
+        [string]$layout.storage_address,
+        [string]$layout.storage_address,
+        [string]$layout.storage_address,
+        [string]$layout.descriptor_address,
+        [string]$statusPlan.scalar_read.address,
+        [string]$statusPlan.header_read.address
+    )
+    if ($ExpectedFrequencies.Count -eq 8) {
+        $expectedAddresses = @([string]$layout.descriptor_address) + $expectedAddresses
+    }
+    $forbidden = @('port=JTAG', 'mode=NORMAL', '-rst', '--reset', '-halt', '--halt', '--download', '--erase', '-go', '--run')
+    for ($i = 0; $i -lt $lines.Count; ++$i) {
+        $tokens = $lines[$i].Split([char]9)
+        $offset = 4
+        if ($Shared) {
+            if ($tokens[$offset] -ne 'shared') { throw "Upload $i did not use shared connection." }
+            $offset++
+        } elseif ($tokens[$offset] -eq 'shared') {
+            throw "Upload $i unexpectedly used shared connection."
         }
-        $forbidden = @('port=JTAG', 'mode=NORMAL', '-rst', '-halt', '--download', '--erase', '-go', '--run')
+        if ($tokens.Count -ne ($offset + 5) -or
+            $tokens[0] -ne '-c' -or $tokens[1] -ne 'port=SWD' -or
+            $tokens[2] -ne 'mode=HOTPLUG' -or
+            $tokens[3] -ne ("freq={0}" -f $ExpectedFrequencies[$i]) -or
+            $tokens[$offset] -ne "sn=$serial" -or
+            $tokens[$offset + 1] -ne '--upload' -or
+            $tokens[$offset + 2] -ne $expectedAddresses[$i] -or
+            [int]$tokens[$offset + 3] -ne $ExpectedSizes[$i]) {
+            throw "Upload $i did not match HOTPLUG allowlist/address/size: $($lines[$i])"
+        }
         foreach ($token in $tokens) {
-            if ($forbidden -contains $token) {
-                throw "Fake CLI observed forbidden command argument '$token'."
-            }
+            if ($forbidden -contains $token) { throw "Forbidden command argument '$token'." }
         }
     }
 }
-
-$fixtureHeaderPath = Join-Path $OutputRoot 'fixture-header.bin'
-$fixtureBytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Fixture).Path)
-$fixtureHeader = New-Object byte[] 64
-[Array]::Copy($fixtureBytes, 0, $fixtureHeader, 0, 64)
-[IO.File]::WriteAllBytes($fixtureHeaderPath, $fixtureHeader)
-$fixtureHeaderJson = @(& $pythonCommand.Source $validator check-header --elf (Resolve-Path -LiteralPath $Elf).Path --header $fixtureHeaderPath)
-if ($LASTEXITCODE -ne 0) {
-    throw 'Python could not validate the real logger fixture header.'
-}
-$fixtureHeader = ($fixtureHeaderJson -join [Environment]::NewLine) | ConvertFrom-Json
 
 try {
-    $success = Invoke-FakeExport -Name 'warning-stderr-success' -Mode 'warning-stderr'
-    if ($success.ExitCode -ne 0) {
-        throw "Fake warning-stderr run should succeed; got exit $($success.ExitCode). $($success.Output)"
-    }
-    Assert-HotPlugUploadArguments -ArgsLog $success.ArgsLog
-    $successRun = Get-ExportRunDirectory -CaseRoot $success.CaseRoot
+    $success = Invoke-FakeExport -Name 'ok' -Mode 'success'
+    if ($success.ExitCode -ne 0) { throw "Default fake export failed: $($success.Output)" }
+    Assert-HotPlugUploadArguments -ArgsLog $success.ArgsLog -ExpectedFrequencies @('1000', '1000', '1000', '1000', '1000', '1000', '1000')
+    $successRun = Get-ExportRunDirectory $success.CaseRoot
     $successCsv = Join-Path $successRun.FullName 'run.csv'
-    $successCliLog = Join-Path $successRun.FullName 'cubeprogrammer-payload.log'
-    $successMetadataPath = Join-Path $successRun.FullName 'run-metadata.json'
+    $successMetaPath = Join-Path $successRun.FullName 'run-metadata.json'
+    $successMetadata = Get-Content -LiteralPath $successMetaPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not (Test-Path -LiteralPath $successCsv -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $successCliLog -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $successMetadataPath -PathType Leaf)) {
-        throw 'Successful fake export did not create its CSV, CLI log, and metadata.'
+        $successMetadata.status -ne 'success' -or $successMetadata.csv -ne $successCsv -or
+        $successMetadata.requested_connection_frequency_khz -ne 1000 -or
+        $successMetadata.connection_frequency_khz -ne 1000 -or
+        $successMetadata.actual_connection_frequency_khz -ne 950 -or
+        -not $successMetadata.shared_connection -or $successMetadata.probe_sn -ne $serial -or
+        $successMetadata.flash_descriptor.status -ne 'matched' -or
+        -not $successMetadata.status_snapshot) {
+        throw 'Default shared export metadata, Flash descriptor, actual frequency, CSV, or nested status is missing.'
     }
-    $successMetadata = Get-Content -LiteralPath $successMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $metadataProperties = @($successMetadata.PSObject.Properties.Name)
-    if ($successMetadata.status -ne 'success' -or
-        $successMetadata.record_count -ne $fixtureHeader.count -or
-        $successMetadata.csv -ne $successCsv -or
-        $successMetadata.planned_csv_path -ne $successCsv -or
-        -not ($metadataProperties -contains 'buffer_full') -or
-        -not ($metadataProperties -contains 'records_truncated')) {
-        throw 'Successful metadata is missing the verified record/full/truncation fields.'
-    }
-    if ($successMetadata.connection_frequency_khz -ne 4000 -or
-        $successMetadata.shared_connection -ne $false -or
-        $successMetadata.connection -ne 'SWD HOTPLUG freq=4000') {
-        throw 'Default export metadata did not retain the exclusive 4000 kHz connection settings.'
-    }
-    $successLogText = Get-Content -LiteralPath $successCliLog -Raw -Encoding UTF8
-    if ($successLogText -notmatch 'warning written to stderr' -or
-        $successLogText -notmatch 'fake CLI uploaded') {
-        throw 'Successful CLI log did not preserve both stderr warning and stdout output.'
+    $statusJson = Get-Content -LiteralPath $successMetadata.status_snapshot -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($statusJson.flash_descriptor.status -ne 'matched' -or
+        $statusJson.connection.probe_sn -ne $serial -or
+        $statusJson.connection.actual_frequency_khz -ne 950) {
+        throw 'Nested real PowerShell status process did not preserve its selected SN/rate/descriptor.'
     }
 
-    $failed = Invoke-FakeExport -Name 'stderr-nonzero-failure' -Mode 'fail-stderr'
-    if ($failed.ExitCode -eq 0) {
-        throw 'Fake CLI nonzero stderr failure unexpectedly succeeded.'
-    }
-    $failedRun = Get-ExportRunDirectory -CaseRoot $failed.CaseRoot
-    $failedMetadataPath = Join-Path $failedRun.FullName 'run-metadata.json'
-    $failedCliLog = Join-Path $failedRun.FullName 'cubeprogrammer-header-initial.log'
-    if (-not (Test-Path -LiteralPath $failedMetadataPath -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $failedCliLog -PathType Leaf) -or
-        (Test-Path -LiteralPath (Join-Path $failedRun.FullName 'run.csv'))) {
-        throw 'Failed CLI run did not retain failure metadata/log or created a success CSV.'
-    }
-    $failedLogText = Get-Content -LiteralPath $failedCliLog -Raw -Encoding UTF8
-    if ($failedLogText -notmatch 'failure written to stderr') {
-        throw 'Nonzero CLI stderr output was not retained in its log.'
+    $fallback = Invoke-FakeExport -Name 'fallback' `
+        -Mode 'connect-error-1000' -Frequency '1000' -ActualFrequency '375'
+    if ($fallback.ExitCode -ne 0) { throw "Connection-only fallback failed: $($fallback.Output)" }
+    Assert-HotPlugUploadArguments -ArgsLog $fallback.ArgsLog `
+        -ExpectedFrequencies @('1000', '400', '400', '400', '400', '400', '400', '400')
+    $fallbackRun = Get-ExportRunDirectory $fallback.CaseRoot
+    $fallbackMetadata = Get-Content -LiteralPath (Join-Path $fallbackRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($fallbackMetadata.connection_frequency_khz -ne 400 -or
+        $fallbackMetadata.actual_connection_frequency_khz -ne 375 -or
+        $fallbackMetadata.connection_attempts.Count -lt 5 -or
+        $fallbackMetadata.connection_attempts[0].error_class -ne 'core_inaccessible') {
+        throw 'Successful lower-rate fallback did not preserve initial failure, actual rate, and attempts.'
     }
 
-    $mutated = Invoke-FakeExport -Name 'mutated-final-header-failure' -Mode 'mutate-final-header'
-    if ($mutated.ExitCode -eq 0) {
-        throw 'Fake final-header mutation unexpectedly succeeded.'
-    }
-    $mutatedRun = Get-ExportRunDirectory -CaseRoot $mutated.CaseRoot
-    if ((Test-Path -LiteralPath (Join-Path $mutatedRun.FullName 'run.csv')) -or
-        -not (Test-Path -LiteralPath (Join-Path $mutatedRun.FullName 'runtime-log.bin')) -or
-        -not (Test-Path -LiteralPath (Join-Path $mutatedRun.FullName 'run-metadata.json'))) {
-        throw 'Header mutation failure did not retain raw bytes/metadata or created CSV.'
-    }
-
-    $shared = Invoke-FakeExport -Name 'shared-low-frequency-success' -Mode 'warning-stderr' -Frequency '1000' -Shared $true
-    if ($shared.ExitCode -ne 0) {
-        throw "Fake shared 1000 kHz run should succeed; got exit $($shared.ExitCode). $($shared.Output)"
-    }
-    Assert-HotPlugUploadArguments -ArgsLog $shared.ArgsLog -Frequency '1000' -Shared $true
-    $sharedRun = Get-ExportRunDirectory -CaseRoot $shared.CaseRoot
-    $sharedMetadata = Get-Content -LiteralPath (Join-Path $sharedRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($sharedMetadata.connection_frequency_khz -ne 1000 -or
-        $sharedMetadata.shared_connection -ne $true -or
-        $sharedMetadata.connection -ne 'SWD HOTPLUG freq=1000 shared') {
-        throw 'Shared 1000 kHz settings were not retained in export metadata.'
+    $postStatusFailure = Invoke-FakeExport -Name 'post-status' -Mode 'status-only-error'
+    if ($postStatusFailure.ExitCode -ne 0) { throw "Valid CSV should survive status-reader failure: $($postStatusFailure.Output)" }
+    $postStatusRun = Get-ExportRunDirectory $postStatusFailure.CaseRoot
+    $postStatusMetadata = Get-Content -LiteralPath (Join-Path $postStatusRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($postStatusMetadata.status -ne 'success_with_warnings' -or
+        -not (Test-Path -LiteralPath $postStatusMetadata.csv -PathType Leaf) -or
+        [string]::IsNullOrWhiteSpace([string]$postStatusMetadata.diagnostic_failure) -or
+        -not (Test-Path -LiteralPath $postStatusMetadata.status_snapshot -PathType Leaf)) {
+        throw 'Post-export status failure erased the valid CSV or was not recorded as a warning.'
     }
 
-    $connectError = Invoke-FakeExport -Name 'dev-connect-error-no-fallback' -Mode 'connect-error' -Frequency '1000' -Shared $true
-    if ($connectError.ExitCode -eq 0) {
-        throw 'Fake DEV_CONNECT_ERR unexpectedly succeeded.'
-    }
-    $connectRun = Get-ExportRunDirectory -CaseRoot $connectError.CaseRoot
-    $connectMetadata = Get-Content -LiteralPath (Join-Path $connectRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $connectArgs = @(Get-Content -LiteralPath $connectError.ArgsLog -Encoding UTF8)
-    if ($connectArgs.Count -ne 1 -or
-        $connectMetadata.status -ne 'failed' -or
-        $null -ne $connectMetadata.csv -or
-        [string]::IsNullOrWhiteSpace([string]$connectMetadata.planned_csv_path) -or
-        $null -ne $connectMetadata.initial_header -or
-        $null -ne $connectMetadata.raw_sha256 -or
-        $connectMetadata.error -notmatch 'DEV_CONNECT_ERR' -or
-        $connectMetadata.error -notmatch 'does not stop the vehicle' -or
-        (Test-Path -LiteralPath (Join-Path $connectRun.FullName 'run.csv'))) {
-        throw 'DEV_CONNECT_ERR must preserve no-data metadata and fail closed without automatic retry/fallback.'
+    $wrongDescriptor = Join-Path $OutputRoot 'wrong-target-descriptor.bin'
+    $wrongBytes = [IO.File]::ReadAllBytes($descriptorFixture)
+    $wrongBytes[28] = $wrongBytes[28] -bxor 1
+    [IO.File]::WriteAllBytes($wrongDescriptor, $wrongBytes)
+    $mismatch = Invoke-FakeExport -Name 'wrong-elf' -Mode 'success' -DescriptorPath $wrongDescriptor
+    if ($mismatch.ExitCode -eq 0) { throw 'Wrong ELF Flash descriptor unexpectedly passed.' }
+    $mismatchRun = Get-ExportRunDirectory $mismatch.CaseRoot
+    $mismatchMetadata = Get-Content -LiteralPath (Join-Path $mismatchRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $mismatchCalls = @(Get-Content -LiteralPath $mismatch.ArgsLog -Encoding UTF8)
+    if ($mismatchMetadata.error_class -ne 'elf_mismatch' -or $mismatchCalls.Count -ne 1 -or
+        (Test-Path -LiteralPath (Join-Path $mismatchRun.FullName 'header-initial.bin'))) {
+        throw 'Flash descriptor mismatch was retried or RAM was read before ELF identity validation.'
     }
 
-    $mutatedMetadata = Get-Content -LiteralPath (Join-Path $mutatedRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($null -ne $mutatedMetadata.csv -or
-        [string]::IsNullOrWhiteSpace([string]$mutatedMetadata.planned_csv_path)) {
-        throw 'Header-change failure metadata must distinguish the absent CSV from its planned path.'
+    $ambiguous = Invoke-FakeExport -Name 'ambiguous' `
+        -Mode 'success' -PassProbeSN:$false -Probes '1234567890|0987654321'
+    if ($ambiguous.ExitCode -eq 0) { throw 'Multiple probes without explicit ProbeSN were silently selected.' }
+    $ambiguousRun = Get-ExportRunDirectory $ambiguous.CaseRoot
+    $ambiguousMetadata = Get-Content -LiteralPath (Join-Path $ambiguousRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($ambiguousMetadata.error_class -ne 'probe_ambiguous' -or
+        (Test-Path -LiteralPath $ambiguous.ArgsLog)) {
+        throw 'Probe ambiguity did not fail before any target connection.'
     }
 
-    $decodeFailure = Invoke-FakeExport -Name 'decode-error-no-csv' -Mode 'decode-error'
-    if ($decodeFailure.ExitCode -eq 0) {
-        throw 'Corrupted synthetic payload unexpectedly decoded as a successful CSV.'
-    }
-    $decodeFailureRun = Get-ExportRunDirectory -CaseRoot $decodeFailure.CaseRoot
-    $decodeFailureMetadata = Get-Content -LiteralPath (Join-Path $decodeFailureRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($decodeFailureMetadata.status -ne 'failed' -or
-        $null -ne $decodeFailureMetadata.csv -or
-        [string]::IsNullOrWhiteSpace([string]$decodeFailureMetadata.planned_csv_path) -or
-        (Test-Path -LiteralPath (Join-Path $decodeFailureRun.FullName 'run.csv'))) {
-        throw 'Decode failure metadata must leave csv null and retain the planned path separately.'
-    }
-
-    $dryRunRoot = Join-Path $OutputRoot 'dry run shared frequency'
-    $dryRunArguments = @(
-        '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-        '-File', $exportScript,
-        '-Elf', (Resolve-Path -LiteralPath $Elf).Path,
-        '-OutDirectory', $dryRunRoot,
-        '-ProgrammerCLI', $fakeExe,
-        '-ProbeSN', $serial,
-        '-ConnectionFrequencyKhz', '1000',
-        '-SharedConnection',
-        '-DryRun'
-    )
-    $dryRunOutput = @(& $powershellExe @dryRunArguments)
-    if ($LASTEXITCODE -ne 0) { throw 'Dry-run connection parameter case failed.' }
-    $dryPlan = ($dryRunOutput -join [Environment]::NewLine) | ConvertFrom-Json
-    $expectedConnectionArguments = @('-c', 'port=SWD', 'mode=HOTPLUG', 'freq=1000', 'shared', "sn=$serial")
-    foreach ($readName in @('first_read', 'second_read', 'final_read')) {
-        $readArguments = @($dryPlan.$readName)
-        if ($readArguments.Count -lt ($expectedConnectionArguments.Count + 4)) {
-            throw "Dry-run $readName is missing its upload arguments."
-        }
-        for ($index = 0; $index -lt $expectedConnectionArguments.Count; ++$index) {
-            if ($readArguments[$index] -ne $expectedConnectionArguments[$index]) {
-                throw "Dry-run $readName did not show the selected shared 1000 kHz connection."
-            }
-        }
-        if ($readArguments[$expectedConnectionArguments.Count] -ne '--upload') {
-            throw "Dry-run $readName is not restricted to RAM upload."
-        }
-    }
-    if ($dryPlan.connection_frequency_khz -ne 1000 -or
-        $dryPlan.shared_connection -ne $true -or
-        $dryPlan.probe_serial_supplied -ne $true) {
-        throw 'Dry-run metadata fields did not reflect the selected connection settings.'
+    $dryRoot = Join-Path $OutputRoot 'dry-run'
+    $dryArgs = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', $exportScript, '-Elf', $resolvedElf, '-OutDirectory', $dryRoot,
+        '-ProgrammerCLI', $fakeExe, '-ProbeSN', $serial, '-DryRun')
+    $dryOutput = @(& $powershellExe @dryArgs)
+    if ($LASTEXITCODE -ne 0) { throw 'Export DryRun failed.' }
+    $dry = ($dryOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    if ($dry.requested_connection_frequency_khz -ne 1000 -or
+        -not $dry.shared_connection -or $dry.probe_enumeration_arguments[1] -ne 'st-link-only' -or
+        $dry.flash_descriptor_read[$dry.flash_descriptor_read.Count - 4] -ne '--upload') {
+        throw 'DryRun did not show default 1000/shared, probe enumeration, or first Flash descriptor read.'
     }
 
-    Write-Output 'PASS fake CLI HOTPLUG upload allowlist, probe SN, 1000/4000 kHz, shared mode, DEV_CONNECT_ERR no-fallback, stderr capture, failure retention, and frozen-header guard'
-    Write-Output "Success CSV: $successCsv"
+    Write-Output 'PASS default 1000/shared, unique fixed probe, Flash-first ELF check, 1000-to-400 connection fallback, actual-rate capture, nested bool child process, CSV retention, probe ambiguity, and DryRun'
+    Write-Output "Evidence: $OutputRoot"
 }
 finally {
-    Remove-Item Env:RUNTIME_LOG_FAKE_BUFFER_PATH -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_ARGS_PATH -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_CALL_INDEX_PATH -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_EXPECTED_ADDRESS -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_EXPECTED_SN -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_FREQ -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_SHARED -ErrorAction SilentlyContinue
-    Remove-Item Env:RUNTIME_LOG_FAKE_MODE -ErrorAction SilentlyContinue
+    foreach ($name in $environmentNames) {
+        [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name])
+    }
 }

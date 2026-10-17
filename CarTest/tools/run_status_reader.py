@@ -2,8 +2,9 @@
 """Plan and decode a bounded, read-only CarTest live-status snapshot.
 
 This is diagnostic telemetry, not a runtime-log export. It reads eight
-32-bit firmware symbols and the 64-byte runtime-log header only; it never
-reads the runtime-log record area.
+required and nine optional 32-bit firmware symbols plus the 64-byte runtime-log
+header; it never reads the runtime-log record area. The optional symbols keep
+older ELFs usable when they do not contain the hold-entry snapshot.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from typing import Any, Dict, Mapping, Sequence, Tuple
 import runtime_log_export as exporter
 
 
-SCALAR_SYMBOLS = (
+REQUIRED_SCALAR_SYMBOLS = (
     "car_runtime_log_enabled",
     "car_button_start_event_count",
     "car_manual_run_request",
@@ -30,6 +31,19 @@ SCALAR_SYMBOLS = (
     "car_iwdg_reset_seen",
     "car_init_rcc_rsr_reset_snapshot",
 )
+HOLD_SNAPSHOT_SYMBOLS = (
+    "car_vision_hold_snapshot_entry",
+    "car_vision_hold_snapshot_error_norm",
+    "car_vision_hold_snapshot_sequence",
+    "car_vision_hold_snapshot_source_rx_ms",
+    "car_vision_hold_snapshot_entered_ms",
+    "car_vision_hold_snapshot_target_us",
+    "car_vision_hold_snapshot_applied_us",
+    "car_vision_hold_snapshot_left_permille",
+    "car_vision_hold_snapshot_right_permille",
+)
+SCALAR_SYMBOLS = REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS
+SIGNED_SCALAR_SYMBOLS = {"car_vision_hold_snapshot_error_norm"}
 SCALAR_SIZE = 4
 MAX_SCALAR_READ_SIZE = 4096
 D1_SRAM_START = 0x24000000
@@ -62,7 +76,19 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
     planned_symbols: Dict[str, Dict[str, Any]] = {}
     selected_section = None
     for name in SCALAR_SYMBOLS:
-        symbol = exporter._require_symbol(symbols, name)
+        symbol = symbols.get(name)
+        if symbol is None:
+            if name in REQUIRED_SCALAR_SYMBOLS:
+                _fail("ELF is missing required symbol '{}'".format(name))
+            planned_symbols[name] = {
+                "available": False,
+                "address": None,
+                "address_u32": None,
+                "size": None,
+                "section": None,
+                "interpretation": "signed_int32_twos_complement" if name in SIGNED_SCALAR_SYMBOLS else "uint32_little_endian",
+            }
+            continue
         section = exporter._section_for_symbol(sections, symbol, ".bss")
         if symbol.size != SCALAR_SIZE:
             _fail("ELF symbol '{}' must be exactly 4 bytes (found {})".format(name, symbol.size))
@@ -78,16 +104,18 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         elif section.index != selected_section.index:
             _fail("Status symbols must share one .bss section for a bounded read")
         planned_symbols[name] = {
+            "available": True,
             "address": _hex(symbol.value),
             "address_u32": symbol.value,
             "size": symbol.size,
             "section": section.name,
-            "interpretation": "uint32_little_endian",
+            "interpretation": "signed_int32_twos_complement" if name in SIGNED_SCALAR_SYMBOLS else "uint32_little_endian",
         }
 
-    symbol_start = min(item["address_u32"] for item in planned_symbols.values())
+    present_symbols = [item for item in planned_symbols.values() if item["available"]]
+    symbol_start = min(item["address_u32"] for item in present_symbols)
     symbol_end = max(item["address_u32"] + item["size"]
-                     for item in planned_symbols.values())
+                     for item in present_symbols)
     span = symbol_end - symbol_start
     if span <= 0 or span > MAX_SCALAR_READ_SIZE:
         _fail("Status symbols span {} bytes; the maximum permitted read is {} bytes".format(
@@ -108,6 +136,16 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         "machine": "ARM",
         "endianness": "little",
         "build_id": layout.build_id.hex(),
+        "log_version": int(layout.descriptor["log_version"]),
+        "hold_quantum_ms": exporter._hold_quantum_ms(int(layout.descriptor["log_version"])),
+        "descriptor_read": {
+            "address": "0x{:08X}".format(layout.descriptor_address),
+            "address_u32": layout.descriptor_address,
+            "size": exporter.HEADER_SIZE,
+            "expected_sha256": hashlib.sha256(layout.descriptor_bytes).hexdigest(),
+        },
+        "required_scalar_symbols": list(REQUIRED_SCALAR_SYMBOLS),
+        "optional_hold_snapshot_symbols": list(HOLD_SNAPSHOT_SYMBOLS),
         "scalar_symbols": planned_symbols,
         "scalar_read": {
             "address": _hex(symbol_start),
@@ -125,7 +163,8 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
     }
 
 
-def _decode_header(raw: bytes, expected_build_id: str) -> Dict[str, Any]:
+def _decode_header(raw: bytes, expected_build_id: str,
+                   expected_log_version: int) -> Dict[str, Any]:
     if len(raw) != exporter.HEADER_SIZE:
         _fail("Runtime-log header read must be exactly 64 bytes (found {})".format(len(raw)))
     if raw[:4] != exporter.HEADER_MAGIC:
@@ -142,7 +181,7 @@ def _decode_header(raw: bytes, expected_build_id: str) -> Dict[str, Any]:
     crc_valid = computed_crc == header_crc
     build_id_matches = observed_build_id.lower() == expected_build_id.lower()
 
-    expected_schema = (exporter.LOG_VERSION, exporter.HEADER_SIZE, exporter.RECORD_SIZE,
+    expected_schema = (expected_log_version, exporter.HEADER_SIZE, exporter.RECORD_SIZE,
                        exporter.CAPACITY, exporter.PERIOD_MS)
     schema_valid = (version, header_size, record_size, capacity, period) == expected_schema
     if not schema_valid:
@@ -173,6 +212,7 @@ def _decode_header(raw: bytes, expected_build_id: str) -> Dict[str, Any]:
         "record_size": record_size,
         "capacity": capacity,
         "period_ms": period,
+        "hold_quantum_ms": exporter._hold_quantum_ms(version),
         "state": state,
         "state_name": state_name,
         "flags": flags,
@@ -195,8 +235,12 @@ def _decode_header(raw: bytes, expected_build_id: str) -> Dict[str, Any]:
 
 
 def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
-                    header_path: str | Path) -> Dict[str, Any]:
+                    header_path: str | Path,
+                    descriptor_path: str | Path | None = None) -> Dict[str, Any]:
     plan = build_plan(elf_path)
+    flash_descriptor = None
+    if descriptor_path is not None:
+        flash_descriptor = exporter.validate_flash_descriptor(elf_path, descriptor_path)
     scalar_raw = Path(scalar_path).read_bytes()
     header_raw = Path(header_path).read_bytes()
     scalar_read = plan["scalar_read"]
@@ -207,8 +251,13 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     scalars: Dict[str, Any] = {}
     read_start = scalar_read["address_u32"]
     for name, symbol in plan["scalar_symbols"].items():
+        if not symbol["available"]:
+            scalars[name] = None
+            continue
         offset = symbol["address_u32"] - read_start
         value = struct.unpack_from("<I", scalar_raw, offset)[0]
+        if name in SIGNED_SCALAR_SYMBOLS and value & 0x80000000:
+            value -= 0x100000000
         scalars[name] = value
     scalars["car_mode_name"] = exporter.MODE_NAMES.get(scalars["car_mode"], "unknown")
     scalars["car_fault_name"] = exporter.FAULT_NAMES.get(scalars["car_fault"], "unknown")
@@ -216,13 +265,33 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         scalars["car_init_rcc_rsr_reset_snapshot"] & RCC_RSR_IWDG1RSTF_MASK)
     scalars["rcc_rsr_iwdg1rstf_mask"] = _hex(RCC_RSR_IWDG1RSTF_MASK)
 
-    header = _decode_header(header_raw, plan["build_id"])
-    status = "success" if not header["warnings"] else "read_with_warnings"
+    snapshot_present = [name for name in HOLD_SNAPSHOT_SYMBOLS
+                        if plan["scalar_symbols"][name]["available"]]
+    scalars["car_vision_hold_snapshot_status"] = (
+        "unavailable" if not snapshot_present else
+        "available" if len(snapshot_present) == len(HOLD_SNAPSHOT_SYMBOLS) else "partial")
+    entry_value = scalars.get("car_vision_hold_snapshot_entry")
+    scalars["car_vision_hold_snapshot_published"] = (
+        None if entry_value is None else bool(entry_value))
+    header = _decode_header(header_raw, plan["build_id"], plan["log_version"])
+    consistency_warnings = [
+        "Scalar region and runtime-log header were read in separate SWD uploads; "
+        "live values may change between reads."
+    ]
+    warnings = list(header["warnings"]) + consistency_warnings
+    if descriptor_path is None:
+        warnings.append("Target Flash descriptor was not uploaded; the running firmware ELF was not verified.")
+    status = ("read_with_warnings" if warnings else
+              "idle" if header["state"] == exporter.STATE_IDLE else "success")
     return {
         "status": status,
         "snapshot_kind": "live_diagnostic_only",
         "diagnostic_is_run_record": False,
+        "csv_created": False,
         "reads_are_atomic_together": False,
+        "warnings": warnings,
+        "consistency_warnings": consistency_warnings,
+        "flash_descriptor": flash_descriptor,
         "consistency_note": (
             "The scalar region and 64-byte header were read in two separate SWD uploads. "
             "Live values may change between reads; this snapshot is not a runtime-log record. "
@@ -235,8 +304,11 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "sha256": plan["elf_sha256"],
             "build_id": plan["build_id"],
             "endianness": plan["endianness"],
+            "log_version": plan["log_version"],
+            "hold_quantum_ms": plan["hold_quantum_ms"],
         },
         "reads": {
+            "flash_rom_descriptor": plan["descriptor_read"],
             "scalar_region": plan["scalar_read"],
             "runtime_log_header": plan["header_read"],
             "runtime_log_record_area_read": False,
@@ -271,6 +343,8 @@ def build_parser() -> argparse.ArgumentParser:
     decode_parser.add_argument("--elf", required=True)
     decode_parser.add_argument("--scalars", required=True)
     decode_parser.add_argument("--header", required=True)
+    decode_parser.add_argument("--descriptor",
+                               help="optional uploaded 64-byte Flash descriptor to verify the target ELF")
     return parser
 
 
@@ -280,7 +354,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "plan":
             _emit_json(build_plan(args.elf))
         else:
-            _emit_json(decode_snapshot(args.elf, args.scalars, args.header))
+            _emit_json(decode_snapshot(args.elf, args.scalars, args.header,
+                                       descriptor_path=args.descriptor))
         return 0
     except (StatusReadError, exporter.ExportError, OSError, struct.error) as exc:
         print("run-status-reader: {}".format(exc), file=sys.stderr)

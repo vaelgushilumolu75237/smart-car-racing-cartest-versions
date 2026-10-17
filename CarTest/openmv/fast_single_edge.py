@@ -65,6 +65,42 @@ INFERENCE_USED_FRAME_CLIP = 8
 _NO_CANDIDATE = -1
 _AMBIGUOUS = 2
 
+_DIAG_CANDIDATE_EDGES = 0
+_DIAG_AMBIGUOUS_ROWS = 1
+_DIAG_ANCHOR_REJECTS = 2
+_DIAG_CORRIDOR_REJECTS = 3
+_DIAG_QUALIFIED_CHAINS = 4
+_DIAG_REJECTED_CHAINS = 5
+_DIAG_CHAIN_BREAKS = 6
+_DIAG_GAP_BREAKS = 7
+_DIAG_JUMP_BREAKS = 8
+_DIAG_AMBIGUITY_BREAKS = 9
+_DIAG_CHAIN_TIES = 10
+_DIAG_SELECTED_CHAINS = 11
+_DIAG_SWITCH_PENDING = 12
+_DIAG_SWITCH_ACCEPTED = 13
+_DIAG_SWITCH_REJECTED = 14
+_DIAG_IDENTITY_GAP_REJECTS = 15
+_DIAG_SUPPORT_ROW_REJECTS = 16
+_DIAG_SUPPORT_SPAN_REJECTS = 17
+
+_DIAG_NAMES = (
+    "candidate_edges", "ambiguous_rows", "anchor_rejects",
+    "corridor_rejects", "qualified_chains", "rejected_chains",
+    "chain_breaks", "gap_breaks", "jump_breaks",
+    "ambiguity_breaks", "chain_ties", "selected_chains",
+    "switch_pending", "switch_accepted", "switch_rejected",
+    "identity_gap_rejects", "support_row_rejects",
+    "support_span_rejects",
+)
+
+_LAST_TRACKER = None
+
+
+def last_tracker():
+    """Return the live tracker for explicit post-run REPL diagnostics."""
+    return _LAST_TRACKER
+
 
 def _setting(settings, name, default):
     if isinstance(settings, dict):
@@ -320,6 +356,7 @@ def _scan_single_edges_viper(self) -> int:
     row_center2 = ptr32(self._row_center2)
     row_contrast = ptr32(self._row_contrast)
     component_class = ptr8(self._component_class)
+    diagnostics = ptr32(self._diagnostic_counts)
     width = int(self.width)
     height = int(self.height)
     floor = int(self.floor_y)
@@ -333,6 +370,11 @@ def _scan_single_edges_viper(self) -> int:
     island_check = int(self._island_check)
     total = width * height
     no_distance = int(2147483647)
+    diag_candidate_edges = int(0)
+    diag_ambiguous_rows = int(1)
+    diag_anchor_rejects = int(2)
+    diag_corridor_rejects = int(3)
+    diag_identity_gap_rejects = int(15)
 
     for index in range(2 * height):
         status[index] = 0
@@ -380,6 +422,7 @@ def _scan_single_edges_viper(self) -> int:
                         continue
                     if (int(_step_supported_viper(self, hit, 1)) == 0):
                         continue
+                    diagnostics[diag_candidate_edges] += 1
                     edge2 = x * 2 + 1
                     corridor_first = x + 1
                     if cached_route != 0:
@@ -409,6 +452,7 @@ def _scan_single_edges_viper(self) -> int:
                         continue
                     if (int(_step_supported_viper(self, hit, -1)) == 0):
                         continue
+                    diagnostics[diag_candidate_edges] += 1
                     edge2 = x * 2 - 1
                     if cached_route != 0:
                         opposite = x - cached_width - 1
@@ -444,12 +488,38 @@ def _scan_single_edges_viper(self) -> int:
                         corridor_clear = 0
                         break
                 if corridor_clear == 0:
+                    diagnostics[diag_corridor_rejects] += 1
                     continue
                 if cached_route != 0:
                     distance = edge2 - anchor_edge2
                     if distance < 0:
                         distance = -distance
                     if distance > max_anchor2:
+                        diagnostics[diag_anchor_rejects] += 1
+                        continue
+
+                    identity_clear = 1
+                    if side == 0 and edge2 > anchor_edge2:
+                        check_x = anchor_edge2 // 2 + 1
+                        while check_x <= x:
+                            check_index = row + check_x
+                            if (known[check_index] == 0 or
+                                    road[check_index] != 0):
+                                identity_clear = 0
+                                break
+                            check_x += 1
+                    elif side == 1 and edge2 < anchor_edge2:
+                        check_x = x
+                        anchor_x = anchor_edge2 // 2
+                        while check_x <= anchor_x:
+                            check_index = row + check_x
+                            if (known[check_index] == 0 or
+                                    road[check_index] != 0):
+                                identity_clear = 0
+                                break
+                            check_x += 1
+                    if identity_clear == 0:
+                        diagnostics[diag_identity_gap_rejects] += 1
                         continue
 
                     if distance < best_distance:
@@ -483,12 +553,14 @@ def _scan_single_edges_viper(self) -> int:
                 continue
             if (cached_route == 0 and clipped_ambiguous != 0):
                 status[slot] = 2
+                diagnostics[diag_ambiguous_rows] += 1
                 continue
             if (cached_route != 0 and second_distance != no_distance and
                     int(abs(second_edge2 - best_edge2)) >=
                     ambiguity_separation2 and
                     second_distance - best_distance <= ambiguity_margin2):
                 status[slot] = 2
+                diagnostics[diag_ambiguous_rows] += 1
                 continue
             status[slot] = 1
             row_edge2[slot] = best_edge2
@@ -501,6 +573,7 @@ class FastSingleEdgeTracker:
     """Keep validated bilateral widths and infer one current visible side."""
 
     def __init__(self, settings):
+        global _LAST_TRACKER
         self.settings = settings
         self.width = int(_setting(settings, "SURFACE_GRID_WIDTH", WIDTH))
         self.height = int(_setting(settings, "SURFACE_GRID_HEIGHT", HEIGHT))
@@ -519,22 +592,23 @@ class FastSingleEdgeTracker:
         if (self.min_width < 8 or self.max_width > 70 or
                 self.max_width < self.min_width):
             raise ValueError("ROAD width must stay within 8..70 cells")
-        self.max_gap = int(_setting(settings, "ROAD_MAX_GAP_ROWS", 2))
+        self.max_missing_rows = int(_setting(
+            settings, "SINGLE_EDGE_MAX_MISSING_ROWS", 3))
         self.max_slope_milli = int(float(_setting(
             settings, "ROAD_MAX_CENTER_SLOPE", 2.5)) * 1000.0 + 0.5)
         self.link_tolerance_milli = int(float(_setting(
             settings, "ROAD_LINK_TOLERANCE", 2.5)) * 1000.0 + 0.5)
         self.max_anchor2 = int(float(_setting(
-            settings, "SINGLE_EDGE_ANCHOR_RADIUS_CELLS", 10.0)) * 2.0 + 0.5)
+            settings, "SINGLE_EDGE_ANCHOR_RADIUS_CELLS", 16.0)) * 2.0 + 0.5)
         self.ambiguity_margin2 = int(float(_setting(
             settings, "SINGLE_EDGE_AMBIGUITY_MARGIN_CELLS", 2.0)) * 2.0 + 0.5)
         self.ambiguity_separation2 = int(float(_setting(
             settings, "SINGLE_EDGE_AMBIGUITY_SEPARATION_CELLS", 4.0)) *
             2.0 + 0.5)
-        self.min_rows = int(_setting(settings, "SINGLE_EDGE_MIN_ROWS", 8))
-        self.min_span = int(_setting(settings, "SINGLE_EDGE_MIN_SPAN", 12))
-        self.reference_max_gap = int(_setting(
-            settings, "SINGLE_EDGE_REFERENCE_MAX_GAP", 4))
+        self.min_rows = int(_setting(settings, "SINGLE_EDGE_MIN_ROWS", 5))
+        self.min_span = int(_setting(settings, "SINGLE_EDGE_MIN_SPAN", 6))
+        self.weak_support_rows = int(_setting(
+            settings, "SINGLE_EDGE_WEAK_SUPPORT_ROWS", 8))
         self.route_mode = _setting(
             settings, "SINGLE_EDGE_ROUTE_MODE", ROUTE_CACHED_WIDTH)
         if self.route_mode == ROUTE_CACHED_WIDTH:
@@ -551,8 +625,10 @@ class FastSingleEdgeTracker:
                 self.min_rows > self.height - self.floor_y or
                 self.min_span < 4 or
                 self.min_span >= self.height - self.floor_y or
-                self.reference_max_gap < 0 or
-                self.reference_max_gap > self.height - 1):
+                self.max_missing_rows < 0 or
+                self.max_missing_rows > self.height - self.floor_y or
+                self.weak_support_rows < self.min_rows or
+                self.weak_support_rows > self.height - self.floor_y):
             raise ValueError("invalid single-edge geometry settings")
 
         minimum_step = float(_setting(settings, "GRAY_BOUNDARY_MIN_STEP", 10.0))
@@ -576,11 +652,54 @@ class FastSingleEdgeTracker:
         self._row_contrast = array("i", [0] * (2 * self.height))
         self._side_valid = bytearray(2)
         self._side_ambiguous = bytearray(2)
+        self._side_ambiguous_rows = array("i", [0, 0])
         self._side_count = array("i", [0, 0])
         self._side_first = array("i", [0, 0])
         self._side_last = array("i", [0, 0])
         self._side_ref_y = array("i", [0, 0])
         self._side_ref_center2 = array("i", [0, 0])
+        self._side_distance_sum = array("i", [0, 0])
+        self._side_overlap_count = array("i", [0, 0])
+        self._side_chain_count = array("i", [0, 0])
+        self._side_reject_rows = array("i", [0, 0])
+        self._side_reject_span = array("i", [0, 0])
+        self._accepted_chain_valid = bytearray(self.height)
+        self._accepted_center2 = array("i", [0] * self.height)
+        self._pending_switch_side = -1
+        self._pending_switch_count = 0
+        self._pending_switch_frame = -1
+        self._frame_serial = 0
+        self._frame_open = False
+        self._frame_scan_done = False
+        self._frame_start_counts = array("i", [0] * len(_DIAG_NAMES))
+        self._last_frame_counts = array("i", [0] * len(_DIAG_NAMES))
+        self._frozen_frame_counts = array("i", [0] * len(_DIAG_NAMES))
+        self._last_frame_serial = 0
+        self._last_frame_detected = False
+        self._last_frame_side = -1
+        self._last_frame_first_y = -1
+        self._last_frame_last_y = -1
+        self._last_frame_rows = 0
+        self._last_frame_reference_y = -1
+        self._last_frame_weak_support = False
+        self._last_frame_reason = "NOT_RUN"
+        self._last_frame_pending_side = -1
+        self._last_frame_pending_count = 0
+        self._frozen_snapshot_valid = False
+        self._frozen_frame_serial = 0
+        self._frozen_frame_detected = False
+        self._frozen_frame_side = -1
+        self._frozen_frame_first_y = -1
+        self._frozen_frame_last_y = -1
+        self._frozen_frame_rows = 0
+        self._frozen_frame_reference_y = -1
+        self._frozen_frame_weak_support = False
+        self._frozen_frame_reason = "NOT_FROZEN"
+        self._frozen_frame_pending_side = -1
+        self._frozen_frame_pending_count = 0
+        self._switch_overlap_rows = 0
+        self._switch_max_center_delta2 = 0
+        self._diagnostic_counts = array("i", [0] * len(_DIAG_NAMES))
         self._selected_row_ints = array("i", [0] * (self.height * ROW_STRIDE))
         self._sample_work = array("i", [0, 0, 0])
         # Preallocated topology scratch is used only when an island is
@@ -613,6 +732,10 @@ class FastSingleEdgeTracker:
             "reference_center_x": None,
             "reference_y": None,
             "reference_provenance": "NO_COMMON_REFERENCE",
+            "weak_support": False,
+            "side_switch": False,
+            "switch_overlap_rows": 0,
+            "switch_max_center_delta_cells": None,
             "lateral_error": 0,
             "topology_reason": "NOT_RUN",
             "topology_island_observed": False,
@@ -628,6 +751,7 @@ class FastSingleEdgeTracker:
         self.last_clear_reason = "COLD_START"
         self.clear_count = 0
         self._last_single_side = -1
+        _LAST_TRACKER = self
 
     @property
     def cache_rows(self):
@@ -647,6 +771,14 @@ class FastSingleEdgeTracker:
             self._anchor_right2[y] = 0
         self._cache_row_count = 0
         self._last_single_side = -1
+        self._pending_switch_side = -1
+        self._pending_switch_count = 0
+        self._pending_switch_frame = -1
+        self._frame_open = False
+        self._switch_overlap_rows = 0
+        self._switch_max_center_delta2 = 0
+        for y in range(self.height):
+            self._accepted_chain_valid[y] = 0
         self.clear_count += 1
         self.last_clear_reason = reason
         self._invalidate_result(reason)
@@ -667,6 +799,10 @@ class FastSingleEdgeTracker:
         result["reference_center_x"] = None
         result["reference_y"] = None
         result["reference_provenance"] = "NO_COMMON_REFERENCE"
+        result["weak_support"] = False
+        result["side_switch"] = False
+        result["switch_overlap_rows"] = 0
+        result["switch_max_center_delta_cells"] = None
         result["lateral_error"] = 0
         result["topology_island_observed"] = False
         result["topology_identity_resolved"] = False
@@ -690,6 +826,11 @@ class FastSingleEdgeTracker:
             # A successfully published bilateral frame ends the previous
             # one-sided identity. It never seeds or changes width cache data.
             self._last_single_side = -1
+            self._pending_switch_side = -1
+            self._pending_switch_count = 0
+            self._pending_switch_frame = -1
+            for y in range(self.height):
+                self._accepted_chain_valid[y] = 0
             return 0
         if self._route_mode_id != _ROUTE_CACHED_WIDTH:
             return 0
@@ -736,6 +877,11 @@ class FastSingleEdgeTracker:
                 if self._cache_valid[y]:
                     self._cache_row_count += 1
         self._last_single_side = -1
+        self._pending_switch_side = -1
+        self._pending_switch_count = 0
+        self._pending_switch_frame = -1
+        for y in range(self.height):
+            self._accepted_chain_valid[y] = 0
         return accepted if accepted else max(0, self._cache_row_count - before)
 
     @micropython.native
@@ -753,97 +899,487 @@ class FastSingleEdgeTracker:
                 not isinstance(count, int) or count < 1 or
                 count > MAX_ROWS or stride != ROW_STRIDE or rows is None):
             return False
-        if self._last_single_side >= 0 and self._last_single_side != side:
-            return False
+        side_switch = (self._last_single_side >= 0 and
+                       self._last_single_side != side)
+        if side_switch:
+            overlap = candidate.get("switch_overlap_rows", 0)
+            max_delta = candidate.get("switch_max_center_delta_cells")
+            if (candidate.get("side_switch") is not True or
+                    not isinstance(overlap, int) or overlap < 1 or
+                    not isinstance(max_delta, (int, float)) or
+                    max_delta > 12.0):
+                return False
         before = self._last_single_side
+        for y in range(self.height):
+            self._accepted_chain_valid[y] = 0
         for index in range(count):
             offset = index * stride
             y = int(rows[offset])
+            center2 = int(rows[offset + 1])
             edge2 = int(rows[offset + 2])
-            if (self._route_mode_id != _ROUTE_CACHED_WIDTH or
-                    y < self.floor_y or y >= self.height or
-                    not self._cache_valid[y]):
+            if y < self.floor_y or y >= self.height:
                 continue
-            anchors = self._anchor_left2 if side == 0 else self._anchor_right2
-            delta = edge2 - int(anchors[y])
-            if delta > 4:
-                delta = 4
-            elif delta < -4:
-                delta = -4
-            if delta >= 0:
-                anchors[y] = int(anchors[y]) + (delta + 1) // 2
-            else:
-                anchors[y] = int(anchors[y]) - ((-delta + 1) // 2)
+            self._accepted_chain_valid[y] = 1
+            self._accepted_center2[y] = center2
+            if (self._route_mode_id == _ROUTE_CACHED_WIDTH and
+                    self._cache_valid[y]):
+                anchors = (self._anchor_left2 if side == 0 else
+                           self._anchor_right2)
+                delta = edge2 - int(anchors[y])
+                if delta > 4:
+                    delta = 4
+                elif delta < -4:
+                    delta = -4
+                if delta >= 0:
+                    anchors[y] = int(anchors[y]) + (delta + 1) // 2
+                else:
+                    anchors[y] = int(anchors[y]) - ((-delta + 1) // 2)
         self._last_single_side = side
+        self._pending_switch_side = -1
+        self._pending_switch_count = 0
+        self._pending_switch_frame = -1
         return before != side
 
     @micropython.native
+    def _switch_overlap(self, side):
+        """Measure only current selected rows shared with accepted support."""
+        base = side * self.height
+        status = self._row_status
+        centers = self._row_center2
+        first_y = self._side_first[side]
+        last_y = self._side_last[side]
+        overlap = 0
+        maximum_delta2 = 0
+        for y in range(first_y, last_y + 1):
+            if (status[base + y] != 1 or
+                    self._accepted_chain_valid[y] == 0):
+                continue
+            delta = abs(int(centers[base + y]) -
+                        int(self._accepted_center2[y]))
+            if delta > maximum_delta2:
+                maximum_delta2 = delta
+            overlap += 1
+        self._switch_overlap_rows = overlap
+        self._switch_max_center_delta2 = maximum_delta2
+        return overlap
+
+    @micropython.native
+    def _allow_side_switch(self, side):
+        """Require two fresh candidates and exact-row agreement to history."""
+        if self._last_single_side < 0 or self._last_single_side == side:
+            self._pending_switch_side = -1
+            self._pending_switch_count = 0
+            self._pending_switch_frame = -1
+            self._switch_overlap_rows = 0
+            self._switch_max_center_delta2 = 0
+            return True
+        if (self._pending_switch_side != side or
+                self._pending_switch_frame != self._frame_serial - 1):
+            self._pending_switch_side = side
+            self._pending_switch_count = 1
+        elif self._pending_switch_count < 2:
+            self._pending_switch_count += 1
+        self._pending_switch_frame = self._frame_serial
+        if self._pending_switch_count < 2:
+            self._diagnostic_counts[_DIAG_SWITCH_PENDING] += 1
+            return False
+        overlap = self._switch_overlap(side)
+        if overlap == 0 or self._switch_max_center_delta2 > 24:
+            self._diagnostic_counts[_DIAG_SWITCH_REJECTED] += 1
+            return False
+        return True
+
+    def diagnostic_counts(self):
+        """Return a low-rate snapshot for explicit REPL diagnostics."""
+        return tuple((name, int(self._diagnostic_counts[index]))
+                     for index, name in enumerate(_DIAG_NAMES))
+
+    def dump_extended_diagnostics(self, build_id):
+        """Print totals and latest/frozen frame snapshots on explicit demand."""
+        print("SINGLE_EDGE_EXT_DIAG_BEGIN build=%s format=2" % build_id)
+        print("TOTAL_COUNTERS_BEGIN")
+        for name, count in self.diagnostic_counts():
+            print("%s,%d" % (name, count))
+        self._print_frame_snapshot(
+            "LAST", self._last_frame_serial, self._last_frame_detected,
+            self._last_frame_side, self._last_frame_first_y,
+            self._last_frame_last_y, self._last_frame_rows,
+            self._last_frame_reference_y, self._last_frame_weak_support,
+            self._last_frame_reason, self._last_frame_pending_side,
+            self._last_frame_pending_count, self._last_frame_counts)
+        if self._frozen_snapshot_valid:
+            self._print_frame_snapshot(
+                "FROZEN", self._frozen_frame_serial,
+                self._frozen_frame_detected, self._frozen_frame_side,
+                self._frozen_frame_first_y, self._frozen_frame_last_y,
+                self._frozen_frame_rows, self._frozen_frame_reference_y,
+                self._frozen_frame_weak_support, self._frozen_frame_reason,
+                self._frozen_frame_pending_side,
+                self._frozen_frame_pending_count,
+                self._frozen_frame_counts)
+        else:
+            print("FROZEN_SNAPSHOT unavailable=1")
+        print("SINGLE_EDGE_EXT_DIAG_END")
+        return True
+
+    def _print_frame_snapshot(self, label, frame_serial, detected, side,
+                              first_y, last_y, rows, reference_y, weak,
+                              reason, pending_side, pending_count, counts):
+        if side == 0:
+            side_name = "LEFT"
+        elif side == 1:
+            side_name = "RIGHT"
+        else:
+            side_name = "NONE"
+        if pending_side == 0:
+            pending_name = "LEFT"
+        elif pending_side == 1:
+            pending_name = "RIGHT"
+        else:
+            pending_name = "NONE"
+        print("%s_FRAME frame=%d detected=%d side=%s first_y=%d last_y=%d "
+              "rows=%d reference_y=%d weak_support=%d reason=%s "
+              "pending_side=%s pending_count=%d" % (
+                  label, frame_serial, 1 if detected else 0, side_name,
+                  first_y, last_y, rows, reference_y,
+                  1 if weak else 0, reason, pending_name, pending_count))
+        print("%s_FRAME_COUNTERS_BEGIN" % label)
+        for index, name in enumerate(_DIAG_NAMES):
+            print("%s,%d" % (name, int(counts[index])))
+        print("%s_FRAME_COUNTERS_END" % label)
+
+    def _capture_frame_snapshot(self, detected, fallback_reason=None):
+        side = -1
+        first_y = -1
+        last_y = -1
+        rows = 0
+        reference_y = -1
+        weak = False
+        result = self._result
+        reason = result.get("reason", fallback_reason or "NOT_RUN")
+        if fallback_reason is not None and not detected:
+            reason = fallback_reason
+        if self._frame_scan_done:
+            if result.get("boundary_source") == "LEFT_ONLY":
+                side = 0
+            elif result.get("boundary_source") == "RIGHT_ONLY":
+                side = 1
+            elif (self._side_valid[0] and not self._side_ambiguous[0] and
+                  not self._side_valid[1]):
+                side = 0
+            elif (self._side_valid[1] and not self._side_ambiguous[1] and
+                  not self._side_valid[0]):
+                side = 1
+            if side >= 0:
+                first_y = int(self._side_first[side])
+                last_y = int(self._side_last[side])
+                rows = int(self._side_count[side])
+                reference_y = int(self._side_ref_y[side])
+                weak = bool(
+                    rows < self.weak_support_rows or
+                    float(reference_y) != self.reference_y)
+                if result.get("valid"):
+                    weak = bool(result.get("weak_support"))
+        self._last_frame_serial = self._frame_serial
+        self._last_frame_detected = bool(detected)
+        self._last_frame_side = side
+        self._last_frame_first_y = first_y
+        self._last_frame_last_y = last_y
+        self._last_frame_rows = rows
+        self._last_frame_reference_y = reference_y
+        self._last_frame_weak_support = weak
+        self._last_frame_reason = reason
+        self._last_frame_pending_side = self._pending_switch_side
+        self._last_frame_pending_count = self._pending_switch_count
+        for index in range(len(self._diagnostic_counts)):
+            delta = (int(self._diagnostic_counts[index]) -
+                     int(self._frame_start_counts[index]))
+            self._last_frame_counts[index] = max(0, delta)
+
+    def freeze_diagnostic_snapshot(self):
+        """Keep the exact frame that first froze the fixed steering trace."""
+        self._frozen_snapshot_valid = True
+        self._frozen_frame_serial = self._last_frame_serial
+        self._frozen_frame_detected = self._last_frame_detected
+        self._frozen_frame_side = self._last_frame_side
+        self._frozen_frame_first_y = self._last_frame_first_y
+        self._frozen_frame_last_y = self._last_frame_last_y
+        self._frozen_frame_rows = self._last_frame_rows
+        self._frozen_frame_reference_y = self._last_frame_reference_y
+        self._frozen_frame_weak_support = self._last_frame_weak_support
+        self._frozen_frame_reason = self._last_frame_reason
+        self._frozen_frame_pending_side = self._last_frame_pending_side
+        self._frozen_frame_pending_count = self._last_frame_pending_count
+        for index in range(len(self._last_frame_counts)):
+            self._frozen_frame_counts[index] = self._last_frame_counts[index]
+        return True
+
+    def rearm_extended_diagnostics(self):
+        """Reset the extended counters without changing tracker state."""
+        for index in range(len(self._diagnostic_counts)):
+            self._diagnostic_counts[index] = 0
+            self._frame_start_counts[index] = 0
+            self._last_frame_counts[index] = 0
+            self._frozen_frame_counts[index] = 0
+        self._last_frame_serial = self._frame_serial
+        self._last_frame_detected = False
+        self._last_frame_side = -1
+        self._last_frame_first_y = -1
+        self._last_frame_last_y = -1
+        self._last_frame_rows = 0
+        self._last_frame_reference_y = -1
+        self._last_frame_weak_support = False
+        self._last_frame_reason = "REARMED"
+        self._last_frame_pending_side = self._pending_switch_side
+        self._last_frame_pending_count = self._pending_switch_count
+        self._frozen_snapshot_valid = False
+        self._frozen_frame_serial = 0
+        self._frozen_frame_detected = False
+        self._frozen_frame_side = -1
+        self._frozen_frame_first_y = -1
+        self._frozen_frame_last_y = -1
+        self._frozen_frame_rows = 0
+        self._frozen_frame_reference_y = -1
+        self._frozen_frame_weak_support = False
+        self._frozen_frame_reason = "NOT_FROZEN"
+        self._frozen_frame_pending_side = -1
+        self._frozen_frame_pending_count = 0
+        return True
+
+    @micropython.native
+    def _reset_pending_side_switch(self):
+        self._pending_switch_side = -1
+        self._pending_switch_count = 0
+        self._pending_switch_frame = -1
+
+    @micropython.native
+    def begin_frame(self):
+        """Mark every newly captured frame, including detector skips."""
+        if self._frame_open:
+            # A captured frame that reached this point without a detect() call
+            # interrupted any pending two-frame side change.
+            self._reset_pending_side_switch()
+        self._frame_serial += 1
+        self._frame_open = True
+        self._frame_scan_done = False
+        for index in range(len(self._diagnostic_counts)):
+            self._frame_start_counts[index] = self._diagnostic_counts[index]
+        return self._frame_serial
+
+    def skip_frame(self, reason="DETECT_NOT_CALLED"):
+        """End a captured frame with no detector call and break switch streaks."""
+        if not self._frame_open:
+            self.begin_frame()
+        self._reset_pending_side_switch()
+        self._frame_scan_done = False
+        self._invalidate_result(reason)
+        self._capture_frame_snapshot(False, reason)
+        self._frame_open = False
+        return self._result
+
+    @micropython.native
+    def _consider_side_chain(self, side, count, first_y, last_y,
+                             reference_y, reference_center2, distance_sum,
+                             overlap_count):
+        """Rank one complete segment without allocating per-frame objects."""
+        if count < self.min_rows or first_y < 0:
+            self._side_reject_rows[side] += 1
+            self._diagnostic_counts[_DIAG_REJECTED_CHAINS] += 1
+            self._diagnostic_counts[_DIAG_SUPPORT_ROW_REJECTS] += 1
+            return
+        if last_y - first_y < self.min_span:
+            self._side_reject_span[side] += 1
+            self._diagnostic_counts[_DIAG_REJECTED_CHAINS] += 1
+            self._diagnostic_counts[_DIAG_SUPPORT_SPAN_REJECTS] += 1
+            return
+
+        self._diagnostic_counts[_DIAG_QUALIFIED_CHAINS] += 1
+        self._side_chain_count[side] += 1
+        if self._side_count[side] == 0:
+            better = True
+            tied = False
+        else:
+            better = False
+            tied = False
+            if last_y > self._side_last[side]:
+                better = True
+            elif last_y == self._side_last[side]:
+                if count > self._side_count[side]:
+                    better = True
+                elif count == self._side_count[side]:
+                    best_span = self._side_last[side] - self._side_first[side]
+                    span = last_y - first_y
+                    if span > best_span:
+                        better = True
+                    elif span == best_span:
+                        if self._last_single_side == side:
+                            best_overlap = self._side_overlap_count[side]
+                            if overlap_count > 0 and best_overlap == 0:
+                                better = True
+                            elif overlap_count == 0 and best_overlap > 0:
+                                better = False
+                            elif overlap_count > 0 and best_overlap > 0:
+                                left = distance_sum * best_overlap
+                                right = (self._side_distance_sum[side] *
+                                         overlap_count)
+                                if left < right:
+                                    better = True
+                                elif left == right:
+                                    tied = True
+                            else:
+                                tied = True
+                        else:
+                            tied = True
+
+        if better:
+            self._side_count[side] = count
+            self._side_first[side] = first_y
+            self._side_last[side] = last_y
+            self._side_ref_y[side] = reference_y
+            self._side_ref_center2[side] = reference_center2
+            self._side_distance_sum[side] = distance_sum
+            self._side_overlap_count[side] = overlap_count
+            self._side_ambiguous[side] = 0
+            self._side_valid[side] = 1
+        elif tied:
+            self._side_ambiguous[side] = 1
+            self._diagnostic_counts[_DIAG_CHAIN_TIES] += 1
+
+    @micropython.native
     def _evaluate_side(self, side):
-        """Validate one anchored candidate chain and choose its reference row."""
+        """Build bottom-up segments and keep the nearest qualified one."""
         height = self.height
         floor = self.floor_y
         base = side * height
         status = self._row_status
         centers = self._row_center2
-        count = 0
-        first_y = -1
-        last_y = -1
+        self._side_count[side] = 0
+        self._side_first[side] = 0
+        self._side_last[side] = 0
+        self._side_ref_y[side] = 0
+        self._side_ref_center2[side] = 0
+        self._side_distance_sum[side] = 0
+        self._side_overlap_count[side] = 0
+        self._side_chain_count[side] = 0
+        self._side_reject_rows[side] = 0
+        self._side_reject_span[side] = 0
+        self._side_ambiguous_rows[side] = 0
+        self._side_ambiguous[side] = 0
+        self._side_valid[side] = 0
+
+        chain_count = 0
+        chain_first = -1
+        chain_last = -1
         previous_y = -1
         previous_center2 = 0
-        ambiguous = False
-        continuity_failure = False
-        reference_index = -1
-        reference_delta = 1 << 30
+        chain_ref_y = -1
+        chain_ref_center2 = 0
+        chain_ref_delta = 1 << 30
+        chain_distance_sum = 0
+        chain_overlap_count = 0
+        missing_count = 0
+        track_history = self._last_single_side == side
         reference_y = self.reference_y
+        diagnostics = self._diagnostic_counts
 
-        for y in range(floor, height):
-            row_status = status[base + y]
+        for y in range(height - 1, floor - 1, -1):
+            slot = base + y
+            row_status = status[slot]
             if row_status == _AMBIGUOUS:
-                ambiguous = True
+                self._side_ambiguous_rows[side] += 1
+                if chain_count:
+                    diagnostics[_DIAG_CHAIN_BREAKS] += 1
+                    diagnostics[_DIAG_AMBIGUITY_BREAKS] += 1
+                    self._consider_side_chain(
+                        side, chain_count, chain_first, chain_last,
+                        chain_ref_y, chain_ref_center2, chain_distance_sum,
+                        chain_overlap_count)
+                    chain_count = 0
+                    chain_first = -1
+                    chain_last = -1
+                    previous_y = -1
+                    chain_distance_sum = 0
+                    chain_overlap_count = 0
+                missing_count = 0
                 continue
+
             if row_status != 1:
+                if chain_count:
+                    missing_count += 1
+                    if missing_count > self.max_missing_rows:
+                        diagnostics[_DIAG_CHAIN_BREAKS] += 1
+                        diagnostics[_DIAG_GAP_BREAKS] += 1
+                        self._consider_side_chain(
+                            side, chain_count, chain_first, chain_last,
+                            chain_ref_y, chain_ref_center2,
+                            chain_distance_sum, chain_overlap_count)
+                        chain_count = 0
+                        chain_first = -1
+                        chain_last = -1
+                        previous_y = -1
+                        chain_distance_sum = 0
+                        chain_overlap_count = 0
+                        missing_count = 0
                 continue
-            center2 = int(centers[base + y])
-            if previous_y >= 0:
-                dy = y - previous_y
-                if dy > self.max_gap + 1:
-                    continuity_failure = True
-                    continue
-                if abs(center2 - previous_center2) * 500 > (
-                        self.max_slope_milli * dy +
-                        self.link_tolerance_milli):
-                    continuity_failure = True
-            if first_y < 0:
-                first_y = y
-            last_y = y
+
+            center2 = int(centers[slot])
+            if chain_count:
+                dy = previous_y - y
+                jump = abs(center2 - previous_center2) * 500 > (
+                    self.max_slope_milli * dy +
+                    self.link_tolerance_milli)
+                if jump:
+                    diagnostics[_DIAG_CHAIN_BREAKS] += 1
+                    diagnostics[_DIAG_JUMP_BREAKS] += 1
+                    self._consider_side_chain(
+                        side, chain_count, chain_first, chain_last,
+                        chain_ref_y, chain_ref_center2, chain_distance_sum,
+                        chain_overlap_count)
+                    chain_count = 0
+                    chain_first = -1
+                    chain_last = -1
+                    chain_distance_sum = 0
+                    chain_overlap_count = 0
+                    missing_count = 0
+
+            if chain_count == 0:
+                chain_first = y
+                chain_last = y
+                chain_count = 1
+                chain_ref_y = y
+                chain_ref_center2 = center2
+                chain_ref_delta = abs(float(y) - reference_y)
+                chain_distance_sum = 0
+                chain_overlap_count = 0
+            else:
+                chain_first = y
+                chain_count += 1
+                delta = abs(float(y) - reference_y)
+                if delta < chain_ref_delta:
+                    chain_ref_y = y
+                    chain_ref_center2 = center2
+                    chain_ref_delta = delta
+
+            if track_history and self._accepted_chain_valid[y]:
+                distance = abs(
+                    center2 - int(self._accepted_center2[y]))
+                chain_distance_sum += distance
+                chain_overlap_count += 1
             previous_y = y
             previous_center2 = center2
-            count += 1
-            delta = abs(float(y) - reference_y)
-            if delta < reference_delta:
-                reference_delta = delta
-                reference_index = y
+            missing_count = 0
 
-        self._side_count[side] = count
-        self._side_first[side] = first_y if first_y >= 0 else 0
-        self._side_last[side] = last_y if last_y >= 0 else 0
-        self._side_ambiguous[side] = 1 if ambiguous else 0
-        self._side_valid[side] = 0
-        if ambiguous or continuity_failure:
-            return False
-        if (count < self.min_rows or first_y < 0 or last_y - first_y <
-                self.min_span or reference_index < 0 or
-                reference_delta > self.reference_max_gap):
-            return False
-        self._side_valid[side] = 1
-        self._side_ref_y[side] = reference_index
-        self._side_ref_center2[side] = int(
-            centers[base + reference_index])
-        return True
+        if chain_count:
+            self._consider_side_chain(
+                side, chain_count, chain_first, chain_last, chain_ref_y,
+                chain_ref_center2, chain_distance_sum, chain_overlap_count)
+
+        return (self._side_valid[side] != 0 and
+                self._side_ambiguous[side] == 0)
 
     @micropython.native
     def _publish_single(self, side, topology_reason,
-                        topology_island_observed=False):
+                        topology_island_observed=False, side_switch=False):
         result = self._result
         clipped_route = self._route_mode_id == _ROUTE_CLIPPED_MIDPOINT
         height = self.height
@@ -930,6 +1466,14 @@ class FastSingleEdgeTracker:
             ("CLIPPED_MIDPOINT_LEFT_TO_RIGHT_FRAME" if side == 0 else
              "CLIPPED_MIDPOINT_RIGHT_TO_LEFT_FRAME") if clipped_route else
             ("INFERRED_FROM_LEFT" if side == 0 else "INFERRED_FROM_RIGHT"))
+        result["weak_support"] = bool(
+            support_count < self.weak_support_rows or
+            float(ref_y) != self.reference_y)
+        result["side_switch"] = bool(side_switch)
+        result["switch_overlap_rows"] = (
+            self._switch_overlap_rows if side_switch else 0)
+        result["switch_max_center_delta_cells"] = (
+            self._switch_max_center_delta2 * 0.5 if side_switch else None)
         result["lateral_error"] = lateral_error
         result["topology_reason"] = topology_reason
         result["topology_island_observed"] = bool(
@@ -952,20 +1496,27 @@ class FastSingleEdgeTracker:
                 topology_island_observed)
         result["topology_checked"] = True
         result["cache_rows"] = self._cache_row_count
+        self._diagnostic_counts[_DIAG_SELECTED_CHAINS] += 1
+        if side_switch:
+            self._diagnostic_counts[_DIAG_SWITCH_ACCEPTED] += 1
         return result
 
     @micropython.native
-    def detect(self, mask_info, control_fresh, topology_evidence=None):
+    def _detect_current(self, mask_info, control_fresh,
+                        topology_evidence=None):
         """Return a single-edge result only inside a fresh RESET/KEEP session."""
         self._invalidate_result("NOT_RUN")
         if not control_fresh:
+            self._reset_pending_side_switch()
             self._invalidate_result("NO_FRESH_KEEP")
             return self._result
         if (self._route_mode_id == _ROUTE_CACHED_WIDTH and
                 self._cache_row_count < self.min_rows):
+            self._reset_pending_side_switch()
             self._invalidate_result("NO_WIDTH_CACHE")
             return self._result
         if not isinstance(mask_info, dict):
+            self._reset_pending_side_switch()
             self._invalidate_result("INVALID_MASK_INFO")
             return self._result
         luma = mask_info.get("luma")
@@ -983,6 +1534,7 @@ class FastSingleEdgeTracker:
                 mask_info.get("width", self.width) != self.width or
                 mask_info.get("height", self.height) != self.height or
                 mask_info.get("floor", self.floor_y) != self.floor_y):
+            self._reset_pending_side_switch()
             self._invalidate_result("FRAME_SIZE_MISMATCH")
             return self._result
         topology = topology_evidence or {}
@@ -990,10 +1542,12 @@ class FastSingleEdgeTracker:
         island = bool(topology.get("island_evidence") or topology.get("island"))
         ambiguous_topology = bool(topology.get("ambiguous"))
         if topology.get("branch_evidence") or topology.get("branch"):
+            self._reset_pending_side_switch()
             self._invalidate_result("TOPOLOGY_BRANCH_UNRESOLVED")
             self._result["topology_reason"] = topology.get("reason", "OPEN_BAND")
             return self._result
         if (self._route_mode_id == _ROUTE_CLIPPED_MIDPOINT and island):
+            self._reset_pending_side_switch()
             self._invalidate_result("TOPOLOGY_ISLAND_UNRESOLVED")
             self._result["topology_reason"] = topology.get(
                 "reason", "ISLAND")
@@ -1001,6 +1555,7 @@ class FastSingleEdgeTracker:
         if (ambiguous_topology and
                 (self._route_mode_id == _ROUTE_CLIPPED_MIDPOINT or
                  not island)):
+            self._reset_pending_side_switch()
             self._invalidate_result("TOPOLOGY_AMBIGUITY_UNRESOLVED")
             self._result["topology_reason"] = topology.get(
                 "reason", "AMBIGUOUS_TOPOLOGY")
@@ -1011,44 +1566,68 @@ class FastSingleEdgeTracker:
         self._current_known = known
         self._island_check = 1 if island else 0
         if island and _label_dark_components_viper(self) < 0:
+            self._reset_pending_side_switch()
             self._invalidate_result("TOPOLOGY_COMPONENT_BOUNDS")
             self._result["topology_reason"] = topology.get(
                 "reason", "ISLAND")
             return self._result
         _scan_single_edges_viper(self)
+        self._frame_scan_done = True
 
         left_valid = self._evaluate_side(0)
         right_valid = self._evaluate_side(1)
-        if self._side_ambiguous[0] or self._side_ambiguous[1]:
-            self._invalidate_result("AMBIGUOUS_SINGLE_EDGE_IDENTITY")
-            self._result["topology_reason"] = topology.get(
-                "reason", "NOT_RUN")
-            return self._result
         if left_valid and right_valid:
+            self._reset_pending_side_switch()
             self._invalidate_result("AMBIGUOUS_BOTH_SIDES")
             self._result["topology_reason"] = topology.get(
                 "reason", "NOT_RUN")
             return self._result
         if left_valid:
-            if self._last_single_side == 1:
-                self._invalidate_result(
-                    "SINGLE_EDGE_SIDE_SWITCH_REQUIRES_BILATERAL")
+            side_switch = self._last_single_side == 1
+            if not self._allow_side_switch(0):
+                if self._pending_switch_count < 2:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_PENDING"
+                elif self._switch_overlap_rows == 0:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_NO_OVERLAP"
+                else:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_CENTER_MISMATCH"
+                self._invalidate_result(reason)
                 self._result["topology_reason"] = topology.get(
                     "reason", "NOT_RUN")
                 return self._result
             return self._publish_single(
-                0, topology.get("reason", "NOT_RUN"), island)
+                0, topology.get("reason", "NOT_RUN"), island,
+                side_switch)
         if right_valid:
-            if self._last_single_side == 0:
-                self._invalidate_result(
-                    "SINGLE_EDGE_SIDE_SWITCH_REQUIRES_BILATERAL")
+            side_switch = self._last_single_side == 0
+            if not self._allow_side_switch(1):
+                if self._pending_switch_count < 2:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_PENDING"
+                elif self._switch_overlap_rows == 0:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_NO_OVERLAP"
+                else:
+                    reason = "SINGLE_EDGE_SIDE_SWITCH_CENTER_MISMATCH"
+                self._invalidate_result(reason)
                 self._result["topology_reason"] = topology.get(
                     "reason", "NOT_RUN")
                 return self._result
             return self._publish_single(
-                1, topology.get("reason", "NOT_RUN"), island)
+                1, topology.get("reason", "NOT_RUN"), island,
+                side_switch)
+        self._reset_pending_side_switch()
+        if (self._side_ambiguous[0] or self._side_ambiguous[1] or
+                self._side_ambiguous_rows[0] or
+                self._side_ambiguous_rows[1]):
+            self._invalidate_result("AMBIGUOUS_SINGLE_EDGE_CHAIN")
+            self._result["topology_reason"] = topology.get(
+                "reason", "NOT_RUN")
+            return self._result
         if self._side_count[0] or self._side_count[1]:
             self._invalidate_result("SINGLE_EDGE_CONTINUITY_OR_SUPPORT")
+        elif self._side_reject_rows[0] or self._side_reject_rows[1]:
+            self._invalidate_result("SINGLE_EDGE_SUPPORT_ROWS")
+        elif self._side_reject_span[0] or self._side_reject_span[1]:
+            self._invalidate_result("SINGLE_EDGE_SUPPORT_SPAN")
         elif self._route_mode_id == _ROUTE_CACHED_WIDTH and \
                 self._cache_row_count < self.min_rows:
             self._invalidate_result("NO_WIDTH_CACHE")
@@ -1058,6 +1637,18 @@ class FastSingleEdgeTracker:
             self._invalidate_result("NO_ANCHORED_SINGLE_EDGE")
         self._result["topology_reason"] = topology.get("reason", "NOT_RUN")
         return self._result
+
+    def detect(self, mask_info, control_fresh, topology_evidence=None):
+        """Run one detector call and retain a fixed-size per-frame snapshot."""
+        if not self._frame_open:
+            self.begin_frame()
+        self._frame_scan_done = False
+        try:
+            return self._detect_current(
+                mask_info, control_fresh, topology_evidence)
+        finally:
+            self._capture_frame_snapshot(True)
+            self._frame_open = False
 
 
 __all__ = (

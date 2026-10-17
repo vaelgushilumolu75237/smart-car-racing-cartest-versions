@@ -47,6 +47,16 @@ extern "C" uint8_t car_follow_output_turn_update_with_slope_assist(
     uint8_t slope_assist_requested,
     uint16_t *left_command_permille,
     uint16_t *right_command_permille);
+extern "C" void car_servo_turn_safety_init(car_servo_safety_t *state);
+extern "C" uint8_t car_servo_turn_safety_request_selected_with_slew(
+    car_servo_safety_t *state,
+    car_servo_source_t source,
+    uint16_t follow_target_us,
+    uint16_t debug_target_us,
+    uint8_t output_permitted,
+    uint32_t now_ms,
+    uint16_t slew_step_us,
+    const car_servo_safety_io_t *io);
 
 namespace {
 
@@ -346,6 +356,14 @@ car_config_t make_follow_config(bool calibrated = true,
     config.follow_left_encoder_sign = 1;
     config.follow_right_encoder_sign = -1;
     return config;
+}
+
+car_config_t make_hold_follow_config()
+{
+    /* Hold behavior is exercised against the checked-in measured Follow
+       endpoints so error_norm=545 maps to 1900 us at the production gain. */
+    return make_follow_config(true, true, CARTEST_SERVO_LEFT_US,
+                              CARTEST_SERVO_RIGHT_US);
 }
 
 car_config_t make_debug_steering_config()
@@ -1111,8 +1129,8 @@ void test_turn_slope_assist_gate_and_per_side_slew()
     CHECK_EQ("slope target is 700 left", state.target_left_permille, 700u);
     CHECK_EQ("slope target is 700 right", state.target_right_permille, 700u);
     CHECK_EQ("assist state describes the selected command", state.slope_assist_active, 1u);
-    CHECK_EQ("assist enters through one 20-permille left step", left, 520u);
-    CHECK_EQ("assist enters through one 20-permille right step", right, 520u);
+    CHECK_EQ("assist enters through one 40-permille left step", left, 540u);
+    CHECK_EQ("assist enters through one 40-permille right step", right, 540u);
     CHECK(state.target_left_permille <= 700u &&
               state.target_right_permille <= 700u,
           "both assisted side targets respect the fixed 700 hard ceiling");
@@ -1124,10 +1142,10 @@ void test_turn_slope_assist_gate_and_per_side_slew()
     CHECK_EQ("long delay still advances uphill output by one step only",
              car_follow_output_turn_update_with_slope_assist(
                  &state, 1000u, 500u, 200u, 200u, 1530u, 1530u,
-                 1100u, 2500u, 1u, 1u, 1u, 520u, 520u, 1u,
+                 1100u, 2500u, 1u, 1u, 1u, 540u, 540u, 1u,
                  &left, &right), 1u);
-    CHECK_EQ("delayed assisted left output has no catch-up", left, 540u);
-    CHECK_EQ("delayed assisted right output has no catch-up", right, 540u);
+    CHECK_EQ("delayed assisted left output has no catch-up", left, 580u);
+    CHECK_EQ("delayed assisted right output has no catch-up", right, 580u);
 
     CHECK_EQ("right turn above u=100 withdraws assist immediately",
              car_follow_output_turn_update_with_slope_assist(
@@ -1140,8 +1158,8 @@ void test_turn_slope_assist_gate_and_per_side_slew()
              state.target_right_permille, 480u);
     CHECK_EQ("turn withdraws commanded-assist diagnostic immediately",
              state.slope_assist_active, 0u);
-    CHECK_EQ("left motor decreases by no more than 20 on withdrawal", left, 680u);
-    CHECK_EQ("right motor decreases by no more than 20 on withdrawal", right, 680u);
+    CHECK_EQ("left motor decreases by no more than 40 on withdrawal", left, 660u);
+    CHECK_EQ("right motor decreases by no more than 40 on withdrawal", right, 660u);
 
     CHECK_EQ("left turn above u=100 also withdraws assist",
              car_follow_output_turn_update_with_slope_assist(
@@ -1152,8 +1170,8 @@ void test_turn_slope_assist_gate_and_per_side_slew()
              state.target_left_permille, 455u);
     CHECK_EQ("left turn mirrors upper outer duty target",
              state.target_right_permille, 545u);
-    CHECK_EQ("left-turn ramp remains per-side limited", left, 680u);
-    CHECK_EQ("left-turn ramp remains per-side limited right", right, 680u);
+    CHECK_EQ("left-turn ramp remains per-side limited", left, 660u);
+    CHECK_EQ("left-turn ramp remains per-side limited right", right, 660u);
 }
 
 void test_servo_center_frame_slew_fault_and_sticky_snapshot()
@@ -2506,6 +2524,21 @@ void start_follow_by_physical_pe7(car_control_t *control,
     car_inputs_t press_stable = make_debounced_inputs(
         start_ms + 24u, false, false, true);
     car_control_tick(control, config, &press_stable);
+}
+
+void enter_follow_visual_hold(car_control_t *control,
+                              const car_config_t *config,
+                              uint16_t first_sequence,
+                              uint32_t start_ms)
+{
+    start_follow_by_physical_pe7(control, config, first_sequence, start_ms);
+    send_frame_at(control, config,
+                  static_cast<uint16_t>(first_sequence + 3u), true, 80u, 545,
+                  start_ms + 27u, start_ms + 27u, false);
+    car_control_note_applied_outputs(control, 1u, 1u, 1600u, 120u, 180u);
+    send_frame_at(control, config,
+                  static_cast<uint16_t>(first_sequence + 4u), false, 0u, 0,
+                  start_ms + 28u, start_ms + 28u, false);
 }
 
 void test_debug_steering_mapping_and_automatic_tracking()
@@ -4219,19 +4252,48 @@ void test_manual_follow_start_restarts_reverse_resync()
 
 void test_follow_visual_hold_requires_real_outputs_and_full_recovery()
 {
-    const car_config_t config = make_follow_config();
+    const car_config_t config = make_hold_follow_config();
     car_control_t control{};
-    start_follow_by_physical_pe7(&control, &config, 300u, 0u);
+    enter_follow_visual_hold(&control, &config, 300u, 300u);
     CHECK_EQ("hold fixture reaches manually started Follow", control.mode,
-             CAR_MODE_FOLLOW_RUNNING);
-    car_control_note_applied_outputs(&control, 1u, 1u, 1530u, 120u, 180u);
+             CAR_MODE_FOLLOW_VISION_HOLD);
     const uint32_t reset_generation = control.reverse_control_reset_generation;
-    send_frame_at(&control, &config, 303u, false, 0u, 450,
-                  25u, 25u, false);
-    CHECK_EQ("valid=0 after a real running output enters mode 12",
+    CHECK_EQ("valid=0 after an applied Follow output enters mode 12",
              control.mode, CAR_MODE_FOLLOW_VISION_HOLD);
-    CHECK_EQ("hold snapshot records the applied servo pulse",
-             control.vision_hold_servo_pulse_us, 1530u);
+    CHECK_EQ("545 trusted error maps to the held steering target",
+             control.vision_hold_servo_pulse_us, 1900u);
+    CHECK_EQ("hold retains the trusted signed error independently of V1 zero",
+             control.vision_hold_error_norm, 545);
+    CHECK_EQ("hold retains the source valid sequence",
+             control.vision_hold_source_sequence, 303u);
+    CHECK_EQ("hold retains the source valid arrival time",
+             control.vision_hold_source_rx_ms, 327u);
+    CHECK_EQ("hold records its entry time separately from the source arrival",
+             control.vision_hold_started_ms, 328u);
+    CHECK_EQ("hold output selector returns the held target, not applied pulse",
+             car_control_follow_servo_output_target_us(&control), 1900u);
+    const uint16_t hold_target_us =
+        car_control_follow_servo_output_target_us(&control);
+    CHECK_EQ("applied servo pulse remains a separate entry snapshot",
+             control.vision_hold_applied_servo_pulse_us, 1600u);
+    CHECK_EQ("snapshot entry marker is written for this hold entry",
+             car_vision_hold_snapshot_entry, 1u);
+    CHECK_EQ("published snapshot retains the trusted signed error",
+             car_vision_hold_snapshot_error_norm, 545);
+    CHECK_EQ("published snapshot retains source sequence independently",
+             car_vision_hold_snapshot_sequence, 303u);
+    CHECK_EQ("published snapshot retains valid RX arrival separately",
+             car_vision_hold_snapshot_source_rx_ms, 327u);
+    CHECK_EQ("published snapshot retains hold entry time",
+             car_vision_hold_snapshot_entered_ms, 328u);
+    CHECK_EQ("published snapshot target is separate from applied pulse",
+             car_vision_hold_snapshot_target_us, 1900u);
+    CHECK_EQ("published snapshot applied pulse records the 1600 us entry",
+             car_vision_hold_snapshot_applied_us, 1600u);
+    CHECK_EQ("published snapshot preserves left entry duty independently",
+             car_vision_hold_snapshot_left_permille, 120u);
+    CHECK_EQ("published snapshot preserves right entry duty independently",
+             car_vision_hold_snapshot_right_permille, 180u);
     CHECK_EQ("hold snapshot records left duty independently",
              control.vision_hold_motor_left_permille, 120u);
     CHECK_EQ("hold snapshot records right duty independently",
@@ -4239,36 +4301,123 @@ void test_follow_visual_hold_requires_real_outputs_and_full_recovery()
     CHECK_EQ("hold preserves the nominal base request independently of side outputs",
              control.vision_hold_base_duty_permille, 0u);
 
-    send_frame_at(&control, &config, 304u, true, 80u, -300,
-                  100u, 100u, false);
     send_frame_at(&control, &config, 305u, true, 80u, -300,
-                  110u, 110u, false);
+                  329u, 329u, false);
+    send_frame_at(&control, &config, 306u, true, 80u, -300,
+                  330u, 330u, false);
     CHECK_EQ("one or two valid frames do not release hold",
              control.mode, CAR_MODE_FOLLOW_VISION_HOLD);
-    send_frame_at(&control, &config, 306u, false, 0u, 450,
-                  120u, 120u, false);
+    send_frame_at(&control, &config, 307u, false, 0u, 0,
+                  331u, 331u, false);
     CHECK_EQ("valid=0 breaks the consecutive recovery route count",
              control.vision_hold_valid_count, 0u);
-    send_frame_at(&control, &config, 307u, true, 80u, -300,
-                  150u, 150u, false);
     send_frame_at(&control, &config, 308u, true, 80u, -300,
-                  160u, 160u, false);
+                  332u, 332u, false);
+    send_frame_at(&control, &config, 309u, true, 80u, -300,
+                  333u, 333u, false);
     CHECK_EQ("recovery still requires three consecutive valid frames",
              control.mode, CAR_MODE_FOLLOW_VISION_HOLD);
-    send_frame_at(&control, &config, 309u, true, 80u, -300,
-                  170u, 170u, false);
+    send_frame_at(&control, &config, 310u, true, 80u, -300,
+                  334u, 334u, false);
     CHECK_EQ("third in-deadline valid frame resumes the saved session",
              control.mode, CAR_MODE_FOLLOW_RUNNING);
     CHECK_EQ("in-deadline hold recovery counts once as automatic recovery",
              control.auto_recovery_count, 1u);
-    send_frame_at(&control, &config, 310u, true, 80u, -280,
-                  180u, 180u, false);
+    send_frame_at(&control, &config, 311u, true, 80u, -280,
+                  335u, 335u, false);
     CHECK_EQ("continuing valid frames do not recount the same hold episode",
              control.auto_recovery_count, 1u);
     CHECK_EQ("early resume restores the nominal base request, not a side maximum",
              control.follow_output_duty_permille, 0u);
     CHECK_EQ("early visual hold recovery does not RESET reverse cache",
              control.reverse_control_reset_generation, reset_generation);
+    CHECK_EQ("recovery does not rewrite the latched entry source error",
+             control.vision_hold_error_norm, 545);
+    CHECK_EQ("recovery does not rewrite the latched entry source sequence",
+             control.vision_hold_source_sequence, 303u);
+    CHECK_EQ("recovery does not rewrite the held entry target",
+             control.vision_hold_servo_pulse_us, 1900u);
+    CHECK_EQ("recovery does not rewrite the published entry snapshot",
+             car_vision_hold_snapshot_error_norm, 545);
+    CHECK_EQ("entry marker persists after hold recovery",
+             car_vision_hold_snapshot_entry, 1u);
+    CHECK_EQ("source sequence snapshot persists after hold recovery",
+             car_vision_hold_snapshot_sequence, 303u);
+    CHECK_EQ("source RX snapshot persists after hold recovery",
+             car_vision_hold_snapshot_source_rx_ms, 327u);
+    CHECK_EQ("hold-entry time snapshot persists after recovery",
+             car_vision_hold_snapshot_entered_ms, 328u);
+    CHECK_EQ("mapped target snapshot persists after recovery",
+             car_vision_hold_snapshot_target_us, 1900u);
+    CHECK_EQ("entry applied pulse snapshot persists after recovery",
+             car_vision_hold_snapshot_applied_us, 1600u);
+    CHECK_EQ("left motor snapshot persists after recovery",
+             car_vision_hold_snapshot_left_permille, 120u);
+    CHECK_EQ("right motor snapshot persists after recovery",
+             car_vision_hold_snapshot_right_permille, 180u);
+
+    /* The held target still passes through the FollowTurn 120 us/20 ms servo
+       limiter; it is never replaced by the 1600 us entry pulse. */
+    FakeServoRegisters fast_fake = make_valid_fake_servo();
+    const car_servo_safety_io_t fast_io = fake_servo_io(&fast_fake);
+    car_servo_safety_t fast_servo{};
+    car_servo_turn_safety_init(&fast_servo);
+    CHECK_EQ("fast-profile servo starts at centre before the hold target",
+             car_servo_turn_safety_request_selected_with_slew(
+                 &fast_servo, CAR_SERVO_SOURCE_FOLLOW, 1600u, 1530u, 1u,
+                 0u, 120u, &fast_io), 1u);
+    fast_fake.update_pending = 1u;
+    (void)car_servo_turn_safety_request_selected_with_slew(
+        &fast_servo, CAR_SERVO_SOURCE_FOLLOW, 1600u, 1530u, 1u,
+        1u, 120u, &fast_io);
+    fast_fake.update_pending = 1u;
+    (void)car_servo_turn_safety_request_selected_with_slew(
+        &fast_servo, CAR_SERVO_SOURCE_FOLLOW, 1600u, 1530u, 1u,
+        20u, 120u, &fast_io);
+    fast_fake.update_pending = 1u;
+    (void)car_servo_turn_safety_request_selected_with_slew(
+        &fast_servo, CAR_SERVO_SOURCE_FOLLOW, 1600u, 1530u, 1u,
+        40u, 120u, &fast_io);
+    CHECK_EQ("fixture reaches the separately captured 1600 us applied pulse",
+             fast_servo.limited_us, 1600u);
+    const uint16_t expected_turn_slew_us[] = {
+        1720u, 1720u, 1840u, 1840u, 1900u
+    };
+    for (uint32_t now_ms = 60u; now_ms <= 100u; now_ms += 10u) {
+        fast_fake.update_pending = 1u;
+        CHECK_EQ("hold steering request remains accepted by servo guard",
+                 car_servo_turn_safety_request_selected_with_slew(
+                     &fast_servo, CAR_SERVO_SOURCE_FOLLOW,
+                     hold_target_us,
+                     1530u, 1u, now_ms, 120u, &fast_io), 1u);
+        CHECK(fast_servo.limited_us >= 1600u &&
+                  fast_servo.limited_us <= 1900u,
+              "held steering slew stays between entry pulse and mapped target");
+        CHECK_EQ("FollowTurn advances only on 20 ms boundaries by at most 120 us",
+                 fast_servo.limited_us,
+                 expected_turn_slew_us[(now_ms - 60u) / 10u]);
+    }
+    CHECK_EQ("qualified fast-profile steering reaches the mapped held target",
+             fast_servo.limited_us, 1900u);
+
+    FakeServoRegisters startup_fake = make_valid_fake_servo();
+    const car_servo_safety_io_t startup_io = fake_servo_io(&startup_fake);
+    car_servo_safety_t startup_servo{};
+    car_servo_safety_init(&startup_servo);
+    CHECK_EQ("startup servo starts with its original 10 us limiter",
+             car_servo_safety_request_selected_with_slew(
+                 &startup_servo, CAR_SERVO_SOURCE_FOLLOW, 1900u, 1530u,
+                 1u, 0u, 10u, &startup_io), 1u);
+    startup_fake.update_pending = 1u;
+    (void)car_servo_safety_request_selected_with_slew(
+        &startup_servo, CAR_SERVO_SOURCE_FOLLOW, 1900u, 1530u,
+        1u, 1u, 10u, &startup_io);
+    startup_fake.update_pending = 1u;
+    (void)car_servo_safety_request_selected_with_slew(
+        &startup_servo, CAR_SERVO_SOURCE_FOLLOW, 1900u, 1530u,
+        1u, 20u, 10u, &startup_io);
+    CHECK_EQ("startup first qualified 20 ms step remains 10 us",
+             startup_servo.limited_us, 1540u);
 
     /* A new run proves that an invalid startup snapshot cannot enter hold. */
     car_control_t not_ready{};
@@ -4285,34 +4434,47 @@ void test_follow_visual_hold_requires_real_outputs_and_full_recovery()
 
 void test_follow_visual_hold_exact_deadline_and_transport_split()
 {
-    const car_config_t config = make_follow_config();
+    const car_config_t config = make_hold_follow_config();
     car_control_t control{};
-    start_follow_by_physical_pe7(&control, &config, 500u, 0u);
-    car_control_note_applied_outputs(&control, 1u, 1u, 1530u, 140u, 160u);
-    send_frame_at(&control, &config, 503u, false, 0u, 0,
-                  4u, 4u, false);
+    constexpr uint32_t start_ms = 0xFFFFFF00u;
+    enter_follow_visual_hold(&control, &config, 500u, start_ms);
     CHECK_EQ("deadline fixture enters active hold", control.vision_hold_active, 1u);
     const uint32_t reset_generation = control.reverse_control_reset_generation;
-    for (uint16_t index = 0u; index < 4u; ++index) {
-        const uint32_t now_ms = 204u + (uint32_t)index * 200u;
-        send_frame_at(&control, &config,
-                      static_cast<uint16_t>(504u + index), false, 0u, 0,
+    const uint32_t source_valid_ms = control.vision_hold_source_rx_ms;
+    const uint32_t hold_entry_ms = control.vision_hold_started_ms;
+    uint16_t sequence = 505u;
+    for (uint32_t hold_elapsed = 200u; hold_elapsed <= 2800u;
+         hold_elapsed += 200u, ++sequence) {
+        const uint32_t now_ms = hold_entry_ms + hold_elapsed;
+        const bool scattered_valid = hold_elapsed == 1000u;
+        send_frame_at(&control, &config, sequence, scattered_valid,
+                      scattered_valid ? 80u : 0u,
+                      scattered_valid ? -500 : 0,
                       now_ms, now_ms, false);
     }
-    car_inputs_t before_deadline = make_inputs(1002u, false);
+    CHECK_EQ("scattered valid frame does not refresh the trusted source time",
+             control.vision_last_valid_ms, source_valid_ms);
+    CHECK_EQ("later invalid V1 payload does not overwrite hold error",
+             control.vision_hold_error_norm, 545);
+    CHECK_EQ("hold target remains mapped from the source error",
+             control.vision_hold_servo_pulse_us, 1900u);
+
+    send_frame_at(&control, &config, sequence++, false, 0u, 0,
+                  source_valid_ms + 2999u, source_valid_ms + 2999u, false);
+    car_inputs_t before_deadline = make_inputs(source_valid_ms + 2999u, false);
     car_control_tick(&control, &config, &before_deadline);
-    CHECK_EQ("999 ms from last valid route stays in hold",
+    CHECK_EQ("2999 ms from the last trusted valid route stays in hold",
              control.vision_hold_active, 1u);
-    CHECK_EQ("999 ms hold preserves each captured side output independently",
-             control.vision_hold_motor_left_permille, 140u);
-    CHECK_EQ("999 ms hold preserves the captured right output",
-             control.vision_hold_motor_right_permille, 160u);
-    CHECK_EQ("999 ms hold keeps nominal base separate from side outputs",
+    CHECK_EQ("2999 ms hold preserves each captured side output independently",
+             control.vision_hold_motor_left_permille, 120u);
+    CHECK_EQ("2999 ms hold preserves the captured right output",
+             control.vision_hold_motor_right_permille, 180u);
+    CHECK_EQ("2999 ms hold keeps nominal base separate from side outputs",
              control.follow_output_duty_permille, 0u);
 
-    car_inputs_t deadline = make_inputs(1003u, false);
+    car_inputs_t deadline = make_inputs(source_valid_ms + 3000u, false);
     car_control_tick(&control, &config, &deadline);
-    CHECK_EQ("exact 1000 ms boundary expires visual hold",
+    CHECK_EQ("exact 3000 ms boundary expires visual hold",
              control.vision_hold_active, 0u);
     CHECK_EQ("expired hold remains visible while waiting for route",
              control.vision_hold_expired, 1u);
@@ -4328,12 +4490,8 @@ void test_follow_visual_hold_exact_deadline_and_transport_split()
     /* Mirror main's immediate stop/first-PWM restart boundary. */
     control.vision_hold_restart_required = 0u;
     car_control_note_applied_outputs(&control, 0u, 0u, 0u, 0u, 0u);
-    send_frame_at(&control, &config, 508u, false, 0u, 0,
-                  1004u, 1004u, false);
-    send_frame_at(&control, &config, 509u, false, 0u, 0,
-                  1204u, 1204u, false);
-    send_frame_at(&control, &config, 510u, false, 0u, 0,
-                  1404u, 1404u, false);
+    send_frame_at(&control, &config, sequence++, false, 0u, 0,
+                  hold_entry_ms + 3100u, hold_entry_ms + 3100u, false);
     CHECK_EQ("fresh valid=0 transport keeps expired wait without reset",
              control.mode, CAR_MODE_FOLLOW_VISION_HOLD);
     CHECK_EQ("expired wait does not restart outputs for missing route",
@@ -4341,28 +4499,183 @@ void test_follow_visual_hold_exact_deadline_and_transport_split()
     CHECK_EQ("expired valid=0 frames preserve reverse cache generation",
              control.reverse_control_reset_generation, reset_generation);
 
-    send_frame_at(&control, &config, 511u, true, 80u, 100,
-                  1405u, 1405u, false);
-    send_frame_at(&control, &config, 512u, true, 80u, 100,
-                  1415u, 1415u, false);
+    send_frame_at(&control, &config, sequence++, true, 80u, 100,
+                  hold_entry_ms + 3200u, hold_entry_ms + 3200u, false);
+    send_frame_at(&control, &config, sequence++, true, 80u, 100,
+                  hold_entry_ms + 3210u, hold_entry_ms + 3210u, false);
     CHECK_EQ("expired wait requires all three new valid route frames",
              control.vision_hold_valid_count, 2u);
     CHECK_EQ("expired wait remains zero through its first two recovery frames",
              control.follow_output_duty_permille, 0u);
-    send_frame_at(&control, &config, 513u, true, 80u, 100,
-                  1425u, 1425u, false);
+    send_frame_at(&control, &config, sequence++, true, 80u, 100,
+                  hold_entry_ms + 3220u, hold_entry_ms + 3220u, false);
     CHECK_EQ("third post-deadline route frame re-enters normal Follow gate",
              control.mode, CAR_MODE_FOLLOW_RUNNING);
     CHECK_EQ("post-deadline hold recovery counts once as automatic recovery",
              control.auto_recovery_count, 1u);
     CHECK_EQ("late recovery cannot reuse pre-stop duty",
              control.follow_output_duty_permille, 0u);
-    send_frame_at(&control, &config, 514u, true, 80u, 100,
-                  1435u, 1435u, false);
+    send_frame_at(&control, &config, sequence++, true, 80u, 100,
+                  hold_entry_ms + 3230u, hold_entry_ms + 3230u, false);
     CHECK_EQ("post-deadline continuation does not recount hold recovery",
              control.auto_recovery_count, 1u);
     CHECK_EQ("late recovery explicitly requests the normal restart gate",
              control.vision_hold_restart_required, 1u);
+
+    car_run_block_reason_input_t restart_gate{};
+    restart_gate.startup_release_seen = 1u;
+    restart_gate.vision_fresh_valid = 1u;
+    restart_gate.reverse_reset_keep_ready = 1u;
+    restart_gate.profile_output_permission = 1u;
+    restart_gate.follow_mode_active = 1u;
+    restart_gate.follow_session_active = 1u;
+    restart_gate.follow_output_permission = 1u;
+    restart_gate.manual_run_request = 1u;
+    CHECK_EQ("post-deadline recovery still waits for its first servo PWM",
+             car_run_block_reason_evaluate(&restart_gate),
+             CAR_RUN_BLOCK_WAIT_SERVO_FIRST_FRAME);
+    restart_gate.servo_output_active = 1u;
+    restart_gate.servo_first_frame_ready = 1u;
+    CHECK_EQ("first PWM alone does not skip the normal motor ramp gate",
+             car_run_block_reason_evaluate(&restart_gate),
+             CAR_RUN_BLOCK_RAMP_OR_OTHER_OUTPUT_GUARD);
+    restart_gate.motor_left_applied = 1u;
+    restart_gate.motor_right_applied = 1u;
+    CHECK_EQ("restarted Follow is reported only after both motor sides apply",
+             car_run_block_reason_evaluate(&restart_gate),
+             CAR_RUN_BLOCK_RUNNING_WITH_MOTOR_OUTPUT);
+
+    /* Exercise the receive path at the exact source-valid deadline before a
+       controller tick can mark the hold expired. The main-loop restart flag
+       must still force a stop and invalidate the previous servo-frame gate. */
+    car_control_t exact_deadline_recovery{};
+    constexpr uint32_t exact_start_ms = 0xFFFFF000u;
+    enter_follow_visual_hold(&exact_deadline_recovery, &config, 700u,
+                             exact_start_ms);
+    const uint32_t exact_source_ms =
+        exact_deadline_recovery.vision_hold_source_rx_ms;
+    uint16_t exact_sequence = 705u;
+    /* Keep the UART lease alive with invalid route frames; the 250 ms
+       communication timeout must stay distinct from the 3000 ms valid-route
+       hold deadline under test here. */
+    for (uint32_t elapsed_ms = 200u; elapsed_ms <= 2600u;
+         elapsed_ms += 200u) {
+        const uint32_t now_ms = exact_source_ms + elapsed_ms;
+        send_frame_at(&exact_deadline_recovery, &config, exact_sequence++,
+                      false, 0u, 0, now_ms, now_ms, false);
+    }
+    CHECK_EQ("continuous invalid transport does not refresh trusted RX time",
+             exact_deadline_recovery.vision_last_valid_ms, exact_source_ms);
+    CHECK_EQ("continuous invalid route keeps the vision hold active",
+             exact_deadline_recovery.vision_hold_active, 1u);
+    send_frame_at(&exact_deadline_recovery, &config, exact_sequence++, true,
+                  80u, 100, exact_source_ms + 2800u,
+                  exact_source_ms + 2800u, false);
+    send_frame_at(&exact_deadline_recovery, &config, exact_sequence++, true,
+                  80u, 100, exact_source_ms + 2900u,
+                  exact_source_ms + 2900u, false);
+    CHECK_EQ("two late valid frames are queued for exact-deadline recovery",
+             exact_deadline_recovery.vision_hold_valid_count, 2u);
+    const uint32_t exact_deadline_ms = exact_source_ms + 3000u;
+    send_frame_at(&exact_deadline_recovery, &config, exact_sequence, true,
+                  80u, 100, exact_deadline_ms, exact_deadline_ms, false);
+    CHECK_EQ("third valid frame at exact deadline resumes only logically",
+             exact_deadline_recovery.mode, CAR_MODE_FOLLOW_RUNNING);
+    CHECK_EQ("exact-deadline recovery requests the same-loop hardware restart",
+             exact_deadline_recovery.vision_hold_restart_required, 1u);
+    CHECK_EQ("exact-deadline recovery keeps road permission closed for this loop",
+             exact_deadline_recovery.road_drive_allowed, 0u);
+    CHECK_EQ("exact-deadline recovery cannot reuse the held motor base",
+             exact_deadline_recovery.follow_output_duty_permille, 0u);
+    CHECK_EQ("accepted recovery frame becomes the new trusted RX timestamp",
+             exact_deadline_recovery.vision_last_valid_ms, exact_deadline_ms);
+    car_run_block_reason_input_t exact_restart_gate{};
+    exact_restart_gate.startup_release_seen = 1u;
+    exact_restart_gate.vision_fresh_valid = 1u;
+    exact_restart_gate.reverse_reset_keep_ready = 1u;
+    exact_restart_gate.profile_output_permission = 1u;
+    exact_restart_gate.follow_mode_active = 1u;
+    exact_restart_gate.follow_session_active = 1u;
+    exact_restart_gate.follow_output_permission = 1u;
+    exact_restart_gate.manual_run_request = 1u;
+    exact_restart_gate.servo_output_active = 1u;
+    exact_restart_gate.servo_first_frame_ready = 0u;
+    CHECK_EQ("exact-deadline restart rejects the old frame-ready state",
+             car_run_block_reason_evaluate(&exact_restart_gate),
+             CAR_RUN_BLOCK_WAIT_SERVO_FIRST_FRAME);
+    exact_restart_gate.servo_first_frame_ready = 1u;
+    CHECK_EQ("exact-deadline restart still requires the normal motor ramp",
+             car_run_block_reason_evaluate(&exact_restart_gate),
+             CAR_RUN_BLOCK_RAMP_OR_OTHER_OUTPUT_GUARD);
+}
+
+void test_follow_visual_hold_comm_fault_and_manual_stop_priority()
+{
+    const car_config_t config = make_hold_follow_config();
+    car_control_t timed_out{};
+    enter_follow_visual_hold(&timed_out, &config, 100u, 1000u);
+    const uint32_t hold_entries = timed_out.vision_hold_entries;
+    const int16_t held_error = timed_out.vision_hold_error_norm;
+    const uint16_t held_sequence = timed_out.vision_hold_source_sequence;
+
+    car_inputs_t just_before_timeout = make_inputs(
+        timed_out.vision_hold_started_ms + 249u, false);
+    car_control_tick(&timed_out, &config, &just_before_timeout);
+    CHECK_EQ("249 ms without a transport frame remains below comm timeout",
+             timed_out.mode, CAR_MODE_FOLLOW_VISION_HOLD);
+    CHECK_EQ("249 ms no-frame interval still leaves hold active",
+             timed_out.vision_hold_active, 1u);
+    car_inputs_t comm_timeout = make_inputs(
+        timed_out.vision_hold_started_ms + 250u, false);
+    car_control_tick(&timed_out, &config, &comm_timeout);
+    CHECK_EQ("250 ms without any frame takes priority over 3 s line hold",
+             timed_out.fault, CAR_FAULT_VISION_TIMEOUT);
+    CHECK_EQ("250 ms communication timeout exits active hold",
+             timed_out.vision_hold_active, 0u);
+    CHECK_EQ("communication fault stops road output immediately",
+             timed_out.road_drive_allowed, 0u);
+    CHECK_EQ("communication fault does not erase the entry snapshot",
+             timed_out.vision_hold_entries, hold_entries);
+    CHECK_EQ("communication fault preserves source error for diagnosis",
+             timed_out.vision_hold_error_norm, held_error);
+    CHECK_EQ("communication fault preserves source sequence for diagnosis",
+             timed_out.vision_hold_source_sequence, held_sequence);
+
+    car_control_t manually_stopped{};
+    enter_follow_visual_hold(&manually_stopped, &config, 200u, 2000u);
+    const uint32_t stop_reset_generation =
+        manually_stopped.reverse_control_reset_generation;
+    const uint32_t stop_generation = manually_stopped.isr_switch_generation;
+    car_control_note_switch_release_isr(&manually_stopped);
+    CHECK_EQ("physical PE7 ISR advances the stop generation",
+             manually_stopped.isr_switch_generation, stop_generation + 1u);
+    CHECK_EQ("physical PE7 ISR closes Follow session before main-loop work",
+             manually_stopped.follow_session_active, 0u);
+    CHECK_EQ("physical PE7 ISR immediately revokes road permission",
+             manually_stopped.road_drive_allowed, 0u);
+    const car_fault_t stop_fault =
+        car_control_take_fast_stop_isr(&manually_stopped);
+    CHECK_EQ("PE7 stop is not replaced by a communication fault",
+             stop_fault, CAR_FAULT_SWITCH_RELEASE);
+    car_control_note_fault(&manually_stopped, stop_fault);
+    CHECK_EQ("manual PE7 stop wins over the remaining visual hold",
+             manually_stopped.mode, CAR_MODE_RECOVERY_WAIT);
+    CHECK_EQ("manual PE7 stop records the dedicated hold exit cause",
+             manually_stopped.vision_hold_exit_cause,
+             CAR_VISION_HOLD_EXIT_MANUAL_STOP);
+    CHECK_EQ("manual PE7 stop preserves the hold entry source error",
+             manually_stopped.vision_hold_error_norm, 545);
+    CHECK_EQ("manual PE7 stop preserves the hold entry timestamp",
+             manually_stopped.vision_hold_source_rx_ms, 2027u);
+    CHECK_EQ("manual PE7 stop leaves the published entry marker intact",
+             car_vision_hold_snapshot_entry, hold_entries);
+    CHECK_EQ("manual PE7 stop leaves the published target intact",
+             car_vision_hold_snapshot_target_us, 1900u);
+    CHECK_EQ("manual PE7 stop leaves the published applied pulse intact",
+             car_vision_hold_snapshot_applied_us, 1600u);
+    CHECK(manually_stopped.reverse_control_reset_generation >
+              stop_reset_generation,
+          "physical PE7 stop requests the existing reverse-cache resync");
 }
 
 void test_follow_valid_zero_keeps_transport_alive_without_session()
@@ -4917,23 +5230,41 @@ void test_runtime_log_hold_elapsed_does_not_emit_recovery()
     sample.recovery_frame_count = 0u;
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
 
-    sample.now_ms = 20u;
-    sample.vision_hold_elapsed_ms = 20u;
-    sample.recovery_frame_count = 4u; /* one elapsed hold tick, zero frames */
+    sample.now_ms = 50u;
+    sample.vision_hold_elapsed_ms = 50u;
+    sample.recovery_frame_count = car_runtime_log_pack_hold_progress(
+        sample.vision_hold_elapsed_ms, 0u);
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
-    CHECK_EQ("mode 12 hold timer alone does not append an event row",
-             car_runtime_log_storage.header.count, 1u);
+    CHECK_EQ("50 ms hold timer emits one periodic row", 
+             car_runtime_log_storage.header.count, 2u);
+    CHECK((car_runtime_log_storage.records[1].event_flags &
+           CAR_RUNTIME_LOG_EVENT_RECOVERY) == 0u,
+          "elapsed hold ticks alone do not look like route recovery");
+    CHECK((car_runtime_log_storage.records[1].event_flags &
+           CAR_RUNTIME_LOG_EVENT_PERIODIC) != 0u,
+          "mode 12 progress is sampled at the 50 ms production period");
 
-    sample.now_ms = 40u;
-    sample.vision_hold_elapsed_ms = 40u;
-    sample.recovery_frame_count = 9u; /* two ticks and one fresh frame */
+    sample.now_ms = 100u;
+    sample.vision_hold_elapsed_ms = 100u;
+    sample.recovery_frame_count = car_runtime_log_pack_hold_progress(
+        sample.vision_hold_elapsed_ms, 1u);
     sample.vision_hold_valid_count = 1u;
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
     CHECK_EQ("one valid recovery frame appends one event row",
-             car_runtime_log_storage.header.count, 2u);
-    CHECK((car_runtime_log_storage.records[1].event_flags &
+             car_runtime_log_storage.header.count, 3u);
+    CHECK((car_runtime_log_storage.records[2].event_flags &
            CAR_RUNTIME_LOG_EVENT_RECOVERY) != 0u,
           "hold recovery-frame change remains observable");
+
+    CHECK_EQ("2999 ms quantizes to the 59th 50 ms hold tick",
+             car_runtime_log_pack_hold_progress(2999u, 3u),
+             static_cast<uint8_t>((59u << 2u) | 3u));
+    CHECK_EQ("3000 ms quantizes to the 60th 50 ms hold tick",
+             car_runtime_log_pack_hold_progress(3000u, 2u),
+             static_cast<uint8_t>((60u << 2u) | 2u));
+    CHECK_EQ("hold log progress saturates at 3000 ms",
+             car_runtime_log_pack_hold_progress(0xFFFFFFFFu, 1u),
+             static_cast<uint8_t>((60u << 2u) | 1u));
 }
 
 void test_runtime_log_slope_flags_keep_fixed_record_abi()
@@ -4943,6 +5274,8 @@ void test_runtime_log_slope_flags_keep_fixed_record_abi()
     sample.button_start_event_count = 1u;
     sample.left_applied_permille = 507u;
     sample.right_applied_permille = 493u;
+    sample.vision_error_norm = 545;
+    sample.vision_sequence = 0x1234u;
     sample.motor_ccr2_counts = 507u;
     sample.motor_ccr3_counts = 493u;
     sample.vision_flags |= CAR_RUNTIME_LOG_VISION_LATEST_SLOPE_HINT |
@@ -4950,8 +5283,28 @@ void test_runtime_log_slope_flags_keep_fixed_record_abi()
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_FOLLOW);
     CHECK_EQ("fixed runtime record remains 64 bytes",
              sizeof(car_runtime_log_record_t), 64u);
+    CHECK_EQ("new runtime records use version 2",
+             CAR_RUNTIME_LOG_VERSION, 2u);
+    CHECK_EQ("production log period remains 50 ms",
+             CAR_RUNTIME_LOG_PERIOD_MS, 50u);
+    CHECK_EQ("ROM descriptor format remains version 1",
+             car_runtime_log_rom_descriptor.descriptor_version, 1u);
+    CHECK_EQ("ROM descriptor advertises runtime log version 2",
+             car_runtime_log_rom_descriptor.log_version, 2u);
+    CHECK_EQ("runtime header advertises version 2",
+             car_runtime_log_storage.header.version, 2u);
+    CHECK_EQ("runtime header keeps its existing 50 ms period",
+             car_runtime_log_storage.header.period_ms, 50u);
     CHECK_EQ("vision flags remain at their existing record byte",
              offsetof(car_runtime_log_record_t, vision_flags), 61u);
+    CHECK_EQ("latest RX error stays at offset 48 in version 2",
+             offsetof(car_runtime_log_record_t, vision_error_norm), 48u);
+    CHECK_EQ("latest RX sequence stays at offset 50 in version 2",
+             offsetof(car_runtime_log_record_t, vision_sequence), 50u);
+    CHECK_EQ("latest CRC-valid error remains independently serialized",
+             car_runtime_log_storage.records[0].vision_error_norm, 545);
+    CHECK_EQ("latest CRC-valid sequence remains independently serialized",
+             car_runtime_log_storage.records[0].vision_sequence, 0x1234u);
     CHECK_EQ("new diagnostic bits are copied into byte 61 unchanged",
              car_runtime_log_storage.records[0].vision_flags,
              sample.vision_flags);
@@ -4960,12 +5313,14 @@ void test_runtime_log_slope_flags_keep_fixed_record_abi()
     CHECK_EQ("right Follow output is serialized independently",
              car_runtime_log_storage.records[0].right_applied_permille, 493u);
 
-    sample.now_ms = 20u;
+    sample.now_ms = 50u;
     sample.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     sample.vision_hold_active = 1u;
     sample.vision_flags |= CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE;
-    sample.vision_hold_elapsed_ms = 20u;
-    sample.recovery_frame_count = 4u;
+    sample.vision_error_norm = 0;
+    sample.vision_sequence = 0x5678u;
+    sample.vision_hold_elapsed_ms = 50u;
+    sample.recovery_frame_count = car_runtime_log_pack_hold_progress(50u, 0u);
     sample.left_applied_permille = 486u;
     sample.right_applied_permille = 514u;
     sample.motor_ccr2_counts = 486u;
@@ -4974,12 +5329,16 @@ void test_runtime_log_slope_flags_keep_fixed_record_abi()
     CHECK((car_runtime_log_storage.records[1].vision_flags &
            CAR_RUNTIME_LOG_VISION_SLOPE_ASSIST_COMMANDED) != 0u,
           "hold record retains the inherited assist-command diagnostic");
+    CHECK_EQ("mode 12 keeps offset 48 as the latest invalid V1 error",
+             car_runtime_log_storage.records[1].vision_error_norm, 0);
+    CHECK_EQ("mode 12 keeps offset 50 as the latest V1 sequence",
+             car_runtime_log_storage.records[1].vision_sequence, 0x5678u);
     CHECK_EQ("second asymmetric pair remains left=486 in the fixed record",
              car_runtime_log_storage.records[1].left_applied_permille, 486u);
     CHECK_EQ("second asymmetric pair remains right=514 in the fixed record",
              car_runtime_log_storage.records[1].right_applied_permille, 514u);
 
-    sample.now_ms = 70u;
+    sample.now_ms = 100u;
     sample.mode = CAR_MODE_FOLLOW_RUNNING;
     sample.vision_hold_active = 0u;
     sample.vision_flags &= (uint8_t)~CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE;
@@ -5972,9 +6331,10 @@ bool emit_runtime_log_fixture(const char *path)
     sample.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     sample.vision_flags |= CAR_RUNTIME_LOG_VISION_HOLD_ACTIVE;
     sample.vision_hold_active = 1u;
-    sample.vision_hold_elapsed_ms = 640u;
+    sample.vision_hold_elapsed_ms = 3000u;
     sample.vision_hold_valid_count = 2u;
-    sample.recovery_frame_count = static_cast<uint8_t>((32u << 2u) | 2u);
+    sample.recovery_frame_count = car_runtime_log_pack_hold_progress(
+        sample.vision_hold_elapsed_ms, sample.vision_hold_valid_count);
     car_runtime_log_update(&sample, CAR_RUNTIME_LOG_SESSION_NONE);
 
     sample.now_ms = 0x00000023u;
@@ -6002,8 +6362,26 @@ bool emit_runtime_log_fixture(const char *path)
     const car_runtime_log_header_t &header = car_runtime_log_storage.header;
     if (header.state != CAR_RUNTIME_LOG_STATE_FROZEN || header.count != 3u ||
         header.start_ms != 0xFFFFFFF0u || header.stop_ms != 0x00000023u ||
-        header.stop_reason != CAR_RUNTIME_LOG_STOP_MANUAL_RELEASE) {
+        header.stop_reason != CAR_RUNTIME_LOG_STOP_MANUAL_RELEASE ||
+        header.version != 2u || header.period_ms != 50u ||
+        car_runtime_log_rom_descriptor.descriptor_version != 1u ||
+        car_runtime_log_storage.records[1].recovery_frame_count !=
+            static_cast<uint8_t>((60u << 2u) | 2u) ||
+        car_runtime_log_storage.records[1].vision_error_norm !=
+            sample.vision_error_norm ||
+        car_runtime_log_storage.records[1].vision_sequence != 8u ||
+        header.records_crc32 != car_runtime_log_crc32(
+            car_runtime_log_storage.records,
+            header.count * CAR_RUNTIME_LOG_RECORD_SIZE)) {
         std::printf("FAIL fixture logger did not freeze with expected rows\n");
+        return false;
+    }
+    car_runtime_log_header_t header_copy = header;
+    const uint32_t expected_header_crc = header_copy.header_crc32;
+    header_copy.header_crc32 = 0u;
+    if (expected_header_crc != car_runtime_log_crc32(
+            &header_copy, CAR_RUNTIME_LOG_HEADER_SIZE)) {
+        std::printf("FAIL fixture logger version-2 header CRC mismatch\n");
         return false;
     }
     const size_t length = CAR_RUNTIME_LOG_HEADER_SIZE +
@@ -6105,6 +6483,8 @@ int main(int argc, char **argv)
              test_follow_visual_hold_requires_real_outputs_and_full_recovery);
     run_case("follow_hold_exact_deadline_transport",
              test_follow_visual_hold_exact_deadline_and_transport_split);
+    run_case("follow_hold_comm_fault_and_manual_stop",
+             test_follow_visual_hold_comm_fault_and_manual_stop_priority);
     run_case("follow_valid0_transport_idle_no_reset",
              test_follow_valid_zero_keeps_transport_alive_without_session);
     run_case("uart_split_timeout", test_uart_fragment_gap_and_exact_partial_timeout);

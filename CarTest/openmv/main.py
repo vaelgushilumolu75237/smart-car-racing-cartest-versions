@@ -75,13 +75,274 @@ SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "CONTOUR_ARRAYFIX_20261016"
+CACHED_WIDTH_BUILD_ID = "AGGRESSIVE_TURN_20261016"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
     ("cached_width", CACHED_WIDTH_BUILD_ID),
     ("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),
 )
+
+
+class _SteeringDiagBuffer:
+    """Fixed-size RAM trace retained after the camera loop returns."""
+
+    CAPACITY = 128
+    RECORD_SIZE = 32
+    _CSV_HEADER = (
+        "sequence,capture_ms,send_ms,valid,full_write,write_error,"
+        "reverse_fresh,position_norm,preview_candidate_norm,"
+        "preview_applied_norm,sent_error_norm,raw_control_norm,"
+        "filtered_error_norm,reference_error_norm,row_count,source_code,"
+        "reverse_generation")
+
+    def __init__(self):
+        self.data = bytearray(self.CAPACITY * self.RECORD_SIZE)
+        self.write_index = 0
+        self.count = 0
+        self.overwritten = 0
+        self.record_errors = 0
+        self.frozen = False
+        self.last_full_valid = False
+
+    def rearm(self):
+        self.write_index = 0
+        self.count = 0
+        self.overwritten = 0
+        self.record_errors = 0
+        self.frozen = False
+        self.last_full_valid = False
+
+    @staticmethod
+    def _put_u16(data, offset, value):
+        if not isinstance(value, int) or isinstance(value, bool):
+            value = 0
+        value &= 0xFFFF
+        data[offset] = value & 0xFF
+        data[offset + 1] = (value >> 8) & 0xFF
+
+    @staticmethod
+    def _put_i16(data, offset, value):
+        if not isinstance(value, int) or isinstance(value, bool):
+            value = 0
+        if value < -32768:
+            value = -32768
+        elif value > 32767:
+            value = 32767
+        if value < 0:
+            value += 0x10000
+        data[offset] = value & 0xFF
+        data[offset + 1] = (value >> 8) & 0xFF
+
+    @staticmethod
+    def _put_u32(data, offset, value):
+        if not isinstance(value, int) or isinstance(value, bool):
+            value = 0
+        value &= 0xFFFFFFFF
+        data[offset] = value & 0xFF
+        data[offset + 1] = (value >> 8) & 0xFF
+        data[offset + 2] = (value >> 16) & 0xFF
+        data[offset + 3] = (value >> 24) & 0xFF
+
+    def record(self, frame, full_write, write_error, reverse_fresh,
+               capture_ms, send_ms, position, preview_candidate,
+               preview_applied, raw_control, filtered_error,
+               reference_error, row_count, source_code,
+               reverse_generation):
+        if self.frozen or frame is None or len(frame) < 10:
+            return False
+
+        offset = self.write_index * self.RECORD_SIZE
+        data = self.data
+        sequence = frame[4] | (frame[5] << 8)
+        actual_valid = bool(frame[6] & vision_protocol.FLAG_VALID)
+        sent_error = frame[8] | (frame[9] << 8)
+        if sent_error & 0x8000:
+            sent_error -= 0x10000
+
+        self._put_u16(data, offset, sequence)
+        flags = 1 if actual_valid else 0
+        if full_write:
+            flags |= 2
+        if write_error:
+            flags |= 4
+        if reverse_fresh:
+            flags |= 8
+        data[offset + 2] = flags
+        data[offset + 3] = 0
+        self._put_u32(data, offset + 4, capture_ms)
+        self._put_u32(data, offset + 8, send_ms)
+        self._put_i16(data, offset + 12, position)
+        self._put_i16(data, offset + 14, preview_candidate)
+        self._put_i16(data, offset + 16, preview_applied)
+        self._put_i16(data, offset + 18, sent_error)
+        self._put_i16(data, offset + 20, raw_control)
+        self._put_i16(data, offset + 22, filtered_error)
+        self._put_i16(data, offset + 24, reference_error)
+        if not isinstance(row_count, int) or isinstance(row_count, bool):
+            row_count = 0
+        if row_count < 0:
+            row_count = 0
+        elif row_count > 255:
+            row_count = 255
+        data[offset + 26] = row_count
+        if not isinstance(source_code, int) or isinstance(source_code, bool):
+            source_code = 0
+        if source_code < 0 or source_code > 5:
+            source_code = 0
+        data[offset + 27] = source_code
+        self._put_u32(data, offset + 28, reverse_generation)
+
+        if self.count < self.CAPACITY:
+            self.count += 1
+        else:
+            self.overwritten += 1
+        self.write_index += 1
+        if self.write_index >= self.CAPACITY:
+            self.write_index = 0
+
+        # Only successful complete UART writes participate in the transition.
+        # A first full invalid packet and any short/error write leave it armed.
+        if full_write and not write_error:
+            if actual_valid:
+                self.last_full_valid = True
+            elif self.last_full_valid:
+                self.last_full_valid = False
+                self.frozen = True
+        return True
+
+    @staticmethod
+    def _u16(data, offset):
+        return data[offset] | (data[offset + 1] << 8)
+
+    @staticmethod
+    def _i16(data, offset):
+        value = data[offset] | (data[offset + 1] << 8)
+        return value - 0x10000 if value & 0x8000 else value
+
+    @staticmethod
+    def _u32(data, offset):
+        return (data[offset] | (data[offset + 1] << 8) |
+                (data[offset + 2] << 16) |
+                (data[offset + 3] << 24))
+
+    def dump(self, build_id):
+        data = self.data
+        print("STEERING_DIAG_BEGIN build=%s format=1 capacity=128 "
+              "record_size=32 ticks_period_ms=%d count=%d frozen=%d "
+              "overwritten=%d record_errors=%d" % (
+                  build_id, _STEERING_DIAG_TICKS_PERIOD_MS, self.count,
+                  1 if self.frozen else 0, self.overwritten,
+                  self.record_errors))
+        print(self._CSV_HEADER)
+        oldest = self.write_index - self.count
+        if oldest < 0:
+            oldest += self.CAPACITY
+        for record_index in range(self.count):
+            slot = oldest + record_index
+            if slot >= self.CAPACITY:
+                slot -= self.CAPACITY
+            offset = slot * self.RECORD_SIZE
+            flags = data[offset + 2]
+            print("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (
+                self._u16(data, offset),
+                self._u32(data, offset + 4),
+                self._u32(data, offset + 8),
+                flags & 1,
+                (flags >> 1) & 1,
+                (flags >> 2) & 1,
+                (flags >> 3) & 1,
+                self._i16(data, offset + 12),
+                self._i16(data, offset + 14),
+                self._i16(data, offset + 16),
+                self._i16(data, offset + 18),
+                self._i16(data, offset + 20),
+                self._i16(data, offset + 22),
+                self._i16(data, offset + 24),
+                data[offset + 26], data[offset + 27],
+                self._u32(data, offset + 28)))
+        print("STEERING_DIAG_END")
+
+
+def _make_steering_diag(enabled):
+    if enabled is True:
+        return _SteeringDiagBuffer()
+    return None
+
+
+def _ticks_period_ms(time_module):
+    ticks_add = getattr(time_module, "ticks_add", None)
+    if not callable(ticks_add):
+        return 0
+    try:
+        period = ticks_add(0, -1) + 1
+    except Exception:
+        return 0
+    if not isinstance(period, int) or isinstance(period, bool) or period <= 0:
+        return 0
+    return period
+
+
+def _steering_diag_source_code(source):
+    if source == "road":
+        return 1
+    if source == "single_left":
+        return 2
+    if source == "single_right":
+        return 3
+    if source == "ring_left":
+        return 4
+    if source == "ring_right":
+        return 5
+    return 0
+
+
+_STEERING_DIAG = _make_steering_diag(
+    getattr(config, "STEERING_DIAG_ENABLED", False))
+_STEERING_DIAG_TICKS_PERIOD_MS = (
+    _ticks_period_ms(time) if _STEERING_DIAG is not None else 0)
+
+
+def steering_diag_dump():
+    """Print retained frames after stopping the camera script at the REPL."""
+    if _STEERING_DIAG is None:
+        print("STEERING_DIAG_DISABLED build=%s enabled=0" % config.BUILD_ID)
+        return False
+    _STEERING_DIAG.dump(config.BUILD_ID)
+    return True
+
+
+def steering_diag_rearm():
+    """Clear diagnostic metadata after the camera script has been stopped."""
+    if _STEERING_DIAG is None:
+        print("STEERING_DIAG_DISABLED build=%s enabled=0" % config.BUILD_ID)
+        return False
+    _STEERING_DIAG.rearm()
+    return True
+
+
+# SINGLE_EDGE_EXT_DIAG_BEGIN
+def single_edge_diag_dump():
+    """Print aggregate single-edge counters after stopping the camera loop."""
+    tracker = (fast_single_edge.last_tracker()
+               if fast_single_edge is not None else None)
+    if tracker is None:
+        print("SINGLE_EDGE_EXT_DIAG_UNAVAILABLE build=%s" % config.BUILD_ID)
+        return False
+    return tracker.dump_extended_diagnostics(config.BUILD_ID)
+
+
+def single_edge_diag_rearm():
+    """Reset single-edge counters without changing tracker or camera state."""
+    tracker = (fast_single_edge.last_tracker()
+               if fast_single_edge is not None else None)
+    if tracker is None:
+        print("SINGLE_EDGE_EXT_DIAG_UNAVAILABLE build=%s" % config.BUILD_ID)
+        return False
+    return tracker.rearm_extended_diagnostics()
+# SINGLE_EDGE_EXT_DIAG_END
+
+
 _V6_RUNTIME_MODULES = ()
 _V7_RUNTIME_MODULES = ()
 _SINGLEEDGE_RUNTIME_MODULES = ()
@@ -1256,6 +1517,8 @@ def _validate_v7_runtime_apis():
 
 def _validate_fast_config():
     _validate_v7_runtime_apis()
+    if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
+        raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     contour_enabled = getattr(config, "CONTOUR_RECOVERY_ENABLED", None)
     if not isinstance(contour_enabled, bool):
         raise ValueError("V7 CONTOUR_RECOVERY_ENABLED must be bool")
@@ -2373,7 +2636,8 @@ _V7_PERF_STAGES = (
     "capture", "masks", "path_topology", "contour", "boundary", "ring",
     "row_weight",
     "reference_filter",
-    "pack_uart", "capture_to_send", "overlay", "preview_flush", "debug",
+    "pack_uart", "capture_to_send", "diag_trace", "overlay",
+    "preview_flush", "debug",
     "summary_log", "gc", "total_cycle",
 )
 
@@ -2835,6 +3099,7 @@ def _main_fast(duration_s=None, run_id=0):
                     previous_reference_x = None
             raise
         capture_end_us = time.ticks_us()
+        single_edge_tracker.begin_frame()
         capture_us = time.ticks_diff(capture_end_us, capture_start_us)
         capture_end_ms = time.ticks_ms()
         capture_interrupted = False
@@ -3071,6 +3336,9 @@ def _main_fast(duration_s=None, run_id=0):
                     "reason": single_diagnostic_reason,
                     "source": "NONE",
                 }
+
+        if single_candidate is None:
+            single_edge_tracker.skip_frame(single_diagnostic_reason)
 
         bilateral_cache_candidate = _approved_bilateral_cache_candidate(
             selection, road_result, boundary_reference, mask_info)
@@ -3341,6 +3609,58 @@ def _main_fast(duration_s=None, run_id=0):
         send_end_us = time.ticks_us()
         pack_uart_us = time.ticks_diff(send_end_us, pack_start_us)
         capture_to_send_us = time.ticks_diff(send_end_us, cycle_start_us)
+        # STEERING_DIAG_TRACE_BEGIN
+        diag_trace_us = 0
+        if _STEERING_DIAG is not None and write_attempts:
+            send_end_ms = time.ticks_ms()
+            diag_trace_start_us = time.ticks_us()
+            try:
+                diag_source = selection.get("source", "NONE")
+                if diag_source == "NONE":
+                    diag_source = selection.get("rejected_source", "NONE")
+                diag_source_code = _steering_diag_source_code(diag_source)
+                diag_row_count = 0
+                if diag_source == "road":
+                    diag_row_count = road_result.get(
+                        "selected_row_count", 0)
+                elif diag_source in ("single_left", "single_right"):
+                    diag_result = selection.get("result")
+                    if diag_result is None:
+                        diag_result = single_candidate
+                    if diag_result is not None:
+                        diag_row_count = diag_result.get(
+                            "selected_row_count", 0)
+                elif (diag_source == "ring_left" or
+                      diag_source == "ring_right") and \
+                        ring_candidate is not None:
+                    diag_row_count = ring_candidate.get(
+                        "path_row_count", 0)
+                diag_reference_error = 0
+                if reference is not None:
+                    diag_reference_error = weight_info.get(
+                        "reference_error")
+                    if diag_reference_error is None:
+                        diag_reference_error = 0
+                diag_was_frozen = _STEERING_DIAG.frozen
+                _STEERING_DIAG.record(
+                    packet, full_write, write_error is not None,
+                    reverse_fresh, capture_end_ms, send_end_ms,
+                    weight_info.get("position_error", 0),
+                    weight_info.get("preview_candidate", 0),
+                    weight_info.get("heading_contribution", 0),
+                    raw_error, filtered_error, diag_reference_error,
+                    diag_row_count, diag_source_code, reverse_generation)
+                if not diag_was_frozen and _STEERING_DIAG.frozen:
+                    single_edge_tracker.freeze_diagnostic_snapshot()
+            except Exception:
+                # Diagnostics must never interrupt frame processing or UART.
+                try:
+                    _STEERING_DIAG.record_errors += 1
+                except Exception:
+                    pass
+            diag_trace_us = time.ticks_diff(
+                time.ticks_us(), diag_trace_start_us)
+        # STEERING_DIAG_TRACE_END
         sequence_sent = sequence
         sequence = (sequence + 1) & 0xFFFF
         if write_error is not None:
@@ -3564,6 +3884,7 @@ def _main_fast(duration_s=None, run_id=0):
                                                           reference_start_us))
         perf.record("pack_uart", pack_uart_us)
         perf.record("capture_to_send", capture_to_send_us)
+        perf.record("diag_trace", diag_trace_us)
         perf.record("overlay", overlay_us)
         perf.record("preview_flush", preview_flush_us)
         perf.record("debug", debug_us)

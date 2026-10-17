@@ -1,0 +1,133 @@
+{
+  "active_source_sha256": {
+    "boundary": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+    "config": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
+    "gray": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+    "main": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
+    "path": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
+    "protocol": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+    "topology": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8"
+  },
+  "active_v7_modules": [
+    "main.py",
+    "config.py",
+    "fast_gray.py",
+    "fast_topology.py",
+    "fast_path.py",
+    "fast_boundary.py",
+    "vision_protocol.py"
+  ],
+  "bench_acceptance": "PENDING; three 60-second desk and three 60-second synthetic full-loop runs",
+  "build_id": "SIXTH_V7_FAST_GRAY_RT45_20261005",
+  "release_status": "BENCHMARK_SOURCE_FROZEN_ACCEPTANCE_PENDING",
+  "runtime_api_version": 7,
+  "schema_version": 1,
+  "source_file_count": 15,
+  "source_files": [
+    {
+      "name": "adaptive_detector.py",
+      "sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+      "size_bytes": 44071
+    },
+    {
+      "name": "boundary_evidence.py",
+      "sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+      "size_bytes": 18818
+    },
+    {
+      "name": "config.py",
+      "sha256": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
+      "size_bytes": 14095
+    },
+    {
+      "name": "fast_boundary.py",
+      "sha256": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+      "size_bytes": 48574
+    },
+    {
+      "name": "fast_gray.py",
+      "sha256": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+      "size_bytes": 29919
+    },
+    {
+      "name": "fast_path.py",
+      "sha256": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
+      "size_bytes": 41226
+    },
+    {
+      "name": "fast_topology.py",
+      "sha256": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8",
+      "size_bytes": 42030
+    },
+    {
+      "name": "grayscale_adapter.py",
+      "sha256": "BC5858238069C09BB3C06BBA3986DB7754CDE63233D33694459C51E8207A7867",
+      "size_bytes": 7589
+    },
+    {
+      "name": "line_detector.py",
+      "sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+      "size_bytes": 11979
+    },
+    {
+      "name": "main.py",
+      "sha256": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
+      "size_bytes": 79817
+    },
+    {
+      "name": "road_detector.py",
+      "sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+      "size_bytes": 26649
+    },
+    {
+      "name": "source_selector.py",
+      "sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+      "size_bytes": 8802
+    },
+    {
+      "name": "surface_detector.py",
+      "sha256": "85BE03658E9709606A0538179159174C3BD06870796D3B826EF7CCAF290ED44B",
+      "size_bytes": 42567
+    },
+    {
+      "name": "thresholding.py",
+      "sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+      "size_bytes": 12363
+    },
+    {
+      "name": "vision_protocol.py",
+      "sha256": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+      "size_bytes": 2601
+    }
+  ],
+  "source_sha256": {
+    "boundary": "90F29049074CD16EE2F1C5C9979323BC45860FCBC08444119A043A9E317441A1",
+    "config": "902BEC893D55FB163E63D9DE5849105606CE995D286C1D5E668A3C837B01639E",
+    "gray": "94451601CADD9B94A951B0DC47BE26B0F3189E61BDC3EAF182F57B325345512B",
+    "main": "7FDFBF6CF0F3567E0B5F03AFC2A3A49EBA3CEC3944D352C42C1E06A9CDC7406B",
+    "path": "68E679A1A4304DA0961E6729BC51BD6395FA68F12EA377E9708A268764ADB608",
+    "protocol": "86D80C5A81940B54175E056C085167BAA4D2F13749E3C2F77EEB7F73671FEF83",
+    "topology": "218AC677002290C055A813414FE306B0C4FA3838B3B93AE788A925EA189751E8"
+  },
+  "zip_entries": [
+    "adaptive_detector.py",
+    "boundary_evidence.py",
+    "config.py",
+    "fast_boundary.py",
+    "fast_gray.py",
+    "fast_path.py",
+    "fast_topology.py",
+    "grayscale_adapter.py",
+    "line_detector.py",
+    "main.py",
+    "road_detector.py",
+    "source_selector.py",
+    "surface_detector.py",
+    "thresholding.py",
+    "vision_protocol.py"
+  ],
+  "zip_file": "OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
+  "zip_manifest_embedded": false,
+  "zip_sha256": "80E8F2C900B212DB1AD866CE6F823008658CAFFDF8F218F416B3819766CB960F",
+  "zip_size_bytes": 98307
+}

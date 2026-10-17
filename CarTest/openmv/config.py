@@ -24,7 +24,8 @@ OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "CONTOUR_ARRAYFIX_20261016"
+BUILD_ID = "AGGRESSIVE_TURN_20261016"
+STEERING_DIAG_ENABLED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
@@ -201,11 +202,14 @@ FAST_PATH_REFERENCE_MAX_GAP = 4.0
 # Single-boundary steering is permitted only after this run has established
 # per-row width/edge anchors from a fully accepted bilateral observation and
 # the independent reverse-control stream is fresh. Values are grid cells.
-SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 10.0
+SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 16.0
 SINGLE_EDGE_AMBIGUITY_MARGIN_CELLS = 2.0
 SINGLE_EDGE_AMBIGUITY_SEPARATION_CELLS = 4.0
-SINGLE_EDGE_MIN_ROWS = 8
-SINGLE_EDGE_MIN_SPAN = 12
+SINGLE_EDGE_MIN_ROWS = 5
+SINGLE_EDGE_MIN_SPAN = 6
+SINGLE_EDGE_MAX_MISSING_ROWS = 3
+# Short chains remain valid but are marked weak in their result metadata.
+SINGLE_EDGE_WEAK_SUPPORT_ROWS = 8
 SINGLE_EDGE_REFERENCE_MAX_GAP = 4
 
 # The hand-held practice surface is a bright corridor between dark-blue areas.
