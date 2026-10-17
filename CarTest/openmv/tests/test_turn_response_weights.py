@@ -9,6 +9,7 @@ import types
 import unittest
 from array import array
 from pathlib import Path
+from unittest.mock import patch
 
 
 OPENMV_DIR = Path(__file__).resolve().parents[1]
@@ -81,7 +82,7 @@ class TurnResponseWeightTests(unittest.TestCase):
 
     def test_new_package_identity_and_full_frame_split(self):
         self.assertEqual(config.BUILD_ID,
-                         "AGGRESSIVE_TURN_20261016")
+                         "AGGRESSIVE_TURN_POS_ONLY_20261017")
         self.assertEqual(config.SURFACE_ROI_FLOOR_Y, 8)
         self.assertEqual(config.STEERING_SPLIT_IMAGE_Y, 36)
         self.assertEqual(config.STEERING_SPLIT_GRID_Y, 18)
@@ -95,9 +96,24 @@ class TurnResponseWeightTests(unittest.TestCase):
             (0, 8, 80, 20), (0, 20, 80, 32),
             (0, 32, 80, 46), (0, 46, 80, 60)))
         self.assertEqual(main.SINGLEEDGE_ROUTE_BUILD_IDS, (
-            ("cached_width", "AGGRESSIVE_TURN_20261016"),
+            ("cached_width", "AGGRESSIVE_TURN_POS_ONLY_20261017"),
             ("clipped_midpoint", "CLIPPED_MIDPOINT_RING_20261014")))
         self.assertTrue(main._validate_fast_config())
+
+    def test_position_only_switch_requires_a_boolean(self):
+        with patch.object(config, "ORDINARY_PREVIEW_CONTROL_ENABLED", None):
+            with self.assertRaisesRegex(ValueError,
+                                        "ORDINARY_PREVIEW_CONTROL_ENABLED"):
+                main._validate_fast_config()
+
+        configured = config.ORDINARY_PREVIEW_CONTROL_ENABLED
+        delattr(config, "ORDINARY_PREVIEW_CONTROL_ENABLED")
+        try:
+            with self.assertRaisesRegex(
+                    ValueError, "ORDINARY_PREVIEW_CONTROL_ENABLED"):
+                main._validate_fast_config()
+        finally:
+            config.ORDINARY_PREVIEW_CONTROL_ENABLED = configured
 
     def test_actual_gray_builder_and_path_accept_upper_rows_from_new_roi(self):
         masks = fast_gray.FastGrayMasks(config).build(_corridor_image())

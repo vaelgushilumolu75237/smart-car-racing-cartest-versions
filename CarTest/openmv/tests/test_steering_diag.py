@@ -205,6 +205,9 @@ class SteeringDiagBufferTests(unittest.TestCase):
             return info
 
         output = io.StringIO()
+        def force_preview_candidate(workspace, *_args):
+            workspace.info["preview_candidate"] = 400
+            workspace.info["preview_valid"] = True
         with patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", fake_sensor), \
                 patch.object(main, "time", fake_time), \
@@ -226,6 +229,9 @@ class SteeringDiagBufferTests(unittest.TestCase):
                                  slope_hint=0)), \
                 patch.object(main._FastRowWeightWorkspace, "aggregate",
                              new=capture_weight_output), \
+                patch.object(main._FastRowWeightWorkspace,
+                             "_compute_road_preview",
+                             new=force_preview_candidate), \
                 patch.object(main.pyb, "UART", return_value=uart,
                              create=True), \
                 patch.object(main, "_validate_selected_fast_boundary",
@@ -249,6 +255,9 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertEqual(diag.record_errors, 0)
         self.assertEqual(main_harness._SingleEdgeTracker.freeze_calls, 1)
         self.assertGreaterEqual(len(row_weight_outputs), 3)
+        self.assertTrue(all(applied == 0 and steering == position
+                            for position, _candidate, applied, steering
+                            in row_weight_outputs))
         first = diag.data
         self.assertEqual(main._SteeringDiagBuffer._i16(first, 12),
                          row_weight_outputs[0][0])
@@ -258,13 +267,17 @@ class SteeringDiagBufferTests(unittest.TestCase):
                          row_weight_outputs[0][2])
         self.assertEqual(main._SteeringDiagBuffer._i16(first, 20),
                          row_weight_outputs[0][3])
-        sent_error = uart.frames[0][8] | (uart.frames[0][9] << 8)
-        if sent_error & 0x8000:
-            sent_error -= 0x10000
+        packet_filtered_error = uart.frames[0][8] | (uart.frames[0][9] << 8)
+        if packet_filtered_error & 0x8000:
+            packet_filtered_error -= 0x10000
+        # The first accepted observation initializes the existing filter from
+        # the position-only raw control. Check the actual UART payload as well
+        # as the RAM trace fields populated from that same packet.
+        self.assertEqual(packet_filtered_error, row_weight_outputs[0][3])
         self.assertEqual(main._SteeringDiagBuffer._i16(first, 18),
-                         sent_error)
+                         packet_filtered_error)
         self.assertEqual(main._SteeringDiagBuffer._i16(first, 22),
-                         sent_error)
+                         packet_filtered_error)
 
     def test_real_main_counts_diag_failure_and_keeps_sending(self):
         main._load_fast_runtime()
@@ -322,7 +335,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         if baseline:
             return source
         source = source.replace(
-            "AGGRESSIVE_TURN_20261016", "CONTOUR_ARRAYFIX_20261016")
+            "AGGRESSIVE_TURN_POS_ONLY_20261017",
+            "CONTOUR_ARRAYFIX_20261016")
         extension_start = source.index("# SINGLE_EDGE_EXT_DIAG_BEGIN")
         extension_end = source.index("# SINGLE_EDGE_EXT_DIAG_END",
                                      extension_start)
@@ -352,6 +366,61 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             '')
         return source
 
+    @staticmethod
+    def _normalize_position_only_changes(current, baseline):
+        """Remove the intentional profile/diagnostic delta before AST compare."""
+        current = current.replace(
+            '                _compose_ordinary_steering_error(\n'
+            '                    info["position_error"], info["preview_candidate"],\n'
+            '                    getattr(settings, "ORDINARY_PREVIEW_CONTROL_ENABLED", False))',
+            '                _compose_ordinary_steering_error(\n'
+            '                    info["position_error"], info["preview_candidate"])')
+        current = current.replace(
+            '    if not isinstance(getattr(config, "ORDINARY_PREVIEW_CONTROL_ENABLED", None),\n'
+            '                      bool):\n'
+            '        raise ValueError(\n'
+            '            "V7 ORDINARY_PREVIEW_CONTROL_ENABLED must be bool")\n',
+            '')
+
+        def replace_function(source, reference, name):
+            marker = "def " + name + "("
+            start = source.index(marker)
+            end = source.find("\ndef ", start + len(marker))
+            if end < 0:
+                end = len(source)
+            ref_start = reference.index(marker)
+            ref_end = reference.find("\ndef ", ref_start + len(marker))
+            if ref_end < 0:
+                ref_end = len(reference)
+            return source[:start] + reference[ref_start:ref_end] + source[end:]
+
+        # The helper and overlay are the two intentionally changed functions;
+        # their behavior has focused tests above, while this check protects
+        # the rest of the vision algorithm from unrelated edits.
+        current = replace_function(
+            current, baseline, "_compose_ordinary_steering_error")
+        current = replace_function(
+            current, baseline, "_build_gray_overlay_text_cache")
+        current = current.replace(
+            'detail_text=%dms preview=per_frame ordinary_preview=%s "\n'
+            '          "uart=3@115200/8N1 exposure_us=%s ',
+            'detail_text=%dms preview=per_frame uart=3@115200/8N1 exposure_us=%s ')
+        current = current.replace(
+            '              ("on" if getattr(config,\n'
+            '                               "ORDINARY_PREVIEW_CONTROL_ENABLED", False)\n'
+            '               else "off"),\n',
+            '')
+        current = current.replace(
+            'preview_mode=%s preview=%+d preview_candidate=%+d bend=%.2f ',
+            'preview=%+d preview_candidate=%+d bend=%.2f ')
+        current = current.replace(
+            '                      "DISABLED", slope_hint,\n'
+            '                      ("ON" if getattr(\n'
+            '                          config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)\n'
+            '                       else "OFF"),\n',
+            '                      "DISABLED", slope_hint,\n')
+        return current
+
     def test_vision_algorithm_ast_matches_baseline_after_diag_and_build_changes(self):
         baseline_main = (BASELINE_DIR / "main.py").read_text(encoding="utf-8")
         current_main = (OPENMV_DIR / "main.py").read_text(encoding="utf-8")
@@ -360,7 +429,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         current_config = (OPENMV_DIR / "config.py").read_text(
             encoding="utf-8")
         current_config = current_config.replace(
-            'BUILD_ID = "AGGRESSIVE_TURN_20261016"',
+            'BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"',
             'BUILD_ID = "CONTOUR_ARRAYFIX_20261016"')
         current_config = current_config.replace(
             "SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 16.0",
@@ -375,7 +444,11 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "SINGLE_EDGE_WEAK_SUPPORT_ROWS = 8\n", "")
         current_config = current_config.replace(
             "STEERING_DIAG_ENABLED = True\n", "")
+        current_config = current_config.replace(
+            "ORDINARY_PREVIEW_CONTROL_ENABLED = False\n", "")
         current_main = self._normalized_source(current_main)
+        current_main = self._normalize_position_only_changes(
+            current_main, baseline_main)
         self.assertEqual(
             ast.dump(ast.parse(current_main), include_attributes=False),
             ast.dump(ast.parse(baseline_main), include_attributes=False))

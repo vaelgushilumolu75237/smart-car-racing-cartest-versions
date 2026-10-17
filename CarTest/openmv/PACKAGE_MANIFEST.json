@@ -1,10 +1,10 @@
 {
-  "schema_version": 6,
-  "package_id": "AGGRESSIVE_TURN_20261016",
-  "build_id": "AGGRESSIVE_TURN_20261016",
+  "schema_version": 7,
+  "package_id": "POSITION_ONLY_PREVIEW_20261017",
+  "build_id": "AGGRESSIVE_TURN_POS_ONLY_20261017",
   "release_status": "SOFTWARE_TESTED_VEHICLE_VALIDATION_PENDING",
   "delivery_date": "2026-10-17",
-  "git_tag": "v20261017-aggressive-turn",
+  "git_tag": "v20261017-position-only",
   "route_mode": "cached_width",
   "runtime_api": {
     "v7_fast_pipeline": 7,
@@ -22,6 +22,7 @@
       "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
       "before_edit_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 13987,
       "compiled_sha256": "c2c1d06aa7c37fd88c12489a241c43a1265a0b833b6528f775152dd767648b12"
     },
     {
@@ -30,15 +31,17 @@
       "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
       "before_edit_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 5745,
       "compiled_sha256": "612380a1f961fbc5f43444366c86ed0e27da523e4bfcfe174d8ce5b92cb2bf60"
     },
     {
       "name": "config.py",
-      "size_bytes": 15891,
-      "sha256": "ba4d4532e763d773ec31e220166af0cf98addff689b340e928aef02e4d221f5b",
-      "before_edit_sha256": "8c04916923374f39123c586071d52bb92651e7d4dcefc9ac0f27369f0728f649",
+      "size_bytes": 16148,
+      "sha256": "fe2c9731df292e65ca664e4e0c9b4b750c3ced88ed3e075a2796c46d3c35c204",
+      "before_edit_sha256": "ba4d4532e763d773ec31e220166af0cf98addff689b340e928aef02e4d221f5b",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "77a407c8b954051044cf28c1f3244bdc7ec0a67a1ad7cd775f8f16f747f88eb8"
+      "compiled_size_bytes": 9330,
+      "compiled_sha256": "e4868b28c89029dbb134448cf9770589f6c724e31a7cb827befe1d4c9965d327"
     },
     {
       "name": "contour_route.py",
@@ -46,6 +49,7 @@
       "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
       "before_edit_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 8438,
       "compiled_sha256": "88809dc9fdc8e8252c8d82bad6d3b0adc75b8cdfaccf5c939347c5a4b2f44f34"
     },
     {
@@ -54,6 +58,7 @@
       "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
       "before_edit_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 10598,
       "compiled_sha256": "c5d26da51018bea96810b76c00a41a93924778d8e8bab7a0050e943478099b93"
     },
     {
@@ -62,6 +67,7 @@
       "sha256": "c569c82f52dd7d81b8d77c665b1b847be711c7439b21e9ab7901a81dd3b5e3f3",
       "before_edit_sha256": "c569c82f52dd7d81b8d77c665b1b847be711c7439b21e9ab7901a81dd3b5e3f3",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 28464,
       "compiled_sha256": "cd7fa19056c5fc866e16d42cd49664eaa7cee5b0f2ecf69682bbc2df4687dfb2"
     },
     {
@@ -70,6 +76,7 @@
       "sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
       "before_edit_sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 14063,
       "compiled_sha256": "84efc4a383c9954e2aecde5cee99825dff1bd2b4bfa7b3f3690df53c277e675c"
     },
     {
@@ -78,6 +85,7 @@
       "sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
       "before_edit_sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 23240,
       "compiled_sha256": "c1769afe6b31952a21ce16b8160e7bf9346d994be09462c9969420421a4b55a5"
     },
     {
@@ -86,14 +94,16 @@
       "sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
       "before_edit_sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 20813,
       "compiled_sha256": "98b0bb4c2e137719e6f77e455c62f418f232eb8f6b67eda9e74b0e7ddcf30d0e"
     },
     {
       "name": "fast_single_edge.py",
       "size_bytes": 69877,
       "sha256": "287c308b4074c3075b66e2dd5d6d28c5c13625a5f7ea6b27b691ab12385397ac",
-      "before_edit_sha256": "9f6a2f709ce2636aac73025e2ffb40088575b87aadbe803cb971723d124f25e2",
+      "before_edit_sha256": "287c308b4074c3075b66e2dd5d6d28c5c13625a5f7ea6b27b691ab12385397ac",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 39188,
       "compiled_sha256": "e4d3f10984a5c37635e1180e80c36f831369128e3c79fe332809bed035131ca8"
     },
     {
@@ -102,6 +112,7 @@
       "sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
       "before_edit_sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 14981,
       "compiled_sha256": "583a0ddcb3fb871027ade81aface808b2ecfa00f7b1b3b96c9e872dc16282ecc"
     },
     {
@@ -110,6 +121,7 @@
       "sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
       "before_edit_sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 2242,
       "compiled_sha256": "50aa7ca0dd492aa8c2a0374a332adcb818911ad211e5cc2de33dfa19d0dda15f"
     },
     {
@@ -118,15 +130,17 @@
       "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
       "before_edit_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 4137,
       "compiled_sha256": "2cc54e254be81a66410b7579eb50d2cdc1bb9acc2308fdd388af6934422482ae"
     },
     {
       "name": "main.py",
-      "size_bytes": 173896,
-      "sha256": "8e8fb75d466f7f9c6308477e914f9287802c25fbaea2ae6b22aab52a6866dbad",
-      "before_edit_sha256": "db86de5e88045377e2b81af1a047ce9016c034bc0fd3cdeb78be3d1d4b01f4da",
+      "size_bytes": 175555,
+      "sha256": "108b1fdb6b435b39a7543b2401c91ee51568d382f8ae0eda576615a0119f4fdf",
+      "before_edit_sha256": "8e8fb75d466f7f9c6308477e914f9287802c25fbaea2ae6b22aab52a6866dbad",
       "mpy_cross_exit_code": 0,
-      "compiled_sha256": "60ad3cc7b3fe7efb7cc82eabbe5d6a637c86be0ecbbe54996bab54b1b492539a"
+      "compiled_size_bytes": 56823,
+      "compiled_sha256": "9a48c789079bf0fc76759fd8320cffc47fcf3316bd7e00b475c3cb59305c88ab"
     },
     {
       "name": "reverse_control.py",
@@ -134,6 +148,7 @@
       "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
       "before_edit_sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 2585,
       "compiled_sha256": "34f56c881ca0a9a330db12faa0bd1b0ddf9098c04888f406bc581ee36b045002"
     },
     {
@@ -142,6 +157,7 @@
       "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
       "before_edit_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 8430,
       "compiled_sha256": "8047a55036ca64343299e0d654a540cf2e78330feab3b5701e350748628b6450"
     },
     {
@@ -150,6 +166,7 @@
       "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
       "before_edit_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 2830,
       "compiled_sha256": "22236441880e05cc5afdc03d347962c64fca34100b43ebf2f5157c5c39f00f15"
     },
     {
@@ -158,6 +175,7 @@
       "sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
       "before_edit_sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 11942,
       "compiled_sha256": "4202adc1fcbfa480da843a6fd331d57552161955c69ce3c61c1133c011b477b1"
     },
     {
@@ -166,6 +184,7 @@
       "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
       "before_edit_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 3680,
       "compiled_sha256": "12a18ca83ba57b728e6b8475d0e2eb0918e9ab0a4cab963a03eb3657edf046be"
     },
     {
@@ -174,6 +193,7 @@
       "sha256": "92d81492e8fd8bc433893c8e3ea4d94c99c5e2b3554043ae4c1ebc64974fc52d",
       "before_edit_sha256": "92d81492e8fd8bc433893c8e3ea4d94c99c5e2b3554043ae4c1ebc64974fc52d",
       "mpy_cross_exit_code": 0,
+      "compiled_size_bytes": 1375,
       "compiled_sha256": "65beeec527eb8c9e8bd4cdac5981737daaf18673c3923ba6d8c435a687018435"
     }
   ],
@@ -220,7 +240,8 @@
         "bytes": 1931616,
         "build_id": "fb755ad26240623a5a81d55f69423705",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugSteering",
@@ -229,7 +250,8 @@
         "bytes": 1931636,
         "build_id": "8c78e5a9a7d02689821b9381d882d0f2",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugBench",
@@ -238,7 +260,8 @@
         "bytes": 1932168,
         "build_id": "8d11bd49214f60a08964e739b7bf2460",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollow",
@@ -247,7 +270,8 @@
         "bytes": 1936360,
         "build_id": "0fde23358f4dffca5ebb8eb30d4a4350",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollowNoLog",
@@ -256,7 +280,8 @@
         "bytes": 1928896,
         "build_id": "26b1247beb9aad8407af21147ffe927c",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollowDiff5",
@@ -265,7 +290,8 @@
         "bytes": 1936380,
         "build_id": "cbc284890846fe0abe7a83b0689c4e42",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollowDiff10",
@@ -274,7 +300,8 @@
         "bytes": 1936384,
         "build_id": "ffd6dfeb943deb0d543cd32f8b159e42",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollowTurn",
@@ -283,7 +310,8 @@
         "bytes": 1936756,
         "build_id": "f9a2fe5ba76e1db49d7e0ba394403f0b",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       },
       {
         "preset": "DebugFollowSpeedPI",
@@ -292,9 +320,17 @@
         "bytes": 1943756,
         "build_id": "5b24ada2981d5aeb18019b6b2f987ae5",
         "configure_exit": 0,
-        "build_exit": 0
+        "build_exit": 0,
+        "matches_preserved_baseline": true
       }
-    ]
+    ],
+    "paired_with_openmv_build_id": "AGGRESSIVE_TURN_POS_ONLY_20261017",
+    "baseline_id": "20261017-pos-only-preview-baseline",
+    "unchanged_from_preserved_baseline": true,
+    "source_roots_unchanged_from_preserved_baseline": true,
+    "rebuilt_for_this_release": false,
+    "elf_count_verified": 16,
+    "flash_performed_for_this_release": false
   },
   "diagnostics": {
     "camera_enabled_by_default": true,
@@ -315,41 +351,45 @@
     "idle_csv_created": false
   },
   "validation": {
-    "camera_active_tests": 164,
-    "camera_active_suites": 16,
+    "openmv_host_tests_run": 245,
+    "openmv_host_tests_passed": 244,
+    "openmv_host_tests_skipped": 1,
+    "openmv_host_suites": 17,
+    "openmv_host_exit_code": 0,
     "frozen_v7_tests_run": 79,
-    "frozen_v7_skipped": 1,
+    "frozen_v7_tests_skipped": 1,
     "mpy_cross_count": 20,
+    "mpy_cross_target": "armv7emsp",
     "mpy_cross_compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
-    "mpy_cross_flags": [
-      "-march=armv7emsp"
-    ],
-    "h743_presets_built": 9,
-    "h743_full_host_exit_code": 0,
-    "h743_control_cases": 68,
-    "h743_control_assertions": 7048,
-    "tools_python_contract_tests": 17,
-    "tools_v2_fixture_tests": 18,
-    "powershell_status_mock_cases": 5,
-    "powershell_export_mock_cases": 6,
-    "report": "docs/AGGRESSIVE_TURN_VALIDATION_20261017.json"
+    "mpy_cross_compiler_sha256": "cced6a90ad63e31e0ef319cc52a33d582005e828aeef16abca01b15ba63b4b94",
+    "h743_elf_count_unchanged": 16,
+    "h743_elfs_rebuilt": false,
+    "h743_elfs_match_preserved_baseline": true,
+    "h743_source_roots_unchanged_from_preserved_baseline": true,
+    "report": "docs/POS_ONLY_PREVIEW_VALIDATION_20261017_CN.md",
+    "host_log": "test-data/position-only-preview-20261017/validation/openmv-host/complete-host-regression.log",
+    "mpy_log": "test-data/position-only-preview-20261017/validation/mpy-cross-armv7emsp/full-mpy-cross.log"
   },
   "hardware_validation": {
-    "current_old_firmware_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
-    "new_firmware_flashed": false,
-    "new_camera_uploaded": false,
+    "openmv_uploaded_for_this_release": false,
+    "h743_flashed_or_reset_for_this_release": false,
     "motors_started_by_agent": false,
-    "idle_header_and_status_read_verified": true,
-    "wrong_elf_blocked_before_ram_verified": true,
-    "connection_intermittenly_failed_and_recovered_after_user_replug": true,
-    "nonempty_board_csv_export_verified": false,
-    "vehicle_cornering_verified": false
+    "camera_runtime_tested": false,
+    "h743_uart_reception_tested": false,
+    "vehicle_behavior_tested": false
   },
   "limits": [
-    "Host tests and cross-compilation do not establish real OpenMV runtime or vehicle steering.",
-    "One board-equivalence test is skipped per frozen V7 run.",
-    "Compiler v1.25.0 is older than the reported board runtime.",
-    "Connection hardware root cause remains undetermined.",
-    "3000ms hold cannot anticipate an unseen opposite bend."
-  ]
+    "Host tests and mpy-cross do not establish real OpenMV runtime or vehicle steering.",
+    "The frozen board-produced Viper equivalence check is skipped because no board manifest was produced.",
+    "The preserved H743 ELF files were compared by SHA-256 and were not rebuilt or flashed for this release."
+  ],
+  "position_only_control": {
+    "ordinary_road_preview_control_enabled": false,
+    "preview_candidate_retained_for_diagnostics": true,
+    "ordinary_road_preview_applied_contribution": 0,
+    "existing_position_weighting": "near 0.80, far 0.20",
+    "observation_filter_alpha": 0.7,
+    "uart_protocol": "12-byte V1 unchanged",
+    "h743_parameters_changed": false
+  }
 }

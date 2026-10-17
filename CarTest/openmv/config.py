@@ -24,7 +24,11 @@ OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "AGGRESSIVE_TURN_20261016"
+# This package isolates ordinary-road position control for the next vehicle
+# comparison.  Preview geometry is still computed and reported, but it does
+# not contribute to the ordinary road steering packet.
+BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"
+ORDINARY_PREVIEW_CONTROL_ENABLED = False
 STEERING_DIAG_ENABLED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2

@@ -75,7 +75,7 @@ SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "AGGRESSIVE_TURN_20261016"
+CACHED_WIDTH_BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
@@ -995,7 +995,8 @@ class _FastRowWeightWorkspace:
                 preview_count, settings, preview_conflicting_centers)
             steering_error, rejection_reason, applied_contribution = \
                 _compose_ordinary_steering_error(
-                    info["position_error"], info["preview_candidate"])
+                    info["position_error"], info["preview_candidate"],
+                    getattr(settings, "ORDINARY_PREVIEW_CONTROL_ENABLED", False))
             info["heading_contribution"] = applied_contribution
             info["preview_rejection_reason"] = rejection_reason
             info["steering_error"] = steering_error
@@ -1519,6 +1520,10 @@ def _validate_fast_config():
     _validate_v7_runtime_apis()
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
+    if not isinstance(getattr(config, "ORDINARY_PREVIEW_CONTROL_ENABLED", None),
+                      bool):
+        raise ValueError(
+            "V7 ORDINARY_PREVIEW_CONTROL_ENABLED must be bool")
     contour_enabled = getattr(config, "CONTOUR_RECOVERY_ENABLED", None)
     if not isinstance(contour_enabled, bool):
         raise ValueError("V7 CONTOUR_RECOVERY_ENABLED must be bool")
@@ -1873,14 +1878,27 @@ def _normalize_fast_reference(x, width):
     return _rounded_local(normalized)
 
 
-def _compose_ordinary_steering_error(position_error, preview_candidate):
-    """Add ordinary position and preview errors, bounded by protocol limits."""
-    steering_error = position_error + preview_candidate
+def _compose_ordinary_steering_error(position_error, preview_candidate,
+                                     preview_enabled=True):
+    """Compose ordinary control while retaining preview as a diagnostic.
+
+    The optional argument keeps the host helper's historical default intact;
+    the production aggregate path passes the explicit package setting.  A
+    disabled preview therefore reports a zero applied contribution while the
+    candidate remains available to logs and the overlay.
+    """
+    if preview_enabled:
+        steering_error = position_error + preview_candidate
+        applied_contribution = preview_candidate
+    else:
+        steering_error = position_error
+        applied_contribution = 0
     if steering_error < -1000:
         steering_error = -1000
     elif steering_error > 1000:
         steering_error = 1000
-    return steering_error, None, preview_candidate
+    return steering_error, (None if preview_enabled else "DISABLED_BY_CONFIG"), \
+        applied_contribution
 
 
 def _fast_forward_white_continuation(mask_info, road_result, settings):
@@ -2329,23 +2347,32 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
                 weight_info.get("preview_candidate", contribution))
             details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
             if weight_info.get("preview_valid"):
-                details3 = "N%.1f,%d F%.1f,%d" % (
-                    weight_info["preview_near_x"],
-                    weight_info["preview_near_y"],
-                    weight_info["preview_far_x"],
-                    weight_info["preview_far_y"])
+                preview_mode = ("P_ON" if getattr(
+                    config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+                    else "P_OFF")
+                details3 = "%s N%.1f F%.1f" % (
+                    preview_mode, weight_info["preview_near_x"],
+                    weight_info["preview_far_x"])
             else:
-                details3 = "PREVIEW NONE W%d/%d" % (
+                preview_mode = ("P_ON" if getattr(
+                    config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+                    else "P_OFF")
+                details3 = "%s NONE W%d/%d" % (
+                    preview_mode,
                     far_percent, near_percent)
     elif valid:
         details1 = "POS UNAVAILABLE"
         details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
-        details3 = "PREVIEW NONE"
+        details3 = ("P_ON NONE" if getattr(
+            config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+            else "P_OFF NONE")
     else:
         details0 = "BP15 INVALID"
         details1 = "GATE %s" % gate_reason
         details2 = "CTRL0 FILT0"
-        details3 = "PREVIEW NONE"
+        details3 = ("P_ON NONE" if getattr(
+            config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+            else "P_OFF NONE")
     return (details0[:24], details1[:24], details2[:24], details3[:24])
 
 
@@ -3008,7 +3035,8 @@ def _main_fast(duration_s=None, run_id=0):
           "slope_hint=always0 contour_api=%d contour_backend=%s "
           "sensor_id=%s "
           "camera=160x120 grid=80x60 floor=%d budget=%dms "
-          "detail_text=%dms preview=per_frame uart=3@115200/8N1 exposure_us=%s "
+          "detail_text=%dms preview=per_frame ordinary_preview=%s "
+          "uart=3@115200/8N1 exposure_us=%s "
           "exposure_cap_us=%s gain_db=%s "
           "gray_backend=%s topology_backend=%s boundary_backend=%s "
           "single_backend=%s reverse=8byte/ccitt-false" % (
@@ -3021,6 +3049,9 @@ def _main_fast(duration_s=None, run_id=0):
               sensor_id_text,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
+              ("on" if getattr(config,
+                               "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+               else "off"),
               str(exposure_us), str(exposure_cap_us), str(gain_db),
               getattr(fast_gray, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_topology, "COMPILER_BACKEND", "UNKNOWN"),
@@ -3774,7 +3805,7 @@ def _main_fast(duration_s=None, run_id=0):
                   "corr=%s diff=%s width=%s path=%d/%d auth=%d geo=%d "
                   "port=%s,%s seed=%s,%s "
                   "slope=%s:%d "
-                  "preview=%+d preview_candidate=%+d bend=%.2f "
+                  "preview_mode=%s preview=%+d preview_candidate=%+d bend=%.2f "
                   "preview_block=- "
                   "contour=%d/%d:%s:%d/%d "
                   "rowref=%s reference_error=%s "
@@ -3840,6 +3871,9 @@ def _main_fast(duration_s=None, run_id=0):
                       str(ring_candidate.get("near_seed_x"))[:5],
                       str(ring_candidate.get("near_seed_y"))[:5],
                       "DISABLED", slope_hint,
+                      ("ON" if getattr(
+                          config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
+                       else "OFF"),
                       weight_info.get("heading_contribution", 0),
                       weight_info.get("preview_candidate", 0),
                       weight_info.get("preview_curvature_cells", 0.0),

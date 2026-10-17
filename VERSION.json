@@ -1,7 +1,7 @@
 {
-  "version": "v20261017-aggressive-turn",
-  "status": "experimental-software-tested-road-pending",
-  "branch": "fix/aggressive-turn",
-  "files": 368,
+  "version": "v20261017-position-only",
+  "status": "experimental-software-tested",
+  "branch": "fix/position-only-preview",
+  "files": 370,
   "hardware_actions": "none"
 }

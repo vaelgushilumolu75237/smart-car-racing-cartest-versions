@@ -1,6 +1,6 @@
 # CarTest OpenMV production package
 
-Current package: `AGGRESSIVE_TURN_20261016`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+Current package: `AGGRESSIVE_TURN_POS_ONLY_20261017`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
 
 The previous MicroPython array-allocation compatibility fix is retained. This release retains RAM diagnostics and paired H743 3000ms last-error hold, repairs single-edge segment selection, and increases the normal FollowTurn output rates. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the historical allocation issue, and the current steering-hold guide below for this release.
 
@@ -18,9 +18,16 @@ Single-edge recovery follows the nearest supported segment from bottom to top; a
 
 ## Normal steering
 
-This version withdraws `CORR_FIRST` / `CONFLICT_FADE`. Lateral position and the curve ahead can have opposite signs during a normal turn; sign disagreement alone cannot reject a preview. Position -25 and a geometry-qualified preview +330 therefore compose to +305 before filtering. This is a software example, not a prediction of the vehicle trajectory.
+This comparison version disables the ordinary-road preview contribution while
+leaving its computation visible. `preview_candidate` is the geometry-qualified
+candidate and `heading_contribution`/`preview` is the amount actually sent;
+with `ORDINARY_PREVIEW_CONTROL_ENABLED = False`, the latter is 0 and the
+ordinary road packet uses only the current weighted position error. This does
+not change the existing 80/20 lower/upper image weighting or turn the
+controller into a fixed single-row reference. Ring routes retain their
+existing position-only behavior.
 
-The original current-route preview gates remain: three disjoint five-row windows, at least 15 rows over 12 grid rows, a supported reference near y=40, and at least 1.5 cells of curvature residual in the heading direction. Heading gain is 2, preview is bounded to +/-400 and combined control to +/-1000. `preview_candidate` reports the qualified candidate, `preview` the applied amount. The supported row-40 `reference_error` is diagnostic only. No past heading substitutes for missing current geometry.
+The original current-route preview gates remain: three disjoint five-row windows, at least 15 rows over 12 grid rows, a supported reference near y=40, and at least 1.5 cells of curvature residual in the heading direction. Heading gain is 2 and the diagnostic candidate is bounded to +/-400. The transmitted position control remains bounded to +/-1000. `preview_candidate` reports the qualified candidate, while `preview`/`heading_contribution` reports the applied amount. The supported row-40 `reference_error` is diagnostic only. No past heading substitutes for missing current geometry.
 
 Accepted centers retain lower-70%-image weight 0.8 and upper-30%-image weight 0.2, with internal normalization per group. The full-image split is y=36, grid y=18. Missing groups are reported and the available group is normalized to 1.0. Initial observation EMA remains 0.70. These are software-trial settings, not measured optimal gains.
 

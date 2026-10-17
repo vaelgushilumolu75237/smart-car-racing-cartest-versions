@@ -8,13 +8,19 @@ import fast_single_edge
 from contour_route import ContourRouteRecovery
 
 
-def aggregate(workspace, points, support=None, valid=True):
+def aggregate(workspace, points, support=None, valid=True,
+              preview_enabled=True):
     candidate = _path_candidate([(y, x - 10, x + 10) for y, x in points])
     candidate["boundary_support_rows"] = bytearray(
         support if support is not None else [1] * len(points))
     candidate["boundary_support_count"] = len(points)
     selection = {"valid": valid, "source": "road", "result": candidate}
-    return workspace.aggregate(selection, candidate, config)
+    previous = config.ORDINARY_PREVIEW_CONTROL_ENABLED
+    config.ORDINARY_PREVIEW_CONTROL_ENABLED = preview_enabled
+    try:
+        return workspace.aggregate(selection, candidate, config)
+    finally:
+        config.ORDINARY_PREVIEW_CONTROL_ENABLED = previous
 
 
 def _paired_contour_frame():
@@ -69,6 +75,30 @@ class BendPreviewTests(unittest.TestCase):
                 self.assertEqual(steering, expected)
                 self.assertIsNone(reason)
                 self.assertEqual(actual, applied)
+
+    def test_position_only_profile_keeps_preview_as_diagnostic(self):
+        points = [(y, 46 if y < 33 else 38 if y < 46 else 36)
+                  for y in range(20, 59)]
+        result = dict(aggregate(self.w, points, preview_enabled=False))
+        self.assertTrue(result["valid"], result)
+        self.assertEqual(result["preview_candidate"], 400)
+        self.assertEqual(result["heading_contribution"], 0)
+        self.assertEqual(result["steering_error"], result["position_error"])
+        self.assertEqual(result["preview_rejection_reason"],
+                         "DISABLED_BY_CONFIG")
+
+        previous = config.ORDINARY_PREVIEW_CONTROL_ENABLED
+        config.ORDINARY_PREVIEW_CONTROL_ENABLED = False
+        try:
+            text = main._build_gray_overlay_text_cache(
+                {"valid": True, "source": "road", "ring_state": "IDLE"},
+                {}, {}, None, True, result["steering_error"],
+                result["steering_error"], 0, 20.0, weight_info=result)
+        finally:
+            config.ORDINARY_PREVIEW_CONTROL_ENABLED = previous
+        self.assertTrue(any("POS" in line and "A+0" in line and
+                            "CAN+400" in line for line in text))
+        self.assertTrue(any("P_OFF" in line for line in text))
 
     def test_zero_opposing_and_mirrored_previews_keep_the_candidate(self):
         cases = (
