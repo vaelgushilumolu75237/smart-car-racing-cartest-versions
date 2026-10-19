@@ -283,6 +283,11 @@ uint8_t car_runtime_log_state(void)
     return car_runtime_log_storage.header.state;
 }
 
+uint32_t car_runtime_log_last_start_token(void)
+{
+    return last_started_button_generation;
+}
+
 uint8_t car_runtime_log_pack_hold_progress(uint32_t hold_elapsed_ms,
                                            uint8_t recovery_valid_count)
 {

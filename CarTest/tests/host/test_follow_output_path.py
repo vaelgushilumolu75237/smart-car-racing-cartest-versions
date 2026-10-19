@@ -133,6 +133,8 @@ typedef struct {
     uint16_t bench_requested_duty_permille;
     uint32_t vision_last_valid_ms;
     uint32_t vision_last_frame_alive_ms;
+    uint32_t vision_hold_started_ms;
+    uint32_t vision_hold_entries;
     uint32_t follow_last_ramp_ms;
     uint32_t fault_generation;
     uint32_t rx_fault_generation;
@@ -651,6 +653,75 @@ static void case_active_hold_frozen(uint32_t caller)
     expect_u32("active_hold", "no_motor_stop", 0u, motor_stop_calls);
 }
 
+static void case_active_hold_decelerates_applied_commands(uint32_t caller)
+{
+    reset_mock(caller); ++cases_run;
+    mock_now_ms = 5500u;
+    speed_observer_result.sample_ms = mock_now_ms;
+    car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
+    car_control_state.vision_hold_active = 1u;
+    car_control_state.vision_valid = 0u;
+    car_control_state.vision_last_valid_ms = 3000u;
+    car_control_state.vision_last_frame_alive_ms = 5251u;
+    car_control_state.vision_hold_started_ms = 5350u;
+    car_control_state.vision_hold_entries = 7u;
+    car_control_state.vision_hold_motor_left_permille = 700u;
+    car_control_state.vision_hold_motor_right_permille = 300u;
+    car_control_state.vision_hold_servo_pulse_us = 1530u;
+    follow_output_state.startup_qualified = 1u;
+    follow_ramp_started = 1u;
+    start_existing_motor_outputs(700u, 300u);
+    start_existing_servo(1530u);
+
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("hold_deceleration", "left command interpolates from entry time",
+               550u, follow_output_state.command_left_permille);
+    expect_u32("hold_deceleration", "low side cannot be raised to 300",
+               300u, follow_output_state.command_right_permille);
+    motor_apply(); expect_primask("hold_deceleration", caller);
+    expect_u32("hold_deceleration", "motor_apply consumes reduced left command",
+               550u, TIM3->CCR2);
+    expect_u32("hold_deceleration", "motor_apply preserves low right command",
+               300u, TIM3->CCR3);
+
+    mock_now_ms = 5650u;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms;
+    speed_observer_result.sample_ms = mock_now_ms;
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("hold_deceleration", "300 ms reaches fixed left target",
+               400u, follow_output_state.command_left_permille);
+    expect_u32("hold_deceleration", "300 ms reaches fixed low-side target",
+               300u, follow_output_state.command_right_permille);
+    motor_apply(); expect_primask("hold_deceleration", caller);
+    expect_u32("hold_deceleration", "hardware command reaches reduced target",
+               400u, TIM3->CCR2);
+
+    car_control_state.mode = CAR_MODE_FOLLOW_RUNNING;
+    car_control_state.vision_hold_active = 0u;
+    car_control_state.follow_session_active = 1u;
+    car_control_state.road_drive_allowed = 1u;
+    car_control_state.manual_run_request = 1u;
+    car_control_state.vision_valid = 1u;
+    car_control_state.vision_last_valid_ms = mock_now_ms;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms;
+    car_control_state.follow_output_duty_permille = 500u;
+    speed_observer_result.sample_ms = mock_now_ms;
+    prepare_follow_motor_targets(mock_now_ms);
+    motor_apply(); expect_primask("hold_recovery", caller);
+    expect_u32("hold_recovery", "same-loop recovery retains decelerated left output",
+               400u, TIM3->CCR2);
+    mock_now_ms += CAR_FOLLOW_OUTPUT_RAMP_PERIOD_MS;
+    speed_observer_result.sample_ms = mock_now_ms;
+    car_control_state.vision_last_valid_ms = mock_now_ms;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms;
+    prepare_follow_motor_targets(mock_now_ms);
+    motor_apply(); expect_primask("hold_recovery", caller);
+    expect_u32("hold_recovery", "recovery resumes through its configured per-side slew",
+               400u + CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE, TIM3->CCR2);
+    expect_u32("hold_recovery", "recovery resumes right from decelerated output",
+               300u + CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE, TIM3->CCR3);
+}
+
 static void case_hold_expired(uint32_t caller, uint8_t transport_expired)
 {
     const char *name = transport_expired ? "hold_transport_250ms" :
@@ -953,6 +1024,7 @@ int main(void)
             (uint16_t)CARTEST_FOLLOW_INNER_DIFF_PERMILLE);
         case_slope_hint_ignored_by_main(caller);
         case_active_hold_frozen(caller);
+        case_active_hold_decelerates_applied_commands(caller);
         case_hold_expired(caller, 0u);
         case_hold_expired(caller, 1u);
         case_normal_raw_release(caller);

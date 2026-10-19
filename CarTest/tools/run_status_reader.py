@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Plan and decode a bounded, read-only CarTest live-status snapshot.
+"""Plan and decode bounded, read-only CarTest runtime diagnostics.
 
-This is diagnostic telemetry, not a runtime-log export. It reads eight
-required and nine optional 32-bit firmware symbols plus the 64-byte runtime-log
-header; it never reads the runtime-log record area. The optional symbols keep
-older ELFs usable when they do not contain the hold-entry snapshot.
+New ELFs expose one CRC-protected 64-byte runtime diagnostic snapshot. The
+reader brackets it with two 64-byte runtime-log header reads so ACTIVE count
+progress can be distinguished from stale or inconsistent state. Older ELFs
+without the diagnostic symbol retain the legacy scalar/header path. No log
+record payload is read here.
 """
 
 from __future__ import annotations
@@ -54,6 +55,14 @@ STATE_NAMES = {
     exporter.STATE_ACTIVE: "active",
     exporter.STATE_FROZEN: "frozen",
 }
+DIAGNOSTIC_SYMBOL = "g_runtime_diag_snapshot"
+DIAGNOSTIC_MAGIC = 0x47414944
+DIAGNOSTIC_VERSION = 1
+DIAGNOSTIC_SIZE = 64
+DIAGNOSTIC_CRC_OFFSET = 12
+DIAGNOSTIC_CRC_SIZE = 4
+DIAGNOSTIC_FLAGS_LOG_ENABLED = 0x0001
+DIAGNOSTIC_KNOWN_FLAGS = DIAGNOSTIC_FLAGS_LOG_ENABLED
 
 
 class StatusReadError(ValueError):
@@ -130,6 +139,44 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
     if not (D1_SRAM_START <= layout.storage_address and header_end <= D1_SRAM_END):
         _fail("Runtime-log header range is outside STM32H743 D1 SRAM")
 
+    diagnostic_symbol = symbols.get(DIAGNOSTIC_SYMBOL)
+    if diagnostic_symbol is None:
+        diagnostic_plan = {
+            "available": False,
+            "symbol": DIAGNOSTIC_SYMBOL,
+            "address": None,
+            "address_u32": None,
+            "size": None,
+            "section": None,
+        }
+    else:
+        diagnostic_section = exporter._section_for_symbol(
+            sections, diagnostic_symbol, ".runtime_diag")
+        if diagnostic_symbol.size != DIAGNOSTIC_SIZE:
+            _fail("ELF symbol '{}' must be exactly {} bytes (found {})".format(
+                DIAGNOSTIC_SYMBOL, DIAGNOSTIC_SIZE, diagnostic_symbol.size))
+        if diagnostic_section.kind != 8:  # SHT_NOBITS, NOLOAD/NOINIT RAM.
+            _fail("ELF symbol '{}' must be backed by a NOLOAD .runtime_diag section".format(
+                DIAGNOSTIC_SYMBOL))
+        if not (diagnostic_section.flags & 0x2 and diagnostic_section.flags & 0x1):
+            _fail("ELF symbol '{}' is not in allocated writable RAM".format(
+                DIAGNOSTIC_SYMBOL))
+        if diagnostic_section.alignment < 32 or diagnostic_symbol.value % 32:
+            _fail("ELF symbol '{}' must be 32-byte aligned".format(DIAGNOSTIC_SYMBOL))
+        if not (D1_SRAM_START <= diagnostic_symbol.value and
+                diagnostic_symbol.value + DIAGNOSTIC_SIZE <= D1_SRAM_END):
+            _fail("ELF symbol '{}' is outside STM32H743 D1 SRAM".format(
+                DIAGNOSTIC_SYMBOL))
+        diagnostic_plan = {
+            "available": True,
+            "symbol": DIAGNOSTIC_SYMBOL,
+            "address": _hex(diagnostic_symbol.value),
+            "address_u32": diagnostic_symbol.value,
+            "size": DIAGNOSTIC_SIZE,
+            "section": diagnostic_section.name,
+            "section_alignment": diagnostic_section.alignment,
+        }
+
     return {
         "elf_path": str(layout.path),
         "elf_sha256": layout.sha256,
@@ -159,6 +206,7 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
             "address_u32": layout.storage_address,
             "size": exporter.HEADER_SIZE,
         },
+        "runtime_diagnostic_snapshot": diagnostic_plan,
         "record_area_read": False,
     }
 
@@ -228,21 +276,220 @@ def _decode_header(raw: bytes, expected_build_id: str,
         "header_crc32_read": "0x{:08X}".format(header_crc),
         "header_crc32_computed": "0x{:08X}".format(computed_crc),
         "header_crc_status": crc_status,
+        "header_crc_valid": crc_valid,
         "schema_valid": schema_valid,
         "record_payload_read": False,
         "warnings": warnings,
     }
 
 
+def decode_runtime_diagnostic(raw: bytes) -> Dict[str, Any]:
+    """Validate and decode one 64-byte firmware-published diagnostic record."""
+    if len(raw) != DIAGNOSTIC_SIZE:
+        _fail("Runtime diagnostic snapshot must be exactly {} bytes (found {})".format(
+            DIAGNOSTIC_SIZE, len(raw)))
+    magic, version, size, generation, observed_crc = struct.unpack_from("<IHHII", raw, 0)
+    if magic != DIAGNOSTIC_MAGIC:
+        _fail("Runtime diagnostic snapshot magic is invalid")
+    if version != DIAGNOSTIC_VERSION or size != DIAGNOSTIC_SIZE:
+        _fail("Runtime diagnostic snapshot version/size is unsupported")
+    if generation == 0 or generation & 1:
+        _fail("Runtime diagnostic snapshot generation is zero or odd (writer active or uninitialized)")
+    crc_data = bytearray(raw)
+    crc_data[DIAGNOSTIC_CRC_OFFSET:DIAGNOSTIC_CRC_OFFSET + DIAGNOSTIC_CRC_SIZE] = bytes(4)
+    computed_crc = zlib.crc32(crc_data) & 0xFFFFFFFF
+    if computed_crc != observed_crc:
+        _fail("Runtime diagnostic snapshot CRC32 is invalid")
+
+    (start_events, stop_events, log_update_calls, start_token,
+     cpu_state, cpu_count, uptime_ms, reset_flags,
+     left_output_permille, right_output_permille, servo_pulse_us,
+     flags, header_session_id, reserved) = struct.unpack_from("<8IhhHHII", raw, 16)
+    if cpu_state not in STATE_NAMES:
+        _fail("Runtime diagnostic snapshot contains an unknown CPU log state")
+    if flags & ~DIAGNOSTIC_KNOWN_FLAGS:
+        _fail("Runtime diagnostic snapshot contains unsupported flag bits")
+    if reserved != 0:
+        _fail("Runtime diagnostic snapshot reserved word is not zero")
+    if cpu_count > exporter.CAPACITY:
+        _fail("Runtime diagnostic snapshot CPU log count exceeds capacity")
+    return {
+        "magic": "DIAG",
+        "version": version,
+        "size": size,
+        "generation": generation,
+        "crc32_read": "0x{:08X}".format(observed_crc),
+        "crc32_computed": "0x{:08X}".format(computed_crc),
+        "crc_valid": True,
+        "start_events": start_events,
+        "stop_events": stop_events,
+        "log_update_calls": log_update_calls,
+        "start_token": start_token,
+        "cpu_header_state": cpu_state,
+        "cpu_header_state_name": STATE_NAMES[cpu_state],
+        "cpu_header_count": cpu_count,
+        "uptime_ms": uptime_ms,
+        "reset_flags_rcc_rsr": "0x{:08X}".format(reset_flags),
+        "left_output_permille": left_output_permille,
+        "right_output_permille": right_output_permille,
+        "servo_pulse_us": servo_pulse_us,
+        "log_enabled": bool(flags & DIAGNOSTIC_FLAGS_LOG_ENABLED),
+        "flags": flags,
+        "header_session_id": header_session_id,
+        "reserved": reserved,
+    }
+
+
+def _classify_runtime_diagnostic(diag: Dict[str, Any],
+                                 header_before: Dict[str, Any],
+                                 header_after: Dict[str, Any]) -> Tuple[str, list[str], bool]:
+    """Compare CPU state/count with surrounding headers, allowing live progress."""
+    reasons: list[str] = []
+    active_progress = False
+    before_state = int(header_before["state"])
+    after_state = int(header_after["state"])
+    before_count = int(header_before["count"])
+    after_count = int(header_after["count"])
+    cpu_state = int(diag["cpu_header_state"])
+    cpu_count = int(diag["cpu_header_count"])
+    session_before = int(header_before["session_id"])
+    session_after = int(header_after["session_id"])
+    cpu_session = int(diag["header_session_id"])
+
+    if not header_before["build_id_matches_elf"] or not header_after["build_id_matches_elf"]:
+        reasons.append("Bracketed runtime-log header build ID does not match the selected ELF")
+    if before_state not in STATE_NAMES or after_state not in STATE_NAMES:
+        reasons.append("Bracketed runtime-log header contains an unknown state")
+    if after_count < before_count:
+        reasons.append("Runtime-log count moved backwards between header reads")
+    if session_before != session_after and before_state != exporter.STATE_IDLE:
+        reasons.append("Runtime-log session changed during the diagnostic bracket")
+
+    if before_state == exporter.STATE_IDLE and after_state == exporter.STATE_IDLE:
+        never_started = (
+            cpu_state == exporter.STATE_IDLE and cpu_count == 0 and
+            cpu_session == 0 and int(diag["start_token"]) == 0 and
+            before_count == after_count == 0 and
+            session_before == session_after == 0 and
+            header_before["header_crc_valid"] and header_after["header_crc_valid"]
+        )
+        if never_started and not reasons:
+            if int(diag["start_events"]) != 0:
+                reasons.append("PE7 start events were seen, but the logger has not consumed a start token")
+            if not diag["log_enabled"]:
+                reasons.append("Runtime logger is disabled")
+            return "neverstarted", reasons, active_progress
+        if not header_before["header_crc_valid"] or not header_after["header_crc_valid"]:
+            reasons.append("Stable IDLE runtime-log header CRC is invalid")
+        reasons.append("IDLE headers disagree with the CPU diagnostic state/session")
+        return "inconsistent", reasons, active_progress
+
+    if before_state == exporter.STATE_ACTIVE and after_state == exporter.STATE_ACTIVE:
+        active_progress = before_count != after_count or cpu_count != after_count
+        active_headers_crc_valid = (header_before["header_crc_valid"] and
+                                    header_after["header_crc_valid"])
+        if not active_headers_crc_valid:
+            reasons.append("ACTIVE runtime-log header CRC is invalid; retry the status snapshot")
+        session_ok = (session_before != 0 and session_before == session_after == cpu_session)
+        counts_sensible = (0 <= before_count <= exporter.CAPACITY and
+                           0 <= cpu_count <= exporter.CAPACITY and
+                           0 <= after_count <= exporter.CAPACITY)
+        # Reads are ordered header -> diagnostic -> header, but can be slow
+        # enough for any number of records to commit between them.
+        counts_monotonic = before_count <= cpu_count <= after_count
+        if (cpu_state == exporter.STATE_ACTIVE and session_ok and counts_sensible and
+                counts_monotonic and not reasons):
+            return "active", reasons, active_progress
+        reasons.append("ACTIVE CPU snapshot does not match the bracketed session or monotonic counts")
+        return "inconsistent", reasons, active_progress
+
+    if before_state == exporter.STATE_IDLE and after_state in (
+            exporter.STATE_ACTIVE, exporter.STATE_FROZEN):
+        active_progress = True
+        if after_state == exporter.STATE_ACTIVE and not (
+                header_before["header_crc_valid"] and header_after["header_crc_valid"]):
+            reasons.append("ACTIVE runtime-log header CRC is invalid; retry the status snapshot")
+        session_ok = (session_after != 0 and session_after == cpu_session)
+        if after_state == exporter.STATE_ACTIVE and cpu_state == exporter.STATE_ACTIVE:
+            counts_monotonic = before_count == 0 and before_session == 0 and 0 <= cpu_count <= after_count
+            if (session_ok and counts_monotonic and
+                    after_count <= exporter.CAPACITY and not reasons):
+                return "active", reasons, active_progress
+        if after_state == exporter.STATE_FROZEN:
+            reasons.append("IDLE-to-FROZEN transition crossed the diagnostic bracket; retry for a stable FROZEN snapshot")
+            return "inconsistent", reasons, active_progress
+        reasons.append("New session appeared during the diagnostic bracket without a matching CPU snapshot")
+        return "inconsistent", reasons, active_progress
+
+    if after_state == exporter.STATE_FROZEN and before_state in (
+            exporter.STATE_ACTIVE, exporter.STATE_FROZEN):
+        active_progress = (before_state == exporter.STATE_ACTIVE or before_count != after_count or
+                           cpu_state == exporter.STATE_ACTIVE or cpu_count != after_count)
+        session_ok = (session_before != 0 and session_before == session_after == cpu_session)
+        transitioning = before_state == exporter.STATE_ACTIVE or cpu_state == exporter.STATE_ACTIVE
+        if transitioning:
+            reasons.append("ACTIVE-to-FROZEN transition crossed the diagnostic bracket; retry for a stable FROZEN snapshot")
+            return "inconsistent", reasons, active_progress
+        stable_frozen = (cpu_state == exporter.STATE_FROZEN and
+                         cpu_count == after_count == before_count and
+                         header_before["header_crc_valid"] and
+                         header_after["header_crc_valid"])
+        if stable_frozen and session_ok and not reasons:
+            return "frozen", reasons, active_progress
+        reasons.append("FROZEN header does not match CPU snapshot state/count/session")
+        return "inconsistent", reasons, active_progress
+
+    reasons.append("Unsupported CPU/runtime-log state transition in the diagnostic bracket")
+    return "inconsistent", reasons, active_progress
+
+
+def _classify_legacy_headers(header_before: Dict[str, Any],
+                             header_after: Dict[str, Any]) -> Tuple[str, list[str]]:
+    """Keep old ELF diagnostics usable while marking their weaker evidence."""
+    before_state = int(header_before["state"])
+    after_state = int(header_after["state"])
+    before_count = int(header_before["count"])
+    after_count = int(header_after["count"])
+    before_session = int(header_before["session_id"])
+    after_session = int(header_after["session_id"])
+    warnings = ["Legacy ELF has no coherent runtime diagnostic snapshot; header-only classification used."]
+    if not header_before["build_id_matches_elf"] or not header_after["build_id_matches_elf"]:
+        return "legacy_inconsistent", warnings + ["Bracketed runtime-log header build ID does not match the selected ELF"]
+    if after_count < before_count:
+        return "legacy_inconsistent", warnings + ["Runtime-log count moved backwards between header reads"]
+    if before_state == exporter.STATE_IDLE and after_state == exporter.STATE_IDLE:
+        if (before_count == after_count == 0 and before_session == after_session == 0 and
+                header_before["header_crc_valid"] and header_after["header_crc_valid"]):
+            return "legacy_idle", warnings
+        return "legacy_inconsistent", warnings + ["Legacy IDLE header contains run data or an invalid CRC"]
+    if after_state == exporter.STATE_ACTIVE and before_state in (
+            exporter.STATE_IDLE, exporter.STATE_ACTIVE):
+        if before_state == exporter.STATE_IDLE or before_session == after_session:
+            return "legacy_active", warnings
+        return "legacy_inconsistent", warnings + ["Legacy session changed during ACTIVE read"]
+    if (before_state == after_state == exporter.STATE_FROZEN and
+            before_count == after_count and before_session == after_session and
+            before_session != 0 and header_before["header_crc_valid"] and
+            header_after["header_crc_valid"]):
+        return "legacy_frozen", warnings
+    if before_state == exporter.STATE_ACTIVE and after_state == exporter.STATE_FROZEN:
+        return "legacy_inconsistent", warnings + ["ACTIVE-to-FROZEN transition crossed the header reads; retry"]
+    return "legacy_inconsistent", warnings + ["Legacy runtime-log headers are inconsistent"]
+
+
 def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                     header_path: str | Path,
-                    descriptor_path: str | Path | None = None) -> Dict[str, Any]:
+                    descriptor_path: str | Path | None = None,
+                    header_after_path: str | Path | None = None,
+                    diagnostic_path: str | Path | None = None) -> Dict[str, Any]:
     plan = build_plan(elf_path)
     flash_descriptor = None
     if descriptor_path is not None:
         flash_descriptor = exporter.validate_flash_descriptor(elf_path, descriptor_path)
     scalar_raw = Path(scalar_path).read_bytes()
     header_raw = Path(header_path).read_bytes()
+    header_after_raw = (Path(header_after_path).read_bytes()
+                        if header_after_path is not None else header_raw)
     scalar_read = plan["scalar_read"]
     if len(scalar_raw) != scalar_read["size"]:
         _fail("Scalar read length mismatch: expected {}, got {}".format(
@@ -274,17 +521,35 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     scalars["car_vision_hold_snapshot_published"] = (
         None if entry_value is None else bool(entry_value))
     header = _decode_header(header_raw, plan["build_id"], plan["log_version"])
+    header_after = _decode_header(header_after_raw, plan["build_id"], plan["log_version"])
+    diagnostic = None
+    diagnostic_class = None
+    active_progress = False
+    diagnostic_warnings: list[str] = []
+    if plan["runtime_diagnostic_snapshot"]["available"]:
+        if diagnostic_path is None:
+            _fail("Selected ELF contains g_runtime_diag_snapshot but no snapshot upload was supplied")
+        diagnostic_raw = Path(diagnostic_path).read_bytes()
+        diagnostic = decode_runtime_diagnostic(diagnostic_raw)
+        diagnostic_class, diagnostic_warnings, active_progress = _classify_runtime_diagnostic(
+            diagnostic, header, header_after)
+    elif diagnostic_path is not None:
+        _fail("A runtime diagnostic upload was supplied for an ELF without g_runtime_diag_snapshot")
+    else:
+        diagnostic_class, diagnostic_warnings = _classify_legacy_headers(header, header_after)
     consistency_warnings = [
-        "Scalar region and runtime-log header were read in separate SWD uploads; "
-        "live values may change between reads."
+        "Scalar region, runtime diagnostic, and runtime-log headers use separate SWD uploads; "
+        "the two headers bracket the single-record CRC-protected diagnostic snapshot."
     ]
-    warnings = list(header["warnings"]) + consistency_warnings
+    warnings = list(header["warnings"]) + list(header_after["warnings"]) + consistency_warnings
+    warnings.extend(diagnostic_warnings)
     if descriptor_path is None:
         warnings.append("Target Flash descriptor was not uploaded; the running firmware ELF was not verified.")
-    status = ("read_with_warnings" if warnings else
-              "idle" if header["state"] == exporter.STATE_IDLE else "success")
+    status = diagnostic_class or ("read_with_warnings" if warnings else
+                                  "idle" if header["state"] == exporter.STATE_IDLE else "success")
     return {
         "status": status,
+        "status_class": diagnostic_class,
         "snapshot_kind": "live_diagnostic_only",
         "diagnostic_is_run_record": False,
         "csv_created": False,
@@ -292,12 +557,12 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "warnings": warnings,
         "consistency_warnings": consistency_warnings,
         "flash_descriptor": flash_descriptor,
+        "observing_active_progress": active_progress,
         "consistency_note": (
-            "The scalar region and 64-byte header were read in two separate SWD uploads. "
-            "Live values may change between reads; this snapshot is not a runtime-log record. "
-            "Current CarTest firmware source does not enable D-cache. If a later firmware "
-            "build enables D-cache, direct SWD scalar reads may be stale unless those values "
-            "are published coherently."
+            "The 64-byte diagnostic snapshot is published as one generation/CRC-protected record. "
+            "Runtime-log headers are uploaded before and after it. ACTIVE records may advance "
+            "during the separate SWD calls and remain diagnostic-only; stable IDLE/FROZEN state, "
+            "count, and session must agree exactly."
         ),
         "elf": {
             "path": plan["elf_path"],
@@ -311,10 +576,14 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "flash_rom_descriptor": plan["descriptor_read"],
             "scalar_region": plan["scalar_read"],
             "runtime_log_header": plan["header_read"],
+            "runtime_log_header_after": plan["header_read"],
+            "runtime_diagnostic_snapshot": plan["runtime_diagnostic_snapshot"],
             "runtime_log_record_area_read": False,
         },
         "scalars": scalars,
         "runtime_log_header": header,
+        "runtime_log_header_after": header_after,
+        "runtime_diagnostic_snapshot": diagnostic,
         "raw_files": {
             "scalar_region": {
                 "path": str(Path(scalar_path).resolve()),
@@ -326,6 +595,16 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                 "bytes": len(header_raw),
                 "sha256": hashlib.sha256(header_raw).hexdigest(),
             },
+            "runtime_log_header_after": {
+                "path": str(Path(header_after_path).resolve()) if header_after_path is not None else str(Path(header_path).resolve()),
+                "bytes": len(header_after_raw),
+                "sha256": hashlib.sha256(header_after_raw).hexdigest(),
+            },
+            "runtime_diagnostic_snapshot": (None if diagnostic_path is None else {
+                "path": str(Path(diagnostic_path).resolve()),
+                "bytes": len(Path(diagnostic_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(diagnostic_path).read_bytes()).hexdigest(),
+            }),
         },
     }
 
@@ -343,6 +622,10 @@ def build_parser() -> argparse.ArgumentParser:
     decode_parser.add_argument("--elf", required=True)
     decode_parser.add_argument("--scalars", required=True)
     decode_parser.add_argument("--header", required=True)
+    decode_parser.add_argument("--header-after",
+                               help="optional 64-byte runtime-log header uploaded after the diagnostics")
+    decode_parser.add_argument("--runtime-diagnostic",
+                               help="optional 64-byte g_runtime_diag_snapshot upload")
     decode_parser.add_argument("--descriptor",
                                help="optional uploaded 64-byte Flash descriptor to verify the target ELF")
     return parser
@@ -355,7 +638,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit_json(build_plan(args.elf))
         else:
             _emit_json(decode_snapshot(args.elf, args.scalars, args.header,
-                                       descriptor_path=args.descriptor))
+                                       descriptor_path=args.descriptor,
+                                       header_after_path=args.header_after,
+                                       diagnostic_path=args.runtime_diagnostic))
         return 0
     except (StatusReadError, exporter.ExportError, OSError, struct.error) as exc:
         print("run-status-reader: {}".format(exc), file=sys.stderr)

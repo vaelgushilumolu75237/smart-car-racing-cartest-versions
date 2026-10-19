@@ -33,7 +33,7 @@ PACKERS = (
 
 class VisionProtocolTests(unittest.TestCase):
     def test_package_build_and_runtime_api_identity(self):
-        expected_build = "AGGRESSIVE_TURN_POS_ONLY_20261017"
+        expected_build = "SECOND_TURN_CONTINUITY_20261018"
         self.assertEqual(config.BUILD_ID, expected_build)
         self.assertEqual(config.V7_RUNTIME_API_VERSION, 7)
         self.assertEqual(config.SINGLE_EDGE_ROUTE_MODE, "cached_width")

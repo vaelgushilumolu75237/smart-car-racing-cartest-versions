@@ -60,6 +60,51 @@ def make_scalar_region(plan, values=None):
     return bytes(data)
 
 
+def make_header(plan, state, count=0, session_id=0):
+    header = bytearray(64)
+    header[:4] = b"RLOG"
+    struct.pack_into("<5H", header, 4, plan["log_version"], 64, 64,
+                     exporter.CAPACITY, exporter.PERIOD_MS)
+    struct.pack_into("<2B", header, 14, state, 0)
+    start_ms = 1000 if count else 0
+    stop_ms = start_ms + count - 1 if state == exporter.STATE_FROZEN and count else 0
+    struct.pack_into("<7I", header, 16, count, session_id, start_ms,
+                     stop_ms, 0, 0, 0)
+    header[44:60] = bytes.fromhex(plan["build_id"])
+    struct.pack_into("<I", header, 40, zlib.crc32(header) & 0xFFFFFFFF)
+    return bytes(header)
+
+
+def make_runtime_diagnostic(state, count=0, session_id=0, start_events=0,
+                            start_token=0, log_enabled=True, generation=2,
+                            log_update_calls=6):
+    raw = bytearray(reader.DIAGNOSTIC_SIZE)
+    struct.pack_into("<IHHII", raw, 0, reader.DIAGNOSTIC_MAGIC,
+                     reader.DIAGNOSTIC_VERSION, reader.DIAGNOSTIC_SIZE,
+                     generation, 0)
+    struct.pack_into("<8IhhHHII", raw, 16, start_events, 0, log_update_calls, start_token,
+                     state, count, 123456, 0x1234, -120, 100, 1530,
+                     int(log_enabled), session_id, 0)
+    crc_data = bytearray(raw)
+    crc_data[12:16] = bytes(4)
+    struct.pack_into("<I", raw, 12, zlib.crc32(crc_data) & 0xFFFFFFFF)
+    return bytes(raw)
+
+
+def synthetic_diagnostic_plan(elf):
+    plan = copy.deepcopy(reader.build_plan(elf))
+    plan["runtime_diagnostic_snapshot"] = {
+        "available": True,
+        "symbol": reader.DIAGNOSTIC_SYMBOL,
+        "address": "0x2407F000",
+        "address_u32": 0x2407F000,
+        "size": reader.DIAGNOSTIC_SIZE,
+        "section": ".runtime_diag",
+        "section_alignment": 32,
+    }
+    return plan
+
+
 class RunStatusReaderTests(unittest.TestCase):
     def test_plan_covers_required_optional_and_flash_identity_reads(self):
         before = hashlib.sha256(ELF.read_bytes()).hexdigest()
@@ -74,6 +119,7 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertLessEqual(plan["scalar_read"]["size"], 4096)
         self.assertEqual(plan["header_read"]["size"], 64)
         self.assertFalse(plan["record_area_read"])
+        self.assertFalse(plan["runtime_diagnostic_snapshot"]["available"])
         self.assertEqual(hashlib.sha256(ELF.read_bytes()).hexdigest(), before)
 
     def test_old_matching_elf_without_optional_snapshot_symbols_remains_usable(self):
@@ -93,6 +139,129 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertEqual(result["scalars"]["car_vision_hold_snapshot_status"], "unavailable")
         self.assertIsNone(result["scalars"]["car_vision_hold_snapshot_published"])
         self.assertEqual(result["flash_descriptor"]["status"], "matched")
+        self.assertEqual(result["status_class"], "legacy_idle")
+
+    def _decode_diagnostic_case(self, header_before, diagnostic, header_after=None):
+        plan = synthetic_diagnostic_plan(ELF)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scalar = root / "scalars.bin"
+            before = root / "header-before.bin"
+            after = root / "header-after.bin"
+            diag = root / "runtime-diagnostic.bin"
+            descriptor = root / "descriptor.bin"
+            scalar.write_bytes(make_scalar_region(plan))
+            before.write_bytes(header_before)
+            after.write_bytes(header_after if header_after is not None else header_before)
+            diag.write_bytes(diagnostic)
+            descriptor.write_bytes(exporter.inspect_elf(ELF).descriptor_bytes)
+            with mock.patch.object(reader, "build_plan", return_value=plan):
+                return reader.decode_snapshot(
+                    ELF, scalar, before, descriptor,
+                    header_after_path=after, diagnostic_path=diag)
+
+    def test_runtime_diagnostic_decodes_neverstarted_and_reports_unconsumed_start(self):
+        plan = reader.build_plan(ELF)
+        header = make_header(plan, exporter.STATE_IDLE)
+        result = self._decode_diagnostic_case(
+            header, make_runtime_diagnostic(exporter.STATE_IDLE,
+                                            start_events=2, start_token=0))
+        self.assertEqual(result["status_class"], "neverstarted")
+        self.assertFalse(result["csv_created"])
+        self.assertEqual(result["runtime_diagnostic_snapshot"]["start_events"], 2)
+        self.assertEqual(result["runtime_diagnostic_snapshot"]["start_token"], 0)
+        self.assertTrue(any("not consumed" in warning for warning in result["warnings"]))
+
+    def test_active_count_progress_across_header_bracket_is_not_corruption(self):
+        plan = reader.build_plan(ELF)
+        before = make_header(plan, exporter.STATE_ACTIVE, count=20, session_id=55)
+        after = make_header(plan, exporter.STATE_ACTIVE, count=3000, session_id=55)
+        result = self._decode_diagnostic_case(
+            before, make_runtime_diagnostic(exporter.STATE_ACTIVE, count=1500,
+                                            session_id=55, start_events=3,
+                                            start_token=7), after)
+        self.assertEqual(result["status_class"], "active")
+        self.assertTrue(result["observing_active_progress"])
+        self.assertFalse(result["csv_created"])
+
+        outside_bracket = self._decode_diagnostic_case(
+            before, make_runtime_diagnostic(exporter.STATE_ACTIVE, count=3001,
+                                            session_id=55, start_events=3,
+                                            start_token=7), after)
+        self.assertEqual(outside_bracket["status_class"], "inconsistent")
+
+        before_future = self._decode_diagnostic_case(
+            before, make_runtime_diagnostic(exporter.STATE_ACTIVE, count=19,
+                                            session_id=55, start_events=3,
+                                            start_token=7), after)
+        self.assertEqual(before_future["status_class"], "inconsistent")
+
+    def test_active_header_with_invalid_crc_is_retryable_inconsistent(self):
+        plan = reader.build_plan(ELF)
+        before = make_header(plan, exporter.STATE_ACTIVE, count=10, session_id=55)
+        after = bytearray(make_header(plan, exporter.STATE_ACTIVE, count=12, session_id=55))
+        after[40] ^= 1
+        result = self._decode_diagnostic_case(
+            before, make_runtime_diagnostic(exporter.STATE_ACTIVE, count=11,
+                                            session_id=55, start_events=3,
+                                            start_token=7), bytes(after))
+        self.assertEqual(result["status_class"], "inconsistent")
+        self.assertTrue(any("ACTIVE runtime-log header CRC is invalid" in warning
+                            for warning in result["warnings"]))
+
+    def test_stable_frozen_snapshot_requires_exact_header_count_and_session(self):
+        plan = reader.build_plan(ELF)
+        header = make_header(plan, exporter.STATE_FROZEN, count=18, session_id=55)
+        result = self._decode_diagnostic_case(
+            header, make_runtime_diagnostic(exporter.STATE_FROZEN, count=18,
+                                            session_id=55, start_events=3,
+                                            start_token=7, log_update_calls=1))
+        self.assertEqual(result["status_class"], "frozen")
+        self.assertFalse(result["csv_created"])
+
+        count_mismatch = self._decode_diagnostic_case(
+            header, make_runtime_diagnostic(exporter.STATE_FROZEN, count=17,
+                                            session_id=55, start_events=3,
+                                            start_token=7))
+        self.assertEqual(count_mismatch["status_class"], "inconsistent")
+
+        session_mismatch = self._decode_diagnostic_case(
+            header, make_runtime_diagnostic(exporter.STATE_FROZEN, count=18,
+                                            session_id=56, start_events=3,
+                                            start_token=7))
+        self.assertEqual(session_mismatch["status_class"], "inconsistent")
+
+    def test_idle_to_frozen_transition_is_retried_as_inconsistent(self):
+        plan = reader.build_plan(ELF)
+        idle = make_header(plan, exporter.STATE_IDLE)
+        frozen = make_header(plan, exporter.STATE_FROZEN, count=18, session_id=55)
+        result = self._decode_diagnostic_case(
+            idle, make_runtime_diagnostic(exporter.STATE_FROZEN, count=18,
+                                          session_id=55, start_events=2,
+                                          start_token=7), frozen)
+        self.assertEqual(result["status_class"], "inconsistent")
+        self.assertTrue(any("transition crossed" in warning for warning in result["warnings"]))
+
+    def test_corrupt_or_torn_runtime_diagnostic_is_rejected(self):
+        plan = reader.build_plan(ELF)
+        header = make_header(plan, exporter.STATE_IDLE)
+        corrupt = bytearray(make_runtime_diagnostic(exporter.STATE_IDLE))
+        corrupt[40] ^= 0x80
+        with self.assertRaisesRegex(reader.StatusReadError, "snapshot CRC32 is invalid"):
+            self._decode_diagnostic_case(header, bytes(corrupt))
+
+        odd_generation = make_runtime_diagnostic(exporter.STATE_IDLE, generation=3)
+        with self.assertRaisesRegex(reader.StatusReadError, "generation is zero or odd"):
+            self._decode_diagnostic_case(header, odd_generation)
+
+    def test_idle_cpu_snapshot_and_active_header_are_inconsistent(self):
+        plan = reader.build_plan(ELF)
+        before = make_header(plan, exporter.STATE_ACTIVE, count=10, session_id=55)
+        after = make_header(plan, exporter.STATE_ACTIVE, count=12, session_id=55)
+        result = self._decode_diagnostic_case(
+            before, make_runtime_diagnostic(exporter.STATE_IDLE), after)
+        self.assertEqual(result["status_class"], "inconsistent")
+        self.assertFalse(result["csv_created"])
 
     def test_idle_status_warns_about_separate_non_atomic_reads_and_creates_no_csv(self):
         plan = reader.build_plan(ELF)

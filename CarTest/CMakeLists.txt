@@ -174,6 +174,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_log.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/run_block_reason.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/vision_protocol.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/Src/system_stm32h7xx.c"

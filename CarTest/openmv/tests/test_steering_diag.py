@@ -24,6 +24,8 @@ sys.modules.setdefault("sensor", types.ModuleType("sensor"))
 
 import config
 import main
+import fast_single_edge
+import reverse_control
 import vision_protocol
 import test_fast_main_ring_slope as main_harness
 
@@ -33,6 +35,21 @@ def _frame(sequence, valid, error=0):
                                       error if valid else 0, 0)
 
 
+def _record_frame(diag, sequence, valid):
+    return diag.record(
+        _frame(sequence, valid), True, False, False,
+        sequence, sequence, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+
+class _FreezeSnapshotTracker:
+    def __init__(self):
+        self.freeze_calls = 0
+
+    def freeze_diagnostic_snapshot(self):
+        self.freeze_calls += 1
+        return True
+
+
 class SteeringDiagBufferTests(unittest.TestCase):
     def setUp(self):
         self.diag = main._SteeringDiagBuffer()
@@ -40,7 +57,11 @@ class SteeringDiagBufferTests(unittest.TestCase):
     def test_default_is_enabled_with_exact_preallocated_ring(self):
         self.assertIs(config.STEERING_DIAG_ENABLED, True)
         self.assertIsInstance(main._STEERING_DIAG, main._SteeringDiagBuffer)
-        self.assertEqual(len(main._STEERING_DIAG.data), 128 * 32)
+        self.assertEqual(len(main._STEERING_DIAG.data), 256 * 32)
+        self.assertEqual(len(main._STEERING_DIAG.extension_data), 256 * 16)
+        self.assertEqual(main._SteeringDiagBuffer.RECORD_SIZE, 32)
+        self.assertEqual(main._SteeringDiagBuffer.PRE_TRIGGER_CAPACITY, 64)
+        self.assertEqual(main._SteeringDiagBuffer.POST_TRIGGER_CAPACITY, 192)
 
     def test_disabled_factory_does_not_allocate_a_buffer(self):
         with patch.object(main, "_SteeringDiagBuffer") as constructor:
@@ -69,10 +90,11 @@ class SteeringDiagBufferTests(unittest.TestCase):
         frame = _frame(0xFFFF, 1, -1000)
         recorded = self.diag.record(
             frame, True, False, True, period - 10, 5,
-            -1000, -100, 75, -925, -900, 250, 255, 5, 0xFFFFFFFF)
+            -1000, -100, 75, -925, -900, 250, 255, 5, 0xFFFFFFFF,
+            tuple(range(16)))
         self.assertTrue(recorded)
         data = self.diag.data
-        self.assertEqual(len(data), 128 * 32)
+        self.assertEqual(len(data), 256 * 32)
         self.assertEqual(data[0:4], bytes((0xFF, 0xFF, 0x0B, 0)))
         self.assertEqual(data[4:8], bytes((0xF6, 0xFF, 0xFF, 0x3F)))
         self.assertEqual(data[8:12], bytes((5, 0, 0, 0)))
@@ -85,9 +107,38 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertEqual(main._SteeringDiagBuffer._i16(data, 24), 250)
         self.assertEqual(data[26:28], bytes((255, 5)))
         self.assertEqual(main._SteeringDiagBuffer._u32(data, 28), 0xFFFFFFFF)
+        self.assertEqual(self.diag.extension_data[:16], bytes(range(16)))
         self.assertEqual(self.diag.record_errors, 0)
 
-    def test_first_invalid_does_not_freeze_and_write_errors_do_not_advance(self):
+    def test_none_pending_side_roundtrips_and_trigger_trace_is_chronological(self):
+        tracker = fast_single_edge.FastSingleEdgeTracker(config)
+        tracker.begin_frame()
+        tracker.skip_frame("NO_FRESH_KEEP")
+        candidate_diagnostic = tracker.pair_diagnostic_record
+        self.assertEqual(candidate_diagnostic[10], -1)
+
+        for sequence in range(70):
+            _record_frame(self.diag, sequence, True)
+        self.diag.record(
+            _frame(70, 0), True, False, False,
+            70, 70, 0, 0, 0, 0, 0, 0, 0, 0, 70,
+            candidate_diagnostic)
+        for sequence in range(71, 262):
+            _record_frame(self.diag, sequence, False)
+
+        self.assertTrue(self.diag.frozen)
+        self.assertEqual(self.diag.count, 256)
+        self.assertEqual(self.diag.extension_data[64 * 16 + 10], 255)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.diag.dump(config.BUILD_ID)
+        lines = output.getvalue().splitlines()
+        rows = [line.split(",") for line in lines[3:-1]]
+        self.assertEqual(len(rows), 256)
+        self.assertEqual([int(row[0]) for row in rows], list(range(6, 262)))
+        self.assertEqual(rows[64][17 + 10], "-1")
+
+    def test_trigger_is_first_successful_full_valid_to_invalid_write(self):
         self.diag.record(_frame(0, 0), True, False, False,
                          1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         self.assertFalse(self.diag.frozen)
@@ -104,46 +155,86 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertTrue(self.diag.last_full_valid)
         self.diag.record(_frame(4, 0), True, False, False,
                          9, 10, 0, 0, 0, 0, 0, 0, 0, 0, 10)
-        self.assertTrue(self.diag.frozen)
+        self.assertFalse(self.diag.frozen)
+        self.assertTrue(self.diag.triggered)
         self.assertFalse(self.diag.last_full_valid)
         self.assertEqual(self.diag.count, 5)
-        self.assertEqual(self.diag.data[4 * 32 + 2] & 0x07, 0x02)
-        self.assertFalse(self.diag.record(
+        self.assertEqual(self.diag.pre_count, 4)
+        self.assertEqual(self.diag.post_count, 1)
+        self.assertEqual(self.diag.data[64 * 32 + 2] & 0x07, 0x02)
+        self.assertTrue(self.diag.record(
             _frame(5, 1), True, False, True, 11, 12,
             0, 0, 0, 0, 0, 0, 0, 0, 11))
-        self.assertEqual(self.diag.count, 5)
+        self.assertEqual(self.diag.count, 6)
 
-    def test_ring_wrap_keeps_newest_128_in_oldest_to_newest_order(self):
-        for sequence in range(130):
+    def test_pretrigger_ring_wrap_keeps_newest_64_in_chronological_order(self):
+        for sequence in range(70):
             self.diag.record(_frame(sequence, 1, sequence % 1000),
                              True, False, False,
                              sequence, sequence + 1, sequence,
                              0, 0, sequence, sequence, 0,
                              sequence % 256, 1, sequence)
-        self.assertEqual(self.diag.count, 128)
-        self.assertEqual(self.diag.overwritten, 2)
-        self.assertEqual(self.diag.write_index, 2)
+        self.assertEqual(self.diag.count, 64)
+        self.assertEqual(self.diag.pre_count, 64)
+        self.assertEqual(self.diag.overwritten, 6)
+        self.assertEqual(self.diag.write_index, 6)
         oldest = self.diag.write_index
         self.assertEqual(main._SteeringDiagBuffer._u16(
-            self.diag.data, oldest * 32), 2)
+            self.diag.data, oldest * 32), 6)
         output = io.StringIO()
         with patch.object(main, "_STEERING_DIAG_TICKS_PERIOD_MS", 1 << 30), \
                 contextlib.redirect_stdout(output):
             self.diag.dump(config.BUILD_ID)
         lines = output.getvalue().splitlines()
-        self.assertIn("count=128 frozen=0 overwritten=2 record_errors=0",
+        self.assertIn("capacity=256 record_size=32 extension_record_size=16",
                       lines[0])
+        self.assertIn("pre_capacity=64 post_capacity=192", lines[0])
+        self.assertIn("count=64 frozen=0 triggered=0 pre_count=64",
+                      lines[0])
+        self.assertIn("overwritten=6 record_errors=0", lines[0])
         self.assertIn("ticks_period_ms=1073741824", lines[0])
-        self.assertEqual(lines[1], self.diag._CSV_HEADER)
-        self.assertTrue(lines[2].startswith("2,"))
-        self.assertTrue(lines[-2].startswith("129,"))
+        self.assertIn("extension=single_edge_candidate_v2", lines[1])
+        self.assertEqual(lines[2], self.diag._CSV_HEADER)
+        self.assertTrue(lines[3].startswith("6,"))
+        self.assertTrue(lines[-2].startswith("69,"))
         self.assertEqual(lines[-1], "STEERING_DIAG_END")
+
+    def test_trigger_starts_fixed_post_region_without_rotating_pre_ring(self):
+        for sequence in range(70):
+            self.diag.record(_frame(sequence, 1), True, False, False,
+                             sequence, sequence, 0, 0, 0, 0, 0, 0,
+                             0, 0, 0, tuple([sequence] * 16))
+        first_invalid = _frame(70, 0)
+        self.diag.record(first_invalid, True, False, False,
+                         70, 70, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                         tuple([70] * 16))
+        self.assertTrue(self.diag.triggered)
+        self.assertEqual(self.diag.pre_count, 64)
+        self.assertEqual(self.diag.pre_oldest, 6)
+        self.assertEqual(self.diag.post_count, 1)
+        self.assertEqual(self.diag.count, 65)
+        self.assertEqual(main._SteeringDiagBuffer._u16(
+            self.diag.data, 64 * 32), 70)
+        self.assertEqual(self.diag.extension_data[64 * 16], 70)
+        for sequence in range(71, 262):
+            self.diag.record(_frame(sequence, 0), True, False, False,
+                             sequence, sequence, 0, 0, 0, 0, 0, 0,
+                             0, 0, 0, tuple([sequence & 255] * 16))
+        self.assertTrue(self.diag.triggered)
+        self.diag.freeze("TEST_FREEZE")
+        self.assertTrue(self.diag.frozen)
+        self.assertEqual(self.diag.freeze_reason, "POST_COMPLETE")
+        self.assertEqual(self.diag.post_count, 192)
+        self.assertEqual(self.diag.count, 256)
+        self.assertFalse(self.diag.dumped)
 
     def test_rearm_clears_metadata_without_replacing_the_buffer(self):
         self.diag.record(_frame(1, 1), True, False, False,
                          1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0)
         self.diag.record(_frame(2, 0), True, False, False,
                          2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        for sequence in range(3, 194):
+            _record_frame(self.diag, sequence, False)
         self.assertTrue(self.diag.frozen)
         old_buffer = self.diag.data
         self.diag.record_errors = 4
@@ -152,6 +243,8 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertEqual((self.diag.write_index, self.diag.count,
                           self.diag.overwritten,
                           self.diag.record_errors), (0, 0, 0, 0))
+        self.assertEqual((self.diag.pre_count, self.diag.pre_oldest,
+                          self.diag.post_count), (0, 0, 0))
         self.assertFalse(self.diag.frozen)
         self.assertFalse(self.diag.last_full_valid)
 
@@ -172,6 +265,111 @@ class SteeringDiagBufferTests(unittest.TestCase):
                 contextlib.redirect_stdout(output):
             self.assertFalse(main.steering_diag_dump())
         self.assertIn("STEERING_DIAG_DISABLED", output.getvalue())
+
+    def test_initial_keep_discards_precontrol_trace_and_reset_dumps_early(self):
+        diag = main._SteeringDiagBuffer()
+        session = main._SteeringDiagSession(diag)
+        parser = reverse_control.ReverseControlParser()
+
+        reset = reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 10)
+        parser.feed(reset, len(reset), 1)
+        session.observe(parser, object(), config.BUILD_ID)
+        self.assertFalse(session.session_active)
+        _record_frame(diag, 0, True)
+
+        keep = reverse_control.pack_frame(
+            reverse_control.COMMAND_KEEP, 11)
+        parser.feed(keep, len(keep), 2)
+        session.observe(parser, object(), config.BUILD_ID)
+        self.assertTrue(session.session_active)
+        self.assertEqual(diag.count, 0)
+        self.assertFalse(diag.frozen)
+
+        _record_frame(diag, 2, True)
+        output = io.StringIO()
+        tracker = _FreezeSnapshotTracker()
+        stop = reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 12)
+        with contextlib.redirect_stdout(output):
+            parser.feed(stop, len(stop), 3)
+            session.observe(parser, tracker, config.BUILD_ID)
+            parser.feed(stop, len(stop), 4)
+            session.observe(parser, tracker, config.BUILD_ID)
+        self.assertTrue(diag.frozen)
+        self.assertTrue(diag.dumped)
+        self.assertEqual(diag.freeze_reason, "REVERSE_RESET")
+        self.assertEqual(diag.count, 1)
+        self.assertEqual(tracker.freeze_calls, 1)
+        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+        self.assertIn("\n2,", output.getvalue())
+
+    def test_reset_and_keep_consumed_together_finalize_then_rearm(self):
+        diag = main._SteeringDiagBuffer()
+        session = main._SteeringDiagSession(diag)
+        parser = reverse_control.ReverseControlParser()
+        tracker = _FreezeSnapshotTracker()
+
+        reset = reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 20)
+        keep = reverse_control.pack_frame(
+            reverse_control.COMMAND_KEEP, 21)
+        parser.feed(reset, len(reset), 1)
+        session.observe(parser, tracker, config.BUILD_ID)
+        parser.feed(keep, len(keep), 2)
+        session.observe(parser, tracker, config.BUILD_ID)
+        _record_frame(diag, 5, True)
+
+        combined = (reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 22) + reverse_control.pack_frame(
+                reverse_control.COMMAND_KEEP, 23))
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            parser.feed(combined, len(combined), 3)
+            self.assertEqual(parser.last_event, "KEEP")
+            session.observe(parser, tracker, config.BUILD_ID)
+        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+        self.assertEqual(tracker.freeze_calls, 1)
+        self.assertTrue(session.session_active)
+        self.assertTrue(parser.single_enabled)
+        self.assertEqual(diag.count, 0)
+        self.assertFalse(diag.frozen)
+        self.assertFalse(diag.dumped)
+
+    def test_postcapture_freezes_without_dump_until_accepted_reset(self):
+        diag = main._SteeringDiagBuffer()
+        session = main._SteeringDiagSession(diag)
+        parser = reverse_control.ReverseControlParser()
+        tracker = _FreezeSnapshotTracker()
+        reset = reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 30)
+        keep = reverse_control.pack_frame(
+            reverse_control.COMMAND_KEEP, 31)
+        parser.feed(reset, len(reset), 1)
+        session.observe(parser, tracker, config.BUILD_ID)
+        parser.feed(keep, len(keep), 2)
+        session.observe(parser, tracker, config.BUILD_ID)
+
+        for sequence in range(64):
+            _record_frame(diag, sequence, True)
+        _record_frame(diag, 64, False)
+        for sequence in range(65, 256):
+            _record_frame(diag, sequence, False)
+        self.assertTrue(diag.frozen)
+        self.assertEqual(diag.freeze_reason, "POST_COMPLETE")
+        self.assertEqual(diag.count, 256)
+        self.assertFalse(diag.dumped)
+        self.assertEqual(tracker.freeze_calls, 0)
+
+        output = io.StringIO()
+        stop = reverse_control.pack_frame(
+            reverse_control.COMMAND_RESET, 32)
+        with contextlib.redirect_stdout(output):
+            parser.feed(stop, len(stop), 3)
+            session.observe(parser, tracker, config.BUILD_ID)
+        self.assertTrue(diag.dumped)
+        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+        self.assertEqual(tracker.freeze_calls, 0)
 
     def test_real_main_continues_detection_and_sending_after_diag_freeze(self):
         main._load_fast_runtime()
@@ -208,12 +406,32 @@ class SteeringDiagBufferTests(unittest.TestCase):
         def force_preview_candidate(workspace, *_args):
             workspace.info["preview_candidate"] = 400
             workspace.info["preview_valid"] = True
+        control_frames = [
+            (reverse_control.pack_frame(
+                reverse_control.COMMAND_RESET, 0) + reverse_control.pack_frame(
+                    reverse_control.COMMAND_KEEP, 1)),
+            b"",
+            reverse_control.pack_frame(
+                reverse_control.COMMAND_RESET, 2),
+        ]
+        control_index = [0]
+
+        def service_control(_uart, parser, _buffer, _drain, now_ms,
+                            _ticks_diff):
+            index = control_index[0]
+            control_index[0] += 1
+            payload = (control_frames[index]
+                       if index < len(control_frames) else b"")
+            if payload:
+                parser.feed(payload, len(payload), now_ms)
+            return parser.single_enabled
+
         with patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", fake_sensor), \
                 patch.object(main, "time", fake_time), \
                 patch.object(main, "_STEERING_DIAG", diag), \
                 patch.object(main, "_service_reverse_control",
-                             return_value=True), \
+                             side_effect=service_control), \
                 patch.object(main.fast_gray, "FastGrayMasks",
                              main_harness._GrayBuilder), \
                 patch.object(main.fast_path, "FastPathDetector",
@@ -251,9 +469,14 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertEqual([frame[6] & vision_protocol.FLAG_VALID
                           for frame in uart.frames], [1, 0, 1])
         self.assertTrue(diag.frozen)
+        self.assertTrue(diag.triggered)
+        self.assertTrue(diag.dumped)
+        self.assertEqual(diag.freeze_reason, "REVERSE_RESET")
         self.assertEqual(diag.count, 2)
+        self.assertEqual(diag.post_count, 1)
         self.assertEqual(diag.record_errors, 0)
         self.assertEqual(main_harness._SingleEdgeTracker.freeze_calls, 1)
+        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
         self.assertGreaterEqual(len(row_weight_outputs), 3)
         self.assertTrue(all(applied == 0 and steering == position
                             for position, _candidate, applied, steering
@@ -335,7 +558,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         if baseline:
             return source
         source = source.replace(
-            "AGGRESSIVE_TURN_POS_ONLY_20261017",
+            "SECOND_TURN_CONTINUITY_20261018",
             "CONTOUR_ARRAYFIX_20261016")
         extension_start = source.index("# SINGLE_EDGE_EXT_DIAG_BEGIN")
         extension_end = source.index("# SINGLE_EDGE_EXT_DIAG_END",
@@ -347,6 +570,13 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         source = source.replace(
             "        if single_candidate is None:\n"
             "            single_edge_tracker.skip_frame(single_diagnostic_reason)\n",
+            "")
+        source = source.replace(
+            "    steering_diag_session = _SteeringDiagSession(_STEERING_DIAG)\n",
+            "")
+        source = source.replace(
+            "        steering_diag_session.observe(\n"
+            "            reverse_parser, single_edge_tracker, config.BUILD_ID)\n",
             "")
         helper_start = source.index("class _SteeringDiagBuffer:")
         helper_end = source.index("_V6_RUNTIME_MODULES = ()", helper_start)
@@ -429,7 +659,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         current_config = (OPENMV_DIR / "config.py").read_text(
             encoding="utf-8")
         current_config = current_config.replace(
-            'BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"',
+            'BUILD_ID = "SECOND_TURN_CONTINUITY_20261018"',
             'BUILD_ID = "CONTOUR_ARRAYFIX_20261016"')
         current_config = current_config.replace(
             "SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 16.0",

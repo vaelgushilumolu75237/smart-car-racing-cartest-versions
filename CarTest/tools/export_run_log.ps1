@@ -31,6 +31,10 @@ $script:Stage = 'preflight'
 $script:RunCsvPath = $null
 $script:DecodeMetadataPath = $null
 $script:StatusSnapshotPath = $null
+$script:StatusPreflightPath = $null
+$script:StatusPostExportPath = $null
+$script:RunStateClass = $null
+$script:ExportDiagnosticStatus = 'not_started'
 $script:DiagnosticFailure = $null
 $script:CliLogs = New-Object System.Collections.Generic.List[string]
 $script:StartedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -232,11 +236,17 @@ function New-HotPlugArguments {
 }
 
 function Invoke-StatusSnapshot {
-    $script:Stage = 'read-status-snapshot'
+    param([ValidateSet('preflight', 'post-export')][string]$SnapshotTag = 'preflight')
+    $script:Stage = "read-status-$SnapshotTag"
+    $script:DiagnosticFailure = $null
+    $script:StatusSnapshotPath = $null
+    if ($SnapshotTag -eq 'preflight') { $script:StatusPreflightPath = $null }
+    if ($SnapshotTag -eq 'post-export') { $script:StatusPostExportPath = $null }
     $statusScript = Join-Path $PSScriptRoot 'read_run_status.ps1'
-    $diagnosticRoot = Join-Path $script:RunDirectory 'status-read'
-    $statusJson = Join-Path $script:RunDirectory 'status-snapshot.json'
-    $logPath = Join-Path $script:RunDirectory 'status-read-wrapper.log'
+    $diagnosticRoot = Join-Path $script:RunDirectory ("status-read-{0}" -f $SnapshotTag)
+    $statusJson = Join-Path $script:RunDirectory ("status-{0}.json" -f $SnapshotTag)
+    $tagSnapshotPath = $statusJson
+    $logPath = Join-Path $script:RunDirectory ("status-read-{0}-wrapper.log" -f $SnapshotTag)
     try {
         if (-not (Test-Path -LiteralPath $statusScript -PathType Leaf)) {
             throw "Status reader wrapper is missing: $statusScript"
@@ -269,13 +279,15 @@ function Invoke-StatusSnapshot {
             Sort-Object -Property LastWriteTime -Descending | Select-Object -First 1
         $nestedStatus = if ($candidate) { Join-Path $candidate.FullName 'run-status.json' } else { $null }
         if ($nestedStatus -and (Test-Path -LiteralPath $nestedStatus -PathType Leaf)) {
-            Copy-Item -LiteralPath $nestedStatus -Destination $statusJson -Force
-            $script:StatusSnapshotPath = $statusJson
+            Copy-Item -LiteralPath $nestedStatus -Destination $tagSnapshotPath -Force
+            $script:StatusSnapshotPath = $tagSnapshotPath
+            if ($SnapshotTag -eq 'preflight') { $script:StatusPreflightPath = $tagSnapshotPath }
+            if ($SnapshotTag -eq 'post-export') { $script:StatusPostExportPath = $tagSnapshotPath }
         }
         if ($exitCode -ne 0) {
             $script:DiagnosticFailure = "read_run_status.ps1 exited with code $exitCode. See $logPath."
         }
-        if (-not $script:StatusSnapshotPath) {
+        if (-not (Test-Path -LiteralPath $tagSnapshotPath -PathType Leaf)) {
             $script:DiagnosticFailure = "Status reader did not create run-status.json. See $logPath."
         }
     }
@@ -283,6 +295,39 @@ function Invoke-StatusSnapshot {
         $script:DiagnosticFailure = $_.Exception.Message
         try { Set-Content -LiteralPath $logPath -Value $script:DiagnosticFailure -Encoding UTF8 } catch { }
     }
+}
+
+function Test-StatusMatchesHeader {
+    param(
+        [Parameter(Mandatory = $true)][object]$Status,
+        [Parameter(Mandatory = $true)][object]$ExpectedHeader,
+        [Parameter(Mandatory = $true)][string]$Tag
+    )
+    $class = [string]$Status.status_class
+    if ($class -notin @('frozen', 'legacy_frozen')) {
+        return "${Tag} status class is '$class', not a stable FROZEN state."
+    }
+    foreach ($headerName in @('runtime_log_header', 'runtime_log_header_after')) {
+        $statusHeader = $Status.$headerName
+        if (-not $statusHeader -or
+            [int]$statusHeader.state -ne [int]$ExpectedHeader.state -or
+            [int]$statusHeader.count -ne [int]$ExpectedHeader.count -or
+            [uint32]$statusHeader.session_id -ne [uint32]$ExpectedHeader.session_id -or
+            [string]$statusHeader.build_id -ne [string]$ExpectedHeader.build_id) {
+            return "${Tag} ${headerName} does not match the export header state/count/session/build ID."
+        }
+    }
+    $diagnostic = $Status.runtime_diagnostic_snapshot
+    if ($diagnostic) {
+        if ([int]$diagnostic.cpu_header_state -ne [int]$ExpectedHeader.state -or
+            [int]$diagnostic.cpu_header_count -ne [int]$ExpectedHeader.count -or
+            [uint32]$diagnostic.header_session_id -ne [uint32]$ExpectedHeader.session_id) {
+            return "${Tag} CPU diagnostic snapshot does not match the export header state/count/session."
+        }
+    } elseif ($class -notin @('legacy_frozen')) {
+        return "${Tag} diagnostic snapshot is missing for a non-legacy ELF."
+    }
+    return $null
 }
 
 function Invoke-HotPlugUpload {
@@ -365,7 +410,7 @@ function Get-RunMetadata {
     param([string]$Status, [string]$ErrorMessage, [object]$Layout, [object]$Header)
     $rawFiles = @()
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
-        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin')) {
+        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin', 'status-preflight.json', 'status-post-export.json')) {
             $path = Join-Path $script:RunDirectory $name
             if (Test-Path -LiteralPath $path -PathType Leaf) {
                 $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
@@ -404,14 +449,18 @@ function Get-RunMetadata {
         initial_header = $Header
         record_count = if ($Header) { [int]$Header.count } else { $null }
         dropped_count = if ($Header) { [int]$Header.dropped_count } else { $null }
-        buffer_full = if ($Header) { [bool]$Header.buffer_full } else { $null }
-        records_truncated = if ($Header) { [bool]$Header.records_truncated } else { $null }
+        buffer_full = if ($Header -and $Header.PSObject.Properties['buffer_full']) { [bool]$Header.buffer_full } else { $null }
+        records_truncated = if ($Header -and $Header.PSObject.Properties['records_truncated']) { [bool]$Header.records_truncated } else { $null }
         csv = if ($script:RunCsvValidated -and $script:RunCsvPath -and
                   (Test-Path -LiteralPath $script:RunCsvPath -PathType Leaf)) {
             $script:RunCsvPath
         } else { $null }
         planned_csv_path = $script:RunCsvPath
         status_snapshot = if ($script:StatusSnapshotPath) { $script:StatusSnapshotPath } else { $null }
+        status_preflight = if ($script:StatusPreflightPath) { $script:StatusPreflightPath } else { $null }
+        status_post_export = if ($script:StatusPostExportPath) { $script:StatusPostExportPath } else { $null }
+        run_state_class = $script:RunStateClass
+        export_diagnostic_status = $script:ExportDiagnosticStatus
         diagnostic_failure = $script:DiagnosticFailure
         raw_sha256 = $rawHash
         cubeprogrammer_logs = @($script:CliLogs)
@@ -527,6 +576,37 @@ try {
         $validator, 'check-descriptor', '--elf', $elfPath, '--descriptor', $descriptorPath
     ) -LogPath (Join-Path $script:RunDirectory 'python-check-flash-descriptor.log')
 
+    Invoke-StatusSnapshot -SnapshotTag 'preflight'
+    if ($script:DiagnosticFailure -or -not $script:StatusPreflightPath) {
+        $script:ErrorClass = 'diagnostic_preflight'
+        throw "Could not obtain a coherent runtime diagnostic preflight. $($script:DiagnosticFailure)"
+    }
+    $preflightStatus = Get-Content -LiteralPath $script:StatusPreflightPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $script:RunStateClass = [string]$preflightStatus.status_class
+    $preflightHeader = $preflightStatus.runtime_log_header_after
+    if ($script:RunStateClass -in @('neverstarted', 'legacy_idle', 'active', 'legacy_active')) {
+        $script:Stage = "preflight-$($script:RunStateClass)-no-run-export"
+        $initialHeader = $preflightHeader
+        $message = if ($script:RunStateClass -in @('neverstarted', 'legacy_idle')) {
+            'Runtime log is IDLE; no run records are available and no run.csv was created.'
+        } else {
+            'Runtime log is ACTIVE; stop the vehicle through its normal stop path and wait for FROZEN before export.'
+        }
+        $metadata = Get-RunMetadata -Status $script:RunStateClass -ErrorMessage $message -Layout $layout -Header $initialHeader
+        $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
+        [Console]::Error.WriteLine($message)
+        [Console]::Error.WriteLine("Status snapshot: $script:StatusPreflightPath")
+        exit 2
+    }
+    if ($script:RunStateClass -in @('inconsistent', 'legacy_inconsistent')) {
+        $script:ErrorClass = 'inconsistent_snapshot'
+        throw "Runtime diagnostic/header comparison remained inconsistent after bounded retries. See $script:StatusPreflightPath."
+    }
+    if ($script:RunStateClass -notin @('frozen', 'legacy_frozen')) {
+        $script:ErrorClass = 'diagnostic_preflight'
+        throw "Unsupported runtime diagnostic status class '$($script:RunStateClass)'; export was not started."
+    }
+
     $initialHeaderPath = Join-Path $script:RunDirectory 'header-initial.bin'
     $script:Stage = 'read-initial-header'
     Invoke-HotPlugUpload -Tag 'header-initial' -Address $headerAddress -Size 64 -Destination $initialHeaderPath
@@ -535,17 +615,28 @@ try {
         '--header', $initialHeaderPath, '--allow-idle') -LogPath (Join-Path $script:RunDirectory 'python-check-initial-header.log')
 
     if ([int]$initialHeader.state -eq 0) {
-        Invoke-StatusSnapshot
-        $script:Stage = 'idle-no-run'
-        $idleMessage = 'Runtime log is idle; no run has been recorded. No run.csv was created.'
-        $metadata = Get-RunMetadata -Status 'idle' -ErrorMessage $idleMessage -Layout $layout -Header $initialHeader
+        $script:Stage = 'preflight-header-disagreement'
+        $script:RunStateClass = 'inconsistent'
+        $idleMessage = 'The log became IDLE after a FROZEN preflight. No run.csv was created; inspect the retained status and header files.'
+        $metadata = Get-RunMetadata -Status 'inconsistent' -ErrorMessage $idleMessage -Layout $layout -Header $initialHeader
         $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
         [Console]::Error.WriteLine($idleMessage)
-        if ($script:StatusSnapshotPath) {
-            [Console]::Error.WriteLine("Status snapshot: $script:StatusSnapshotPath")
-        }
+        [Console]::Error.WriteLine("Status snapshot: $script:StatusPreflightPath")
         exit 2
     }
+
+    if ([int]$initialHeader.state -ne 2 -or [int]$initialHeader.count -lt 2) {
+        $script:ErrorClass = 'inconsistent_snapshot'
+        throw "Preflight was FROZEN but the export header is not FROZEN with at least two records (state=$($initialHeader.state), count=$($initialHeader.count))."
+    }
+    $preflightMismatch = Test-StatusMatchesHeader -Status $preflightStatus `
+        -ExpectedHeader $initialHeader -Tag 'Preflight'
+    if ($preflightMismatch) {
+        $script:ErrorClass = 'inconsistent_snapshot'
+        $script:ExportDiagnosticStatus = 'inconsistent'
+        throw $preflightMismatch
+    }
+    $script:ExportDiagnosticStatus = 'verified'
 
     $payloadSize = [long]$initialHeader.payload_size
     if ($payloadSize -lt 64 -or $payloadSize -gt $storageSize) {
@@ -588,11 +679,36 @@ try {
         $script:ErrorClass = 'decode'
         throw 'Decoder did not produce a nonempty CSV and metadata file.'
     }
-    $script:RunCsvValidated = $true
-    Invoke-StatusSnapshot
     $decodeMetadata = Get-Content -LiteralPath $script:DecodeMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([int]$decodeMetadata.record_count -lt 2) {
+        $script:ErrorClass = 'decode'
+        throw "Decoder produced only $($decodeMetadata.record_count) record(s); an empty/header-only CSV cannot be reported as a successful export."
+    }
+    $script:RunCsvValidated = $true
+    Invoke-StatusSnapshot -SnapshotTag 'post-export'
+    if ($script:DiagnosticFailure) {
+        $script:ExportDiagnosticStatus = 'unverified'
+    } elseif (-not $script:StatusPostExportPath -or
+              -not (Test-Path -LiteralPath $script:StatusPostExportPath -PathType Leaf)) {
+        $script:DiagnosticFailure = 'Post-export status snapshot is missing.'
+        $script:ExportDiagnosticStatus = 'unverified'
+    } else {
+        $postStatus = Get-Content -LiteralPath $script:StatusPostExportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $postMismatch = Test-StatusMatchesHeader -Status $postStatus `
+            -ExpectedHeader $finalHeader -Tag 'Post-export'
+        if ($postMismatch) {
+            $script:DiagnosticFailure = $postMismatch
+            $script:ExportDiagnosticStatus = 'inconsistent'
+        } else {
+            $script:ExportDiagnosticStatus = 'verified'
+        }
+    }
     $script:Stage = 'complete'
-    $completionStatus = if ($script:DiagnosticFailure) { 'success_with_warnings' } else { 'success' }
+    $completionStatus = if ($script:ExportDiagnosticStatus -eq 'inconsistent') {
+        'decoded_csv_diagnostic_inconsistent'
+    } elseif ($script:DiagnosticFailure -or $script:ExportDiagnosticStatus -ne 'verified') {
+        'decoded_csv_diagnostic_unverified'
+    } else { 'success' }
     $metadata = Get-RunMetadata -Status $completionStatus -ErrorMessage $script:DiagnosticFailure -Layout $layout -Header $initialHeader
     $metadata['record_count'] = [int]$decodeMetadata.record_count
     $metadata['dropped_count'] = [int]$decodeMetadata.dropped_count
@@ -604,6 +720,7 @@ try {
         if ($warning) { [Console]::Error.WriteLine("Warning: $warning") }
     }
     Write-Output $script:RunCsvPath
+    if ($completionStatus -ne 'success') { exit 3 }
     exit 0
 }
 catch {
@@ -619,7 +736,11 @@ catch {
     }
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
         try {
-            $failureStatus = if ($script:RunCsvValidated) { 'success_with_warnings' } else { 'failed' }
+            $failureStatus = if ($script:RunCsvValidated) {
+                if ($script:ExportDiagnosticStatus -eq 'inconsistent') {
+                    'decoded_csv_diagnostic_inconsistent'
+                } else { 'decoded_csv_diagnostic_unverified' }
+            } else { 'failed' }
             $metadata = Get-RunMetadata -Status $failureStatus -ErrorMessage $errorMessage -Layout $layout -Header $initialHeader
             $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
         }

@@ -23,6 +23,7 @@ $sourceFiles = @(
     (Join-Path $projectRoot "App\manual_run_button.c"),
     (Join-Path $projectRoot "App\follow_output.c"),
     (Join-Path $projectRoot "App\uart_rx_service.c"),
+    (Join-Path $projectRoot "App\runtime_diag.c"),
     (Join-Path $projectRoot "App\vision_protocol.cpp"),
     (Join-Path $PSScriptRoot "test_main.cpp"),
     $vectorFile,
@@ -77,7 +78,8 @@ $objectFiles = @(
     (Join-Path $runDirectory "speed_observer.obj"),
     (Join-Path $runDirectory "speed_pi.obj"),
     (Join-Path $runDirectory "follow_speed_pi.obj"),
-    (Join-Path $runDirectory "servo_safety_turn.obj")
+    (Join-Path $runDirectory "servo_safety_turn.obj"),
+    (Join-Path $runDirectory "runtime_diag.obj")
 )
 $testExecutable = Join-Path $runDirectory "CarTestHostTests.exe"
 $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
@@ -128,6 +130,9 @@ $batchLines = @(
     "echo === Compile runtime_log.c as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument $runtimeLogBuildIdInclude $runtimeLogBuildIdDefine /DCAR_RUNTIME_LOG_HOST_TEST /Fo`"$($objectFiles[5])`" `"$(Join-Path $projectRoot 'App\runtime_log.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile runtime_diag.c as C11 ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCAR_RUNTIME_DIAG_HOST_TEST /Fo`"$($objectFiles[17])`" `"$(Join-Path $projectRoot 'App\runtime_diag.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile vision_protocol.cpp as C++17 ===",
     "cl /nologo /std:c++17 /EHsc /W4 /TP /c $includeArgument /Fo`"$($objectFiles[6])`" `"$(Join-Path $projectRoot 'App\vision_protocol.cpp')`"",
     "if errorlevel 1 exit /b %errorlevel%",
@@ -141,7 +146,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[11])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile isolated FollowTurn slope-assist helper as C11 ===",
-    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_hold_at=car_follow_output_turn_hold_at /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile read-only run block reason classifier as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[9])`" `"$(Join-Path $projectRoot 'App\run_block_reason.c')`"",
@@ -156,7 +161,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_SPEED_PI_ENABLED=1 /Fo`"$($objectFiles[15])`" `"$(Join-Path $projectRoot 'App\follow_speed_pi.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link actual CarTest pure modules and host assertions ===",
-    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`"",
+    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Run host assertions from CarTest project root ===",
     "`"$testExecutable`"",

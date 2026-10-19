@@ -219,6 +219,8 @@ int main(void)
     before_integral = (uint32_t)follow_speed_pi_state.left.integral_q16;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
+    car_control_state.vision_hold_started_ms = 111u;
+    car_control_state.vision_hold_entries = 1u;
     car_control_state.vision_hold_motor_left_permille = 540u;
     car_control_state.vision_hold_motor_right_permille = 500u;
     car_control_state.vision_hold_servo_pulse_us = 1530u;

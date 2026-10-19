@@ -94,6 +94,7 @@ internal static class FakeCubeProgrammer
         string address = args[uploadIndex + 1];
         bool descriptorRead = address == Env("RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS");
         bool scalarRead = address == Env("RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS");
+        bool diagnosticRead = address == Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS");
         if (mode == "connect-error" ||
             (mode == "connect-error-1000" && args[3] == "freq=1000") ||
             (mode == "status-only-error" && scalarRead))
@@ -130,6 +131,16 @@ internal static class FakeCubeProgrammer
             fixturePath = Env("RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH");
             expectedAddress = Env("RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS");
         }
+        else if (diagnosticRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS");
+        }
+        else if (!String.IsNullOrEmpty(Env("RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH")) &&
+                 address == expectedAddress && args[uploadIndex + 2] == "64")
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH");
+        }
         if (!String.IsNullOrEmpty(expectedAddress) && address != expectedAddress)
         {
             Console.Error.WriteLine("fake CLI rejected address " + address);
@@ -149,7 +160,7 @@ internal static class FakeCubeProgrammer
             return 99;
         }
         string modeExpectedAddress = Env("RUNTIME_LOG_FAKE_MUTATE_FINAL_HEADER_ADDRESS");
-        if (mode == "mutate-final-header" && callNumber == 4 &&
+        if (mode == "mutate-final-header" && callNumber == 9 &&
             (String.IsNullOrEmpty(modeExpectedAddress) || address == modeExpectedAddress))
         {
             if (requestedSize != 64)
@@ -171,8 +182,13 @@ internal static class FakeCubeProgrammer
             }
             byte[] content = new byte[requestedSize];
             Array.Copy(fixture, 0, content, 0, requestedSize);
-            if (mode == "decode-error" && callNumber == 3 && content.Length > 127)
+            if (mode == "decode-error" && callNumber == 8 && content.Length > 127)
                 content[64 + 63] = 0xFF;
+            if (mode == "post-diagnostic-error" && diagnosticRead &&
+                callNumber >= 13 && content.Length == 64)
+            {
+                content[12] ^= 0x01;
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(args[uploadIndex + 3]));
             File.WriteAllBytes(args[uploadIndex + 3], content);
         }

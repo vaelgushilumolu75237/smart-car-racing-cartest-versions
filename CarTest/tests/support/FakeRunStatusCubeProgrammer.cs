@@ -92,6 +92,12 @@ internal static class FakeRunStatusCubeProgrammer
             expectedSizeText = "64";
             fixture = Env("RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE");
         }
+        else if (address == Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS"))
+        {
+            expectedAddress = Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS");
+            expectedSizeText = "64";
+            fixture = Env("RUN_STATUS_FAKE_DIAGNOSTIC_FIXTURE");
+        }
         else if (address == Env("RUN_STATUS_FAKE_SCALAR_ADDRESS"))
         {
             expectedAddress = Env("RUN_STATUS_FAKE_SCALAR_ADDRESS");
@@ -112,6 +118,21 @@ internal static class FakeRunStatusCubeProgrammer
             Console.Error.WriteLine("fake status CLI rejected address or exact bounded read size");
             return 96;
         }
+
+        int callNumber = 1;
+        string callIndexPath = Env("RUN_STATUS_FAKE_CALL_INDEX_PATH");
+        if (!String.IsNullOrEmpty(callIndexPath) && File.Exists(callIndexPath))
+        {
+            Int32.TryParse(File.ReadAllText(callIndexPath), out callNumber);
+            callNumber++;
+        }
+        if (!String.IsNullOrEmpty(callIndexPath))
+            File.WriteAllText(callIndexPath, callNumber.ToString(CultureInfo.InvariantCulture));
+
+        string[] uploadSequence = Env("RUN_STATUS_FAKE_UPLOAD_SEQUENCE").Split(
+            new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+        if (callNumber <= uploadSequence.Length)
+            fixture = uploadSequence[callNumber - 1];
 
         string mode = Env("RUN_STATUS_FAKE_MODE");
         if (mode == "connect-error" || (mode == "connect-error-1000" && requestedFrequency == "1000"))

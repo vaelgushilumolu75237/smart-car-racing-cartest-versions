@@ -1,7 +1,7 @@
 {
-  "version": "v20261017-position-only",
+  "version": "v20261018-second-turn",
   "status": "experimental-software-tested",
-  "branch": "fix/position-only-preview",
-  "files": 370,
+  "branch": "fix/second-turn-continuity",
+  "files": 374,
   "hardware_actions": "none"
 }

@@ -27,7 +27,7 @@ DEBUG_ROW_DETAILS = True
 # This package isolates ordinary-road position control for the next vehicle
 # comparison.  Preview geometry is still computed and reported, but it does
 # not contribute to the ordinary road steering packet.
-BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"
+BUILD_ID = "SECOND_TURN_CONTINUITY_20261018"
 ORDINARY_PREVIEW_CONTROL_ENABLED = False
 STEERING_DIAG_ENABLED = True
 V7_RUNTIME_API_VERSION = 7

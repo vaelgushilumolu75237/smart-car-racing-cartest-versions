@@ -197,6 +197,21 @@ SECTIONS
   PROVIDE( __bss_size = __bss_end - __bss_start );
   PROVIDE( __non_tls_bss_start = ADDR(.bss) );
 
+  /* Independent SWD-readable CPU snapshot. It has its own 64-byte ABI and is
+     kept separate from the fixed-size V1/V2 runtime-log allocation. */
+  .runtime_diag (NOLOAD) : ALIGN(32)
+  {
+    __runtime_diag_start = .;
+    KEEP(*(.runtime_diag))
+    . = ALIGN(32);
+    __runtime_diag_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.runtime_diag) & 31) == 0,
+         "runtime diagnostic section is not 32-byte aligned")
+  ASSERT(SIZEOF(.runtime_diag) == 64,
+         "runtime diagnostic ABI must reserve exactly 64 bytes")
+
   /* The log is SWD-readable, NOLOAD, cache-line aligned, and not initialized
      or cleared with .bss. Runtime code initializes only its 64-byte header. */
   .runtime_log (NOLOAD) : ALIGN(32)

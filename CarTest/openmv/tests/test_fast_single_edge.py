@@ -172,6 +172,27 @@ def _support_scanner(left_support=(), left_ambiguous=(),
     return scan
 
 
+def _pair_support_scanner(left_support, right_support,
+                          left_center2=80, right_center2=80,
+                          left_edge2=50, right_edge2=100):
+    """Supply selected side chains for bounded same-lane agreement tests."""
+    def scan(tracker):
+        tracker._row_status[:] = bytes(len(tracker._row_status))
+        tracker._row_edge2[:] = array("i", [0] * len(tracker._row_edge2))
+        tracker._row_center2[:] = array("i", [0] * len(tracker._row_center2))
+        height = tracker.height
+        for y in left_support:
+            tracker._row_status[y] = 1
+            tracker._row_edge2[y] = left_edge2
+            tracker._row_center2[y] = left_center2
+        for y in right_support:
+            slot = height + y
+            tracker._row_status[slot] = 1
+            tracker._row_edge2[slot] = right_edge2
+            tracker._row_center2[slot] = right_center2
+    return scan
+
+
 def _switch_tracker():
     tracker = FastSingleEdgeTracker(config)
     _warm_tracker(tracker)
@@ -467,6 +488,120 @@ class FastSingleEdgeTests(unittest.TestCase):
             too_short = self.tracker.detect(_mask("left"), True)
         self.assertFalse(too_short["valid"])
         self.assertEqual(too_short["reason"], "SINGLE_EDGE_SUPPORT_SPAN")
+
+    def test_same_lane_pair_accepts_exact_common_row_span_and_delta_limits(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        common = (35, 36, 37, 40, 41)
+        left_support = (30, 31, 32) + common
+        right_support = common + (43, 44, 45)
+        scanner = _pair_support_scanner(
+            left_support, right_support, left_center2=80,
+            right_center2=86)
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            result = tracker.detect(_mask("both"), True)
+        self.assertTrue(result["valid"], result["reason"])
+        self.assertEqual(result["reason"], "OK_SINGLE_EDGE_RIGHT")
+        diagnostic = tracker.pair_diagnostic_record
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_REASON],
+                         fast_single_edge._PAIR_REASON_SAME_LANE)
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_COMMON_ROWS],
+                         5)
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_SPAN], 6)
+        self.assertEqual(
+            diagnostic[fast_single_edge._PAIR_DIAG_MAX_DELTA2], 6)
+
+    def test_same_lane_pair_rejects_different_lane_center_delta(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        common = (35, 36, 37, 40, 41)
+        scanner = _pair_support_scanner(
+            (30, 31, 32) + common, common + (43, 44, 45),
+            left_center2=80, right_center2=87)
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            result = tracker.detect(_mask("both"), True)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["reason"], "AMBIGUOUS_BOTH_SIDES")
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_REASON],
+            fast_single_edge._PAIR_REASON_CENTER_DELTA)
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_MAX_DELTA2], 7)
+
+    def test_pair_needs_five_rows_and_ignores_matching_rows_outside_chains(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        selected_common = (35, 36, 39, 40)
+        unrelated_common = tuple(range(10, 16))
+        left_support = (30, 31, 32, 33) + selected_common + unrelated_common
+        right_support = selected_common + (41, 42, 43, 44) + unrelated_common
+        scanner = _pair_support_scanner(
+            left_support, right_support, left_center2=80,
+            right_center2=87)
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            result = tracker.detect(_mask("both"), True)
+        self.assertFalse(result["valid"])
+        diagnostic = tracker.pair_diagnostic_record
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_COMMON_ROWS],
+                         4)
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_SPAN], 5)
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_MAX_DELTA2], 7)
+        self.assertEqual(diagnostic[fast_single_edge._PAIR_DIAG_REASON],
+                         fast_single_edge._PAIR_REASON_TOO_FEW_ROWS)
+
+    def test_pair_does_not_use_agreement_outside_selected_chain_intersection(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        unrelated_common = tuple(range(10, 16))
+        scanner = _pair_support_scanner(
+            tuple(range(30, 38)) + unrelated_common,
+            tuple(range(42, 50)) + unrelated_common)
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            result = tracker.detect(_mask("both"), True)
+        self.assertFalse(result["valid"])
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_COMMON_ROWS], 0)
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_REASON],
+            fast_single_edge._PAIR_REASON_NO_COMMON_ROWS)
+
+    def test_same_lane_pair_rejects_wrong_boundary_order(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        common = (35, 36, 37, 40, 41)
+        scanner = _pair_support_scanner(
+            (30, 31, 32) + common, common + (43, 44, 45),
+            left_center2=80, right_center2=80,
+            left_edge2=100, right_edge2=50)
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            result = tracker.detect(_mask("both"), True)
+        self.assertFalse(result["valid"])
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_REASON],
+            fast_single_edge._PAIR_REASON_BOUNDARY_ORDER)
+
+    def test_same_lane_pair_prefers_previous_accepted_side_identity(self):
+        tracker = FastSingleEdgeTracker(config)
+        _warm_tracker(tracker)
+        left = tracker.detect(_mask("left"), True)
+        self.assertTrue(left["valid"], left["reason"])
+        tracker.commit_single(left)
+        common = (35, 36, 37, 40, 41)
+        scanner = _pair_support_scanner(
+            (30, 31, 32) + common, common + (43, 44, 45))
+        with patch.object(fast_single_edge, "_scan_single_edges_viper",
+                          side_effect=scanner):
+            paired = tracker.detect(_mask("both"), True)
+        self.assertTrue(paired["valid"], paired["reason"])
+        self.assertEqual(paired["boundary_source"], "LEFT_ONLY")
+        self.assertEqual(tracker.pair_diagnostic_record[
+            fast_single_edge._PAIR_DIAG_SELECTION],
+            fast_single_edge._PAIR_SELECT_PREVIOUS_LEFT)
 
     def test_side_switch_requires_two_adjacent_frames_and_overlap(self):
         tracker = _switch_tracker()

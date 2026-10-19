@@ -1,6 +1,6 @@
 # CarTest OpenMV production package
 
-Current package: `AGGRESSIVE_TURN_POS_ONLY_20261017`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+Current package: `SECOND_TURN_CONTINUITY_20261018`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
 
 The previous MicroPython array-allocation compatibility fix is retained. This release retains RAM diagnostics and paired H743 3000ms last-error hold, repairs single-edge segment selection, and increases the normal FollowTurn output rates. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the historical allocation issue, and the current steering-hold guide below for this release.
 

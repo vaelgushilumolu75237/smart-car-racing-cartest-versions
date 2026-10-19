@@ -75,7 +75,7 @@ SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "AGGRESSIVE_TURN_POS_ONLY_20261017"
+CACHED_WIDTH_BUILD_ID = "SECOND_TURN_CONTINUITY_20261018"
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
@@ -85,32 +85,53 @@ SINGLEEDGE_ROUTE_BUILD_IDS = (
 
 
 class _SteeringDiagBuffer:
-    """Fixed-size RAM trace retained after the camera loop returns."""
+    """Fixed-size pre/post-trigger RAM trace retained at the camera REPL."""
 
-    CAPACITY = 128
+    CAPACITY = 256
     RECORD_SIZE = 32
+    PRE_TRIGGER_CAPACITY = 64
+    POST_TRIGGER_CAPACITY = 192
+    EXTENSION_RECORD_SIZE = 16
     _CSV_HEADER = (
         "sequence,capture_ms,send_ms,valid,full_write,write_error,"
         "reverse_fresh,position_norm,preview_candidate_norm,"
         "preview_applied_norm,sent_error_norm,raw_control_norm,"
         "filtered_error_norm,reference_error_norm,row_count,source_code,"
-        "reverse_generation")
+        "reverse_generation,pair_reason,pair_common_rows,pair_common_span,"
+        "pair_max_center_delta2,pair_selected_side,pair_selection,"
+        "pair_left_support,pair_right_support,candidate_flags,"
+        "result_reason_code,pending_side,pending_count,anchor_rejects,"
+        "corridor_rejects,jump_breaks,gap_breaks")
 
     def __init__(self):
         self.data = bytearray(self.CAPACITY * self.RECORD_SIZE)
+        self.extension_data = bytearray(
+            self.CAPACITY * self.EXTENSION_RECORD_SIZE)
+        self.pre_count = 0
+        self.pre_oldest = 0
         self.write_index = 0
         self.count = 0
         self.overwritten = 0
         self.record_errors = 0
         self.frozen = False
+        self.triggered = False
+        self.post_count = 0
+        self.freeze_reason = "RUNNING"
+        self.dumped = False
         self.last_full_valid = False
 
     def rearm(self):
         self.write_index = 0
+        self.pre_count = 0
+        self.pre_oldest = 0
         self.count = 0
         self.overwritten = 0
         self.record_errors = 0
         self.frozen = False
+        self.triggered = False
+        self.post_count = 0
+        self.freeze_reason = "RUNNING"
+        self.dumped = False
         self.last_full_valid = False
 
     @staticmethod
@@ -148,14 +169,32 @@ class _SteeringDiagBuffer:
                capture_ms, send_ms, position, preview_candidate,
                preview_applied, raw_control, filtered_error,
                reference_error, row_count, source_code,
-               reverse_generation):
+               reverse_generation, candidate_diagnostic=None):
         if self.frozen or frame is None or len(frame) < 10:
             return False
 
-        offset = self.write_index * self.RECORD_SIZE
+        actual_valid = bool(frame[6] & vision_protocol.FLAG_VALID)
+        successful_write = bool(full_write and not write_error)
+        trigger = bool(not self.triggered and successful_write and
+                       not actual_valid and self.last_full_valid)
+        if self.triggered:
+            if self.post_count >= self.POST_TRIGGER_CAPACITY:
+                self.freeze("CAPACITY_REACHED")
+                return False
+        elif trigger:
+            self.pre_count = self.count
+            self.pre_oldest = (self.write_index
+                               if self.pre_count == self.PRE_TRIGGER_CAPACITY
+                               else 0)
+            slot = self.PRE_TRIGGER_CAPACITY
+        else:
+            slot = self.write_index
+        if self.triggered:
+            slot = self.PRE_TRIGGER_CAPACITY + self.post_count
+
+        offset = slot * self.RECORD_SIZE
         data = self.data
         sequence = frame[4] | (frame[5] << 8)
-        actual_valid = bool(frame[6] & vision_protocol.FLAG_VALID)
         sent_error = frame[8] | (frame[9] << 8)
         if sent_error & 0x8000:
             sent_error -= 0x10000
@@ -192,23 +231,67 @@ class _SteeringDiagBuffer:
             source_code = 0
         data[offset + 27] = source_code
         self._put_u32(data, offset + 28, reverse_generation)
+        self._write_extension(slot, candidate_diagnostic)
 
-        if self.count < self.CAPACITY:
+        if self.triggered:
             self.count += 1
+            self.post_count += 1
+        elif trigger:
+            self.count = self.pre_count + 1
+            self.post_count = 1
+            self.triggered = True
         else:
-            self.overwritten += 1
-        self.write_index += 1
-        if self.write_index >= self.CAPACITY:
-            self.write_index = 0
+            if self.pre_count < self.PRE_TRIGGER_CAPACITY:
+                self.pre_count += 1
+                self.count = self.pre_count
+            else:
+                self.overwritten += 1
+            self.write_index += 1
+            if self.write_index >= self.PRE_TRIGGER_CAPACITY:
+                self.write_index = 0
 
         # Only successful complete UART writes participate in the transition.
-        # A first full invalid packet and any short/error write leave it armed.
-        if full_write and not write_error:
-            if actual_valid:
-                self.last_full_valid = True
-            elif self.last_full_valid:
-                self.last_full_valid = False
-                self.frozen = True
+        if successful_write:
+            self.last_full_valid = actual_valid
+        if (self.triggered and
+                self.post_count >= self.POST_TRIGGER_CAPACITY):
+            self.freeze("POST_COMPLETE")
+        return True
+
+    def _write_extension(self, slot, candidate_diagnostic):
+        """Store bounded candidate fields beside the matching frame."""
+        offset = slot * self.EXTENSION_RECORD_SIZE
+        data = self.extension_data
+        if candidate_diagnostic is None:
+            for index in range(self.EXTENSION_RECORD_SIZE):
+                data[offset + index] = 0
+            data[offset + 4] = 255
+            data[offset + 10] = 255
+            return
+        for index in range(self.EXTENSION_RECORD_SIZE):
+            value = int(candidate_diagnostic[index])
+            if index in (4, 10) and value < 0:
+                value = 255
+            elif value < 0:
+                value = 0
+            elif value > 255:
+                value = 255
+            data[offset + index] = value
+
+    def freeze(self, reason="STOP"):
+        if not self.frozen:
+            self.frozen = True
+            self.freeze_reason = reason
+        return self.frozen
+
+    def dump_once(self, build_id):
+        """Dump once after an accepted reverse RESET ends a run."""
+        if self.dumped or self.count <= 0:
+            return False
+        self.freeze(self.freeze_reason if self.freeze_reason != "RUNNING"
+                    else "AUTO_DUMP")
+        self.dumped = True
+        self.dump(build_id)
         return True
 
     @staticmethod
@@ -228,23 +311,63 @@ class _SteeringDiagBuffer:
 
     def dump(self, build_id):
         data = self.data
-        print("STEERING_DIAG_BEGIN build=%s format=1 capacity=128 "
-              "record_size=32 ticks_period_ms=%d count=%d frozen=%d "
-              "overwritten=%d record_errors=%d" % (
+        print("STEERING_DIAG_BEGIN build=%s format=3 capacity=256 "
+              "record_size=32 extension_record_size=16 pre_capacity=64 "
+              "post_capacity=192 ticks_period_ms=%d count=%d frozen=%d "
+              "triggered=%d pre_count=%d post_count=%d freeze_reason=%s overwritten=%d "
+              "record_errors=%d" % (
                   build_id, _STEERING_DIAG_TICKS_PERIOD_MS, self.count,
-                  1 if self.frozen else 0, self.overwritten,
+                  1 if self.frozen else 0, 1 if self.triggered else 0,
+                  self.pre_count, self.post_count, self.freeze_reason, self.overwritten,
                   self.record_errors))
+        print("STEERING_DIAG_CODES build=%s extension=single_edge_candidate_v2 "
+              "fields=0:pair_reason;1:common_rows;2:common_span;"
+              "3:max_center_delta2;4:selected_side;5:selection;"
+              "6:left_support;7:right_support;8:candidate_flags;"
+              "9:result_reason_code;10:pending_side;11:pending_count;"
+              "12:anchor_rejects;13:corridor_rejects;14:jump_breaks;"
+              "15:gap_breaks;flag_bits=1:left_valid,2:right_valid,"
+              "4:pair_checked,8:selected,16:published;"
+              "pair_reason=0:NONE,1:SINGLE_LEFT,2:SINGLE_RIGHT,"
+              "3:SAME_LANE,4:NO_COMMON_ROWS,5:TOO_FEW_ROWS,"
+              "6:SHORT_SPAN,7:CENTER_DELTA,8:BOUNDARY_ORDER;"
+              "selection=0:NONE,1:PREVIOUS_LEFT,2:PREVIOUS_RIGHT,"
+              "3:SUPPORT_LEFT,4:SUPPORT_RIGHT,5:BOTTOM_LEFT,"
+              "6:BOTTOM_RIGHT,7:TIE_LEFT;"
+              "result=0:UNKNOWN,1:NOT_RUN,2:NO_FRESH_KEEP,"
+              "3:NO_WIDTH_CACHE,4:INVALID_MASK_INFO,"
+              "5:FRAME_SIZE_MISMATCH,6:TOPOLOGY_BRANCH_UNRESOLVED,"
+              "7:TOPOLOGY_ISLAND_UNRESOLVED,"
+              "8:TOPOLOGY_AMBIGUITY_UNRESOLVED,"
+              "9:TOPOLOGY_COMPONENT_BOUNDS,10:AMBIGUOUS_BOTH_SIDES,"
+              "11:SIDE_SWITCH_PENDING,12:SIDE_SWITCH_NO_OVERLAP,"
+              "13:SIDE_SWITCH_CENTER_MISMATCH,"
+              "14:AMBIGUOUS_SINGLE_EDGE_CHAIN,"
+              "15:SINGLE_EDGE_CONTINUITY_OR_SUPPORT,"
+              "16:SINGLE_EDGE_SUPPORT_ROWS,17:SINGLE_EDGE_SUPPORT_SPAN,"
+              "18:NO_ANCHORED_SINGLE_EDGE,"
+              "19:NO_CURRENT_BOUNDARY_OR_WHITE_CLIP,"
+              "20:OK_SINGLE_EDGE_LEFT,21:OK_SINGLE_EDGE_RIGHT" % build_id)
         print(self._CSV_HEADER)
-        oldest = self.write_index - self.count
-        if oldest < 0:
-            oldest += self.CAPACITY
         for record_index in range(self.count):
-            slot = oldest + record_index
-            if slot >= self.CAPACITY:
-                slot -= self.CAPACITY
+            if self.triggered:
+                if record_index < self.pre_count:
+                    slot = self.pre_oldest + record_index
+                    if slot >= self.PRE_TRIGGER_CAPACITY:
+                        slot -= self.PRE_TRIGGER_CAPACITY
+                else:
+                    slot = self.PRE_TRIGGER_CAPACITY + \
+                        record_index - self.pre_count
+            else:
+                oldest = self.write_index - self.pre_count
+                if oldest < 0:
+                    oldest += self.PRE_TRIGGER_CAPACITY
+                slot = oldest + record_index
+                if slot >= self.PRE_TRIGGER_CAPACITY:
+                    slot -= self.PRE_TRIGGER_CAPACITY
             offset = slot * self.RECORD_SIZE
             flags = data[offset + 2]
-            print("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (
+            base_text = ("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d" % (
                 self._u16(data, offset),
                 self._u32(data, offset + 4),
                 self._u32(data, offset + 8),
@@ -261,6 +384,18 @@ class _SteeringDiagBuffer:
                 self._i16(data, offset + 24),
                 data[offset + 26], data[offset + 27],
                 self._u32(data, offset + 28)))
+            extension_offset = slot * self.EXTENSION_RECORD_SIZE
+            extension = self.extension_data
+            extension_values = []
+            for field_index in range(self.EXTENSION_RECORD_SIZE):
+                value = extension[extension_offset + field_index]
+                if field_index == 4 and value == 255:
+                    value = -1
+                elif field_index == 10 and value == 255:
+                    value = -1
+                extension_values.append(str(value))
+            extension_text = ",".join(extension_values)
+            print(base_text + "," + extension_text)
         print("STEERING_DIAG_END")
 
 
@@ -268,6 +403,50 @@ def _make_steering_diag(enabled):
     if enabled is True:
         return _SteeringDiagBuffer()
     return None
+
+
+class _SteeringDiagSession:
+    """Finalize trace data from accepted RESET/KEEP session transitions."""
+
+    def __init__(self, diagnostic_buffer):
+        self.diagnostic_buffer = diagnostic_buffer
+        self.last_accepted_resets = 0
+        self.last_accepted_keeps = 0
+        self.session_active = False
+
+    def observe(self, parser, tracker, build_id):
+        accepted_resets = int(parser.accepted_resets)
+        accepted_keeps = int(parser.accepted_keeps)
+        reset_changed = accepted_resets != self.last_accepted_resets
+        keep_changed = accepted_keeps != self.last_accepted_keeps
+
+        # RESET is also sent at startup and on faults. Only a session that
+        # accepted KEEP represents a started control session worth finalizing.
+        if reset_changed:
+            if self.session_active:
+                diagnostic = self.diagnostic_buffer
+                if diagnostic is not None and diagnostic.count > 0:
+                    if not diagnostic.frozen:
+                        diagnostic.freeze("REVERSE_RESET")
+                        freeze_snapshot = getattr(
+                            tracker, "freeze_diagnostic_snapshot", None)
+                        if callable(freeze_snapshot):
+                            freeze_snapshot()
+                    diagnostic.dump_once(build_id)
+                self.session_active = False
+
+        # accepted_resets is checked before accepted_keeps so a concatenated
+        # RESET+KEEP finalizes the old capture before preparing the new one.
+        if keep_changed and parser.single_enabled:
+            diagnostic = self.diagnostic_buffer
+            if diagnostic is not None and (
+                    not self.session_active or diagnostic.dumped):
+                diagnostic.rearm()
+            self.session_active = True
+
+        self.last_accepted_resets = accepted_resets
+        self.last_accepted_keeps = accepted_keeps
+        return True
 
 
 def _ticks_period_ms(time_module):
@@ -2999,6 +3178,7 @@ def _main_fast(duration_s=None, run_id=0):
         if config.CONTOUR_RECOVERY_ENABLED else None)
     reverse_parser = reverse_control.ReverseControlParser(
         reverse_control.DEFAULT_TIMEOUT_MS)
+    steering_diag_session = _SteeringDiagSession(_STEERING_DIAG)
     sensor_get_exposure = getattr(sensor, "get_exposure_us", None)
     exposure_us = None
     if callable(sensor_get_exposure):
@@ -3147,6 +3327,8 @@ def _main_fast(duration_s=None, run_id=0):
         reverse_fresh = _service_reverse_control(
             uart, reverse_parser, reverse_input_buffer, reverse_drain_state,
             capture_end_ms, time.ticks_diff)
+        steering_diag_session.observe(
+            reverse_parser, single_edge_tracker, config.BUILD_ID)
         if reverse_parser.generation != reverse_generation:
             single_edge_tracker.clear(reverse_parser.last_event)
             ring_slope_tracker.clear(reverse_parser.last_event)
@@ -3673,6 +3855,8 @@ def _main_fast(duration_s=None, run_id=0):
                     if diag_reference_error is None:
                         diag_reference_error = 0
                 diag_was_frozen = _STEERING_DIAG.frozen
+                candidate_diagnostic = getattr(
+                    single_edge_tracker, "pair_diagnostic_record", None)
                 _STEERING_DIAG.record(
                     packet, full_write, write_error is not None,
                     reverse_fresh, capture_end_ms, send_end_ms,
@@ -3680,7 +3864,8 @@ def _main_fast(duration_s=None, run_id=0):
                     weight_info.get("preview_candidate", 0),
                     weight_info.get("heading_contribution", 0),
                     raw_error, filtered_error, diag_reference_error,
-                    diag_row_count, diag_source_code, reverse_generation)
+                    diag_row_count, diag_source_code, reverse_generation,
+                    candidate_diagnostic)
                 if not diag_was_frozen and _STEERING_DIAG.frozen:
                     single_edge_tracker.freeze_diagnostic_snapshot()
             except Exception:

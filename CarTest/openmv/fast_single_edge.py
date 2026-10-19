@@ -84,6 +84,83 @@ _DIAG_IDENTITY_GAP_REJECTS = 15
 _DIAG_SUPPORT_ROW_REJECTS = 16
 _DIAG_SUPPORT_SPAN_REJECTS = 17
 
+PAIR_MIN_COMMON_ROWS = 5
+PAIR_MIN_COMMON_SPAN = 6
+PAIR_MAX_CENTER_DELTA2 = 6
+
+_PAIR_REASON_NONE = 0
+_PAIR_REASON_SINGLE_LEFT = 1
+_PAIR_REASON_SINGLE_RIGHT = 2
+_PAIR_REASON_SAME_LANE = 3
+_PAIR_REASON_NO_COMMON_ROWS = 4
+_PAIR_REASON_TOO_FEW_ROWS = 5
+_PAIR_REASON_SHORT_SPAN = 6
+_PAIR_REASON_CENTER_DELTA = 7
+_PAIR_REASON_BOUNDARY_ORDER = 8
+
+_PAIR_REASON_NAMES = (
+    "NONE", "SINGLE_LEFT", "SINGLE_RIGHT", "SAME_LANE",
+    "NO_COMMON_ROWS", "TOO_FEW_ROWS", "SHORT_SPAN",
+    "CENTER_DELTA", "BOUNDARY_ORDER",
+)
+
+_PAIR_SELECT_NONE = 0
+_PAIR_SELECT_PREVIOUS_LEFT = 1
+_PAIR_SELECT_PREVIOUS_RIGHT = 2
+_PAIR_SELECT_SUPPORT_LEFT = 3
+_PAIR_SELECT_SUPPORT_RIGHT = 4
+_PAIR_SELECT_BOTTOM_LEFT = 5
+_PAIR_SELECT_BOTTOM_RIGHT = 6
+_PAIR_SELECT_TIE_LEFT = 7
+
+_PAIR_SELECT_NAMES = (
+    "NONE", "PREVIOUS_LEFT", "PREVIOUS_RIGHT", "SUPPORT_LEFT",
+    "SUPPORT_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT", "TIE_LEFT",
+)
+
+_PAIR_DIAG_REASON = 0
+_PAIR_DIAG_COMMON_ROWS = 1
+_PAIR_DIAG_SPAN = 2
+_PAIR_DIAG_MAX_DELTA2 = 3
+_PAIR_DIAG_SELECTED_SIDE = 4
+_PAIR_DIAG_SELECTION = 5
+_PAIR_DIAG_LEFT_SUPPORT = 6
+_PAIR_DIAG_RIGHT_SUPPORT = 7
+_PAIR_DIAG_CANDIDATE_FLAGS = 8
+_PAIR_DIAG_RESULT_REASON = 9
+_PAIR_DIAG_PENDING_SIDE = 10
+_PAIR_DIAG_PENDING_COUNT = 11
+_PAIR_DIAG_ANCHOR_REJECTS = 12
+_PAIR_DIAG_CORRIDOR_REJECTS = 13
+_PAIR_DIAG_JUMP_BREAKS = 14
+_PAIR_DIAG_GAP_BREAKS = 15
+_PAIR_DIAG_SIZE = 16
+
+_CANDIDATE_LEFT_VALID = 1
+_CANDIDATE_RIGHT_VALID = 2
+_CANDIDATE_PAIR_CHECKED = 4
+_CANDIDATE_SELECTED = 8
+_CANDIDATE_PUBLISHED = 16
+
+_RESULT_REASON_NAMES = (
+    "UNKNOWN", "NOT_RUN", "NO_FRESH_KEEP", "NO_WIDTH_CACHE",
+    "INVALID_MASK_INFO", "FRAME_SIZE_MISMATCH",
+    "TOPOLOGY_BRANCH_UNRESOLVED", "TOPOLOGY_ISLAND_UNRESOLVED",
+    "TOPOLOGY_AMBIGUITY_UNRESOLVED", "TOPOLOGY_COMPONENT_BOUNDS",
+    "AMBIGUOUS_BOTH_SIDES", "SINGLE_EDGE_SIDE_SWITCH_PENDING",
+    "SINGLE_EDGE_SIDE_SWITCH_NO_OVERLAP",
+    "SINGLE_EDGE_SIDE_SWITCH_CENTER_MISMATCH",
+    "AMBIGUOUS_SINGLE_EDGE_CHAIN", "SINGLE_EDGE_CONTINUITY_OR_SUPPORT",
+    "SINGLE_EDGE_SUPPORT_ROWS", "SINGLE_EDGE_SUPPORT_SPAN",
+    "NO_ANCHORED_SINGLE_EDGE", "NO_CURRENT_BOUNDARY_OR_WHITE_CLIP",
+    "OK_SINGLE_EDGE_LEFT", "OK_SINGLE_EDGE_RIGHT",
+)
+
+PAIR_DIAGNOSTIC_REASON_NAMES = _PAIR_REASON_NAMES
+PAIR_DIAGNOSTIC_SELECTION_NAMES = _PAIR_SELECT_NAMES
+PAIR_DIAGNOSTIC_RECORD_SIZE = _PAIR_DIAG_SIZE
+PAIR_DIAGNOSTIC_RESULT_REASON_NAMES = _RESULT_REASON_NAMES
+
 _DIAG_NAMES = (
     "candidate_edges", "ambiguous_rows", "anchor_rejects",
     "corridor_rejects", "qualified_chains", "rejected_chains",
@@ -699,6 +776,14 @@ class FastSingleEdgeTracker:
         self._frozen_frame_pending_count = 0
         self._switch_overlap_rows = 0
         self._switch_max_center_delta2 = 0
+        self._pair_diagnostic = array("i", [0] * _PAIR_DIAG_SIZE)
+        self._last_frame_pair_diagnostic = array(
+            "i", [0] * _PAIR_DIAG_SIZE)
+        self._frozen_frame_pair_diagnostic = array(
+            "i", [0] * _PAIR_DIAG_SIZE)
+        self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        self._last_frame_pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        self._frozen_frame_pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
         self._diagnostic_counts = array("i", [0] * len(_DIAG_NAMES))
         self._selected_row_ints = array("i", [0] * (self.height * ROW_STRIDE))
         self._sample_work = array("i", [0, 0, 0])
@@ -760,6 +845,11 @@ class FastSingleEdgeTracker:
     @property
     def result(self):
         return self._result
+
+    @property
+    def pair_diagnostic_record(self):
+        """Return the fixed sixteen-integer per-frame diagnostic record."""
+        return self._pair_diagnostic
 
     def clear(self, reason="CONTROL_RESET"):
         for y in range(self.height):
@@ -997,6 +1087,18 @@ class FastSingleEdgeTracker:
     def dump_extended_diagnostics(self, build_id):
         """Print totals and latest/frozen frame snapshots on explicit demand."""
         print("SINGLE_EDGE_EXT_DIAG_BEGIN build=%s format=2" % build_id)
+        print("PAIR_REASON_CODES_BEGIN version=1")
+        for code, name in enumerate(_PAIR_REASON_NAMES):
+            print("%d,%s" % (code, name))
+        print("PAIR_REASON_CODES_END")
+        print("PAIR_SELECTION_CODES_BEGIN version=1")
+        for code, name in enumerate(_PAIR_SELECT_NAMES):
+            print("%d,%s" % (code, name))
+        print("PAIR_SELECTION_CODES_END")
+        print("CANDIDATE_REASON_CODES_BEGIN version=1")
+        for code, name in enumerate(_RESULT_REASON_NAMES):
+            print("%d,%s" % (code, name))
+        print("CANDIDATE_REASON_CODES_END")
         print("TOTAL_COUNTERS_BEGIN")
         for name, count in self.diagnostic_counts():
             print("%s,%d" % (name, count))
@@ -1006,7 +1108,8 @@ class FastSingleEdgeTracker:
             self._last_frame_last_y, self._last_frame_rows,
             self._last_frame_reference_y, self._last_frame_weak_support,
             self._last_frame_reason, self._last_frame_pending_side,
-            self._last_frame_pending_count, self._last_frame_counts)
+            self._last_frame_pending_count, self._last_frame_counts,
+            self._last_frame_pair_diagnostic)
         if self._frozen_snapshot_valid:
             self._print_frame_snapshot(
                 "FROZEN", self._frozen_frame_serial,
@@ -1016,7 +1119,8 @@ class FastSingleEdgeTracker:
                 self._frozen_frame_weak_support, self._frozen_frame_reason,
                 self._frozen_frame_pending_side,
                 self._frozen_frame_pending_count,
-                self._frozen_frame_counts)
+                self._frozen_frame_counts,
+                self._frozen_frame_pair_diagnostic)
         else:
             print("FROZEN_SNAPSHOT unavailable=1")
         print("SINGLE_EDGE_EXT_DIAG_END")
@@ -1024,7 +1128,8 @@ class FastSingleEdgeTracker:
 
     def _print_frame_snapshot(self, label, frame_serial, detected, side,
                               first_y, last_y, rows, reference_y, weak,
-                              reason, pending_side, pending_count, counts):
+                              reason, pending_side, pending_count, counts,
+                              pair_diagnostic):
         if side == 0:
             side_name = "LEFT"
         elif side == 1:
@@ -1047,6 +1152,53 @@ class FastSingleEdgeTracker:
         for index, name in enumerate(_DIAG_NAMES):
             print("%s,%d" % (name, int(counts[index])))
         print("%s_FRAME_COUNTERS_END" % label)
+        pair_reason = int(pair_diagnostic[_PAIR_DIAG_REASON])
+        pair_selection = int(pair_diagnostic[_PAIR_DIAG_SELECTION])
+        if pair_reason < 0 or pair_reason >= len(_PAIR_REASON_NAMES):
+            pair_reason = _PAIR_REASON_NONE
+        if pair_selection < 0 or pair_selection >= len(_PAIR_SELECT_NAMES):
+            pair_selection = _PAIR_SELECT_NONE
+        selected_side = int(pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE])
+        if selected_side == 0:
+            selected_name = "LEFT"
+        elif selected_side == 1:
+            selected_name = "RIGHT"
+        else:
+            selected_name = "NONE"
+        print("%s_PAIR_FRAME reason_code=%d reason=%s common_rows=%d "
+              "common_span=%d max_center_delta2=%d selected=%s "
+              "selection_code=%d selection=%s left_support=%d "
+              "right_support=%d" % (
+                  label, pair_reason, _PAIR_REASON_NAMES[pair_reason],
+                  int(pair_diagnostic[_PAIR_DIAG_COMMON_ROWS]),
+                  int(pair_diagnostic[_PAIR_DIAG_SPAN]),
+                  int(pair_diagnostic[_PAIR_DIAG_MAX_DELTA2]),
+                  selected_name, pair_selection,
+                  _PAIR_SELECT_NAMES[pair_selection],
+                  int(pair_diagnostic[_PAIR_DIAG_LEFT_SUPPORT]),
+                  int(pair_diagnostic[_PAIR_DIAG_RIGHT_SUPPORT])))
+        result_reason = int(pair_diagnostic[_PAIR_DIAG_RESULT_REASON])
+        if result_reason < 0 or result_reason >= len(_RESULT_REASON_NAMES):
+            result_reason = 0
+        pending_side = int(pair_diagnostic[_PAIR_DIAG_PENDING_SIDE])
+        if pending_side == 0:
+            pending_name = "LEFT"
+        elif pending_side == 1:
+            pending_name = "RIGHT"
+        else:
+            pending_name = "NONE"
+        print("%s_CANDIDATE_FRAME flags=%d result_code=%d result=%s "
+              "pending_side=%s pending_count=%d anchor_rejects=%d "
+              "corridor_rejects=%d jump_breaks=%d gap_breaks=%d" % (
+                  label,
+                  int(pair_diagnostic[_PAIR_DIAG_CANDIDATE_FLAGS]),
+                  result_reason, _RESULT_REASON_NAMES[result_reason],
+                  pending_name,
+                  int(pair_diagnostic[_PAIR_DIAG_PENDING_COUNT]),
+                  int(pair_diagnostic[_PAIR_DIAG_ANCHOR_REJECTS]),
+                  int(pair_diagnostic[_PAIR_DIAG_CORRIDOR_REJECTS]),
+                  int(pair_diagnostic[_PAIR_DIAG_JUMP_BREAKS]),
+                  int(pair_diagnostic[_PAIR_DIAG_GAP_BREAKS])))
 
     def _capture_frame_snapshot(self, detected, fallback_reason=None):
         side = -1
@@ -1095,6 +1247,43 @@ class FastSingleEdgeTracker:
             delta = (int(self._diagnostic_counts[index]) -
                      int(self._frame_start_counts[index]))
             self._last_frame_counts[index] = max(0, delta)
+        candidate_flags = 0
+        if self._frame_scan_done:
+            if (self._side_valid[0] and not self._side_ambiguous[0]):
+                candidate_flags |= _CANDIDATE_LEFT_VALID
+            if (self._side_valid[1] and not self._side_ambiguous[1]):
+                candidate_flags |= _CANDIDATE_RIGHT_VALID
+        if (candidate_flags & (_CANDIDATE_LEFT_VALID |
+                               _CANDIDATE_RIGHT_VALID)) == (
+                                   _CANDIDATE_LEFT_VALID |
+                                   _CANDIDATE_RIGHT_VALID):
+            candidate_flags |= _CANDIDATE_PAIR_CHECKED
+        selected_side = int(
+            self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE])
+        if selected_side in (0, 1):
+            candidate_flags |= _CANDIDATE_SELECTED
+        if result.get("valid"):
+            candidate_flags |= _CANDIDATE_PUBLISHED
+        reason_code = 0
+        for index in range(1, len(_RESULT_REASON_NAMES)):
+            if _RESULT_REASON_NAMES[index] == reason:
+                reason_code = index
+                break
+        diagnostic = self._pair_diagnostic
+        diagnostic[_PAIR_DIAG_CANDIDATE_FLAGS] = candidate_flags
+        diagnostic[_PAIR_DIAG_RESULT_REASON] = reason_code
+        diagnostic[_PAIR_DIAG_PENDING_SIDE] = self._pending_switch_side
+        diagnostic[_PAIR_DIAG_PENDING_COUNT] = self._pending_switch_count
+        diagnostic[_PAIR_DIAG_ANCHOR_REJECTS] = \
+            self._last_frame_counts[_DIAG_ANCHOR_REJECTS]
+        diagnostic[_PAIR_DIAG_CORRIDOR_REJECTS] = \
+            self._last_frame_counts[_DIAG_CORRIDOR_REJECTS]
+        diagnostic[_PAIR_DIAG_JUMP_BREAKS] = \
+            self._last_frame_counts[_DIAG_JUMP_BREAKS]
+        diagnostic[_PAIR_DIAG_GAP_BREAKS] = \
+            self._last_frame_counts[_DIAG_GAP_BREAKS]
+        for index in range(_PAIR_DIAG_SIZE):
+            self._last_frame_pair_diagnostic[index] = diagnostic[index]
 
     def freeze_diagnostic_snapshot(self):
         """Keep the exact frame that first froze the fixed steering trace."""
@@ -1110,6 +1299,9 @@ class FastSingleEdgeTracker:
         self._frozen_frame_reason = self._last_frame_reason
         self._frozen_frame_pending_side = self._last_frame_pending_side
         self._frozen_frame_pending_count = self._last_frame_pending_count
+        for index in range(_PAIR_DIAG_SIZE):
+            self._frozen_frame_pair_diagnostic[index] = \
+                self._last_frame_pair_diagnostic[index]
         for index in range(len(self._last_frame_counts)):
             self._frozen_frame_counts[index] = self._last_frame_counts[index]
         return True
@@ -1132,6 +1324,27 @@ class FastSingleEdgeTracker:
         self._last_frame_reason = "REARMED"
         self._last_frame_pending_side = self._pending_switch_side
         self._last_frame_pending_count = self._pending_switch_count
+        self._pair_diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_NONE
+        self._pair_diagnostic[_PAIR_DIAG_COMMON_ROWS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_SPAN] = 0
+        self._pair_diagnostic[_PAIR_DIAG_MAX_DELTA2] = 0
+        self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        self._pair_diagnostic[_PAIR_DIAG_SELECTION] = _PAIR_SELECT_NONE
+        self._pair_diagnostic[_PAIR_DIAG_LEFT_SUPPORT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_RIGHT_SUPPORT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_CANDIDATE_FLAGS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_RESULT_REASON] = 0
+        self._pair_diagnostic[_PAIR_DIAG_PENDING_SIDE] = -1
+        self._pair_diagnostic[_PAIR_DIAG_PENDING_COUNT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_ANCHOR_REJECTS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_CORRIDOR_REJECTS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_JUMP_BREAKS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_GAP_BREAKS] = 0
+        for index in range(_PAIR_DIAG_SIZE):
+            self._last_frame_pair_diagnostic[index] = 0
+            self._frozen_frame_pair_diagnostic[index] = 0
+        self._last_frame_pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        self._frozen_frame_pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
         self._frozen_snapshot_valid = False
         self._frozen_frame_serial = 0
         self._frozen_frame_detected = False
@@ -1162,6 +1375,22 @@ class FastSingleEdgeTracker:
         self._frame_serial += 1
         self._frame_open = True
         self._frame_scan_done = False
+        self._pair_diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_NONE
+        self._pair_diagnostic[_PAIR_DIAG_COMMON_ROWS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_SPAN] = 0
+        self._pair_diagnostic[_PAIR_DIAG_MAX_DELTA2] = 0
+        self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        self._pair_diagnostic[_PAIR_DIAG_SELECTION] = _PAIR_SELECT_NONE
+        self._pair_diagnostic[_PAIR_DIAG_LEFT_SUPPORT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_RIGHT_SUPPORT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_CANDIDATE_FLAGS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_RESULT_REASON] = 0
+        self._pair_diagnostic[_PAIR_DIAG_PENDING_SIDE] = -1
+        self._pair_diagnostic[_PAIR_DIAG_PENDING_COUNT] = 0
+        self._pair_diagnostic[_PAIR_DIAG_ANCHOR_REJECTS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_CORRIDOR_REJECTS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_JUMP_BREAKS] = 0
+        self._pair_diagnostic[_PAIR_DIAG_GAP_BREAKS] = 0
         for index in range(len(self._diagnostic_counts)):
             self._frame_start_counts[index] = self._diagnostic_counts[index]
         return self._frame_serial
@@ -1378,6 +1607,97 @@ class FastSingleEdgeTracker:
                 self._side_ambiguous[side] == 0)
 
     @micropython.native
+    def _resolve_same_lane_pair(self):
+        """Require measured row agreement before resolving two side chains."""
+        diagnostic = self._pair_diagnostic
+        diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_NONE
+        diagnostic[_PAIR_DIAG_COMMON_ROWS] = 0
+        diagnostic[_PAIR_DIAG_SPAN] = 0
+        diagnostic[_PAIR_DIAG_MAX_DELTA2] = 0
+        diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
+        diagnostic[_PAIR_DIAG_SELECTION] = _PAIR_SELECT_NONE
+        diagnostic[_PAIR_DIAG_LEFT_SUPPORT] = int(self._side_count[0])
+        diagnostic[_PAIR_DIAG_RIGHT_SUPPORT] = int(self._side_count[1])
+
+        first_y = int(self._side_first[0])
+        if int(self._side_first[1]) > first_y:
+            first_y = int(self._side_first[1])
+        last_y = int(self._side_last[0])
+        if int(self._side_last[1]) < last_y:
+            last_y = int(self._side_last[1])
+        common_count = 0
+        common_first = self.height
+        common_last = -1
+        maximum_delta2 = 0
+        wrong_order = 0
+        status = self._row_status
+        edges = self._row_edge2
+        centers = self._row_center2
+        height = self.height
+
+        for y in range(first_y, last_y + 1):
+            left_slot = y
+            right_slot = height + y
+            if status[left_slot] != 1 or status[right_slot] != 1:
+                continue
+            common_count += 1
+            if y < common_first:
+                common_first = y
+            if y > common_last:
+                common_last = y
+            if int(edges[left_slot]) >= int(edges[right_slot]):
+                wrong_order = 1
+            delta2 = abs(int(centers[left_slot]) -
+                         int(centers[right_slot]))
+            if delta2 > maximum_delta2:
+                maximum_delta2 = delta2
+
+        span = common_last - common_first if common_count else 0
+        diagnostic[_PAIR_DIAG_COMMON_ROWS] = common_count
+        diagnostic[_PAIR_DIAG_SPAN] = span
+        diagnostic[_PAIR_DIAG_MAX_DELTA2] = maximum_delta2
+        if common_count == 0:
+            diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_NO_COMMON_ROWS
+            return -1
+        if common_count < PAIR_MIN_COMMON_ROWS:
+            diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_TOO_FEW_ROWS
+            return -1
+        if span < PAIR_MIN_COMMON_SPAN:
+            diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_SHORT_SPAN
+            return -1
+        if maximum_delta2 > PAIR_MAX_CENTER_DELTA2:
+            diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_CENTER_DELTA
+            return -1
+        if wrong_order:
+            diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_BOUNDARY_ORDER
+            return -1
+
+        if self._last_single_side == 0 or self._last_single_side == 1:
+            selected = self._last_single_side
+            select_reason = (_PAIR_SELECT_PREVIOUS_LEFT if selected == 0 else
+                             _PAIR_SELECT_PREVIOUS_RIGHT)
+        elif self._side_count[0] > self._side_count[1]:
+            selected = 0
+            select_reason = _PAIR_SELECT_SUPPORT_LEFT
+        elif self._side_count[1] > self._side_count[0]:
+            selected = 1
+            select_reason = _PAIR_SELECT_SUPPORT_RIGHT
+        elif self._side_last[0] > self._side_last[1]:
+            selected = 0
+            select_reason = _PAIR_SELECT_BOTTOM_LEFT
+        elif self._side_last[1] > self._side_last[0]:
+            selected = 1
+            select_reason = _PAIR_SELECT_BOTTOM_RIGHT
+        else:
+            selected = 0
+            select_reason = _PAIR_SELECT_TIE_LEFT
+
+        diagnostic[_PAIR_DIAG_REASON] = _PAIR_REASON_SAME_LANE
+        diagnostic[_PAIR_DIAG_SELECTED_SIDE] = selected
+        diagnostic[_PAIR_DIAG_SELECTION] = select_reason
+        return selected
+
+    @micropython.native
     def _publish_single(self, side, topology_reason,
                         topology_island_observed=False, side_switch=False):
         result = self._result
@@ -1577,14 +1897,34 @@ class FastSingleEdgeTracker:
         left_valid = self._evaluate_side(0)
         right_valid = self._evaluate_side(1)
         if left_valid and right_valid:
+            selected_side = self._resolve_same_lane_pair()
+        elif left_valid:
+            self._pair_diagnostic[_PAIR_DIAG_REASON] = \
+                _PAIR_REASON_SINGLE_LEFT
+            self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = 0
+            self._pair_diagnostic[_PAIR_DIAG_LEFT_SUPPORT] = int(
+                self._side_count[0])
+            selected_side = 0
+        elif right_valid:
+            self._pair_diagnostic[_PAIR_DIAG_REASON] = \
+                _PAIR_REASON_SINGLE_RIGHT
+            self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = 1
+            self._pair_diagnostic[_PAIR_DIAG_RIGHT_SUPPORT] = int(
+                self._side_count[1])
+            selected_side = 1
+        else:
+            selected_side = -1
+
+        if left_valid and right_valid and selected_side < 0:
             self._reset_pending_side_switch()
             self._invalidate_result("AMBIGUOUS_BOTH_SIDES")
             self._result["topology_reason"] = topology.get(
                 "reason", "NOT_RUN")
             return self._result
-        if left_valid:
-            side_switch = self._last_single_side == 1
-            if not self._allow_side_switch(0):
+        if selected_side >= 0:
+            side_switch = (self._last_single_side >= 0 and
+                           self._last_single_side != selected_side)
+            if not self._allow_side_switch(selected_side):
                 if self._pending_switch_count < 2:
                     reason = "SINGLE_EDGE_SIDE_SWITCH_PENDING"
                 elif self._switch_overlap_rows == 0:
@@ -1596,23 +1936,7 @@ class FastSingleEdgeTracker:
                     "reason", "NOT_RUN")
                 return self._result
             return self._publish_single(
-                0, topology.get("reason", "NOT_RUN"), island,
-                side_switch)
-        if right_valid:
-            side_switch = self._last_single_side == 0
-            if not self._allow_side_switch(1):
-                if self._pending_switch_count < 2:
-                    reason = "SINGLE_EDGE_SIDE_SWITCH_PENDING"
-                elif self._switch_overlap_rows == 0:
-                    reason = "SINGLE_EDGE_SIDE_SWITCH_NO_OVERLAP"
-                else:
-                    reason = "SINGLE_EDGE_SIDE_SWITCH_CENTER_MISMATCH"
-                self._invalidate_result(reason)
-                self._result["topology_reason"] = topology.get(
-                    "reason", "NOT_RUN")
-                return self._result
-            return self._publish_single(
-                1, topology.get("reason", "NOT_RUN"), island,
+                selected_side, topology.get("reason", "NOT_RUN"), island,
                 side_switch)
         self._reset_pending_side_switch()
         if (self._side_ambiguous[0] or self._side_ambiguous[1] or

@@ -70,6 +70,7 @@ static uint32_t runtime_log_test_restore_right_in1;
 static uint32_t runtime_log_test_restore_right_in2;
 static uint32_t runtime_log_test_irq_pending;
 static uint32_t runtime_log_test_irq_count;
+static uint32_t runtime_log_test_diag_note_count;
 static uint32_t runtime_log_test_update_count;
 static uint32_t runtime_log_test_update_primask;
 static car_runtime_log_session_kind_t runtime_log_test_update_kind;
@@ -105,6 +106,11 @@ void car_runtime_log_update(const car_runtime_log_sample_t *sample,
     runtime_log_test_update_kind = start_kind;
     runtime_log_test_update_primask = runtime_log_test_primask;
     ++runtime_log_test_update_count;
+}
+
+void car_runtime_diag_note_log_update_call(void)
+{
+    ++runtime_log_test_diag_note_count;
 }
 
 static uint32_t __get_PRIMASK(void)
@@ -215,6 +221,7 @@ static void runtime_log_test_init_snapshot(void)
     runtime_log_test_restore_right_in1 = 0xFFFFFFFFu;
     runtime_log_test_restore_right_in2 = 0xFFFFFFFFu;
     runtime_log_test_primask = 0u;
+    runtime_log_test_diag_note_count = 0u;
     runtime_log_test_update_count = 0u;
     runtime_log_test_update_primask = 0xFFFFFFFFu;
     runtime_log_test_update_kind = CAR_RUNTIME_LOG_SESSION_NONE;
@@ -543,10 +550,13 @@ int main(void)
                    (unsigned)incoming);
             return 1;
         }
-        if (runtime_log_test_update_count != 1u ||
+        if (runtime_log_test_diag_note_count != 1u ||
+            runtime_log_test_update_count != 1u ||
             runtime_log_test_update_primask != incoming) {
-            printf("FAIL logger update mask expected=%u actual=%u\n",
-                   (unsigned)incoming, (unsigned)runtime_log_test_update_primask);
+            printf("FAIL diagnostic note/logger update expected_note=1 actual_note=%u expected_mask=%u actual_mask=%u\n",
+                   (unsigned)runtime_log_test_diag_note_count,
+                   (unsigned)incoming,
+                   (unsigned)runtime_log_test_update_primask);
             return 1;
         }
         if (expected_mixed == 0u &&

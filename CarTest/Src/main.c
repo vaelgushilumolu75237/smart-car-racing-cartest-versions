@@ -7,6 +7,7 @@
 #include "manual_run_button.h"
 #include "reverse_control.h"
 #include "run_block_reason.h"
+#include "runtime_diag.h"
 #include "runtime_log.h"
 #include "servo_safety.h"
 #include "speed_observer.h"
@@ -2110,8 +2111,10 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         }
 #endif
         follow_output_state.slope_assist_active = 0u;
-        car_follow_output_hold(
+        car_follow_output_hold_at(
             &follow_output_state, now_ms,
+            car_control_state.vision_hold_started_ms,
+            car_control_state.vision_hold_entries,
             car_control_state.vision_hold_motor_left_permille,
             car_control_state.vision_hold_motor_right_permille);
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
@@ -2301,13 +2304,8 @@ static void motor_apply(void)
         (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
          car_control_state.vision_hold_active != 0u)) {
         follow_mode = 1u;
-        if (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD) {
-            left_duty = car_control_state.vision_hold_motor_left_permille;
-            right_duty = car_control_state.vision_hold_motor_right_permille;
-        } else {
-            left_duty = follow_output_state.command_left_permille;
-            right_duty = follow_output_state.command_right_permille;
-        }
+        left_duty = follow_output_state.command_left_permille;
+        right_duty = follow_output_state.command_right_permille;
         duty = left_duty > right_duty ? left_duty : right_duty;
         cc_enable = TIM_CCER_CC2E | TIM_CCER_CC3E;
     } else if (car_control_state.mode == CAR_MODE_BENCH_RUNNING) {
@@ -3263,9 +3261,35 @@ static void runtime_log_publish_sample(
 {
     car_runtime_log_sample_t sample = runtime_log_capture_sample(now_ms);
 
+    car_runtime_diag_note_log_update_call();
     car_runtime_log_update(&sample, start_kind);
 }
 #endif
+
+static void runtime_diag_publish_snapshot(uint32_t now_ms)
+{
+    car_runtime_diag_values_t values = {0};
+    uint32_t primask = __get_PRIMASK();
+
+    /* Capture ISR-visible event counters and applied outputs as one bounded
+       software snapshot. The CRC/cache publication itself runs with IRQs on. */
+    __disable_irq();
+    values.start_events = manual_run_button.start_event_count;
+    values.stop_events = manual_run_button.stop_generation;
+    values.left_output_permille = applied_motor_follow_left_permille;
+    values.right_output_permille = applied_motor_follow_right_permille;
+    values.servo_pulse_us = applied_servo_pulse_us;
+    __set_PRIMASK(primask);
+
+    values.start_token = car_runtime_log_last_start_token();
+    values.cpu_header_state = car_runtime_log_storage.header.state;
+    values.cpu_header_count = car_runtime_log_storage.header.count;
+    values.header_session_id = car_runtime_log_storage.header.session_id;
+    values.uptime_ms = now_ms;
+    values.reset_flags = car_init_rcc_rsr_reset_snapshot;
+    values.log_enabled = (uint8_t)CARTEST_RUNTIME_LOG_ENABLED;
+    (void)car_runtime_diag_update(&values);
+}
 
 int main(void)
 {
@@ -3384,6 +3408,8 @@ int main(void)
 #else
     car_runtime_log_invalidate();
 #endif
+    car_runtime_diag_init(car_init_rcc_rsr_reset_snapshot,
+                          (uint8_t)CARTEST_RUNTIME_LOG_ENABLED);
 
     car_init_stage = (uint32_t)CAR_INIT_STAGE_READY;
     car_init_hal_status = (uint32_t)HAL_OK;
@@ -3584,6 +3610,7 @@ int main(void)
 #if CARTEST_RUNTIME_LOG_ENABLED
         runtime_log_publish_sample(HAL_GetTick(), runtime_log_start_kind);
 #endif
+        runtime_diag_publish_snapshot(HAL_GetTick());
         iwdg_refresh();
     }
 }

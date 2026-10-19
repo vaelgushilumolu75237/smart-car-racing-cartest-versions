@@ -7,6 +7,7 @@
 #include "follow_speed_pi.h"
 #include "reverse_control.h"
 #include "run_block_reason.h"
+#include "runtime_diag.h"
 #include "runtime_log.h"
 #include "servo_safety.h"
 #include "speed_observer.h"
@@ -47,6 +48,13 @@ extern "C" uint8_t car_follow_output_turn_update_with_slope_assist(
     uint8_t slope_assist_requested,
     uint16_t *left_command_permille,
     uint16_t *right_command_permille);
+extern "C" void car_follow_output_turn_hold_at(
+    car_follow_output_state_t *state,
+    uint32_t now_ms,
+    uint32_t hold_started_ms,
+    uint32_t hold_entry_generation,
+    uint16_t left_applied_permille,
+    uint16_t right_applied_permille);
 extern "C" void car_servo_turn_safety_init(car_servo_safety_t *state);
 extern "C" uint8_t car_servo_turn_safety_request_selected_with_slew(
     car_servo_safety_t *state,
@@ -1004,6 +1012,48 @@ void test_follow_output_differential_and_independent_ramps()
              CAR_FOLLOW_OUTPUT_PHASE_VISION_HOLD);
 
     car_follow_output_reset(&state);
+    car_follow_output_hold_at(&state, 1150u, 1000u, 7u, 600u, 500u);
+    CHECK_EQ("delayed hold service uses the actual 150 ms entry age",
+             state.command_left_permille, 500u);
+    CHECK_EQ("delayed hold service interpolates each side independently",
+             state.command_right_permille, 417u);
+    CHECK_EQ("delayed hold service retains the controller entry time",
+             state.hold_started_ms, 1000u);
+    CHECK_EQ("delayed hold service retains the unique entry generation",
+             state.hold_entry_generation, 7u);
+    car_follow_output_hold_at(&state, 1299u, 1000u, 7u, 100u, 100u);
+    CHECK_EQ("isolated valid frame does not restart the fixed 300 ms ramp",
+             state.command_left_permille, 401u);
+    CHECK_EQ("isolated valid frame cannot replace the captured entry output",
+             state.hold_entry_left_permille, 600u);
+    car_follow_output_hold_at(&state, 1300u, 1000u, 7u, 100u, 100u);
+    CHECK_EQ("hold reaches its fixed left target at 300 ms",
+             state.command_left_permille, 400u);
+    CHECK_EQ("hold reaches its fixed right target at 300 ms",
+             state.command_right_permille, 333u);
+
+    car_follow_output_hold_at(&state, 1300u, 1300u, 8u, 470u, 220u);
+    CHECK_EQ("new hold entry token recaptures actual output immediately",
+             state.command_left_permille, 470u);
+    CHECK_EQ("new hold entry token replaces the prior entry generation",
+             state.hold_entry_generation, 8u);
+    car_follow_output_hold_at(&state, 1450u, 1300u, 8u, 0u, 0u);
+    CHECK_EQ("new hold is interpolated from its own entry output",
+             state.command_left_permille, 435u);
+    CHECK_EQ("entry side below 300 permille is never increased",
+             state.command_right_permille, 220u);
+
+    car_follow_output_reset(&state);
+    car_follow_output_hold_at(&state, 49u, UINT32_MAX - 100u, 9u,
+                              600u, 500u);
+    CHECK_EQ("hold ramp timer crosses uint32 wrap at 150 ms",
+             state.command_left_permille, 500u);
+    car_follow_output_hold_at(&state, 199u, UINT32_MAX - 100u, 9u,
+                              0u, 0u);
+    CHECK_EQ("hold ramp timer reaches 300 ms across uint32 wrap",
+             state.command_left_permille, 400u);
+
+    car_follow_output_reset(&state);
     CHECK_EQ("stop reset clears startup qualification", state.startup_qualified,
              0u);
     CHECK_EQ("stop reset clears both side commands", state.command_left_permille,
@@ -1051,6 +1101,117 @@ void test_follow_output_differential_and_independent_ramps()
     old_profile_gate.applied_outputs_nonzero = 1u;
     CHECK_EQ("non-Turn profiles cannot request slope assist",
              car_follow_output_slope_assist_request(&old_profile_gate), 0u);
+}
+
+void test_runtime_diag_snapshot_abi_crc_and_schedule()
+{
+    const char crc_fixture[] = "123456789";
+    car_runtime_diag_values_t values{};
+
+    CHECK_EQ("runtime diagnostic uses CRC-32/ISO-HDLC",
+             car_runtime_diag_crc32(crc_fixture, 9u), 0xCBF43926u);
+    CHECK_EQ("runtime diagnostic generation wraps to nonzero even 2",
+             car_runtime_diag_next_even_generation(0xFFFFFFFEu), 2u);
+
+    car_runtime_diag_init(0xA55A1234u, 1u);
+    CHECK_EQ("runtime diagnostic snapshot has fixed magic",
+             g_runtime_diag_snapshot.magic, CAR_RUNTIME_DIAG_MAGIC);
+    CHECK_EQ("runtime diagnostic snapshot has ABI version 1",
+             g_runtime_diag_snapshot.version, CAR_RUNTIME_DIAG_VERSION);
+    CHECK_EQ("runtime diagnostic snapshot has fixed 64-byte size",
+             g_runtime_diag_snapshot.size, CAR_RUNTIME_DIAG_SIZE);
+    CHECK_EQ("first published runtime diagnostic generation is nonzero even",
+             g_runtime_diag_snapshot.generation, 2u);
+    CHECK_EQ("runtime diagnostic records the captured reset flags",
+             g_runtime_diag_snapshot.reset_flags, 0xA55A1234u);
+    CHECK_EQ("runtime diagnostic initially reports logging enabled",
+             g_runtime_diag_snapshot.flags,
+             CAR_RUNTIME_DIAG_FLAG_LOG_ENABLED);
+    CHECK_EQ("runtime diagnostic CRC covers the complete ABI image",
+             g_runtime_diag_snapshot.crc32,
+             car_runtime_diag_snapshot_crc32(&g_runtime_diag_snapshot));
+    CHECK_EQ("runtime diagnostic starts with zeroed reserved bytes",
+             g_runtime_diag_snapshot.reserved, 0u);
+
+    values.start_events = 1u;
+    values.stop_events = 0u;
+    values.start_token = 1u;
+    values.cpu_header_state = CAR_RUNTIME_LOG_STATE_ACTIVE;
+    values.cpu_header_count = 1u;
+    values.uptime_ms = 25u;
+    values.reset_flags = 0xA55A1234u;
+    values.header_session_id = 1u;
+    values.left_output_permille = 499u;
+    values.right_output_permille = 501u;
+    values.servo_pulse_us = 1530u;
+    values.log_enabled = 1u;
+    car_runtime_diag_note_log_update_call();
+    CHECK_EQ("PE7 and logger header change publishes immediately",
+             car_runtime_diag_update(&values), 1u);
+    CHECK_EQ("published snapshot advances by two generations",
+             g_runtime_diag_snapshot.generation, 4u);
+    CHECK_EQ("snapshot includes the actual logger update call count",
+             g_runtime_diag_snapshot.log_update_calls, 1u);
+    CHECK_EQ("snapshot preserves distinct logger start token and session id",
+             g_runtime_diag_snapshot.start_token, 1u);
+    CHECK_EQ("snapshot mirrors the runtime-log session id",
+             g_runtime_diag_snapshot.header_session_id, 1u);
+    CHECK_EQ("snapshot stores applied left output as signed 16-bit",
+             g_runtime_diag_snapshot.left_output_permille, 499);
+    CHECK_EQ("snapshot stores software servo compare pulse",
+             g_runtime_diag_snapshot.servo_pulse_us, 1530u);
+    CHECK_EQ("published active snapshot has valid CRC",
+             g_runtime_diag_snapshot.crc32,
+             car_runtime_diag_snapshot_crc32(&g_runtime_diag_snapshot));
+
+    values.uptime_ms = 124u;
+    CHECK_EQ("periodic snapshot is bounded below 100 ms",
+             car_runtime_diag_update(&values), 0u);
+    values.uptime_ms = 125u;
+    CHECK_EQ("periodic snapshot publishes at 100 ms",
+             car_runtime_diag_update(&values), 1u);
+    CHECK_EQ("periodic snapshot has next even generation",
+             g_runtime_diag_snapshot.generation, 6u);
+
+    values.uptime_ms = 126u;
+    values.cpu_header_state = CAR_RUNTIME_LOG_STATE_FROZEN;
+    values.cpu_header_count = 2u;
+    car_runtime_diag_note_log_update_call();
+    CHECK_EQ("final frozen header state/count publishes in the same loop",
+             car_runtime_diag_update(&values), 1u);
+    CHECK_EQ("frozen snapshot contains current logger call total",
+             g_runtime_diag_snapshot.log_update_calls, 2u);
+    CHECK_EQ("frozen CPU header state uses raw enum value 2",
+             g_runtime_diag_snapshot.cpu_header_state,
+             CAR_RUNTIME_LOG_STATE_FROZEN);
+    CHECK_EQ("frozen snapshot contains final header count",
+             g_runtime_diag_snapshot.cpu_header_count, 2u);
+
+    car_runtime_diag_init(0u, 0u);
+    values = {};
+    values.uptime_ms = 0xFFFFFFCEu;
+    CHECK_EQ("disabled logger still publishes an independent idle snapshot",
+             car_runtime_diag_update(&values), 1u);
+    values.start_events = 2u;
+    CHECK_EQ("disabled logger snapshot publishes PE7 event changes",
+             car_runtime_diag_update(&values), 1u);
+    CHECK_EQ("disabled logger flag is clear in the snapshot",
+             g_runtime_diag_snapshot.flags, 0u);
+    values.start_events = 2u;
+    values.uptime_ms = 50u;
+    CHECK_EQ("100 ms periodic update remains wrap-safe",
+             car_runtime_diag_update(&values), 1u);
+    CHECK_EQ("disabled snapshot still has a valid CRC",
+             g_runtime_diag_snapshot.crc32,
+             car_runtime_diag_snapshot_crc32(&g_runtime_diag_snapshot));
+
+    {
+        car_runtime_diag_snapshot_t corrupted = g_runtime_diag_snapshot;
+        ++corrupted.generation;
+        CHECK(corrupted.crc32 !=
+                  car_runtime_diag_snapshot_crc32(&corrupted),
+              "generation is included in runtime snapshot CRC");
+    }
 }
 
 void test_turn_slope_assist_gate_and_per_side_slew()
@@ -1172,6 +1333,53 @@ void test_turn_slope_assist_gate_and_per_side_slew()
              state.target_right_permille, 545u);
     CHECK_EQ("left-turn ramp remains per-side limited", left, 660u);
     CHECK_EQ("left-turn ramp remains per-side limited right", right, 660u);
+
+    car_follow_output_reset(&state);
+    car_follow_output_turn_hold_at(&state, 0u, 0u, 13u, 700u, 300u);
+    CHECK_EQ("70/30 hold preserves the actual left entry output at time zero",
+             state.command_left_permille, 700u);
+    CHECK_EQ("70/30 hold preserves the actual right entry output at time zero",
+             state.command_right_permille, 300u);
+    car_follow_output_turn_hold_at(&state, 150u, 0u, 13u, 0u, 0u);
+    CHECK_EQ("70/30 hold reaches 50/30 at 150 ms", state.command_left_permille,
+             550u);
+    CHECK_EQ("70/30 hold does not increase its 300-permille side",
+             state.command_right_permille, 300u);
+    car_follow_output_turn_hold_at(&state, 300u, 0u, 13u, 0u, 0u);
+    CHECK_EQ("70/30 hold reaches its fixed 40/30 target at 300 ms",
+             state.command_left_permille, 400u);
+    CHECK_EQ("70/30 hold retains its 30 target at 300 ms",
+             state.command_right_permille, 300u);
+    state.startup_qualified = 1u;
+    CHECK_EQ("same-tick recovery keeps the decelerated 40/30 output",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 300u, 500u, 200u, 200u, 1530u, 1530u, 1100u,
+                 2500u, 1u, 1u, 1u, 400u, 300u, 0u, &left, &right), 1u);
+    CHECK_EQ("same-tick recovery does not jump from the decelerated output",
+             left, 400u);
+    CHECK_EQ("first recovered left slew step remains at most 40 permille",
+             car_follow_output_turn_update_with_slope_assist(
+                 &state, 310u, 500u, 200u, 200u, 1530u, 1530u, 1100u,
+                 2500u, 1u, 1u, 1u, 400u, 300u, 0u, &left, &right), 1u);
+    CHECK_EQ("70/30 recovered left output advances by one existing step",
+             left, 440u);
+    CHECK_EQ("70/30 recovered right output advances by one existing step",
+             right, 340u);
+
+    car_follow_output_reset(&state);
+    car_follow_output_turn_hold_at(&state, 0u, 0u, 14u, 500u, 500u);
+    CHECK_EQ("50/50 hold begins at its actual entry outputs",
+             state.command_left_permille, 500u);
+    car_follow_output_turn_hold_at(&state, 150u, 0u, 14u, 0u, 0u);
+    CHECK_EQ("50/50 hold reaches 45/45 at 150 ms",
+             state.command_left_permille, 450u);
+    CHECK_EQ("50/50 hold keeps both sides symmetrical at 150 ms",
+             state.command_right_permille, 450u);
+    car_follow_output_turn_hold_at(&state, 300u, 0u, 14u, 0u, 0u);
+    CHECK_EQ("50/50 hold reaches its fixed 40/40 target at 300 ms",
+             state.command_left_permille, 400u);
+    CHECK_EQ("50/50 hold reaches its fixed right target at 300 ms",
+             state.command_right_permille, 400u);
 }
 
 void test_servo_center_frame_slew_fault_and_sticky_snapshot()
@@ -6430,6 +6638,8 @@ int main(int argc, char **argv)
              test_servo_live_clock_profile_derivation);
     run_case("follow_output_differential_and_independent_ramps",
              test_follow_output_differential_and_independent_ramps);
+    run_case("runtime_diag_snapshot_abi_crc_and_schedule",
+             test_runtime_diag_snapshot_abi_crc_and_schedule);
     run_case("turn_slope_assist_gate_and_per_side_slew",
              test_turn_slope_assist_gate_and_per_side_slew);
     run_case("servo_center_frame_slew_sticky_fault",

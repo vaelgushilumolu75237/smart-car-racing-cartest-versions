@@ -301,10 +301,15 @@ function Write-FailedStatus {
     param([string]$Message, [string]$ElfPath, [string]$StackTrace)
     if (-not $script:RunDirectory) { return }
     $rawFiles = @()
-    foreach ($name in @('flash-rom-descriptor.bin', 'scalar-region.bin', 'runtime-log-header.bin')) {
+    foreach ($name in @('flash-rom-descriptor.bin', 'scalar-region.bin')) {
         $path = Join-Path $script:RunDirectory $name
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
+        }
+    }
+    foreach ($pattern in @('runtime-log-header-*.bin', 'runtime-diagnostic-*.bin')) {
+        foreach ($file in @(Get-ChildItem -LiteralPath $script:RunDirectory -Filter $pattern -File -ErrorAction SilentlyContinue)) {
+            $rawFiles += [ordered]@{ path = $file.FullName; bytes = $file.Length }
         }
     }
     $failed = [ordered]@{
@@ -350,7 +355,17 @@ try {
         $script:SelectedProbeSN = if ($ProbeSN) { $ProbeSN } else { '<unique probe from -l st-link-only>' }
         $descriptorDestination = '<diagnostic-directory>\flash-rom-descriptor.bin'
         $scalarDestination = '<diagnostic-directory>\scalar-region.bin'
-        $headerDestination = '<diagnostic-directory>\runtime-log-header.bin'
+        $headerBeforeDestination = '<diagnostic-directory>\runtime-log-header-before.bin'
+        $headerAfterDestination = '<diagnostic-directory>\runtime-log-header-after.bin'
+        $diagnosticDestination = '<diagnostic-directory>\runtime-diagnostic.bin'
+        $plannedReads = New-Object System.Collections.Generic.List[object]
+        $plannedReads.Add([ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) })
+        $plannedReads.Add([ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) })
+        $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header before diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerBeforeDestination) })
+        if ($plan.runtime_diagnostic_snapshot.available) {
+            $plannedReads.Add([ordered]@{ purpose = '64-byte generation/CRC-protected runtime diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.runtime_diagnostic_snapshot.address -Size 64 -Destination $diagnosticDestination) })
+        }
+        $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header after diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerAfterDestination) })
         $result = [ordered]@{
             status = 'dry_run'
             connected = $false
@@ -366,11 +381,7 @@ try {
             requested_connection_frequency_khz = $ConnectionFrequencyKhz
             connection_frequency_khz = $ConnectionFrequencyKhz
             shared_connection = [bool]$script:SharedConnectionValue
-            reads = @(
-                [ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) },
-                [ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) },
-                [ordered]@{ purpose = '64-byte runtime-log header'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size $plan.header_read.size -Destination $headerDestination) }
-            )
+            reads = $plannedReads.ToArray()
             record_area_read = $false
         }
         $result | ConvertTo-Json -Depth 8
@@ -397,17 +408,60 @@ try {
     $script:Plan | Add-Member -NotePropertyName target_flash_descriptor -NotePropertyValue $descriptorValidation
 
     $scalarPath = Join-Path $script:RunDirectory 'scalar-region.bin'
-    $headerPath = Join-Path $script:RunDirectory 'runtime-log-header.bin'
     Invoke-StatusRead -Tag 'scalars' -Address $script:Plan.scalar_read.address `
         -Size $script:Plan.scalar_read.size -Destination $scalarPath
-    Invoke-StatusRead -Tag 'header' -Address $script:Plan.header_read.address `
-        -Size $script:Plan.header_read.size -Destination $headerPath
+    $diagnosticAvailable = [bool]$script:Plan.runtime_diagnostic_snapshot.available
+    $decoded = $null
+    $decodeFailure = $null
+    for ($attempt = 1; $attempt -le 3; ++$attempt) {
+        $suffix = '{0:D2}' -f $attempt
+        $headerBeforePath = Join-Path $script:RunDirectory ("runtime-log-header-before-{0}.bin" -f $suffix)
+        $headerAfterPath = Join-Path $script:RunDirectory ("runtime-log-header-after-{0}.bin" -f $suffix)
+        $diagnosticPath = Join-Path $script:RunDirectory ("runtime-diagnostic-{0}.bin" -f $suffix)
+        Invoke-StatusRead -Tag ("header-before-{0}" -f $suffix) `
+            -Address $script:Plan.header_read.address -Size 64 -Destination $headerBeforePath
+        if ($diagnosticAvailable) {
+            Invoke-StatusRead -Tag ("runtime-diagnostic-{0}" -f $suffix) `
+                -Address $script:Plan.runtime_diagnostic_snapshot.address -Size 64 -Destination $diagnosticPath
+        }
+        Invoke-StatusRead -Tag ("header-after-{0}" -f $suffix) `
+            -Address $script:Plan.header_read.address -Size 64 -Destination $headerAfterPath
 
-    $script:Stage = 'decode-snapshot'
-    $decoded = Invoke-ReaderJson -Arguments @(
-        $script:Reader, 'decode', '--elf', $elfPath, '--scalars', $scalarPath,
-        '--header', $headerPath, '--descriptor', $descriptorPath
-    ) -LogPath (Join-Path $script:RunDirectory 'python-decode.log')
+        $decodeArguments = @(
+            $script:Reader, 'decode', '--elf', $elfPath, '--scalars', $scalarPath,
+            '--header', $headerBeforePath, '--header-after', $headerAfterPath,
+            '--descriptor', $descriptorPath
+        )
+        if ($diagnosticAvailable) {
+            $decodeArguments += @('--runtime-diagnostic', $diagnosticPath)
+        }
+        $script:Stage = "decode-snapshot-attempt-$suffix"
+        try {
+            $decoded = Invoke-ReaderJson -Arguments $decodeArguments `
+                -LogPath (Join-Path $script:RunDirectory ("python-decode-{0}.log" -f $suffix))
+            $decodeFailure = $null
+        }
+        catch {
+            $decodeFailure = $_.Exception.Message
+            if ($attempt -lt 3) {
+                Add-Content -LiteralPath (Join-Path $script:RunDirectory 'snapshot-retries.log') `
+                    -Value ("Attempt {0}: {1}" -f $attempt, $decodeFailure) -Encoding UTF8
+                continue
+            }
+            throw
+        }
+
+        if ($decoded.status_class -notin @('inconsistent', 'legacy_inconsistent')) {
+            break
+        }
+        if ($attempt -lt 3) {
+            Add-Content -LiteralPath (Join-Path $script:RunDirectory 'snapshot-retries.log') `
+                -Value ("Attempt {0}: {1}" -f $attempt, (@($decoded.warnings) -join '; ')) -Encoding UTF8
+        }
+    }
+    if ($null -eq $decoded) {
+        throw "No valid status snapshot was decoded after three attempts. $decodeFailure"
+    }
     $decoded | Add-Member -NotePropertyName generated_at_utc -NotePropertyValue ([DateTime]::UtcNow.ToString('o'))
     $decoded | Add-Member -NotePropertyName connection -NotePropertyValue ([ordered]@{
         probe_sn = $script:SelectedProbeSN
@@ -420,23 +474,31 @@ try {
     $decoded | Add-Member -NotePropertyName probe_list_log -NotePropertyValue (Join-Path $script:RunDirectory 'probe-list.log')
     $decoded | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-status.json') -Encoding UTF8
 
-    $state = $decoded.runtime_log_header.state_name
-    $count = $decoded.runtime_log_header.count
+    $state = $decoded.runtime_log_header_after.state_name
+    $count = $decoded.runtime_log_header_after.count
     $mode = $decoded.scalars.car_mode_name
     $fault = $decoded.scalars.car_fault_name
     $version = $decoded.elf.log_version
-    $enabled = $decoded.scalars.car_runtime_log_enabled
-    $starts = $decoded.scalars.car_button_start_event_count
+    $enabled = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.log_enabled } else { $decoded.scalars.car_runtime_log_enabled }
+    $starts = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.start_events } else { $decoded.scalars.car_button_start_event_count }
     $heartbeat = $decoded.scalars.car_main_loop_heartbeat_ms
     $resetFlag = $decoded.scalars.iwdg_reset_flag_in_rcc_rsr
     $snapshot = $decoded.scalars.car_vision_hold_snapshot_published
-    Write-Output ("Status: {0}; logVersion={1}; logger={2}, enabled={3}, count={4}, starts={5}; heartbeat_ms={6}; mode={7}, fault={8}, iwdgReset={9}; holdSnapshot={10}" -f $decoded.status, $version, $state, $enabled, $count, $starts, $heartbeat, $mode, $fault, $resetFlag, $snapshot)
+    $diagState = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.cpu_header_state_name } else { 'unavailable-legacy-ELF' }
+    $diagCount = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.cpu_header_count } else { $null }
+    $startToken = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.start_token } else { $null }
+    Write-Output ("Status: {0}; logVersion={1}; CPU logger={2}, header={3}, enabled={4}, CPU count={5}, header count={6}, start events={7}, start token={8}; heartbeat_ms={9}; mode={10}, fault={11}, iwdgReset={12}; holdSnapshot={13}; activeProgress={14}" -f $decoded.status_class, $version, $diagState, $state, $enabled, $diagCount, $count, $starts, $startToken, $heartbeat, $mode, $fault, $resetFlag, $snapshot, $decoded.observing_active_progress)
     Write-Output ("Target probe={0}; requested SWD={1} kHz; requested SWD rate reported by probe={2} kHz; shared={3}; CSV created={4}" -f $script:SelectedProbeSN, $ConnectionFrequencyKhz, $script:ActualFrequencyKhz, [bool]$script:SharedConnectionValue, $decoded.csv_created)
-    if ($state -eq 'idle') { Write-Output 'IDLE: count=0; no run records are available and this status tool does not create a CSV.' }
+    if ($decoded.status_class -in @('neverstarted', 'legacy_idle')) { Write-Output 'IDLE: no run records are available; this status tool does not create a CSV.' }
+    if ($decoded.status_class -in @('active', 'legacy_active')) { Write-Output 'ACTIVE: the logger is still recording; wait for the vehicle stop path to freeze the log before export.' }
+    if ($decoded.status_class -eq 'frozen') { Write-Output 'FROZEN: CPU snapshot and stable runtime-log header agree on state, count, and session.' }
+    if ($decoded.status_class -eq 'inconsistent' -or $decoded.status_class -eq 'legacy_inconsistent') { Write-Output 'INCONSISTENT: the bounded header/snapshot comparison did not settle; retain diagnostics and do not export.' }
+    if ($decoded.runtime_diagnostic_snapshot -and $decoded.runtime_diagnostic_snapshot.start_events -gt 0 -and $decoded.runtime_diagnostic_snapshot.start_token -eq 0) { Write-Output 'PE7 start events were seen, but the logger has not consumed a start token.' }
+    if ($decoded.runtime_diagnostic_snapshot -and -not $decoded.runtime_diagnostic_snapshot.log_enabled) { Write-Output 'Runtime logger is disabled in this firmware build.' }
     foreach ($warning in @($decoded.warnings)) { Write-Output ("Warning: {0}" -f $warning) }
     Write-Output ("Diagnostic JSON: {0}" -f (Join-Path $script:RunDirectory 'run-status.json'))
     Write-Output ("Raw snapshot files retained in: {0}" -f $script:RunDirectory)
-    if ($decoded.status -notin @('success', 'idle', 'read_with_warnings')) { exit 2 }
+    if ($decoded.status_class -in @('inconsistent', 'legacy_inconsistent')) { exit 2 }
     exit 0
 }
 catch {

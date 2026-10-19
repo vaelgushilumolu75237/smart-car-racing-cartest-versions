@@ -34,11 +34,13 @@ $serial = '1234567890'
 $environmentNames = @(
     'RUN_STATUS_FAKE_ARGS_PATH', 'RUN_STATUS_FAKE_EXPECTED_SN',
     'RUN_STATUS_FAKE_DESCRIPTOR_ADDRESS', 'RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE',
+    'RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_DIAGNOSTIC_FIXTURE',
     'RUN_STATUS_FAKE_SCALAR_ADDRESS', 'RUN_STATUS_FAKE_SCALAR_SIZE',
     'RUN_STATUS_FAKE_SCALAR_FIXTURE', 'RUN_STATUS_FAKE_HEADER_ADDRESS',
     'RUN_STATUS_FAKE_HEADER_FIXTURE', 'RUN_STATUS_FAKE_MODE',
     'RUN_STATUS_FAKE_FREQ', 'RUN_STATUS_FAKE_SHARED', 'RUN_STATUS_FAKE_PROBES',
-    'RUN_STATUS_FAKE_ACTUAL_FREQ'
+    'RUN_STATUS_FAKE_ACTUAL_FREQ', 'RUN_STATUS_FAKE_CALL_INDEX_PATH',
+    'RUN_STATUS_FAKE_UPLOAD_SEQUENCE'
 )
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -51,7 +53,8 @@ function Invoke-StatusCase {
         [string]$Shared = 'true',
         [string]$ActualFrequency = '950',
         [switch]$DryRun,
-        [string]$DescriptorPath = $descriptorFixture
+        [string]$DescriptorPath = $descriptorFixture,
+        [string[]]$UploadFixtureSequence = @()
     )
     $caseRoot = Join-Path $OutputRoot $Name
     New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
@@ -60,6 +63,8 @@ function Invoke-StatusCase {
     $env:RUN_STATUS_FAKE_EXPECTED_SN = $serial
     $env:RUN_STATUS_FAKE_DESCRIPTOR_ADDRESS = [string]$fixtureInfo.descriptor_address
     $env:RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE = $DescriptorPath
+    $env:RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS = [string]$fixtureInfo.diagnostic_address
+    $env:RUN_STATUS_FAKE_DIAGNOSTIC_FIXTURE = Join-Path $fixtureRoot 'runtime-diagnostic.bin'
     $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = [string]$fixtureInfo.scalar_address
     $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$fixtureInfo.scalar_size
     $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $scalarFixture
@@ -70,6 +75,8 @@ function Invoke-StatusCase {
     $env:RUN_STATUS_FAKE_SHARED = if ($Shared -match '^(true|1)$') { '1' } else { '0' }
     $env:RUN_STATUS_FAKE_PROBES = $serial
     $env:RUN_STATUS_FAKE_ACTUAL_FREQ = $ActualFrequency
+    $env:RUN_STATUS_FAKE_CALL_INDEX_PATH = Join-Path $caseRoot 'fake-cli-call-index.txt'
+    $env:RUN_STATUS_FAKE_UPLOAD_SEQUENCE = $UploadFixtureSequence -join '|'
 
     $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', $wrapper, '-Elf', $resolvedElf,
@@ -102,7 +109,15 @@ function Assert-ReadSequence {
     $descriptorAddress = [string]$fixtureInfo.descriptor_address
     $scalarAddress = [string]$fixtureInfo.scalar_address
     $headerAddress = [string]$fixtureInfo.header_address
-    if ($Frequencies.Count -eq 4) {
+    if ($Frequencies.Count -eq 6) {
+        $expectedAddresses = @($descriptorAddress, $descriptorAddress, $scalarAddress, $headerAddress)
+        $expectedAddresses += @([string]$fixtureInfo.diagnostic_address, $headerAddress)
+        $expectedSizes = @(64, 64, [int]$fixtureInfo.scalar_size, 64, 64, 64)
+    } elseif ($Frequencies.Count -eq 5) {
+        $expectedAddresses = @($descriptorAddress, $scalarAddress, $headerAddress,
+            [string]$fixtureInfo.diagnostic_address, $headerAddress)
+        $expectedSizes = @(64, [int]$fixtureInfo.scalar_size, 64, 64, 64)
+    } elseif ($Frequencies.Count -eq 4) {
         $expectedAddresses = @($descriptorAddress, $descriptorAddress, $scalarAddress, $headerAddress)
         $expectedSizes = @(64, 64, [int]$fixtureInfo.scalar_size, 64)
     } else {
@@ -132,7 +147,7 @@ function Assert-ReadSequence {
 try {
     $success = Invoke-StatusCase -Name 'IDLE-status-with-shared-string-true' -Mode success -Shared 'true'
     if ($success.ExitCode -ne 0) { throw "Target-matched IDLE status failed: $($success.Output)" }
-    Assert-ReadSequence -ArgsLog $success.ArgsLog -Frequencies @('1000', '1000', '1000')
+    Assert-ReadSequence -ArgsLog $success.ArgsLog -Frequencies @('1000', '1000', '1000', '1000', '1000')
     $successRun = Get-StatusRunDirectory $success.CaseRoot
     $status = Get-Content -LiteralPath (Join-Path $successRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($status.runtime_log_header.state_name -ne 'idle' -or
@@ -143,13 +158,47 @@ try {
         throw 'Status report did not preserve IDLE/no-CSV, non-atomic reads, descriptor, and actual rate.'
     }
 
+    $badCrcHeader = Join-Path $fixtureRoot 'runtime-log-header-idle-bad-crc.bin'
+    $diagnosticIdle = Join-Path $fixtureRoot 'runtime-diagnostic.bin'
+    $retrySequence = @($descriptorFixture, $scalarFixture, $badCrcHeader, $diagnosticIdle,
+        $badCrcHeader, $headerFixture, $diagnosticIdle, $headerFixture)
+    $crcRetry = Invoke-StatusCase -Name 'retry-invalid-header-crc-then-idle' `
+        -Mode success -UploadFixtureSequence $retrySequence
+    if ($crcRetry.ExitCode -ne 0) { throw "CRC retry status failed: $($crcRetry.Output)" }
+    $crcRetryRun = Get-StatusRunDirectory $crcRetry.CaseRoot
+    $crcRetryStatus = Get-Content -LiteralPath (Join-Path $crcRetryRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $crcRetryLog = Get-Content -LiteralPath (Join-Path $crcRetryRun.FullName 'snapshot-retries.log') -Raw -Encoding UTF8
+    if ($crcRetryStatus.status_class -ne 'neverstarted' -or $crcRetryStatus.csv_created -or
+        @(Get-Content -LiteralPath $crcRetry.ArgsLog).Count -ne 8 -or
+        $crcRetryLog -notmatch 'Attempt 1:') {
+        throw 'CRC-invalid bracket was not retried before accepting IDLE without creating a CSV.'
+    }
+
+    $diagnosticFrozen = Join-Path $fixtureRoot 'runtime-diagnostic-frozen.bin'
+    $frozenHeader = Join-Path $fixtureRoot 'runtime-log-header-frozen.bin'
+    $inconsistentSequence = @($descriptorFixture, $scalarFixture, $headerFixture,
+        $diagnosticFrozen, $frozenHeader, $frozenHeader, $diagnosticFrozen, $frozenHeader)
+    $inconsistentRetry = Invoke-StatusCase -Name 'retry-transition-then-stable-frozen' `
+        -Mode success -UploadFixtureSequence $inconsistentSequence
+    if ($inconsistentRetry.ExitCode -ne 0) { throw "Inconsistent retry status failed: $($inconsistentRetry.Output)" }
+    $inconsistentRun = Get-StatusRunDirectory $inconsistentRetry.CaseRoot
+    $inconsistentStatus = Get-Content -LiteralPath (Join-Path $inconsistentRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $inconsistentLog = Get-Content -LiteralPath (Join-Path $inconsistentRun.FullName 'snapshot-retries.log') -Raw -Encoding UTF8
+    if ($inconsistentStatus.status_class -ne 'frozen' -or
+        $inconsistentStatus.runtime_log_header.count -ne $inconsistentStatus.runtime_log_header_after.count -or
+        $inconsistentStatus.runtime_diagnostic_snapshot.cpu_header_state_name -ne 'frozen' -or
+        @(Get-Content -LiteralPath $inconsistentRetry.ArgsLog).Count -ne 8 -or
+        $inconsistentLog -notmatch 'Attempt 1:') {
+        throw 'IDLE-to-FROZEN bracket was not retried into an exact stable FROZEN match.'
+    }
+
     $exclusive = Invoke-StatusCase -Name 'legacy-string-false-works-in-powershell-child' -Mode success -Shared 'false'
     if ($exclusive.ExitCode -ne 0) { throw "String-bool false did not bind in PowerShell child: $($exclusive.Output)" }
-    Assert-ReadSequence -ArgsLog $exclusive.ArgsLog -Frequencies @('1000', '1000', '1000') -Shared:$false
+    Assert-ReadSequence -ArgsLog $exclusive.ArgsLog -Frequencies @('1000', '1000', '1000', '1000', '1000') -Shared:$false
 
     $fallback = Invoke-StatusCase -Name 'fallback-1000-to-400' -Mode 'connect-error-1000' -Frequency '1000' -Shared 'true' -ActualFrequency '375'
     if ($fallback.ExitCode -ne 0) { throw "Status connection fallback failed: $($fallback.Output)" }
-    Assert-ReadSequence -ArgsLog $fallback.ArgsLog -Frequencies @('1000', '400', '400', '400')
+    Assert-ReadSequence -ArgsLog $fallback.ArgsLog -Frequencies @('1000', '400', '400', '400', '400', '400')
     $fallbackRun = Get-StatusRunDirectory $fallback.CaseRoot
     $fallbackStatus = Get-Content -LiteralPath (Join-Path $fallbackRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($fallbackStatus.connection.frequency_khz -ne 400 -or
@@ -176,8 +225,8 @@ try {
     if ($dry.ExitCode -ne 0) { throw "Status DryRun failed: $($dry.Output)" }
     $dryJson = $dry.Output | ConvertFrom-Json
     if ($dryJson.status -ne 'dry_run' -or $dryJson.connected -or
-        $dryJson.reads.Count -ne 3 -or (Test-Path -LiteralPath $dry.ArgsLog)) {
-        throw 'Status DryRun must list Flash/scalar/header reads without running the CLI.'
+        $dryJson.reads.Count -ne 5 -or (Test-Path -LiteralPath $dry.ArgsLog)) {
+        throw 'Status DryRun must list Flash/scalar/header/diagnostic/header reads without running the CLI.'
     }
     if (@($dryJson.reads[0].arguments)[0] -ne '-c' -or
         @($dryJson.reads[0].arguments)[3] -ne 'freq=1000' -or
@@ -185,8 +234,14 @@ try {
         @($dryJson.reads[0].arguments)[6] -ne '--upload') {
         throw 'Status DryRun did not use the shared 1000 kHz Flash-first plan.'
     }
+    if (@($dryJson.reads[3].arguments)[7] -ne [string]$fixtureInfo.diagnostic_address -or
+        @($dryJson.reads[3].arguments)[8] -ne '64' -or
+        @($dryJson.reads[4].arguments)[7] -ne [string]$fixtureInfo.header_address -or
+        @($dryJson.reads[4].arguments)[8] -ne '64') {
+        throw 'Status DryRun did not bracket the 64-byte diagnostic snapshot with runtime-log headers.'
+    }
 
-    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
+    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, CRC-fail-then-pass and inconsistent-then-pass retries, stable FROZEN, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
     Write-Output "Evidence: $OutputRoot"
 }
 finally {
