@@ -46,7 +46,7 @@ HOLD_SNAPSHOT_SYMBOLS = (
 SCALAR_SYMBOLS = REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS
 SIGNED_SCALAR_SYMBOLS = {"car_vision_hold_snapshot_error_norm"}
 SCALAR_SIZE = 4
-MAX_SCALAR_READ_SIZE = 4096
+MAX_SCALAR_READ_SIZE = 8192
 D1_SRAM_START = 0x24000000
 D1_SRAM_END = 0x24080000
 RCC_RSR_IWDG1RSTF_MASK = 0x04000000
@@ -63,6 +63,32 @@ DIAGNOSTIC_CRC_OFFSET = 12
 DIAGNOSTIC_CRC_SIZE = 4
 DIAGNOSTIC_FLAGS_LOG_ENABLED = 0x0001
 DIAGNOSTIC_KNOWN_FLAGS = DIAGNOSTIC_FLAGS_LOG_ENABLED
+SPEED_PI_DIAGNOSTIC_SYMBOL = "g_speed_pi_diag_snapshot"
+SPEED_PI_DIAGNOSTIC_MAGIC = 0x47414950
+SPEED_PI_DIAGNOSTIC_VERSION = 1
+SPEED_PI_DIAGNOSTIC_SIZE = 128
+SPEED_PI_DIAGNOSTIC_CRC_OFFSET = 12
+SPEED_PI_DIAGNOSTIC_CRC_SIZE = 4
+SPEED_PI_DIAGNOSTIC_FLAG_ENABLED = 1 << 0
+SPEED_PI_DIAGNOSTIC_FLAG_ARMED = 1 << 1
+SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE = 1 << 2
+SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID = 1 << 3
+SPEED_PI_DIAGNOSTIC_FLAG_FROZEN = 1 << 4
+SPEED_PI_DIAGNOSTIC_FLAG_HOLD_ACTIVE = 1 << 5
+SPEED_PI_DIAGNOSTIC_KNOWN_FLAGS = (
+    SPEED_PI_DIAGNOSTIC_FLAG_ENABLED |
+    SPEED_PI_DIAGNOSTIC_FLAG_ARMED |
+    SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE |
+    SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID |
+    SPEED_PI_DIAGNOSTIC_FLAG_FROZEN |
+    SPEED_PI_DIAGNOSTIC_FLAG_HOLD_ACTIVE
+)
+SPEED_PI_TYPE_NAMES = {0: "none", 1: "position", 2: "incremental"}
+SPEED_PI_STATUS_NAMES = {
+    0: "stopped", 1: "disabled", 2: "not_ready", 3: "running",
+    4: "hold", 5: "invalid",
+}
+SPEED_PI_OUTPUT_CAP_PERMILLE = 700
 
 
 class StatusReadError(ValueError):
@@ -177,6 +203,47 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
             "section_alignment": diagnostic_section.alignment,
         }
 
+    speed_pi_diagnostic_symbol = symbols.get(SPEED_PI_DIAGNOSTIC_SYMBOL)
+    if speed_pi_diagnostic_symbol is None:
+        speed_pi_diagnostic_plan = {
+            "available": False,
+            "symbol": SPEED_PI_DIAGNOSTIC_SYMBOL,
+            "address": None,
+            "address_u32": None,
+            "size": None,
+            "section": None,
+        }
+    else:
+        speed_pi_section = exporter._section_for_symbol(
+            sections, speed_pi_diagnostic_symbol, ".speed_pi_diag")
+        if speed_pi_diagnostic_symbol.size != SPEED_PI_DIAGNOSTIC_SIZE:
+            _fail("ELF symbol '{}' must be exactly {} bytes (found {})".format(
+                SPEED_PI_DIAGNOSTIC_SYMBOL, SPEED_PI_DIAGNOSTIC_SIZE,
+                speed_pi_diagnostic_symbol.size))
+        if speed_pi_section.kind != 8:
+            _fail("ELF symbol '{}' must be backed by a NOLOAD .speed_pi_diag section".format(
+                SPEED_PI_DIAGNOSTIC_SYMBOL))
+        if not (speed_pi_section.flags & 0x2 and speed_pi_section.flags & 0x1):
+            _fail("ELF symbol '{}' is not in allocated writable RAM".format(
+                SPEED_PI_DIAGNOSTIC_SYMBOL))
+        if (speed_pi_section.alignment < 32 or
+                speed_pi_diagnostic_symbol.value % 32):
+            _fail("ELF symbol '{}' must be 32-byte aligned".format(
+                SPEED_PI_DIAGNOSTIC_SYMBOL))
+        if not (D1_SRAM_START <= speed_pi_diagnostic_symbol.value and
+                speed_pi_diagnostic_symbol.value + SPEED_PI_DIAGNOSTIC_SIZE <= D1_SRAM_END):
+            _fail("ELF symbol '{}' is outside STM32H743 D1 SRAM".format(
+                SPEED_PI_DIAGNOSTIC_SYMBOL))
+        speed_pi_diagnostic_plan = {
+            "available": True,
+            "symbol": SPEED_PI_DIAGNOSTIC_SYMBOL,
+            "address": _hex(speed_pi_diagnostic_symbol.value),
+            "address_u32": speed_pi_diagnostic_symbol.value,
+            "size": SPEED_PI_DIAGNOSTIC_SIZE,
+            "section": speed_pi_section.name,
+            "section_alignment": speed_pi_section.alignment,
+        }
+
     return {
         "elf_path": str(layout.path),
         "elf_sha256": layout.sha256,
@@ -207,6 +274,7 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
             "size": exporter.HEADER_SIZE,
         },
         "runtime_diagnostic_snapshot": diagnostic_plan,
+        "speed_pi_diagnostic_snapshot": speed_pi_diagnostic_plan,
         "record_area_read": False,
     }
 
@@ -337,6 +405,100 @@ def decode_runtime_diagnostic(raw: bytes) -> Dict[str, Any]:
         "flags": flags,
         "header_session_id": header_session_id,
         "reserved": reserved,
+    }
+
+
+def decode_speed_pi_diagnostic(raw: bytes) -> Dict[str, Any]:
+    """Validate and decode one fixed 128-byte speed-PI session snapshot."""
+    if len(raw) != SPEED_PI_DIAGNOSTIC_SIZE:
+        _fail("Speed PI diagnostic snapshot must be exactly {} bytes (found {})".format(
+            SPEED_PI_DIAGNOSTIC_SIZE, len(raw)))
+    magic, version, size, generation, observed_crc = struct.unpack_from(
+        "<IHHII", raw, 0)
+    if magic != SPEED_PI_DIAGNOSTIC_MAGIC:
+        _fail("Speed PI diagnostic snapshot magic is invalid")
+    if version != SPEED_PI_DIAGNOSTIC_VERSION or size != SPEED_PI_DIAGNOSTIC_SIZE:
+        _fail("Speed PI diagnostic snapshot version/size is unsupported")
+    if generation == 0 or generation & 1:
+        _fail("Speed PI diagnostic snapshot generation is zero or odd (writer active or uninitialized)")
+    crc_data = bytearray(raw)
+    crc_data[SPEED_PI_DIAGNOSTIC_CRC_OFFSET:
+             SPEED_PI_DIAGNOSTIC_CRC_OFFSET + SPEED_PI_DIAGNOSTIC_CRC_SIZE] = bytes(4)
+    computed_crc = zlib.crc32(crc_data) & 0xFFFFFFFF
+    if computed_crc != observed_crc:
+        _fail("Speed PI diagnostic snapshot CRC32 is invalid")
+
+    start_token, start_ms, snapshot_ms, sample_ms = struct.unpack_from(
+        "<4I", raw, 16)
+    (target_left, target_right, measured_left, measured_right) = struct.unpack_from(
+        "<4i", raw, 32)
+    (nominal_left, nominal_right, requested_left, requested_right,
+     applied_left, applied_right) = struct.unpack_from("<6H", raw, 48)
+    (status, termination_fault, saturation_left_ms, saturation_right_ms,
+     flags, pi_type) = struct.unpack_from("<6I", raw, 60)
+    reserved = struct.unpack_from("<11I", raw, 84)
+
+    if flags & ~SPEED_PI_DIAGNOSTIC_KNOWN_FLAGS:
+        _fail("Speed PI diagnostic snapshot contains unsupported flag bits")
+    if (flags & SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE and
+            flags & SPEED_PI_DIAGNOSTIC_FLAG_FROZEN):
+        _fail("Speed PI diagnostic snapshot cannot be both ACTIVE and FROZEN")
+    if any(reserved):
+        _fail("Speed PI diagnostic snapshot reserved words are not zero")
+    if pi_type not in SPEED_PI_TYPE_NAMES:
+        _fail("Speed PI diagnostic snapshot contains an unknown PI type")
+    if any(value < 0 or value > 100_000_000 for value in
+           (target_left, target_right, measured_left, measured_right)):
+        _fail("Speed PI diagnostic snapshot contains a speed outside the supported range")
+    if any(value > SPEED_PI_OUTPUT_CAP_PERMILLE for value in
+           (nominal_left, nominal_right, requested_left, requested_right,
+            applied_left, applied_right)):
+        _fail("Speed PI diagnostic snapshot contains an output above the 700-permille cap")
+
+    return {
+        "magic": "PIAG",
+        "version": version,
+        "size": size,
+        "generation": generation,
+        "crc32_read": "0x{:08X}".format(observed_crc),
+        "crc32_computed": "0x{:08X}".format(computed_crc),
+        "crc_valid": True,
+        "start_token": start_token,
+        "association": "manual PE7 start token",
+        "start_ms": start_ms,
+        "snapshot_ms": snapshot_ms,
+        "sample_ms": sample_ms,
+        "target_left_millirps": target_left,
+        "target_right_millirps": target_right,
+        "measured_left_millirps": measured_left,
+        "measured_right_millirps": measured_right,
+        "nominal_ff_left_permille": nominal_left,
+        "nominal_ff_right_permille": nominal_right,
+        "requested_left_permille": requested_left,
+        "requested_right_permille": requested_right,
+        "applied_left_permille": applied_left,
+        "applied_right_permille": applied_right,
+        "status": status,
+        "status_name": SPEED_PI_STATUS_NAMES.get(status, "unknown"),
+        "termination_fault": termination_fault,
+        "saturation_left_ms": saturation_left_ms,
+        "saturation_right_ms": saturation_right_ms,
+        "saturation_semantics": (
+            "Cumulative sampled duration at the 700-permille upper cap; "
+            "counted once per distinct valid sample_ms while armed, saturated, "
+            "and outside vision hold. Zero-output intervals do not count."
+        ),
+        "flags": flags,
+        "enabled": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_ENABLED),
+        "armed": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_ARMED),
+        "active": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE),
+        "last_sample_valid": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID),
+        "frozen": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_FROZEN),
+        "hold_active": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_HOLD_ACTIVE),
+        "pi_type": pi_type,
+        "pi_type_name": SPEED_PI_TYPE_NAMES[pi_type],
+        "reserved": list(reserved),
+        "start_token_matches_runtime_diagnostic": None,
     }
 
 
@@ -481,7 +643,8 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                     header_path: str | Path,
                     descriptor_path: str | Path | None = None,
                     header_after_path: str | Path | None = None,
-                    diagnostic_path: str | Path | None = None) -> Dict[str, Any]:
+                    diagnostic_path: str | Path | None = None,
+                    speed_pi_diagnostic_path: str | Path | None = None) -> Dict[str, Any]:
     plan = build_plan(elf_path)
     flash_descriptor = None
     if descriptor_path is not None:
@@ -537,12 +700,53 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         _fail("A runtime diagnostic upload was supplied for an ELF without g_runtime_diag_snapshot")
     else:
         diagnostic_class, diagnostic_warnings = _classify_legacy_headers(header, header_after)
+
+    speed_pi_diagnostic = None
+    speed_pi_warnings: list[str] = []
+    speed_pi_plan = plan["speed_pi_diagnostic_snapshot"]
+    if speed_pi_plan["available"]:
+        if speed_pi_diagnostic_path is None:
+            _fail("Selected ELF contains g_speed_pi_diag_snapshot but no snapshot upload was supplied")
+        speed_pi_diagnostic = decode_speed_pi_diagnostic(
+            Path(speed_pi_diagnostic_path).read_bytes())
+        state_after = int(header_after["state"])
+        pi_type = int(speed_pi_diagnostic["pi_type"])
+        pi_active = bool(speed_pi_diagnostic["active"])
+        pi_frozen = bool(speed_pi_diagnostic["frozen"])
+        if pi_active or pi_frozen:
+            if diagnostic is None:
+                speed_pi_warnings.append(
+                    "Speed PI snapshot is associated by manual PE7 start token, "
+                    "but this ELF has no runtime diagnostic token for comparison.")
+                diagnostic_class = "inconsistent"
+            else:
+                token_matches = (
+                    int(speed_pi_diagnostic["start_token"]) ==
+                    int(diagnostic["start_token"]))
+                speed_pi_diagnostic["start_token_matches_runtime_diagnostic"] = token_matches
+                if not token_matches:
+                    speed_pi_warnings.append(
+                        "Speed PI manual PE7 start token does not match the runtime diagnostic token.")
+                    diagnostic_class = "inconsistent"
+        if pi_type != 0 and state_after in (exporter.STATE_ACTIVE, exporter.STATE_FROZEN):
+            expected_pi_state = "active" if state_after == exporter.STATE_ACTIVE else "frozen"
+            if not speed_pi_diagnostic[expected_pi_state]:
+                speed_pi_warnings.append(
+                    "Speed PI snapshot is not {} while the runtime log is {}.".format(
+                        expected_pi_state.upper(), STATE_NAMES[state_after].upper()))
+                diagnostic_class = "inconsistent"
+        if diagnostic_class in ("inconsistent", "legacy_inconsistent"):
+            diagnostic_class = "inconsistent"
+    elif speed_pi_diagnostic_path is not None:
+        _fail("A speed PI diagnostic upload was supplied for an ELF without g_speed_pi_diag_snapshot")
+
     consistency_warnings = [
         "Scalar region, runtime diagnostic, and runtime-log headers use separate SWD uploads; "
         "the two headers bracket the single-record CRC-protected diagnostic snapshot."
     ]
     warnings = list(header["warnings"]) + list(header_after["warnings"]) + consistency_warnings
     warnings.extend(diagnostic_warnings)
+    warnings.extend(speed_pi_warnings)
     if descriptor_path is None:
         warnings.append("Target Flash descriptor was not uploaded; the running firmware ELF was not verified.")
     status = diagnostic_class or ("read_with_warnings" if warnings else
@@ -559,10 +763,12 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "flash_descriptor": flash_descriptor,
         "observing_active_progress": active_progress,
         "consistency_note": (
-            "The 64-byte diagnostic snapshot is published as one generation/CRC-protected record. "
-            "Runtime-log headers are uploaded before and after it. ACTIVE records may advance "
-            "during the separate SWD calls and remain diagnostic-only; stable IDLE/FROZEN state, "
-            "count, and session must agree exactly."
+            "The 64-byte runtime and 128-byte speed PI diagnostic snapshots are each "
+            "generation/CRC-protected records. Runtime-log headers are uploaded before and "
+            "after them. The speed PI snapshot is linked to the current run by the manual "
+            "PE7 start token, checked against the runtime diagnostic when present. ACTIVE "
+            "records may advance during separate SWD calls; stable IDLE/FROZEN state, count, "
+            "session, and enabled PI lifecycle must agree."
         ),
         "elf": {
             "path": plan["elf_path"],
@@ -578,12 +784,14 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "runtime_log_header": plan["header_read"],
             "runtime_log_header_after": plan["header_read"],
             "runtime_diagnostic_snapshot": plan["runtime_diagnostic_snapshot"],
+            "speed_pi_diagnostic_snapshot": plan["speed_pi_diagnostic_snapshot"],
             "runtime_log_record_area_read": False,
         },
         "scalars": scalars,
         "runtime_log_header": header,
         "runtime_log_header_after": header_after,
         "runtime_diagnostic_snapshot": diagnostic,
+        "speed_pi_diagnostic_snapshot": speed_pi_diagnostic,
         "raw_files": {
             "scalar_region": {
                 "path": str(Path(scalar_path).resolve()),
@@ -604,6 +812,11 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                 "path": str(Path(diagnostic_path).resolve()),
                 "bytes": len(Path(diagnostic_path).read_bytes()),
                 "sha256": hashlib.sha256(Path(diagnostic_path).read_bytes()).hexdigest(),
+            }),
+            "speed_pi_diagnostic_snapshot": (None if speed_pi_diagnostic_path is None else {
+                "path": str(Path(speed_pi_diagnostic_path).resolve()),
+                "bytes": len(Path(speed_pi_diagnostic_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(speed_pi_diagnostic_path).read_bytes()).hexdigest(),
             }),
         },
     }
@@ -626,6 +839,8 @@ def build_parser() -> argparse.ArgumentParser:
                                help="optional 64-byte runtime-log header uploaded after the diagnostics")
     decode_parser.add_argument("--runtime-diagnostic",
                                help="optional 64-byte g_runtime_diag_snapshot upload")
+    decode_parser.add_argument("--speed-pi-diagnostic",
+                               help="optional 128-byte g_speed_pi_diag_snapshot upload")
     decode_parser.add_argument("--descriptor",
                                help="optional uploaded 64-byte Flash descriptor to verify the target ELF")
     return parser
@@ -640,7 +855,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit_json(decode_snapshot(args.elf, args.scalars, args.header,
                                        descriptor_path=args.descriptor,
                                        header_after_path=args.header_after,
-                                       diagnostic_path=args.runtime_diagnostic))
+                                       diagnostic_path=args.runtime_diagnostic,
+                                       speed_pi_diagnostic_path=args.speed_pi_diagnostic))
         return 0
     except (StatusReadError, exporter.ExportError, OSError, struct.error) as exc:
         print("run-status-reader: {}".format(exc), file=sys.stderr)

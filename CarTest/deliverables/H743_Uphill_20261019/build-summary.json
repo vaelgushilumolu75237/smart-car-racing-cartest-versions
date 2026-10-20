@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "batch_date": "2026-10-19",
+  "completed_date": "2026-10-20",
+  "generated_utc": "2026-10-19T23:15:04.308608+00:00",
+  "project": "CarTest STM32H743VIT6",
+  "build_pass": "final ordinary all-profile pass; no -Fresh used",
+  "source_inputs_sha256_before": "bae60e61c828a7a3640bc8d20e7230bafc8b4b3426ce1846daac47d2b18f97c2",
+  "source_inputs_sha256_after": "bae60e61c828a7a3640bc8d20e7230bafc8b4b3426ce1846daac47d2b18f97c2",
+  "source_inputs_stable": true,
+  "source_input_count": 225,
+  "initial_pass_results": "BuildLogs/initial/build-results.json",
+  "tool_versions": {
+    "cmake": "4.3.1",
+    "ninja": "1.13.2",
+    "arm_gcc": "14.3.1"
+  },
+  "builds": [
+    {
+      "preset": "Debug",
+      "exit_code": 0,
+      "log": "BuildLogs/final/Debug.build.log",
+      "sha256": "127ed0a55a80312fa53f85df948f282dcdd513f6e619b402d57da9bf718e2669",
+      "bytes": 1966320,
+      "elf": "build/Debug/CarTest.elf",
+      "build_id": "a3df7b7913f57651566fa0ce131bf5c1",
+      "log_sha256": "1ab0267aaf25575a865a1056e2822fe6c534078afa7029f298f3d661cc5384f7",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugSteering",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugSteering.build.log",
+      "sha256": "ac6d3e6a694dd842fc3c64290e7347473ba2cf2eaf356556f7ccf6e609cfc367",
+      "bytes": 1966340,
+      "elf": "build/DebugSteering/CarTest.elf",
+      "build_id": "8af7d8330442aa34519e9233ababacf4",
+      "log_sha256": "6d0f33e023b914bed95e6d6f1d4da03a85ba4ee5a64d96ad036237dcdad9230a",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugBench",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugBench.build.log",
+      "sha256": "d4ccb3f651d73e3686edaee5ceffc695b1f29f01d54b3ad229fedd5f13fc8a0d",
+      "bytes": 1966864,
+      "elf": "build/DebugBench/CarTest.elf",
+      "build_id": "41c376a96fcc69fb2b4f16e45de42949",
+      "log_sha256": "b9544b85d02448ecc2ee1ced4fa71490a2a416af88a19782ec203047af362cd4",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollow",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollow.build.log",
+      "sha256": "c51892f6df4a0fdaf31413423ecb0b5f448f1a56af64643de5e4816e8888b642",
+      "bytes": 1971020,
+      "elf": "build/DebugFollow/CarTest.elf",
+      "build_id": "b0ecc632aa1e3d71b57380260f267711",
+      "log_sha256": "4feb4065c864396f1f9ea178d9f0f596b243e1e77bca3c86d5e3fa20eb58c0a9",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowNoLog",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowNoLog.build.log",
+      "sha256": "8eed38d18068fde140b70baf56dace2d62804d622087b894cf6366809428252c",
+      "bytes": 1963392,
+      "elf": "build/DebugFollowNoLog/CarTest.elf",
+      "build_id": "1457143d2859e3f3338b1410893dfbac",
+      "log_sha256": "637e3527b06c2423ad7df36f6036401720de54c3b842143658061d38b4b1d42e",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowDiff5",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowDiff5.build.log",
+      "sha256": "9b9b2c633bc7b6a6bf9ebce2e1db86d2402626002198bf1c271cf4f36ace690c",
+      "bytes": 1971040,
+      "elf": "build/DebugFollowDiff5/CarTest.elf",
+      "build_id": "898b21d3346b69c4e79c14ba900a6368",
+      "log_sha256": "7dc13573f14549996546c5bd686574b95633a98696224fe532782bbc583eaf0d",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowDiff10",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowDiff10.build.log",
+      "sha256": "14cfeba5d3d5a14870157623d2ac2dc255f0b959773e058818107d6b9c872c58",
+      "bytes": 1971044,
+      "elf": "build/DebugFollowDiff10/CarTest.elf",
+      "build_id": "4b190deef6de3a8da932beb37d2a6023",
+      "log_sha256": "d254fe2d7d87f8a044e07f5ef6fa350020e5d7ceaaa2ba6920648ff187c67b34",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowTurn",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowTurn.build.log",
+      "sha256": "eb71de75e1349b86577ea803a4a7bec49fcb3a15c813a459959bc96fd1e7c3fc",
+      "bytes": 1971416,
+      "elf": "build/DebugFollowTurn/CarTest.elf",
+      "build_id": "f14168da0710c04ad8eb2e6a591e9209",
+      "log_sha256": "e616bbc746c1cd3bee467f9f654e22695a0ba11b9d16a8fdffa0ce4af698a162",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowSpeedPI",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowSpeedPI.build.log",
+      "sha256": "aeaa7bc1eb597bab9228ac9bcb1709a5ab354e65c70aa906142ee743ceafc6ce",
+      "bytes": 1978472,
+      "elf": "build/DebugFollowSpeedPI/CarTest.elf",
+      "build_id": "6d05244b7fbde362753629b60abe78a8",
+      "log_sha256": "69000f6a2ad4ae2a6a3a4a2b7787a0706dc51705ca709c28ff5db358be65a2e6",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowTurn65",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowTurn65.build.log",
+      "sha256": "f50336905ea5a072f687a2a0edaa74412f115ed5e21f40ced85c0dd378e0866c",
+      "bytes": 1971400,
+      "elf": "build/DebugFollowTurn65/CarTest.elf",
+      "build_id": "588d783c08984cb608d3c294fd00d0a9",
+      "log_sha256": "c952717320b8cf49279ed0e5f3bbc90ba57a7bb513860d287bc6f3ac19f7ee5f",
+      "warnings": [],
+      "compile_profile_verified": true
+    },
+    {
+      "preset": "DebugFollowIncrementalPI",
+      "exit_code": 0,
+      "log": "BuildLogs/final/DebugFollowIncrementalPI.build.log",
+      "sha256": "3c7da3c26054764bec0949753212272d37857c015d5f351d13b4a0b085755d4f",
+      "bytes": 1983176,
+      "elf": "build/DebugFollowIncrementalPI/CarTest.elf",
+      "build_id": "64dbbdc95b2f280d3a80eca085c1ced9",
+      "log_sha256": "d3db86b1482e240deb1c429434fa8b96eaae8b781e82c98dbf5534b93bf13dc6",
+      "warnings": [],
+      "compile_profile_verified": true
+    }
+  ]
+}

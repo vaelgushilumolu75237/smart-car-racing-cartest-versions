@@ -111,6 +111,37 @@ function Write-RuntimeDiagnosticFixture {
     [IO.File]::WriteAllBytes($Path, $bytes)
 }
 
+function Write-SpeedPiDiagnosticFixture {
+    param([string]$Path, [uint32]$StartToken, [uint32]$Flags, [uint32]$PiType)
+    $bytes = New-Object byte[] 128
+    Set-U32LE $bytes 0 0x47414950
+    Set-U16LE $bytes 4 1
+    Set-U16LE $bytes 6 128
+    Set-U32LE $bytes 8 2
+    Set-U32LE $bytes 16 $StartToken
+    Set-U32LE $bytes 20 1000
+    Set-U32LE $bytes 24 ([uint32]$fixtureHeader.stop_ms)
+    Set-U32LE $bytes 28 ([uint32]$fixtureHeader.stop_ms - 10)
+    Set-U32LE $bytes 32 2400
+    Set-U32LE $bytes 36 2300
+    Set-U32LE $bytes 40 2200
+    Set-U32LE $bytes 44 2100
+    Set-U16LE $bytes 48 500
+    Set-U16LE $bytes 50 490
+    Set-U16LE $bytes 52 700
+    Set-U16LE $bytes 54 690
+    Set-U16LE $bytes 56 680
+    Set-U16LE $bytes 58 670
+    Set-U32LE $bytes 60 3
+    Set-U32LE $bytes 64 0
+    Set-U32LE $bytes 68 100
+    Set-U32LE $bytes 72 50
+    Set-U32LE $bytes 76 $Flags
+    Set-U32LE $bytes 80 $PiType
+    Set-U32LE $bytes 12 (Get-Crc32 -Bytes $bytes)
+    [IO.File]::WriteAllBytes($Path, $bytes)
+}
+
 $idleHeaderPath = Join-Path $OutputRoot 'target-runtime-log-header-idle.bin'
 $idleHeader = New-Object byte[] 64
 [Array]::Copy($fixtureHeaderBytes, $idleHeader, 64)
@@ -142,6 +173,16 @@ $activeDiagnosticPath = Join-Path $OutputRoot 'target-runtime-diagnostic-active.
 Write-RuntimeDiagnosticFixture -Path $activeDiagnosticPath -State 1 `
     -Count ([uint32]$fixtureHeader.count) -SessionId ([uint32]$fixtureHeader.session_id) `
     -StartEvents 1 -StopEvents 0 -StartToken 1
+$speedPiDiagnosticIdlePath = Join-Path $OutputRoot 'target-speed-pi-diagnostic-idle.bin'
+$speedPiDiagnosticActivePath = Join-Path $OutputRoot 'target-speed-pi-diagnostic-active.bin'
+$speedPiDiagnosticFrozenPath = Join-Path $OutputRoot 'target-speed-pi-diagnostic-frozen.bin'
+if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
+    Write-SpeedPiDiagnosticFixture -Path $speedPiDiagnosticIdlePath -StartToken 0 -Flags 0 -PiType 0
+    Write-SpeedPiDiagnosticFixture -Path $speedPiDiagnosticActivePath -StartToken 1 `
+        -Flags 15 -PiType 2
+    Write-SpeedPiDiagnosticFixture -Path $speedPiDiagnosticFrozenPath -StartToken 1 `
+        -Flags 27 -PiType 2
+}
 
 $environmentNames = @(
     'RUNTIME_LOG_FAKE_BUFFER_PATH', 'RUNTIME_LOG_FAKE_ARGS_PATH',
@@ -150,6 +191,7 @@ $environmentNames = @(
     'RUNTIME_LOG_FAKE_SHARED', 'RUNTIME_LOG_FAKE_MODE',
     'RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS', 'RUNTIME_LOG_FAKE_DESCRIPTOR_PATH',
     'RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_DIAGNOSTIC_PATH',
+    'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH',
     'RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS', 'RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_SIZE', 'RUNTIME_LOG_FAKE_PROBES',
@@ -188,6 +230,12 @@ function Invoke-FakeExport {
         'idle' { $idleDiagnosticPath }
         'active' { $activeDiagnosticPath }
         default { $frozenDiagnosticPath }
+    }
+    $env:RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS = [string]$statusPlan.speed_pi_diagnostic_snapshot.address
+    $env:RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH = switch ($Mode) {
+        'idle' { $speedPiDiagnosticIdlePath }
+        'active' { $speedPiDiagnosticActivePath }
+        default { $speedPiDiagnosticFrozenPath }
     }
     $env:RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH = switch ($Mode) {
         'idle' { $idleHeaderPath }
@@ -249,6 +297,15 @@ $successSizes = @(
     64, [int]$fixtureHeader.payload_size, 64,
     64, [int]$statusPlan.scalar_read.size, 64, 64, 64
 )
+if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
+    $successAddresses = @($successAddresses[0..4]) +
+        @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
+        @($successAddresses[5..12]) +
+        @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
+        @($successAddresses[13])
+    $successSizes = @($successSizes[0..4]) + @(128) +
+        @($successSizes[5..12]) + @(128) + @($successSizes[13])
+}
 
 function Assert-HotPlugUploadArguments {
     param(
@@ -315,6 +372,13 @@ try {
         -not $successMetadata.status_snapshot) {
         throw 'Default export did not produce a validated CSV with stable post-export diagnostics and matching Flash descriptor.'
     }
+    if ($statusPlan.speed_pi_diagnostic_snapshot.available -and
+        (-not (Test-Path -LiteralPath $successMetadata.speed_pi_diagnostic_json -PathType Leaf) -or
+         $successMetadata.speed_pi_diagnostic_preflight.start_token -ne 1 -or
+         -not $successMetadata.speed_pi_diagnostic_preflight.frozen -or
+         -not $successMetadata.speed_pi_diagnostic_post_export.frozen)) {
+        throw 'Speed PI diagnostic was not exported beside the CSV with a matching frozen PE7 token.'
+    }
     $statusJson = Get-Content -LiteralPath $successMetadata.status_snapshot -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($statusJson.flash_descriptor.status -ne 'matched' -or
         $statusJson.connection.probe_sn -ne $serial -or
@@ -351,7 +415,8 @@ try {
         if ($stateResult.ExitCode -ne 2) {
             throw "Stable $($stateCase.Name) status returned $($stateResult.ExitCode), expected no-run exit 2: $($stateResult.Output)"
         }
-        $stateFrequencies = @(1..6 | ForEach-Object { '1000' })
+        $stateReadCount = 6 + [int][bool]$statusPlan.speed_pi_diagnostic_snapshot.available
+        $stateFrequencies = @(1..$stateReadCount | ForEach-Object { '1000' })
         Assert-HotPlugUploadArguments -ArgsLog $stateResult.ArgsLog `
             -ExpectedFrequencies $stateFrequencies
         $stateRun = Get-ExportRunDirectory $stateResult.CaseRoot
@@ -365,13 +430,32 @@ try {
         }
     }
 
+    if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
+        foreach ($piFailureCase in @(
+            @{ Name = 'pi-crc-error'; Mode = 'speed-pi-crc-error' },
+            @{ Name = 'pi-token-mismatch'; Mode = 'speed-pi-token-mismatch' }
+        )) {
+            $piFailure = Invoke-FakeExport -Name $piFailureCase.Name -Mode $piFailureCase.Mode
+            if ($piFailure.ExitCode -eq 0) {
+                throw "Speed PI $($piFailureCase.Name) unexpectedly reported a successful export."
+            }
+            $piFailureRun = Get-ExportRunDirectory $piFailure.CaseRoot
+            $piFailureMetadata = Get-Content -LiteralPath (Join-Path $piFailureRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ((Test-Path -LiteralPath (Join-Path $piFailureRun.FullName 'run.csv')) -or
+                $piFailureMetadata.status -eq 'success' -or $piFailureMetadata.csv) {
+                throw "Speed PI $($piFailureCase.Name) failure was reported as a successful CSV export."
+            }
+        }
+    }
+
     $postDiagnosticFailure = Invoke-FakeExport -Name 'post-diagnostic-error' -Mode 'post-diagnostic-error'
     if ($postDiagnosticFailure.ExitCode -ne 3) {
         throw "Post-export diagnostic failure should return exit 3 while retaining the decoded CSV: $($postDiagnosticFailure.Output)"
     }
     $postDiagnosticRun = Get-ExportRunDirectory $postDiagnosticFailure.CaseRoot
     $postDiagnosticMetadata = Get-Content -LiteralPath (Join-Path $postDiagnosticRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $postFailureAddresses = @($successAddresses[0..8]) + @(
+    $successPrefixEnd = if ($statusPlan.speed_pi_diagnostic_snapshot.available) { 9 } else { 8 }
+    $postFailureAddresses = @($successAddresses[0..$successPrefixEnd]) + @(
         [string]$layout.descriptor_address,
         [string]$statusPlan.scalar_read.address,
         [string]$statusPlan.header_read.address,
@@ -384,10 +468,26 @@ try {
         [string]$statusPlan.runtime_diagnostic_snapshot.address,
         [string]$statusPlan.header_read.address
     )
-    $postFailureSizes = @($successSizes[0..8]) + @(
+    $postFailureSizes = @($successSizes[0..$successPrefixEnd]) + @(
         64, [int]$statusPlan.scalar_read.size, 64, 64, 64,
         64, 64, 64, 64, 64, 64
     )
+    if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
+        $firstPiReadIndex = $successPrefixEnd + 4
+        $secondPiReadIndex = $successPrefixEnd + 7
+        $thirdPiReadIndex = $successPrefixEnd + 10
+        $postFailureAddresses = @($postFailureAddresses[0..$firstPiReadIndex]) +
+            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
+            @($postFailureAddresses[($firstPiReadIndex + 1)..$secondPiReadIndex]) +
+            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
+            @($postFailureAddresses[($secondPiReadIndex + 1)..$thirdPiReadIndex]) +
+            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
+            @($postFailureAddresses[($thirdPiReadIndex + 1)..($postFailureAddresses.Count - 1)])
+        $postFailureSizes = @($postFailureSizes[0..$firstPiReadIndex]) + @(128) +
+            @($postFailureSizes[($firstPiReadIndex + 1)..$secondPiReadIndex]) + @(128) +
+            @($postFailureSizes[($secondPiReadIndex + 1)..$thirdPiReadIndex]) + @(128) +
+            @($postFailureSizes[($thirdPiReadIndex + 1)..($postFailureSizes.Count - 1)])
+    }
     $postFailureFrequencies = @(1..$postFailureAddresses.Count | ForEach-Object { '1000' })
     Assert-HotPlugUploadArguments -ArgsLog $postDiagnosticFailure.ArgsLog `
         -ExpectedFrequencies $postFailureFrequencies -ExpectedAddresses $postFailureAddresses `
@@ -436,7 +536,7 @@ try {
         throw 'DryRun did not show default 1000/shared, probe enumeration, or first Flash descriptor read.'
     }
 
-    Write-Output 'PASS 14-read HOTPLUG export sequence, CRC-validated runtime diagnostic fixture, stable FROZEN success metadata, IDLE/ACTIVE no-CSV exit 2, postflight diagnostic failure exit 3 with CSV retention, fallback, Flash-first identity, probe ambiguity, and DryRun'
+    Write-Output ("PASS {0}-read HOTPLUG export sequence, CRC/token-validated frozen speed PI sidecar, CRC-validated runtime diagnostic fixture, IDLE/ACTIVE and corrupt-PI no-CSV failures, postflight failure exit 3 with CSV retention, fallback, Flash-first identity, probe ambiguity, and DryRun" -f $successAddresses.Count)
     Write-Output "Evidence: $OutputRoot"
 }
 finally {

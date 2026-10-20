@@ -1,7 +1,7 @@
 {
-  "version": "v20261018-second-turn",
+  "version": "v20261020-uphill-abc",
   "status": "experimental-software-tested",
-  "branch": "fix/second-turn-continuity",
-  "files": 374,
+  "branch": "experiment/uphill-abc",
+  "files": 392,
   "hardware_actions": "none"
 }

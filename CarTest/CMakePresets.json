@@ -8,7 +8,10 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CARTEST_ENABLE_FOLLOW_SPEED_PI": "OFF",
-        "CARTEST_ENABLE_FOLLOW_TURN": "OFF"
+        "CARTEST_ENABLE_FOLLOW_TURN": "OFF",
+        "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "OFF",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
     },
     {
@@ -113,6 +116,29 @@
         "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
         "CARTEST_RUNTIME_LOG_ENABLED": "ON"
       }
+    },
+    {
+      "name": "DebugFollowTurn65",
+      "displayName": "DebugFollowTurn65 - 65/35 turn target; base 500; servo 120 us; motor ramp 40/10 ms; hold 2000 ms; decel 200 ms; RAM log ON",
+      "inherits": "DebugFollowTurn",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "DebugFollowIncrementalPI",
+      "displayName": "DebugFollowIncrementalPI - 65/35 turn target; incremental encoder speed PI; hold 2000 ms; decel 200 ms; RAM log ON",
+      "inherits": "DebugFollowTurn65",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
+        "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "ON",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -124,6 +150,8 @@
     { "name": "DebugFollowDiff5", "configurePreset": "DebugFollowDiff5" },
     { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" },
     { "name": "DebugFollowTurn", "configurePreset": "DebugFollowTurn" },
-    { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" }
+    { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" },
+    { "name": "DebugFollowTurn65", "configurePreset": "DebugFollowTurn65" },
+    { "name": "DebugFollowIncrementalPI", "configurePreset": "DebugFollowIncrementalPI" }
   ]
 }

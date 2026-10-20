@@ -18,6 +18,7 @@ PRELUDE = r'''
 #include <string.h>
 #include "commissioning.h"
 #include "follow_output.h"
+#include "follow_incremental_pi.h"
 #include "follow_speed_pi.h"
 #include "servo_safety.h"
 #include "speed_observer.h"
@@ -28,6 +29,7 @@ static car_servo_safety_t servo_safety;
 static car_follow_output_state_t follow_output_state;
 static car_speed_observer_result_t speed_observer_result;
 static car_follow_speed_pi_state_t follow_speed_pi_state;
+static car_follow_incremental_pi_state_t follow_incremental_pi_state;
 static volatile uint8_t follow_speed_pi_reset_pending;
 static volatile uint8_t motor_outputs_active;
 static volatile uint8_t servo_output_active;
@@ -40,6 +42,15 @@ static uint16_t applied_motor_follow_right_permille;
 static uint32_t test_primask;
 static uint32_t test_emergency_stops;
 static uint32_t test_last_fault;
+
+#define APP_FOLLOW_PI_ARMED (follow_speed_pi_state.armed)
+#define APP_FOLLOW_PI_STATUS (follow_speed_pi_state.status)
+#define APP_FOLLOW_PI_TARGET_LEFT (follow_speed_pi_state.target_left_millirps)
+#define APP_FOLLOW_PI_TARGET_RIGHT (follow_speed_pi_state.target_right_millirps)
+#define APP_FOLLOW_PI_REQUEST_LEFT (follow_speed_pi_state.proposal_left_permille)
+#define APP_FOLLOW_PI_REQUEST_RIGHT (follow_speed_pi_state.proposal_right_permille)
+#define APP_FOLLOW_PI_SATURATED_LEFT (follow_speed_pi_state.saturated_left)
+#define APP_FOLLOW_PI_SATURATED_RIGHT (follow_speed_pi_state.saturated_right)
 
 static uint32_t __get_PRIMASK(void) { return test_primask; }
 static void __disable_irq(void) { test_primask = 1u; }
@@ -291,7 +302,7 @@ def main() -> int:
     motor_apply = extract_function(source_text, "motor_apply")
 
     coast_tokens = (
-        "follow_speed_pi_state.armed != 0u",
+        "APP_FOLLOW_PI_ARMED != 0u",
         "CAR_FOLLOW_SPEED_PI_STATUS_RUNNING",
         "follow_output_state.startup_qualified != 0u",
         "car_control_state.manual_run_request != 0u",
@@ -314,8 +325,8 @@ def main() -> int:
         source_text,
         re.DOTALL,
     )
-    if not observer_motion or "follow_speed_pi_state.target_left_millirps > 0" not in observer_motion.group(0) or \
-            "follow_speed_pi_state.target_right_millirps > 0" not in observer_motion.group(0):
+    if not observer_motion or "APP_FOLLOW_PI_TARGET_LEFT > 0" not in observer_motion.group(0) or \
+            "APP_FOLLOW_PI_TARGET_RIGHT > 0" not in observer_motion.group(0):
         raise SystemExit("PI zero-coast requests do not keep stall observation active")
     if source_text.find("prepare_follow_motor_targets(HAL_GetTick());") > \
             source_text.find("motor_apply();", source_text.find("prepare_follow_motor_targets(HAL_GetTick());")):
@@ -331,6 +342,7 @@ def main() -> int:
         built = subprocess.run(
             ["cl", "/nologo", "/std:c11", "/W4", "/TC",
              "/DCARTEST_FOLLOW_SPEED_PI_ENABLED=1",
+             "/DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=0",
              "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1",
              "/DCARTEST_FOLLOW_DIFF_PERMILLE=200",
              "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
@@ -342,7 +354,8 @@ def main() -> int:
              "/Fe:" + str(executable), str(c_file),
              str(PROJECT_ROOT / "App" / "follow_output.c"),
              str(PROJECT_ROOT / "App" / "speed_pi.c"),
-             str(PROJECT_ROOT / "App" / "follow_speed_pi.c")],
+             str(PROJECT_ROOT / "App" / "follow_speed_pi.c"),
+             str(PROJECT_ROOT / "App" / "follow_incremental_pi.c")],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,

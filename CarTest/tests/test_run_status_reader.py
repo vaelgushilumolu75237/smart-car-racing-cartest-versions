@@ -105,6 +105,44 @@ def synthetic_diagnostic_plan(elf):
     return plan
 
 
+def synthetic_speed_pi_diagnostic_plan(elf):
+    plan = synthetic_diagnostic_plan(elf)
+    plan["speed_pi_diagnostic_snapshot"] = {
+        "available": True,
+        "symbol": reader.SPEED_PI_DIAGNOSTIC_SYMBOL,
+        "address": "0x2407E000",
+        "address_u32": 0x2407E000,
+        "size": reader.SPEED_PI_DIAGNOSTIC_SIZE,
+        "section": ".speed_pi_diag",
+        "section_alignment": 32,
+    }
+    return plan
+
+
+def make_speed_pi_diagnostic(start_token=7, flags=None, generation=2,
+                             pi_type=2, saturation_left_ms=50,
+                             saturation_right_ms=20):
+    if flags is None:
+        flags = (reader.SPEED_PI_DIAGNOSTIC_FLAG_ENABLED |
+                 reader.SPEED_PI_DIAGNOSTIC_FLAG_ARMED |
+                 reader.SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID |
+                 reader.SPEED_PI_DIAGNOSTIC_FLAG_FROZEN)
+    raw = bytearray(reader.SPEED_PI_DIAGNOSTIC_SIZE)
+    struct.pack_into("<IHHII", raw, 0, reader.SPEED_PI_DIAGNOSTIC_MAGIC,
+                     reader.SPEED_PI_DIAGNOSTIC_VERSION,
+                     reader.SPEED_PI_DIAGNOSTIC_SIZE, generation, 0)
+    struct.pack_into("<4I", raw, 16, start_token, 1000, 1100, 1090)
+    struct.pack_into("<4i", raw, 32, 2400, 2300, 2200, 2100)
+    struct.pack_into("<6H", raw, 48, 500, 490, 700, 690, 680, 670)
+    struct.pack_into("<6I", raw, 60, 3, 0, saturation_left_ms,
+                     saturation_right_ms, flags, pi_type)
+    struct.pack_into("<11I", raw, 84, *([0] * 11))
+    crc_data = bytearray(raw)
+    crc_data[12:16] = bytes(4)
+    struct.pack_into("<I", raw, 12, zlib.crc32(crc_data) & 0xFFFFFFFF)
+    return bytes(raw)
+
+
 class RunStatusReaderTests(unittest.TestCase):
     def test_plan_covers_required_optional_and_flash_identity_reads(self):
         before = hashlib.sha256(ELF.read_bytes()).hexdigest()
@@ -116,10 +154,14 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertEqual(len(plan["scalar_symbols"]), 17)
         self.assertEqual(plan["descriptor_read"]["size"], 64)
         self.assertTrue(plan["descriptor_read"]["address"].startswith("0x080"))
-        self.assertLessEqual(plan["scalar_read"]["size"], 4096)
+        self.assertLessEqual(plan["scalar_read"]["size"],
+                             reader.MAX_SCALAR_READ_SIZE)
+        self.assertEqual(plan["scalar_read"]["maximum_size"],
+                         reader.MAX_SCALAR_READ_SIZE)
         self.assertEqual(plan["header_read"]["size"], 64)
         self.assertFalse(plan["record_area_read"])
         self.assertFalse(plan["runtime_diagnostic_snapshot"]["available"])
+        self.assertFalse(plan["speed_pi_diagnostic_snapshot"]["available"])
         self.assertEqual(hashlib.sha256(ELF.read_bytes()).hexdigest(), before)
 
     def test_old_matching_elf_without_optional_snapshot_symbols_remains_usable(self):
@@ -140,6 +182,72 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertIsNone(result["scalars"]["car_vision_hold_snapshot_published"])
         self.assertEqual(result["flash_descriptor"]["status"], "matched")
         self.assertEqual(result["status_class"], "legacy_idle")
+
+    def _decode_pi_case(self, header, runtime_diag, pi_diag):
+        plan = synthetic_speed_pi_diagnostic_plan(ELF)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scalar = root / "scalars.bin"
+            before = root / "header-before.bin"
+            after = root / "header-after.bin"
+            runtime_path = root / "runtime-diagnostic.bin"
+            pi_path = root / "speed-pi-diagnostic.bin"
+            descriptor = root / "descriptor.bin"
+            scalar.write_bytes(make_scalar_region(plan))
+            before.write_bytes(header)
+            after.write_bytes(header)
+            runtime_path.write_bytes(runtime_diag)
+            pi_path.write_bytes(pi_diag)
+            descriptor.write_bytes(exporter.inspect_elf(ELF).descriptor_bytes)
+            with mock.patch.object(reader, "build_plan", return_value=plan):
+                return reader.decode_snapshot(
+                    ELF, scalar, before, descriptor,
+                    header_after_path=after,
+                    diagnostic_path=runtime_path,
+                    speed_pi_diagnostic_path=pi_path)
+
+    def test_speed_pi_diagnostic_validates_and_decodes_frozen_snapshot(self):
+        raw = make_speed_pi_diagnostic()
+        decoded = reader.decode_speed_pi_diagnostic(raw)
+        self.assertEqual(decoded["pi_type_name"], "incremental")
+        self.assertTrue(decoded["frozen"])
+        self.assertEqual(decoded["start_token"], 7)
+        self.assertEqual(decoded["saturation_left_ms"], 50)
+        self.assertIn("distinct valid sample_ms", decoded["saturation_semantics"])
+
+        odd = bytearray(raw)
+        struct.pack_into("<I", odd, 8, 3)
+        with self.assertRaises(reader.StatusReadError):
+            reader.decode_speed_pi_diagnostic(bytes(odd))
+
+        torn = bytearray(raw)
+        torn[40] ^= 1
+        with self.assertRaises(reader.StatusReadError):
+            reader.decode_speed_pi_diagnostic(bytes(torn))
+
+        reserved = bytearray(raw)
+        struct.pack_into("<I", reserved, 84, 1)
+        reserved[12:16] = bytes(4)
+        struct.pack_into("<I", reserved, 12, zlib.crc32(reserved) & 0xFFFFFFFF)
+        with self.assertRaises(reader.StatusReadError):
+            reader.decode_speed_pi_diagnostic(bytes(reserved))
+
+    def test_speed_pi_manual_token_must_match_runtime_diagnostic(self):
+        plan = reader.build_plan(ELF)
+        header = make_header(plan, exporter.STATE_FROZEN, count=18, session_id=55)
+        runtime = make_runtime_diagnostic(
+            exporter.STATE_FROZEN, count=18, session_id=55,
+            start_events=3, start_token=7)
+        matching = self._decode_pi_case(header, runtime, make_speed_pi_diagnostic())
+        self.assertEqual(matching["status_class"], "frozen")
+        self.assertTrue(matching["speed_pi_diagnostic_snapshot"][
+            "start_token_matches_runtime_diagnostic"])
+
+        mismatched = self._decode_pi_case(
+            header, runtime, make_speed_pi_diagnostic(start_token=8))
+        self.assertEqual(mismatched["status_class"], "inconsistent")
+        self.assertTrue(any("start token does not match" in warning
+                            for warning in mismatched["warnings"]))
 
     def _decode_diagnostic_case(self, header_before, diagnostic, header_after=None):
         plan = synthetic_diagnostic_plan(ELF)
@@ -348,6 +456,33 @@ class RunStatusReaderTests(unittest.TestCase):
             return blob, sections, symbols
         with mock.patch.object(reader.exporter, "_parse_elf", side_effect=wrong_size):
             with self.assertRaisesRegex(reader.StatusReadError, "must be exactly 4 bytes"):
+                reader.build_plan(ELF)
+
+    def test_scalar_span_above_bounded_read_limit_is_rejected(self):
+        original = reader.exporter._parse_elf
+
+        def too_wide(elf):
+            blob, sections, symbols = original(elf)
+            symbols = dict(symbols)
+            far_symbol = symbols["car_main_loop_heartbeat_ms"]
+            base = min(symbols[name].value for name in reader.SCALAR_SYMBOLS
+                       if name in symbols)
+            target = base + reader.MAX_SCALAR_READ_SIZE
+            symbols[far_symbol.name] = dataclasses.replace(
+                far_symbol, value=target)
+
+            section_index = far_symbol.section_index
+            section = sections[section_index]
+            section_end = target + far_symbol.size
+            sections = list(sections)
+            sections[section_index] = dataclasses.replace(
+                section,
+                size=max(section.address + section.size, section_end) - section.address)
+            return blob, sections, symbols
+
+        with mock.patch.object(reader.exporter, "_parse_elf", side_effect=too_wide):
+            with self.assertRaisesRegex(reader.StatusReadError,
+                                        "maximum permitted read is 8192 bytes"):
                 reader.build_plan(ELF)
 
     def test_truncated_scalar_region_is_rejected(self):

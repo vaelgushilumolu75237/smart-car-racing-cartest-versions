@@ -27,37 +27,56 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 
 option(CARTEST_ENABLE_BENCH "Compile the isolated overhead single-motor diagnostic path" OFF)
 option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
-option(CARTEST_ENABLE_FOLLOW_TURN "Compile the faster 70/30 Follow turn-response profile" OFF)
+option(CARTEST_ENABLE_FOLLOW_TURN "Compile the enhanced Follow turn-response profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_SPEED_PI "Compile the independent FollowTurn encoder speed PI trial" OFF)
+option(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI "Compile the incremental encoder speed PI trial" OFF)
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
 set(CARTEST_FOLLOW_DIFF_PERMILLE "0" CACHE STRING
-    "Follow steering differential level in permille (0, 50, 100, or 200 for FollowTurn)")
-set_property(CACHE CARTEST_FOLLOW_DIFF_PERMILLE PROPERTY STRINGS 0 50 100 200)
+    "Follow steering differential level in permille (0, 50, 100, or 150/200 for FollowTurn)")
+set_property(CACHE CARTEST_FOLLOW_DIFF_PERMILLE PROPERTY STRINGS 0 50 100 150 200)
+set(CARTEST_VISION_HOLD_MS "3000" CACHE STRING
+    "Maximum vision-loss hold interval in milliseconds")
+set(CARTEST_VISION_HOLD_RAMP_MS "300" CACHE STRING
+    "Vision-loss deceleration ramp interval in milliseconds")
 
-if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(0|50|100|200)$")
-  message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE must be 0, 50, 100, or 200 in the FollowTurn profile.")
+if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(0|50|100|150|200)$")
+  message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE must be 0, 50, 100, 150, or 200.")
+endif()
+if(NOT CARTEST_VISION_HOLD_MS MATCHES "^(2000|3000)$")
+  message(FATAL_ERROR "CARTEST_VISION_HOLD_MS must be 2000 or 3000 for the supported V2 telemetry range.")
+endif()
+if(NOT CARTEST_VISION_HOLD_RAMP_MS MATCHES "^(200|300)$")
+  message(FATAL_ERROR "CARTEST_VISION_HOLD_RAMP_MS must be 200 or 300 for the supported profiles.")
+endif()
+if(CARTEST_VISION_HOLD_RAMP_MS GREATER CARTEST_VISION_HOLD_MS)
+  message(FATAL_ERROR "CARTEST_VISION_HOLD_RAMP_MS cannot exceed CARTEST_VISION_HOLD_MS.")
 endif()
 if(CARTEST_ENABLE_FOLLOW_SPEED_PI AND
    (NOT CARTEST_ENABLE_FOLLOW OR NOT CARTEST_ENABLE_FOLLOW_TURN OR
     NOT CARTEST_HARDWARE_ACCEPTED))
   message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_SPEED_PI requires FollowTurn and explicit hardware-output acceptance.")
 endif()
+if(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI AND
+   (NOT CARTEST_ENABLE_FOLLOW_SPEED_PI OR NOT CARTEST_ENABLE_FOLLOW OR
+    NOT CARTEST_ENABLE_FOLLOW_TURN OR NOT CARTEST_HARDWARE_ACCEPTED))
+  message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI requires FollowTurn, encoder speed PI, and explicit hardware-output acceptance.")
+endif()
 if(CARTEST_ENABLE_FOLLOW_TURN)
   if(NOT CARTEST_ENABLE_FOLLOW)
     message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_TURN requires CARTEST_ENABLE_FOLLOW=ON.")
   endif()
-  if(NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "200")
-    message(FATAL_ERROR "FollowTurn requires CARTEST_FOLLOW_DIFF_PERMILLE=200.")
+  if(NOT CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(150|200)$")
+    message(FATAL_ERROR "FollowTurn requires CARTEST_FOLLOW_DIFF_PERMILLE=150 or 200.")
   endif()
-  set(_cartest_follow_inner_diff_permille "200")
+  set(_cartest_follow_inner_diff_permille "${CARTEST_FOLLOW_DIFF_PERMILLE}")
   set(_cartest_follow_normal_limit_permille "700")
   set(_cartest_follow_output_ramp_step_permille "40")
   set(_cartest_follow_servo_slew_step_us "120")
 else()
-  if(CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "200")
-    message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE=200 is reserved for CARTEST_ENABLE_FOLLOW_TURN=ON.")
+  if(CARTEST_FOLLOW_DIFF_PERMILLE MATCHES "^(150|200)$")
+    message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE=150 or 200 is reserved for CARTEST_ENABLE_FOLLOW_TURN=ON.")
   endif()
   set(_cartest_follow_inner_diff_permille "${CARTEST_FOLLOW_DIFF_PERMILLE}")
   set(_cartest_follow_normal_limit_permille "600")
@@ -112,7 +131,9 @@ set(_cartest_build_id_material
   "profile=${CARTEST_ENABLE_BENCH},${CARTEST_ENABLE_FOLLOW},${CARTEST_ENABLE_STEERING},${CARTEST_HARDWARE_ACCEPTED}\n"
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
+  "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
   "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=700;tracking_ms=200\n"
+  "vision_hold_ms=${CARTEST_VISION_HOLD_MS};vision_hold_ramp_ms=${CARTEST_VISION_HOLD_RAMP_MS}\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
   "follow_diff_permille=${CARTEST_FOLLOW_DIFF_PERMILLE}\n"
   "follow_inner_diff_permille=${_cartest_follow_inner_diff_permille}\n"
@@ -173,6 +194,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_observer.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_speed_pi.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_incremental_pi.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_log.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/run_block_reason.c"
@@ -208,6 +231,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_INNER_DIFF_PERMILLE=${_cartest_follow_inner_diff_permille}
   CARTEST_FOLLOW_TURN_PROFILE_COMPILED=$<BOOL:${CARTEST_ENABLE_FOLLOW_TURN}>
   CARTEST_FOLLOW_SPEED_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_SPEED_PI}>
+  CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}>
+  CARTEST_VISION_HOLD_MS=${CARTEST_VISION_HOLD_MS}
+  CARTEST_VISION_HOLD_RAMP_MS=${CARTEST_VISION_HOLD_RAMP_MS}
   CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS=2400
   CARTEST_FOLLOW_SPEED_PI_KP_Q16=13107
   CARTEST_FOLLOW_SPEED_PI_KI_Q16=26214

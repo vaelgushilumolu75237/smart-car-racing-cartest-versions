@@ -33,6 +33,33 @@ PUBLIC_TEST_FIXTURES = (
     "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
     "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
 )
+UPHILL_A_BASELINE_SHA256 = "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d"
+# The public checkpoint carries only these explicit A/B/C delivery artifacts
+# and their summaries. Do not copy the broader deliverables tree or build logs.
+UPHILL_PROFILE_DELIVERIES = {
+    "B": {
+        "profile": "DebugFollowTurn65",
+        "elf": "deliverables/H743_Uphill_20261019/B_65_35/CarTest.elf",
+        "manifest": "deliverables/H743_Uphill_20261019/B_65_35/manifest.json",
+    },
+    "C": {
+        "profile": "DebugFollowIncrementalPI",
+        "elf": "deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf",
+        "manifest": "deliverables/H743_Uphill_20261019/C_IncrementalPI/manifest.json",
+    },
+}
+UPHILL_ARTIFACT_MANIFEST = "deliverables/H743_Uphill_20261019/artifact-manifest.json"
+UPHILL_BUILD_SUMMARY = "deliverables/H743_Uphill_20261019/build-summary.json"
+PUBLIC_DELIVERY_FILES = (
+    "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+    "deliverables/H743_Uphill_20261019/A_Baseline/manifest.json",
+    UPHILL_PROFILE_DELIVERIES["B"]["elf"],
+    UPHILL_PROFILE_DELIVERIES["B"]["manifest"],
+    UPHILL_PROFILE_DELIVERIES["C"]["elf"],
+    UPHILL_PROFILE_DELIVERIES["C"]["manifest"],
+    UPHILL_ARTIFACT_MANIFEST,
+    UPHILL_BUILD_SUMMARY,
+)
 
 
 def run_git(*args: str) -> str:
@@ -95,6 +122,72 @@ def copy_tree(source: Path, destination: Path):
             shutil.copy2(item, target)
 
 
+def copy_allowlisted_file(source: Path, destination: Path, relative_name: str):
+    item = source / relative_name
+    if not item.is_file() or item.is_symlink():
+        raise RuntimeError(f"Required public delivery file is missing or linked: {relative_name}")
+    target = destination / relative_name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(item, target)
+
+
+def verify_uphill_deliveries(source: Path):
+    a_elf = source / PUBLIC_DELIVERY_FILES[0]
+    a_manifest = source / PUBLIC_DELIVERY_FILES[1]
+    if not a_elf.is_file() or a_elf.is_symlink():
+        raise RuntimeError("The frozen uphill A ELF is missing or linked.")
+    if hashlib.sha256(a_elf.read_bytes()).hexdigest() != UPHILL_A_BASELINE_SHA256:
+        raise RuntimeError("Frozen uphill A ELF hash mismatch.")
+    try:
+        parsed_a = json.loads(a_manifest.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("Frozen uphill A manifest is missing or invalid.") from error
+    if parsed_a.get("sha256") != UPHILL_A_BASELINE_SHA256:
+        raise RuntimeError("Frozen uphill A manifest does not match the allowlisted ELF hash.")
+
+    try:
+        artifact_manifest = json.loads(
+            (source / UPHILL_ARTIFACT_MANIFEST).read_text(encoding="utf-8-sig"))
+        build_summary = json.loads(
+            (source / UPHILL_BUILD_SUMMARY).read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("Uphill artifact manifest or build summary is missing or invalid.") from error
+
+    artifacts = artifact_manifest.get("artifacts", {})
+    build_rows = {row.get("preset"): row for row in build_summary.get("builds", [])}
+    for variant, spec in UPHILL_PROFILE_DELIVERIES.items():
+        delivery_elf = source / spec["elf"]
+        delivery_manifest_path = source / spec["manifest"]
+        build_elf = source / "build" / spec["profile"] / "CarTest.elf"
+        for path, label in ((delivery_elf, "delivery ELF"),
+                            (delivery_manifest_path, "delivery manifest"),
+                            (build_elf, "profile build ELF")):
+            if not path.is_file() or path.is_symlink():
+                raise RuntimeError(f"Uphill {variant} {label} is missing or linked: {path}")
+
+        delivery_bytes = delivery_elf.read_bytes()
+        if delivery_bytes != build_elf.read_bytes():
+            raise RuntimeError(f"Uphill {variant} delivery ELF differs from {spec['profile']}.")
+        elf_sha256 = hashlib.sha256(delivery_bytes).hexdigest()
+        try:
+            variant_manifest = json.loads(
+                delivery_manifest_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"Uphill {variant} manifest is invalid.") from error
+        if (variant_manifest.get("profile") != spec["profile"] or
+                variant_manifest.get("sha256") != elf_sha256):
+            raise RuntimeError(f"Uphill {variant} manifest does not match its ELF/profile.")
+
+        artifact = artifacts.get(variant, {})
+        if (artifact.get("delivery_path") != spec["elf"] or
+                artifact.get("sha256") != elf_sha256 or
+                artifact.get("export_elf") != spec["elf"]):
+            raise RuntimeError(f"Top-level artifact manifest does not match uphill {variant}.")
+        build_row = build_rows.get(spec["profile"], {})
+        if build_row.get("exit_code") != 0 or build_row.get("sha256") != elf_sha256:
+            raise RuntimeError(f"Build summary does not match uphill {variant} ELF.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=PROJECT)
@@ -117,6 +210,7 @@ def main():
     for profile in profile_names:
         if not (source / "build" / profile / "CarTest.elf").is_file():
             raise RuntimeError(f"Build the declared profile before checkpointing: {profile}")
+    verify_uphill_deliveries(source)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -148,6 +242,8 @@ def main():
         destination = target / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture, destination)
+    for name in PUBLIC_DELIVERY_FILES:
+        copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
         output = target / "build" / elf.parent.name / elf.name

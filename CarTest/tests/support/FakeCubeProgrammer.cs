@@ -95,6 +95,7 @@ internal static class FakeCubeProgrammer
         bool descriptorRead = address == Env("RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS");
         bool scalarRead = address == Env("RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS");
         bool diagnosticRead = address == Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS");
+        bool speedPiDiagnosticRead = address == Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS");
         if (mode == "connect-error" ||
             (mode == "connect-error-1000" && args[3] == "freq=1000") ||
             (mode == "status-only-error" && scalarRead))
@@ -135,6 +136,11 @@ internal static class FakeCubeProgrammer
         {
             fixturePath = Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_PATH");
             expectedAddress = Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS");
+        }
+        else if (speedPiDiagnosticRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS");
         }
         else if (!String.IsNullOrEmpty(Env("RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH")) &&
                  address == expectedAddress && args[uploadIndex + 2] == "64")
@@ -189,6 +195,17 @@ internal static class FakeCubeProgrammer
             {
                 content[12] ^= 0x01;
             }
+            if (mode == "speed-pi-crc-error" && speedPiDiagnosticRead &&
+                content.Length == 128)
+            {
+                content[12] ^= 0x01;
+            }
+            if (mode == "speed-pi-token-mismatch" && speedPiDiagnosticRead &&
+                content.Length == 128)
+            {
+                content[16] ^= 0x01;
+                UpdateSpeedPiCrc(content);
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(args[uploadIndex + 3]));
             File.WriteAllBytes(args[uploadIndex + 3], content);
         }
@@ -231,5 +248,25 @@ internal static class FakeCubeProgrammer
         header[42] = (byte)(crc >> 16);
         header[43] = (byte)(crc >> 24);
         return header;
+    }
+
+    private static void UpdateSpeedPiCrc(byte[] snapshot)
+    {
+        Array.Clear(snapshot, 12, 4);
+        uint crc = 0xFFFFFFFFu;
+        for (int i = 0; i < snapshot.Length; ++i)
+        {
+            crc ^= snapshot[i];
+            for (int bit = 0; bit < 8; ++bit)
+            {
+                uint mask = 0u - (crc & 1u);
+                crc = (crc >> 1) ^ (0xEDB88320u & mask);
+            }
+        }
+        crc ^= 0xFFFFFFFFu;
+        snapshot[12] = (byte)crc;
+        snapshot[13] = (byte)(crc >> 8);
+        snapshot[14] = (byte)(crc >> 16);
+        snapshot[15] = (byte)(crc >> 24);
     }
 }

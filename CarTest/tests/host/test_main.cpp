@@ -4,6 +4,7 @@
 #include "manual_run_button.h"
 #include "encoder_diag.h"
 #include "follow_output.h"
+#include "follow_incremental_pi.h"
 #include "follow_speed_pi.h"
 #include "reverse_control.h"
 #include "run_block_reason.h"
@@ -6522,6 +6523,222 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
              0);
 }
 
+void test_follow_incremental_pi_saturation_resume_and_sample_guards()
+{
+    constexpr int64_t q16 = INT64_C(65536);
+    const auto make_input = [] {
+        car_follow_speed_pi_input_t input{};
+        input.enabled = 1u;
+        input.follow_running = 1u;
+        input.startup_qualified = 1u;
+        input.actual_motor_outputs = 1u;
+        input.servo_ready = 1u;
+        input.speed_sample_valid = 1u;
+        input.new_speed_sample = 1u;
+        input.sample_ms = 10u;
+        input.sample_age_ms = 0u;
+        input.sample_elapsed_ms = 10u;
+        input.measured_left_millirps = 2400;
+        input.measured_right_millirps = 2400;
+        input.nominal_left_permille = 500u;
+        input.nominal_right_permille = 500u;
+        input.applied_left_permille = 500u;
+        input.applied_right_permille = 500u;
+        return input;
+    };
+
+    car_follow_incremental_pi_state_t saturated{};
+    car_follow_speed_pi_input_t input = make_input();
+    input.applied_left_permille = 650u;
+    input.applied_right_permille = 650u;
+    input.measured_left_millirps = 900;
+    input.measured_right_millirps = 900;
+    CHECK_EQ("incremental PI seeds from actual 650-permille output",
+             car_follow_incremental_pi_update(&saturated, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("seed request follows actual output without a start jump",
+             saturated.proposal_left_permille, 650u);
+    input.sample_ms = 20u;
+    input.sample_elapsed_ms = 100u;
+    CHECK_EQ("large positive integral fills remaining cap headroom",
+             car_follow_incremental_pi_update(&saturated, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("650 plus a large positive integral reaches 700",
+             saturated.proposal_left_permille, 700u);
+    CHECK_EQ("upper-rail accumulator is bounded exactly at 700",
+             saturated.left.accumulator_q16, INT64_C(700) * q16);
+    CHECK_EQ("request at upper rail reports saturation",
+             saturated.saturated_left, 1u);
+    uint16_t command_left = 0u;
+    uint16_t command_right = 0u;
+    CHECK_EQ("incremental output slew accepts the profile 40-step",
+             car_follow_incremental_pi_ramp(
+                 &saturated, 1u, 40u, 650u, 650u,
+                 &command_left, &command_right), 1u);
+    CHECK_EQ("C profile output advances at most 40 permille per 10 ms",
+             command_left, 690u);
+    input.sample_ms = 30u;
+    input.applied_left_permille = 700u;
+    CHECK_EQ("continued positive error remains at the bounded upper rail",
+             car_follow_incremental_pi_update(&saturated, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("sustained upper rail stays at 700",
+             saturated.proposal_left_permille, 700u);
+    CHECK_EQ("sustained cap constraint remains visible",
+             saturated.saturated_left, 1u);
+    input.sample_ms = 40u;
+    input.measured_left_millirps = 3400;
+    input.applied_left_permille = 700u;
+    CHECK_EQ("reverse speed error unwinds from the upper rail",
+             car_follow_incremental_pi_update(&saturated, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(saturated.proposal_left_permille < 700u,
+          "reverse error promptly lowers the upper-saturated request");
+
+    car_follow_incremental_pi_state_t lower_rail{};
+    input = make_input();
+    input.applied_left_permille = 50u;
+    input.measured_left_millirps = 5400;
+    CHECK_EQ("incremental PI can seed near the lower output rail",
+             car_follow_incremental_pi_update(&lower_rail, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    input.sample_ms = 20u;
+    input.sample_elapsed_ms = 100u;
+    CHECK_EQ("negative integral reaches the lower output bound",
+             car_follow_incremental_pi_update(&lower_rail, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("lower-bound request clamps to zero",
+             lower_rail.proposal_left_permille, 0u);
+    CHECK_EQ("lower-bound saturation is observable",
+             lower_rail.saturated_left, 1u);
+    input.sample_ms = 30u;
+    input.applied_left_permille = 0u;
+    CHECK_EQ("continued overspeed stays at zero without negative windup",
+             car_follow_incremental_pi_update(&lower_rail, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("lower accumulator remains exactly zero",
+             lower_rail.left.accumulator_q16, INT64_C(0));
+    input.sample_ms = 40u;
+    input.measured_left_millirps = 1900;
+    CHECK_EQ("reverse error leaves the lower rail promptly",
+             car_follow_incremental_pi_update(&lower_rail, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(lower_rail.proposal_left_permille > 0u,
+          "underspeed recovers above the lower rail");
+
+    car_follow_incremental_pi_state_t resume{};
+    input = make_input();
+    CHECK_EQ("fresh observer sample arms incremental PI",
+             car_follow_incremental_pi_update(&resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    const int64_t accumulator_before_hold = resume.left.accumulator_q16;
+    const uint16_t proposal_before_hold = resume.proposal_left_permille;
+    input.vision_hold = 1u;
+    input.sample_ms = 20u;
+    input.applied_left_permille = 400u;
+    CHECK_EQ("vision hold marks PI frozen without disarming",
+             car_follow_incremental_pi_update(&resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_HOLD);
+    CHECK_EQ("hold leaves incremental accumulator unchanged",
+             resume.left.accumulator_q16, accumulator_before_hold);
+    CHECK_EQ("hold leaves the prior proposal untouched",
+             resume.proposal_left_permille, proposal_before_hold);
+    input.vision_hold = 0u;
+    input.new_speed_sample = 0u;
+    input.sample_ms = 20u;
+    input.measured_left_millirps = 1000;
+    input.applied_left_permille = 450u;
+    CHECK_EQ("valid repeated snapshot after hold only rebases to actual output",
+             car_follow_incremental_pi_update(&resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("resume proposal equals applied output without a jump",
+             resume.proposal_left_permille, 450u);
+    CHECK_EQ("resume accumulator is initialized from current actual output",
+             resume.left.accumulator_q16, INT64_C(450) * q16);
+    CHECK_EQ("resume stores current measured-speed error history",
+             resume.left.previous_error_millirps, 1400);
+    CHECK_EQ("resume stores current nominal feedforward history",
+             resume.left.previous_feedforward_permille, 500u);
+    const int64_t resume_accumulator = resume.left.accumulator_q16;
+    input.new_speed_sample = 1u;
+    input.measured_left_millirps = 0;
+    CHECK_EQ("repeated resume timestamp is ignored even when marked new",
+             car_follow_incremental_pi_update(&resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("duplicate sample cannot change the rebased accumulator",
+             resume.left.accumulator_q16, resume_accumulator);
+    CHECK_EQ("duplicate sample cannot change the rebased request",
+             resume.proposal_left_permille, 450u);
+    input.sample_ms = 30u;
+    input.measured_left_millirps = 1000;
+    CHECK_EQ("next distinct sample resumes incremental control",
+             car_follow_incremental_pi_update(&resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(resume.proposal_left_permille > 450u,
+          "first computed post-resume correction builds from actual output");
+
+    car_follow_incremental_pi_state_t bad_resume{};
+    input = make_input();
+    CHECK_EQ("stale-guard fixture arms first",
+             car_follow_incremental_pi_update(&bad_resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    input.vision_hold = 1u;
+    CHECK_EQ("stale-guard fixture enters hold",
+             car_follow_incremental_pi_update(&bad_resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_HOLD);
+    input.vision_hold = 0u;
+    input.new_speed_sample = 1u;
+    input.sample_ms = 20u;
+    input.sample_age_ms = CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS + 1u;
+    CHECK_EQ("stale input on first resume fails closed",
+             car_follow_incremental_pi_update(&bad_resume, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_INVALID);
+    CHECK_EQ("rejected resume cannot remain armed",
+             bad_resume.armed, 0u);
+
+    car_follow_incremental_pi_state_t wrapped{};
+    input = make_input();
+    input.sample_ms = UINT32_MAX - 5u;
+    CHECK_EQ("incremental PI seeds before sample-clock wrap",
+             car_follow_incremental_pi_update(&wrapped, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    input.sample_ms = 4u;
+    input.sample_elapsed_ms = 10u;
+    input.measured_left_millirps = 1800;
+    CHECK_EQ("distinct sample after uint32 wrap is accepted",
+             car_follow_incremental_pi_update(&wrapped, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(wrapped.proposal_left_permille > 500u,
+          "wrapped sample updates the left-wheel request");
+
+    car_follow_incremental_pi_state_t extreme{};
+    input = make_input();
+    CHECK_EQ("extreme-delta fixture seeds positive error history",
+             car_follow_incremental_pi_update(&extreme, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    input.sample_ms = 20u;
+    input.sample_elapsed_ms = 100u;
+    input.nominal_left_permille = 0u;
+    input.applied_left_permille = 500u;
+    input.measured_left_millirps = INT32_MAX;
+    CHECK_EQ("large error-history difference uses defined wide arithmetic",
+             car_follow_incremental_pi_update(&extreme, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK(extreme.proposal_left_permille <= 700u,
+          "extreme input remains bounded by the fixed output cap");
+
+    car_follow_incremental_pi_state_t elapsed_guard{};
+    input = make_input();
+    CHECK_EQ("elapsed-guard fixture arms first",
+             car_follow_incremental_pi_update(&elapsed_guard, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    input.sample_ms = 20u;
+    input.sample_elapsed_ms = CAR_SPEED_OBSERVER_MAX_GAP_MS + 1u;
+    CHECK_EQ("sample interval above observer limit fails closed",
+             car_follow_incremental_pi_update(&elapsed_guard, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_INVALID);
+}
+
 bool emit_runtime_log_fixture(const char *path)
 {
     car_runtime_log_sample_t sample =
@@ -6738,6 +6955,8 @@ int main(int argc, char **argv)
              test_speed_pi_shadow_math_gates_and_antiwindup);
     run_case("follow_speed_pi_adapter_sample_slew_hold_recovery",
              test_follow_speed_pi_adapter_sample_slew_hold_and_recovery);
+    run_case("follow_incremental_pi_saturation_resume_sample_guards",
+             test_follow_incremental_pi_saturation_resume_and_sample_guards);
 
     std::printf("HOST_TEST_SUMMARY cases=%u assertions=%u failures=%u vectors=%u\n",
                 g_case_count, g_check_count, g_fail_count,

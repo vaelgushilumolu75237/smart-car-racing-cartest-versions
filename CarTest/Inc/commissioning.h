@@ -3,14 +3,19 @@
 
 #include <stdint.h>
 
+#ifndef CARTEST_VISION_HOLD_MS
+#define CARTEST_VISION_HOLD_MS 3000u
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
-    CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u,
-    CAR_CONTROL_VISION_HOLD_MS = 3000u
+    CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u
 };
+
+#define CAR_CONTROL_VISION_HOLD_MS CARTEST_VISION_HOLD_MS
 
 /* D1 .bss RAM snapshot for CubeIDE Live Watch / debugger reads. Entry is the
    publication token and is written after the associated data fields. */

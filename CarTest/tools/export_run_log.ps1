@@ -33,6 +33,11 @@ $script:DecodeMetadataPath = $null
 $script:StatusSnapshotPath = $null
 $script:StatusPreflightPath = $null
 $script:StatusPostExportPath = $null
+$script:SpeedPiDiagnosticPreflight = $null
+$script:SpeedPiDiagnosticPostExport = $null
+$script:SpeedPiDiagnosticPreflightRaw = $null
+$script:SpeedPiDiagnosticPostExportRaw = $null
+$script:SpeedPiDiagnosticJsonPath = $null
 $script:RunStateClass = $null
 $script:ExportDiagnosticStatus = 'not_started'
 $script:DiagnosticFailure = $null
@@ -327,7 +332,90 @@ function Test-StatusMatchesHeader {
     } elseif ($class -notin @('legacy_frozen')) {
         return "${Tag} diagnostic snapshot is missing for a non-legacy ELF."
     }
+    $speedPiDiagnostic = $Status.speed_pi_diagnostic_snapshot
+    if ($speedPiDiagnostic -and [int]$speedPiDiagnostic.pi_type -ne 0) {
+        if (-not $speedPiDiagnostic.frozen -or
+            -not $speedPiDiagnostic.start_token_matches_runtime_diagnostic) {
+            return "${Tag} enabled speed PI snapshot is not frozen and linked to the runtime PE7 start token."
+        }
+    }
     return $null
+}
+
+function Save-SpeedPiDiagnosticArtifact {
+    param([Parameter(Mandatory = $true)][string]$StatusPath,
+          [Parameter(Mandatory = $true)][ValidateSet('preflight', 'post-export')][string]$Tag)
+    $status = Get-Content -LiteralPath $StatusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $snapshotProperty = $status.PSObject.Properties['speed_pi_diagnostic_snapshot']
+    if (-not $snapshotProperty -or $null -eq $snapshotProperty.Value) {
+        return $null
+    }
+    $snapshot = $snapshotProperty.Value
+    $rawProperty = $status.PSObject.Properties['raw_files']
+    $rawEntry = if ($rawProperty) { $rawProperty.Value.speed_pi_diagnostic_snapshot } else { $null }
+    if (-not $rawEntry -or -not $rawEntry.path -or
+        -not (Test-Path -LiteralPath $rawEntry.path -PathType Leaf)) {
+        throw "${Tag} status contains a decoded speed PI snapshot without its retained raw binary."
+    }
+    $destination = Join-Path $script:RunDirectory ("speed-pi-diagnostic-{0}.bin" -f $Tag)
+    Copy-Item -LiteralPath $rawEntry.path -Destination $destination -Force
+    if ((Get-Item -LiteralPath $destination).Length -ne 128) {
+        throw "${Tag} speed PI diagnostic binary is not exactly 128 bytes."
+    }
+    $copiedHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($rawEntry.sha256 -and $copiedHash -ne [string]$rawEntry.sha256) {
+        throw "${Tag} speed PI diagnostic binary differs from the status reader's validated upload."
+    }
+    if ($Tag -eq 'preflight') {
+        $script:SpeedPiDiagnosticPreflight = $snapshot
+        $script:SpeedPiDiagnosticPreflightRaw = $destination
+    } else {
+        $script:SpeedPiDiagnosticPostExport = $snapshot
+        $script:SpeedPiDiagnosticPostExportRaw = $destination
+    }
+    return $destination
+}
+
+function Test-SpeedPiDiagnosticStable {
+    if ($null -eq $script:SpeedPiDiagnosticPreflight -and
+        $null -eq $script:SpeedPiDiagnosticPostExport) { return $null }
+    if ($null -eq $script:SpeedPiDiagnosticPreflight -or
+        $null -eq $script:SpeedPiDiagnosticPostExport) {
+        return 'Speed PI diagnostic snapshot is missing from one side of the export bracket.'
+    }
+    if (-not $script:SpeedPiDiagnosticPreflightRaw -or
+        -not $script:SpeedPiDiagnosticPostExportRaw -or
+        -not (Test-Path -LiteralPath $script:SpeedPiDiagnosticPreflightRaw -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $script:SpeedPiDiagnosticPostExportRaw -PathType Leaf)) {
+        return 'Speed PI diagnostic raw binary is missing from the export bracket.'
+    }
+    $preHash = (Get-FileHash -LiteralPath $script:SpeedPiDiagnosticPreflightRaw -Algorithm SHA256).Hash
+    $postHash = (Get-FileHash -LiteralPath $script:SpeedPiDiagnosticPostExportRaw -Algorithm SHA256).Hash
+    if ($preHash -ne $postHash) {
+        return 'Frozen speed PI diagnostic snapshot changed during run-log export.'
+    }
+    return $null
+}
+
+function Write-SpeedPiDiagnosticSummary {
+    if ($null -eq $script:SpeedPiDiagnosticPreflight -and
+        $null -eq $script:SpeedPiDiagnosticPostExport) { return $null }
+    $script:SpeedPiDiagnosticJsonPath = Join-Path $script:RunDirectory 'speed-pi-diagnostic.json'
+    $summary = [ordered]@{
+        association = 'manual PE7 start token; checked against runtime diagnostic token'
+        selected_elf = if ($layout) { $layout.elf_path } else { [IO.Path]::GetFullPath($Elf) }
+        preflight_raw_binary = $script:SpeedPiDiagnosticPreflightRaw
+        post_export_raw_binary = $script:SpeedPiDiagnosticPostExportRaw
+        preflight = $script:SpeedPiDiagnosticPreflight
+        post_export = $script:SpeedPiDiagnosticPostExport
+        byte_identical_across_export = if ($script:SpeedPiDiagnosticPreflightRaw -and
+            $script:SpeedPiDiagnosticPostExportRaw) {
+                (Get-FileHash -LiteralPath $script:SpeedPiDiagnosticPreflightRaw -Algorithm SHA256).Hash -eq
+                (Get-FileHash -LiteralPath $script:SpeedPiDiagnosticPostExportRaw -Algorithm SHA256).Hash
+            } else { $false }
+    }
+    $summary | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $script:SpeedPiDiagnosticJsonPath -Encoding UTF8
+    return $script:SpeedPiDiagnosticJsonPath
 }
 
 function Invoke-HotPlugUpload {
@@ -410,7 +498,7 @@ function Get-RunMetadata {
     param([string]$Status, [string]$ErrorMessage, [object]$Layout, [object]$Header)
     $rawFiles = @()
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
-        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin', 'status-preflight.json', 'status-post-export.json')) {
+        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin', 'status-preflight.json', 'status-post-export.json', 'speed-pi-diagnostic-preflight.bin', 'speed-pi-diagnostic-post-export.bin', 'speed-pi-diagnostic.json')) {
             $path = Join-Path $script:RunDirectory $name
             if (Test-Path -LiteralPath $path -PathType Leaf) {
                 $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
@@ -459,6 +547,9 @@ function Get-RunMetadata {
         status_snapshot = if ($script:StatusSnapshotPath) { $script:StatusSnapshotPath } else { $null }
         status_preflight = if ($script:StatusPreflightPath) { $script:StatusPreflightPath } else { $null }
         status_post_export = if ($script:StatusPostExportPath) { $script:StatusPostExportPath } else { $null }
+        speed_pi_diagnostic_json = $script:SpeedPiDiagnosticJsonPath
+        speed_pi_diagnostic_preflight = $script:SpeedPiDiagnosticPreflight
+        speed_pi_diagnostic_post_export = $script:SpeedPiDiagnosticPostExport
         run_state_class = $script:RunStateClass
         export_diagnostic_status = $script:ExportDiagnosticStatus
         diagnostic_failure = $script:DiagnosticFailure
@@ -548,6 +639,7 @@ try {
                 descriptor_read = $descriptorRead
                 scalar_read = $statusScalarRead
                 header_read = $statusHeaderRead
+                    speed_pi_diagnostic_snapshot = $statusPlan.speed_pi_diagnostic_snapshot
                 record_area_read = $false
             }
             output_directory = $script:RunDirectory
@@ -582,6 +674,8 @@ try {
         throw "Could not obtain a coherent runtime diagnostic preflight. $($script:DiagnosticFailure)"
     }
     $preflightStatus = Get-Content -LiteralPath $script:StatusPreflightPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $null = Save-SpeedPiDiagnosticArtifact -StatusPath $script:StatusPreflightPath -Tag 'preflight'
+    $null = Write-SpeedPiDiagnosticSummary
     $script:RunStateClass = [string]$preflightStatus.status_class
     $preflightHeader = $preflightStatus.runtime_log_header_after
     if ($script:RunStateClass -in @('neverstarted', 'legacy_idle', 'active', 'legacy_active')) {
@@ -694,8 +788,12 @@ try {
         $script:ExportDiagnosticStatus = 'unverified'
     } else {
         $postStatus = Get-Content -LiteralPath $script:StatusPostExportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $null = Save-SpeedPiDiagnosticArtifact -StatusPath $script:StatusPostExportPath -Tag 'post-export'
         $postMismatch = Test-StatusMatchesHeader -Status $postStatus `
             -ExpectedHeader $finalHeader -Tag 'Post-export'
+        if (-not $postMismatch) {
+            $postMismatch = Test-SpeedPiDiagnosticStable
+        }
         if ($postMismatch) {
             $script:DiagnosticFailure = $postMismatch
             $script:ExportDiagnosticStatus = 'inconsistent'
@@ -703,6 +801,7 @@ try {
             $script:ExportDiagnosticStatus = 'verified'
         }
     }
+    $null = Write-SpeedPiDiagnosticSummary
     $script:Stage = 'complete'
     $completionStatus = if ($script:ExportDiagnosticStatus -eq 'inconsistent') {
         'decoded_csv_diagnostic_inconsistent'
@@ -714,6 +813,9 @@ try {
     $metadata['dropped_count'] = [int]$decodeMetadata.dropped_count
     $metadata['buffer_full'] = [bool]$decodeMetadata.buffer_full
     $metadata['records_truncated'] = [bool]$decodeMetadata.records_truncated
+    $metadata['speed_pi_diagnostic_json'] = $script:SpeedPiDiagnosticJsonPath
+    $metadata['speed_pi_diagnostic_preflight'] = $script:SpeedPiDiagnosticPreflight
+    $metadata['speed_pi_diagnostic_post_export'] = $script:SpeedPiDiagnosticPostExport
     $metadata['raw_sha256'] = (Get-FileHash -LiteralPath $rawPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
     foreach ($warning in @($script:DiagnosticFailure)) {

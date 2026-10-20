@@ -2,7 +2,7 @@
     "version":  "0.2.0",
     "configurations":  [
                            {
-                               "name":  "CarTest H743 - Debug (all actuators off)",
+                               "name":  "诊断 - 电机与舵机输出关闭",
                                "type":  "stlinkgdbtarget",
                                "request":  "launch",
                                "cwd":  "${workspaceFolder}",
@@ -22,18 +22,17 @@
                                              }
                            },
                            {
-                               "name":  "CarTest H743 - DebugSteering (motors locked; vision steering diagnostic)",
+                               "name":  "A - 当前基线 70%/30%（日志开启）",
                                "type":  "stlinkgdbtarget",
                                "request":  "launch",
                                "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugSteering (motors locked; vision steering diagnostic)",
                                "serverInterface":  "SWD",
                                "serverInterfaceFrequency":  "4000",
                                "serverReset":  "Software system reset",
                                "imagesAndSymbols":  [
                                                         {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugSteering/CarTest.elf"
+                                                            "imageFileName":  "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf"
                                                         }
                                                     ],
                                "liveWatch":  {
@@ -42,18 +41,18 @@
                                              }
                            },
                            {
-                               "name":  "CarTest H743 - DebugBench (motor outputs locked pending hardware acceptance)",
+                               "name":  "B - 65%/35% 开环对照（2秒丢线截止）",
                                "type":  "stlinkgdbtarget",
                                "request":  "launch",
                                "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugBench (motor outputs locked pending hardware acceptance)",
+                               "preLaunchTask":  "CarTest: Build DebugFollowTurn65 (65/35 turn; hold 2000 ms; decel 200 ms; RAM log ON)",
                                "serverInterface":  "SWD",
                                "serverInterfaceFrequency":  "4000",
                                "serverReset":  "Software system reset",
                                "imagesAndSymbols":  [
                                                         {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugBench/CarTest.elf"
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf"
                                                         }
                                                     ],
                                "liveWatch":  {
@@ -62,118 +61,18 @@
                                              }
                            },
                            {
-                               "name":  "CarTest H743 - DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+                               "name":  "C - 增量式PI上坡保速试验（65%/35%基础差速）",
                                "type":  "stlinkgdbtarget",
                                "request":  "launch",
                                "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+                               "preLaunchTask":  "CarTest: Build DebugFollowIncrementalPI (65/35 turn; incremental encoder PI; RAM log ON)",
                                "serverInterface":  "SWD",
                                "serverInterfaceFrequency":  "4000",
                                "serverReset":  "Software system reset",
                                "imagesAndSymbols":  [
                                                         {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "行驶0档 - 无差速 50%/50%（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollow/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "行驶1档 - 中差速 最大55%/45%（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowDiff5 (motors enabled; d=50; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowDiff5/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowDiff5/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "行驶2档 - 强差速 最大60%/40%（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowDiff10 (motors enabled; d=100; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowDiff10/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowDiff10/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "行驶3档 - 快速转向 70%/30%（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowTurn (motors enabled; 70/30 turn; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowTurn/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowTurn/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "PI试验档 - 编码器稳速（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowSpeedPI (experimental encoder PI; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowSpeedPI/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowSpeedPI/CarTest.elf"
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf"
                                                         }
                                                     ],
                                "liveWatch":  {

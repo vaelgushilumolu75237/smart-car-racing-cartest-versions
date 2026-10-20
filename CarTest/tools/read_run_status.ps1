@@ -307,7 +307,7 @@ function Write-FailedStatus {
             $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
         }
     }
-    foreach ($pattern in @('runtime-log-header-*.bin', 'runtime-diagnostic-*.bin')) {
+    foreach ($pattern in @('runtime-log-header-*.bin', 'runtime-diagnostic-*.bin', 'speed-pi-diagnostic-*.bin')) {
         foreach ($file in @(Get-ChildItem -LiteralPath $script:RunDirectory -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             $rawFiles += [ordered]@{ path = $file.FullName; bytes = $file.Length }
         }
@@ -358,12 +358,16 @@ try {
         $headerBeforeDestination = '<diagnostic-directory>\runtime-log-header-before.bin'
         $headerAfterDestination = '<diagnostic-directory>\runtime-log-header-after.bin'
         $diagnosticDestination = '<diagnostic-directory>\runtime-diagnostic.bin'
+        $speedPiDiagnosticDestination = '<diagnostic-directory>\speed-pi-diagnostic.bin'
         $plannedReads = New-Object System.Collections.Generic.List[object]
         $plannedReads.Add([ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) })
         $plannedReads.Add([ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) })
         $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header before diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerBeforeDestination) })
         if ($plan.runtime_diagnostic_snapshot.available) {
             $plannedReads.Add([ordered]@{ purpose = '64-byte generation/CRC-protected runtime diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.runtime_diagnostic_snapshot.address -Size 64 -Destination $diagnosticDestination) })
+        }
+        if ($plan.speed_pi_diagnostic_snapshot.available) {
+            $plannedReads.Add([ordered]@{ purpose = '128-byte generation/CRC-protected speed PI session snapshot'; arguments = @(Get-ReadArguments -Address $plan.speed_pi_diagnostic_snapshot.address -Size 128 -Destination $speedPiDiagnosticDestination) })
         }
         $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header after diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerAfterDestination) })
         $result = [ordered]@{
@@ -411,6 +415,7 @@ try {
     Invoke-StatusRead -Tag 'scalars' -Address $script:Plan.scalar_read.address `
         -Size $script:Plan.scalar_read.size -Destination $scalarPath
     $diagnosticAvailable = [bool]$script:Plan.runtime_diagnostic_snapshot.available
+    $speedPiDiagnosticAvailable = [bool]$script:Plan.speed_pi_diagnostic_snapshot.available
     $decoded = $null
     $decodeFailure = $null
     for ($attempt = 1; $attempt -le 3; ++$attempt) {
@@ -418,11 +423,16 @@ try {
         $headerBeforePath = Join-Path $script:RunDirectory ("runtime-log-header-before-{0}.bin" -f $suffix)
         $headerAfterPath = Join-Path $script:RunDirectory ("runtime-log-header-after-{0}.bin" -f $suffix)
         $diagnosticPath = Join-Path $script:RunDirectory ("runtime-diagnostic-{0}.bin" -f $suffix)
+        $speedPiDiagnosticPath = Join-Path $script:RunDirectory ("speed-pi-diagnostic-{0}.bin" -f $suffix)
         Invoke-StatusRead -Tag ("header-before-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerBeforePath
         if ($diagnosticAvailable) {
             Invoke-StatusRead -Tag ("runtime-diagnostic-{0}" -f $suffix) `
                 -Address $script:Plan.runtime_diagnostic_snapshot.address -Size 64 -Destination $diagnosticPath
+        }
+        if ($speedPiDiagnosticAvailable) {
+            Invoke-StatusRead -Tag ("speed-pi-diagnostic-{0}" -f $suffix) `
+                -Address $script:Plan.speed_pi_diagnostic_snapshot.address -Size 128 -Destination $speedPiDiagnosticPath
         }
         Invoke-StatusRead -Tag ("header-after-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerAfterPath
@@ -434,6 +444,9 @@ try {
         )
         if ($diagnosticAvailable) {
             $decodeArguments += @('--runtime-diagnostic', $diagnosticPath)
+        }
+        if ($speedPiDiagnosticAvailable) {
+            $decodeArguments += @('--speed-pi-diagnostic', $speedPiDiagnosticPath)
         }
         $script:Stage = "decode-snapshot-attempt-$suffix"
         try {
@@ -495,6 +508,10 @@ try {
     if ($decoded.status_class -eq 'inconsistent' -or $decoded.status_class -eq 'legacy_inconsistent') { Write-Output 'INCONSISTENT: the bounded header/snapshot comparison did not settle; retain diagnostics and do not export.' }
     if ($decoded.runtime_diagnostic_snapshot -and $decoded.runtime_diagnostic_snapshot.start_events -gt 0 -and $decoded.runtime_diagnostic_snapshot.start_token -eq 0) { Write-Output 'PE7 start events were seen, but the logger has not consumed a start token.' }
     if ($decoded.runtime_diagnostic_snapshot -and -not $decoded.runtime_diagnostic_snapshot.log_enabled) { Write-Output 'Runtime logger is disabled in this firmware build.' }
+    if ($decoded.speed_pi_diagnostic_snapshot) {
+        $pi = $decoded.speed_pi_diagnostic_snapshot
+        Write-Output ("Speed PI: type={0}; status={1}; token={2} (matches runtime token={3}); target_mRPS={4}/{5}; measured_mRPS={6}/{7}; nominal_FF={8}/{9}; requested={10}/{11}; applied={12}/{13}; upper-cap_ms={14}/{15}; active={16}; frozen={17}; hold={18}" -f $pi.pi_type_name, $pi.status_name, $pi.start_token, $pi.start_token_matches_runtime_diagnostic, $pi.target_left_millirps, $pi.target_right_millirps, $pi.measured_left_millirps, $pi.measured_right_millirps, $pi.nominal_ff_left_permille, $pi.nominal_ff_right_permille, $pi.requested_left_permille, $pi.requested_right_permille, $pi.applied_left_permille, $pi.applied_right_permille, $pi.saturation_left_ms, $pi.saturation_right_ms, $pi.active, $pi.frozen, $pi.hold_active)
+    }
     foreach ($warning in @($decoded.warnings)) { Write-Output ("Warning: {0}" -f $warning) }
     Write-Output ("Diagnostic JSON: {0}" -f (Join-Path $script:RunDirectory 'run-status.json'))
     Write-Output ("Raw snapshot files retained in: {0}" -f $script:RunDirectory)

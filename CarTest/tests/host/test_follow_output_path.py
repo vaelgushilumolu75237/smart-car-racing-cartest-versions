@@ -47,6 +47,7 @@ PRELUDE = r'''#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include "follow_output.h"
+#include "follow_incremental_pi.h"
 #include "follow_speed_pi.h"
 #include "speed_observer.h"
 
@@ -62,6 +63,27 @@ PRELUDE = r'''#include <stdint.h>
 #define APP_BENCH_LIMIT_PERMILLE 400u
 #define APP_FOLLOW_NORMAL_LIMIT_PERMILLE CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
 #define APP_FOLLOW_HARD_LIMIT_PERMILLE CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+#define APP_FOLLOW_PI_STATE follow_incremental_pi_state
+#define APP_FOLLOW_PI_ARMED (follow_incremental_pi_state.armed)
+#define APP_FOLLOW_PI_STATUS (follow_incremental_pi_state.status)
+#define APP_FOLLOW_PI_TARGET_LEFT (follow_incremental_pi_state.target_left_millirps)
+#define APP_FOLLOW_PI_TARGET_RIGHT (follow_incremental_pi_state.target_right_millirps)
+#define APP_FOLLOW_PI_REQUEST_LEFT (follow_incremental_pi_state.proposal_left_permille)
+#define APP_FOLLOW_PI_REQUEST_RIGHT (follow_incremental_pi_state.proposal_right_permille)
+#define APP_FOLLOW_PI_SATURATED_LEFT (follow_incremental_pi_state.saturated_left)
+#define APP_FOLLOW_PI_SATURATED_RIGHT (follow_incremental_pi_state.saturated_right)
+#else
+#define APP_FOLLOW_PI_STATE follow_speed_pi_state
+#define APP_FOLLOW_PI_ARMED (follow_speed_pi_state.armed)
+#define APP_FOLLOW_PI_STATUS (follow_speed_pi_state.status)
+#define APP_FOLLOW_PI_TARGET_LEFT (follow_speed_pi_state.target_left_millirps)
+#define APP_FOLLOW_PI_TARGET_RIGHT (follow_speed_pi_state.target_right_millirps)
+#define APP_FOLLOW_PI_REQUEST_LEFT (follow_speed_pi_state.proposal_left_permille)
+#define APP_FOLLOW_PI_REQUEST_RIGHT (follow_speed_pi_state.proposal_right_permille)
+#define APP_FOLLOW_PI_SATURATED_LEFT (follow_speed_pi_state.saturated_left)
+#define APP_FOLLOW_PI_SATURATED_RIGHT (follow_speed_pi_state.saturated_right)
+#endif
 #define CAR_SERVO_SAFETY_SLEW_STEP_US 10u
 #define CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US CARTEST_FOLLOW_SERVO_SLEW_STEP_US
 #define TIM_CR1_CEN 0x0001u
@@ -178,6 +200,8 @@ typedef struct {
     uint8_t raw_high;
 } car_manual_button_t;
 
+static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms);
+
 typedef struct {
     uint8_t fault_latched;
     uint8_t active;
@@ -208,6 +232,7 @@ static car_manual_button_t manual_run_button;
 static car_servo_safety_t servo_safety;
 static car_follow_output_state_t follow_output_state;
 static car_follow_speed_pi_state_t follow_speed_pi_state;
+static car_follow_incremental_pi_state_t follow_incremental_pi_state;
 static car_speed_observer_result_t speed_observer_result;
 static car_servo_safety_io_t servo_safety_io;
 static tim_regs_t tim1_regs, tim3_regs;
@@ -293,6 +318,10 @@ static void __set_PRIMASK(uint32_t value)
 }
 static uint32_t HAL_GetTick(void) { return mock_now_ms; }
 static void __DSB(void) { }
+static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms)
+{
+    (void)now_ms;
+}
 static uint8_t pe7_is_high(void) { return pe7_high; }
 static void set_motor_gpio_low(void) { }
 static void set_motor_gpio_channels_af(uint32_t mask) { (void)mask; }
@@ -404,6 +433,7 @@ static void reset_mock(uint32_t caller)
     memset(&servo_safety, 0, sizeof(servo_safety));
     memset(&follow_output_state, 0, sizeof(follow_output_state));
     car_follow_speed_pi_reset(&follow_speed_pi_state);
+    car_follow_incremental_pi_reset(&follow_incremental_pi_state);
     memset(&speed_observer_result, 0, sizeof(speed_observer_result));
     memset(&tim1_regs, 0, sizeof(tim1_regs));
     memset(&tim3_regs, 0, sizeof(tim3_regs));
@@ -608,7 +638,8 @@ static void case_active_hold_frozen(uint32_t caller)
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
-    car_control_state.vision_last_valid_ms = 2001u; /* age 2999 ms */
+    car_control_state.vision_last_valid_ms = mock_now_ms -
+        (CAR_CONTROL_VISION_HOLD_MS - 1u);
     car_control_state.vision_last_frame_alive_ms = 4751u; /* age 249 ms */
     car_control_state.vision_hold_motor_left_permille = left;
     car_control_state.vision_hold_motor_right_permille = right;
@@ -640,7 +671,8 @@ static void case_active_hold_frozen(uint32_t caller)
                         : CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US)),
                applied_servo_pulse_us);
     expect_u32("active_hold", "source_valid_rx_timestamp_is_not_refreshed",
-               2001u, car_control_state.vision_last_valid_ms);
+               mock_now_ms - (CAR_CONTROL_VISION_HOLD_MS - 1u),
+               car_control_state.vision_last_valid_ms);
     expect_u32("active_hold", "hold_remains_before_source_deadline",
                1u, car_control_state.vision_hold_active);
     expect_u32("active_hold", "held_left_duty", left,
@@ -655,13 +687,14 @@ static void case_active_hold_frozen(uint32_t caller)
 
 static void case_active_hold_decelerates_applied_commands(uint32_t caller)
 {
+    uint16_t expected_hold_left;
     reset_mock(caller); ++cases_run;
     mock_now_ms = 5500u;
     speed_observer_result.sample_ms = mock_now_ms;
     car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
     car_control_state.vision_hold_active = 1u;
     car_control_state.vision_valid = 0u;
-    car_control_state.vision_last_valid_ms = 3000u;
+    car_control_state.vision_last_valid_ms = mock_now_ms - 100u;
     car_control_state.vision_last_frame_alive_ms = 5251u;
     car_control_state.vision_hold_started_ms = 5350u;
     car_control_state.vision_hold_entries = 7u;
@@ -674,13 +707,21 @@ static void case_active_hold_decelerates_applied_commands(uint32_t caller)
     start_existing_servo(1530u);
 
     prepare_follow_motor_targets(mock_now_ms);
-    expect_u32("hold_deceleration", "left command interpolates from entry time",
-               550u, follow_output_state.command_left_permille);
+    {
+        const uint32_t elapsed_ms = mock_now_ms -
+                                    car_control_state.vision_hold_started_ms;
+        const uint32_t ramp_ms = CAR_FOLLOW_VISION_HOLD_RAMP_MS;
+        const uint32_t drop_ms = elapsed_ms < ramp_ms ? elapsed_ms : ramp_ms;
+        expected_hold_left = (uint16_t)(700u -
+            (300u * drop_ms) / ramp_ms);
+        expect_u32("hold_deceleration", "left command interpolates from entry time",
+                   expected_hold_left, follow_output_state.command_left_permille);
+    }
     expect_u32("hold_deceleration", "low side cannot be raised to 300",
                300u, follow_output_state.command_right_permille);
     motor_apply(); expect_primask("hold_deceleration", caller);
     expect_u32("hold_deceleration", "motor_apply consumes reduced left command",
-               550u, TIM3->CCR2);
+               expected_hold_left, TIM3->CCR2);
     expect_u32("hold_deceleration", "motor_apply preserves low right command",
                300u, TIM3->CCR3);
 
@@ -688,9 +729,9 @@ static void case_active_hold_decelerates_applied_commands(uint32_t caller)
     car_control_state.vision_last_frame_alive_ms = mock_now_ms;
     speed_observer_result.sample_ms = mock_now_ms;
     prepare_follow_motor_targets(mock_now_ms);
-    expect_u32("hold_deceleration", "300 ms reaches fixed left target",
+    expect_u32("hold_deceleration", "hold ramp reaches fixed left target",
                400u, follow_output_state.command_left_permille);
-    expect_u32("hold_deceleration", "300 ms reaches fixed low-side target",
+    expect_u32("hold_deceleration", "hold ramp preserves fixed low-side target",
                300u, follow_output_state.command_right_permille);
     motor_apply(); expect_primask("hold_deceleration", caller);
     expect_u32("hold_deceleration", "hardware command reaches reduced target",
@@ -725,7 +766,7 @@ static void case_active_hold_decelerates_applied_commands(uint32_t caller)
 static void case_hold_expired(uint32_t caller, uint8_t transport_expired)
 {
     const char *name = transport_expired ? "hold_transport_250ms" :
-                                           "hold_valid_3000ms";
+                                           "hold_valid_deadline";
     reset_mock(caller); ++cases_run;
     mock_now_ms = 6000u;
     speed_observer_result.sample_ms = mock_now_ms;
@@ -937,13 +978,162 @@ static void start_pi_zero_coast_fixture(void)
     follow_output_state.startup_qualified = 1u;
     follow_output_state.command_left_permille = 0u;
     follow_output_state.command_right_permille = 0u;
-    follow_speed_pi_state.armed = 1u;
-    follow_speed_pi_state.status = CAR_FOLLOW_SPEED_PI_STATUS_RUNNING;
-    follow_speed_pi_state.target_left_millirps = 2400;
-    follow_speed_pi_state.target_right_millirps = 2400;
+    APP_FOLLOW_PI_ARMED = 1u;
+    APP_FOLLOW_PI_STATUS = CAR_FOLLOW_SPEED_PI_STATUS_RUNNING;
+    APP_FOLLOW_PI_TARGET_LEFT = 2400;
+    APP_FOLLOW_PI_TARGET_RIGHT = 2400;
     start_existing_servo(1530u);
     start_existing_motor_outputs(20u, 20u);
 }
+
+#if CAR_CONTROL_VISION_HOLD_MS == 2000u
+static void case_hold_deadline_2000ms(uint32_t caller)
+{
+    reset_mock(caller); ++cases_run;
+    mock_now_ms = 6000u;
+    car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
+    car_control_state.vision_hold_active = 1u;
+    car_control_state.vision_valid = 0u;
+    car_control_state.vision_last_valid_ms = mock_now_ms - 1999u;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms - 249u;
+    car_control_state.manual_run_request = 1u;
+    manual_run_button.run_request = 1u;
+    follow_output_state.command_left_permille = 100u;
+    follow_output_state.command_right_permille = 100u;
+    start_existing_motor_outputs(100u, 100u);
+    start_existing_servo(1530u);
+    motor_apply(); expect_primask("hold_deadline_1999ms", caller);
+    expect_u32("hold_deadline_1999ms", "outputs remain permitted one millisecond before deadline",
+               1u, motor_outputs_active);
+
+    car_control_state.vision_last_valid_ms = mock_now_ms - 2000u;
+    motor_apply(); expect_primask("hold_deadline_2000ms", caller);
+    expect_u32("hold_deadline_2000ms", "exact deadline disables outputs",
+               0u, motor_outputs_active);
+    expect_u32("hold_deadline_2000ms", "exact deadline clears PWM",
+               0u, TIM3->CCR2 + TIM3->CCR3);
+}
+#endif
+
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+static void case_incremental_real_control_chain(uint32_t caller)
+{
+    uint32_t now_ms;
+    uint32_t overspeed_steps = 0u;
+
+    reset_mock(caller); ++cases_run;
+    follow_output_state.have_ramp_time = 1u;
+    follow_output_state.last_ramp_ms = mock_now_ms - 10u;
+    follow_output_state.command_left_permille = 500u;
+    follow_output_state.command_right_permille = 500u;
+    follow_ramp_started = 1u;
+    car_control_state.follow_output_duty_permille = 500u;
+    start_existing_servo(1530u);
+    start_existing_motor_outputs(500u, 500u);
+    speed_observer_result.valid = 1u;
+    speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    speed_observer_result.elapsed_ms = 10u;
+    speed_observer_result.left_millirps = 2400;
+    speed_observer_result.right_millirps = 2400;
+
+    /* The exact main.c path must retain its two-stage startup qualification:
+       the frame that first qualifies output does not arm PI. */
+    now_ms = mock_now_ms;
+    prepare_follow_motor_targets(now_ms);
+    expect_u32("incremental_startup_gate", "full output qualification reached",
+               1u, follow_output_state.startup_qualified);
+    expect_u32("incremental_startup_gate", "PI remains unarmed on qualification frame",
+               0u, APP_FOLLOW_PI_ARMED);
+    motor_apply(); expect_primask("incremental_startup_gate", caller);
+    expect_u32("incremental_startup_gate", "legacy command remains applied",
+               500u, applied_motor_follow_left_permille);
+
+    now_ms += 10u;
+    speed_observer_result.sample_ms = now_ms;
+    prepare_follow_motor_targets(now_ms);
+    motor_apply(); expect_primask("incremental_seed", caller);
+    expect_u32("incremental_seed", "PI arms only on the next distinct valid sample",
+               1u, APP_FOLLOW_PI_ARMED);
+    expect_u32("incremental_seed", "straight target is 2400 milli-RPS",
+               2400u, (uint32_t)APP_FOLLOW_PI_TARGET_LEFT);
+    expect_u32("incremental_seed", "seeded request follows actual 500 duty",
+               500u, APP_FOLLOW_PI_REQUEST_LEFT);
+
+    /* A distinct high-speed sample makes the real incremental proposal hit
+       zero; repeated observer snapshots must not change its accumulator. */
+    now_ms += 10u;
+    speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    speed_observer_result.sample_ms = now_ms;
+    speed_observer_result.left_millirps = 20000;
+    prepare_follow_motor_targets(now_ms);
+    motor_apply(); expect_primask("incremental_overspeed", caller);
+    expect_u32("incremental_overspeed", "real controller requests zero after overspeed",
+               0u, APP_FOLLOW_PI_REQUEST_LEFT);
+    expect_u32("incremental_overspeed", "ramp starts from actual applied output",
+               460u, applied_motor_follow_left_permille);
+
+    {
+        const int64_t accumulator_before = follow_incremental_pi_state.left.accumulator_q16;
+        const uint16_t request_before = follow_incremental_pi_state.proposal_left_permille;
+        now_ms += 10u;
+        speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_WAITING;
+        prepare_follow_motor_targets(now_ms);
+        motor_apply(); expect_primask("incremental_repeated_sample", caller);
+        expect_u32("incremental_repeated_sample", "duplicate observer sample cannot integrate",
+                   (uint32_t)accumulator_before,
+                   (uint32_t)follow_incremental_pi_state.left.accumulator_q16);
+        expect_u32("incremental_repeated_sample", "duplicate sample retains proposal",
+                   request_before, follow_incremental_pi_state.proposal_left_permille);
+    }
+
+    while (applied_motor_follow_left_permille != 0u &&
+           overspeed_steps < 20u) {
+        now_ms += 10u;
+        speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+        speed_observer_result.sample_ms = now_ms;
+        speed_observer_result.elapsed_ms = 10u;
+        prepare_follow_motor_targets(now_ms);
+        motor_apply(); expect_primask("incremental_zero_ramp", caller);
+        ++overspeed_steps;
+    }
+    expect_u32("incremental_zero_coast", "configured ramp reaches zero",
+               0u, applied_motor_follow_left_permille);
+    expect_u32("incremental_zero_coast", "zero duty keeps qualified motor path active",
+               1u, motor_outputs_active);
+    expect_u32("incremental_zero_coast", "zero duty keeps PWM channel mapping",
+               TIM_CCER_CC2E | TIM_CCER_CC3E,
+               TIM3->CCER & (TIM_CCER_CC2E | TIM_CCER_CC3E));
+    expect_u32("incremental_zero_coast", "zero duty is committed to hardware",
+               0u, TIM3->CCR2);
+
+    /* The actual motor_apply servo-frame guard must refuse the recovered
+       command; restoring the gate lets that same command reach PWM. */
+    now_ms += 10u;
+    speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    speed_observer_result.sample_ms = now_ms;
+    speed_observer_result.elapsed_ms = 10u;
+    speed_observer_result.left_millirps = 0;
+    prepare_follow_motor_targets(now_ms);
+    expect_u32("incremental_recovery_gate", "controller requests positive recovery",
+               1u, APP_FOLLOW_PI_REQUEST_LEFT > 0u ? 1u : 0u);
+    expect_u32("incremental_recovery_gate", "slew starts recovery from zero",
+               CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE,
+               follow_output_state.command_left_permille);
+    servo_safety.frame_ready = 0u;
+    motor_apply(); expect_primask("incremental_servo_gate", caller);
+    expect_u32("incremental_servo_gate", "missing servo frame blocks PWM recovery",
+               0u, applied_motor_follow_left_permille);
+    expect_u32("incremental_servo_gate", "blocked update keeps motor session alive",
+               1u, motor_outputs_active);
+    servo_safety.frame_ready = 1u;
+    motor_apply(); expect_primask("incremental_recovery", caller);
+    expect_u32("incremental_recovery", "restored gate applies recovered output",
+               CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE,
+               applied_motor_follow_left_permille);
+    expect_u32("incremental_recovery", "recovery does not call stop callback",
+               0u, motor_stop_calls);
+}
+#endif
 
 static void case_zero_output_behavior(void)
 {
@@ -1015,6 +1205,14 @@ static void case_zero_output_behavior(void)
 int main(void)
 {
     uint32_t caller;
+#if CAR_CONTROL_VISION_HOLD_MS == 2000u
+    for (caller = 0u; caller <= 1u; ++caller) {
+        case_hold_deadline_2000ms(caller);
+    }
+#endif
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+    case_incremental_real_control_chain(0u);
+#endif
 #if CARTEST_HARDWARE_ACCEPTED
     for (caller = 0u; caller <= 1u; ++caller) {
         if (caller == 0u) case_zero_output_behavior();
@@ -1177,26 +1375,40 @@ def compiler_command(compiler: str, args: list[str], cwd: Path) -> subprocess.Co
 
 
 def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler: str,
-                    evidence: Path, pi_enabled: bool = False) -> tuple[int, int, str, str]:
+                    evidence: Path, pi_enabled: bool = False,
+                    incremental_enabled: bool = False, hold_ms: int = 3000,
+                    hold_ramp_ms: int = 300) -> tuple[int, int, str, str]:
     label = ("hardware-accepted" if macro_value else "hardware-locked") + \
-        f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "")
+        f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
+        ("-incremental-pi" if incremental_enabled else "") + \
+        (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 3000 or
+         hold_ramp_ms != 300 else "")
     with tempfile.TemporaryDirectory(prefix="CarTestFollowOutput-") as temp_name:
         temp = Path(temp_name)
         c_path = temp / "follow_output_path.c"
         exe_path = temp / "follow_output_path.exe"
-        c_path.write_text(c_text, encoding="ascii")
+        variant_text = c_text.replace(
+            "#define CAR_CONTROL_VISION_HOLD_MS CARTEST_HOST_HOLD_DEADLINE_MS",
+            f"#define CAR_CONTROL_VISION_HOLD_MS {hold_ms}u")
+        if "CARTEST_HOST_HOLD_DEADLINE_MS" in variant_text:
+            raise RuntimeError("host hold deadline placeholder was not replaced")
+        c_path.write_text(variant_text, encoding="ascii")
         compile_args = ["/nologo", "/std:c11", "/W4", "/TC",
                         "/I" + str(PROJECT_ROOT / "Inc"),
                         "/DCARTEST_FOLLOW_DIFF_PERMILLE=" + str(diff_permille),
                         f"/DCARTEST_FOLLOW_SPEED_PI_ENABLED={int(pi_enabled)}",
+                        f"/DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED={int(incremental_enabled)}",
+                        f"/DCARTEST_VISION_HOLD_RAMP_MS={hold_ramp_ms}",
                         f"/DCARTEST_HARDWARE_ACCEPTED={macro_value}",
                         "/Fe:" + str(exe_path), str(c_path),
                         str(PROJECT_ROOT / "App" / "follow_output.c"),
                         str(PROJECT_ROOT / "App" / "speed_pi.c"),
-                        str(PROJECT_ROOT / "App" / "follow_speed_pi.c")]
-        if diff_permille == 200:
+                        str(PROJECT_ROOT / "App" / "follow_speed_pi.c"),
+                        str(PROJECT_ROOT / "App" / "follow_incremental_pi.c")]
+        turn_profile = diff_permille == 200 or hold_ms == 2000
+        if turn_profile:
             compile_args.extend([
-                "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
+                f"/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE={diff_permille}",
                 "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
                 "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
@@ -1273,15 +1485,12 @@ def main() -> int:
     if not source_path.is_file():
         raise SystemExit(f"production source not found: {source_path}")
     commissioning_text = COMMISSIONING_HEADER.read_text(encoding="utf-8-sig")
-    hold_match = re.search(r"\bCAR_CONTROL_VISION_HOLD_MS\s*=\s*(\d+)u", commissioning_text)
+    hold_match = re.search(r"\bCARTEST_VISION_HOLD_MS\s+(\d+)u", commissioning_text)
     if hold_match is None or int(hold_match.group(1)) != 3000:
-        raise SystemExit("commissioning.h must define CAR_CONTROL_VISION_HOLD_MS = 3000u")
-    prelude = PRELUDE.replace(
-        "#define CAR_CONTROL_VISION_HOLD_MS CARTEST_HOST_HOLD_DEADLINE_MS",
-        "#define CAR_CONTROL_VISION_HOLD_MS {}u".format(hold_match.group(1)),
-    )
-    if "CARTEST_HOST_HOLD_DEADLINE_MS" in prelude:
-        raise SystemExit("host PRELUDE hold deadline placeholder was not replaced")
+        raise SystemExit("commissioning.h must default CARTEST_VISION_HOLD_MS to 3000u")
+    prelude = PRELUDE
+    if "CARTEST_HOST_HOLD_DEADLINE_MS" not in prelude:
+        raise SystemExit("host PRELUDE hold deadline placeholder is missing")
     evidence_dir.mkdir(parents=True, exist_ok=True)
     source_bytes = source_path.read_bytes()
     source_text = source_bytes.decode("utf-8-sig")
@@ -1307,7 +1516,10 @@ def main() -> int:
     })
     c_text = prelude + "\n" + "\n\n".join(extracted) + "\n\n" + SUPPORT
     harness_path = evidence_dir / "follow_output_path_harness.c"
-    harness_path.write_text(c_text, encoding="ascii")
+    harness_path.write_text(c_text.replace(
+        "#define CAR_CONTROL_VISION_HOLD_MS CARTEST_HOST_HOLD_DEADLINE_MS",
+        f"#define CAR_CONTROL_VISION_HOLD_MS {int(hold_match.group(1))}u"),
+        encoding="ascii")
     record = {
         "source_path": str(source_path),
         "source_sha256": sha256(source_bytes),
@@ -1318,7 +1530,8 @@ def main() -> int:
         "compiler_requested": args.compiler,
         "functions_extracted_from_production_main": provenance,
         "commissioning_hold_deadline_ms": int(hold_match.group(1)),
-        "deadline_cases": [2999, 3000],
+        "deadline_cases": [int(hold_match.group(1)) - 1,
+                           int(hold_match.group(1))],
         "harness_sha256": sha256(c_text.encode("ascii")),
         "evidence_boundary": (
             "The extracted main.c request/gate/commit/emergency-stop decisions are real. "
@@ -1341,19 +1554,32 @@ def main() -> int:
     if version_result.returncode != 0 or version_match is None:
         failures.append("MSVC version evidence command failed or returned no banner")
     variants = []
-    for macro, diff_permille, pi_enabled in (
-        (1, 0, False), (1, 50, False), (1, 100, False),
-        (1, 200, False), (0, 0, False), (1, 200, True),
+    for macro, diff_permille, pi_enabled, incremental_enabled, hold_ms, hold_ramp_ms in (
+        (1, 0, False, False, 3000, 300),
+        (1, 50, False, False, 3000, 300),
+        (1, 100, False, False, 3000, 300),
+        (1, 200, False, False, 3000, 300),
+        (0, 0, False, False, 3000, 300),
+        (1, 200, True, False, 3000, 300),
+        (1, 150, False, False, 2000, 200),
+        (1, 150, True, True, 2000, 200),
     ):
         compile_rc, run_rc, _, run_log = compile_and_run(
             macro, diff_permille, c_text, args.compiler, evidence_dir,
-            pi_enabled=pi_enabled)
+            pi_enabled=pi_enabled, incremental_enabled=incremental_enabled,
+            hold_ms=hold_ms, hold_ramp_ms=hold_ramp_ms)
         label = ("hardware-accepted" if macro else "hardware-locked") + \
-            f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "")
+            f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
+            ("-incremental-pi" if incremental_enabled else "") + \
+            (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 3000 or
+             hold_ramp_ms != 300 else "")
         variants.append({
             "name": label, "hardware_accepted": macro,
             "follow_speed_pi_enabled": pi_enabled,
+            "follow_incremental_pi_enabled": incremental_enabled,
             "diff_permille": diff_permille,
+            "vision_hold_ms": hold_ms,
+            "vision_hold_ramp_ms": hold_ramp_ms,
             "compile_exit_code": int((evidence_dir / f"{label}-compile.exitcode").read_text().strip()),
             "run_exit_code": int((evidence_dir / f"{label}-run.exitcode").read_text().strip()),
         })

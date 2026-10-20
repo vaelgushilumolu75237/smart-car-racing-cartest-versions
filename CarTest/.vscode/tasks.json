@@ -67,6 +67,22 @@
       "problemMatcher": []
     },
     {
+      "label": "CarTest: Build DebugFollowTurn65 (65/35 turn; hold 2000 ms; decel 200 ms; RAM log ON)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowTurn65"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "CarTest: Build DebugFollowIncrementalPI (65/35 turn; incremental encoder PI; RAM log ON)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowIncrementalPI"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
       "label": "CarTest: Build DebugFollowSpeedPI (experimental encoder PI; RAM log ON)",
       "type": "process",
       "command": "powershell.exe",

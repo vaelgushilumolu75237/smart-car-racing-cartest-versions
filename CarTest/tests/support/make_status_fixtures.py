@@ -78,6 +78,44 @@ def main():
         frozen_diagnostic_path = out / "runtime-diagnostic-frozen.bin"
         frozen_diagnostic_path.write_bytes(make_diagnostic(
             exporter.STATE_FROZEN, 12, 55, 2, 7))
+
+    speed_pi_idle_path = None
+    speed_pi_active_path = None
+    speed_pi_frozen_path = None
+    speed_pi_plan = plan["speed_pi_diagnostic_snapshot"]
+    if speed_pi_plan["available"]:
+        def make_speed_pi_diagnostic(path, token, flags, pi_type):
+            raw = bytearray(reader.SPEED_PI_DIAGNOSTIC_SIZE)
+            struct.pack_into("<IHHII", raw, 0,
+                             reader.SPEED_PI_DIAGNOSTIC_MAGIC,
+                             reader.SPEED_PI_DIAGNOSTIC_VERSION,
+                             reader.SPEED_PI_DIAGNOSTIC_SIZE, 2, 0)
+            struct.pack_into("<4I", raw, 16, token, 1000, 1200, 1190)
+            struct.pack_into("<4i", raw, 32, 2400, 2300, 2200, 2100)
+            struct.pack_into("<6H", raw, 48, 500, 490, 700, 680, 680, 660)
+            struct.pack_into("<6I", raw, 60, 3, 0, 100, 50, flags, pi_type)
+            struct.pack_into("<11I", raw, 84, *([0] * 11))
+            crc_data = bytearray(raw)
+            crc_data[12:16] = bytes(4)
+            struct.pack_into("<I", raw, 12, zlib.crc32(crc_data) & 0xFFFFFFFF)
+            path.write_bytes(raw)
+
+        speed_pi_idle_path = out / "speed-pi-diagnostic-idle.bin"
+        make_speed_pi_diagnostic(speed_pi_idle_path, 0, 0, 0)
+        active_flags = (
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_ENABLED |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_ARMED |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID)
+        speed_pi_active_path = out / "speed-pi-diagnostic-active.bin"
+        make_speed_pi_diagnostic(speed_pi_active_path, 7, active_flags, 2)
+        frozen_flags = (
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_ENABLED |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_ARMED |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_LAST_SAMPLE_VALID |
+            reader.SPEED_PI_DIAGNOSTIC_FLAG_FROZEN)
+        speed_pi_frozen_path = out / "speed-pi-diagnostic-frozen.bin"
+        make_speed_pi_diagnostic(speed_pi_frozen_path, 7, frozen_flags, 2)
     print(json.dumps({
         "build_id": layout.build_id.hex(),
         "log_version": plan["log_version"],
@@ -87,6 +125,8 @@ def main():
         "header_address": plan["header_read"]["address"],
         "diagnostic_available": bool(diagnostic_plan["available"]),
         "diagnostic_address": diagnostic_plan["address"],
+        "speed_pi_diagnostic_available": bool(speed_pi_plan["available"]),
+        "speed_pi_diagnostic_address": speed_pi_plan["address"],
     }, sort_keys=True))
 
 

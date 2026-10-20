@@ -18,7 +18,9 @@ $sourceFiles = @(
     (Join-Path $projectRoot "App\speed_observer.c"),
     (Join-Path $projectRoot "App\speed_pi.c"),
     (Join-Path $projectRoot "App\follow_speed_pi.c"),
+    (Join-Path $projectRoot "App\follow_incremental_pi.c"),
     (Join-Path $projectRoot "App\runtime_log.c"),
+    (Join-Path $projectRoot "App\speed_pi_diag.c"),
     (Join-Path $projectRoot "App\run_block_reason.c"),
     (Join-Path $projectRoot "App\manual_run_button.c"),
     (Join-Path $projectRoot "App\follow_output.c"),
@@ -26,6 +28,8 @@ $sourceFiles = @(
     (Join-Path $projectRoot "App\runtime_diag.c"),
     (Join-Path $projectRoot "App\vision_protocol.cpp"),
     (Join-Path $PSScriptRoot "test_main.cpp"),
+    (Join-Path $PSScriptRoot "test_vision_hold_profile.cpp"),
+    (Join-Path $PSScriptRoot "test_speed_pi_diag.c"),
     $vectorFile,
     $reverseVectorFile
 )
@@ -79,9 +83,17 @@ $objectFiles = @(
     (Join-Path $runDirectory "speed_pi.obj"),
     (Join-Path $runDirectory "follow_speed_pi.obj"),
     (Join-Path $runDirectory "servo_safety_turn.obj"),
-    (Join-Path $runDirectory "runtime_diag.obj")
+    (Join-Path $runDirectory "runtime_diag.obj"),
+    (Join-Path $runDirectory "follow_incremental_pi.obj"),
+    (Join-Path $runDirectory "speed_pi_diag_host.obj"),
+    (Join-Path $runDirectory "test_speed_pi_diag.obj"),
+    (Join-Path $runDirectory "commissioning_hold_2000.obj"),
+    (Join-Path $runDirectory "follow_output_hold_200.obj"),
+    (Join-Path $runDirectory "test_vision_hold_profile.obj")
 )
 $testExecutable = Join-Path $runDirectory "CarTestHostTests.exe"
+$speedPiDiagTestExecutable = Join-Path $runDirectory "CarTestSpeedPiDiagTests.exe"
+$visionHoldProfileTestExecutable = Join-Path $runDirectory "CarTestVisionHoldProfileTests.exe"
 $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
 $runtimeLogBuildIdInclude = ""
 $runtimeLogBuildIdDefine = ""
@@ -90,8 +102,10 @@ if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_FIXTURE_PATH)) {
     if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_BUILD_PRESET)) {
         $runtimeLogBuildPreset = $env:CARTEST_RUNTIME_LOG_BUILD_PRESET.Trim()
     }
-    if ($runtimeLogBuildPreset -notin @("DebugFollow", "DebugFollowTurn")) {
-        throw "CARTEST_RUNTIME_LOG_BUILD_PRESET must be DebugFollow or DebugFollowTurn."
+    if ($runtimeLogBuildPreset -notin @(
+        "DebugFollow", "DebugFollowTurn", "DebugFollowTurn65",
+        "DebugFollowIncrementalPI")) {
+        throw "CARTEST_RUNTIME_LOG_BUILD_PRESET must name a supported Follow profile."
     }
     $generatedDirectory = Join-Path $projectRoot "build\$runtimeLogBuildPreset\generated"
     $generatedBuildId = Join-Path $generatedDirectory "runtime_log_build_id.h"
@@ -137,7 +151,7 @@ $batchLines = @(
     "cl /nologo /std:c++17 /EHsc /W4 /TP /c $includeArgument /Fo`"$($objectFiles[6])`" `"$(Join-Path $projectRoot 'App\vision_protocol.cpp')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile host assertions as C++17 ===",
-    "cl /nologo /std:c++17 /EHsc /W4 /TP /c $includeArgument /Fo`"$($objectFiles[7])`" `"$(Join-Path $PSScriptRoot 'test_main.cpp')`"",
+    "cl /nologo /std:c++17 /EHsc /W4 /TP /c $includeArgument /DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=1 /Fo`"$($objectFiles[7])`" `"$(Join-Path $PSScriptRoot 'test_main.cpp')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile bounded UART FIFO service as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[8])`" `"$(Join-Path $projectRoot 'App\uart_rx_service.c')`"",
@@ -159,9 +173,34 @@ $batchLines = @(
     "if errorlevel 1 exit /b %errorlevel%",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[14])`" `"$(Join-Path $projectRoot 'App\speed_pi.c')`"",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_SPEED_PI_ENABLED=1 /Fo`"$($objectFiles[15])`" `"$(Join-Path $projectRoot 'App\follow_speed_pi.c')`"",
+    "echo === Compile production incremental Follow PI as C11 ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=1 /Fo`"$($objectFiles[18])`" `"$(Join-Path $projectRoot 'App\follow_incremental_pi.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile standalone PI diagnostic module and assertions ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCAR_SPEED_PI_DIAG_HOST_TEST /Fo`"$($objectFiles[19])`" `"$(Join-Path $projectRoot 'App\speed_pi_diag.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[20])`" `"$(Join-Path $PSScriptRoot 'test_speed_pi_diag.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile B/C hold deadline and deceleration profile ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_VISION_HOLD_MS=2000 /DCARTEST_VISION_HOLD_RAMP_MS=200 /Fo`"$($objectFiles[21])`" `"$(Join-Path $projectRoot 'App\commissioning.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_VISION_HOLD_RAMP_MS=200 /Fo`"$($objectFiles[22])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c++17 /EHsc /W4 /TP /c $includeArgument /DCARTEST_VISION_HOLD_MS=2000 /DCARTEST_VISION_HOLD_RAMP_MS=200 /Fo`"$($objectFiles[23])`" `"$(Join-Path $PSScriptRoot 'test_vision_hold_profile.cpp')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link actual CarTest pure modules and host assertions ===",
-    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`"",
+    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`" `"$($objectFiles[18])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Link and run independent PI diagnostic assertions ===",
+    "cl /nologo /Fe:`"$speedPiDiagTestExecutable`" `"$($objectFiles[19])`" `"$($objectFiles[20])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "`"$speedPiDiagTestExecutable`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Link and run 2000 ms hold / 200 ms deceleration profile assertions ===",
+    "cl /nologo /Fe:`"$visionHoldProfileTestExecutable`" `"$($objectFiles[23])`" `"$($objectFiles[21])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[22])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "`"$visionHoldProfileTestExecutable`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Run host assertions from CarTest project root ===",
     "`"$testExecutable`"",
