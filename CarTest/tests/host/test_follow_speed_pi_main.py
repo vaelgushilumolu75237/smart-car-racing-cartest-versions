@@ -211,7 +211,7 @@ int main(void)
     REQUIRE("left target is derived from nominal 500", follow_speed_pi_state.target_left_millirps == 2400);
     REQUIRE("load drop creates greater left proposal", follow_speed_pi_state.proposal_left_permille > 500u);
     REQUIRE("steady right side keeps nominal proposal", follow_speed_pi_state.proposal_right_permille == 500u);
-    REQUIRE("first PI command is one 20 permille step", follow_output_state.command_left_permille == 520u);
+    REQUIRE("first PI command is one 40 permille step", follow_output_state.command_left_permille == 540u);
     REQUIRE("servo and motor startup gates remain represented", servo_output_active != 0u && motor_outputs_active != 0u && servo_safety.frame_ready != 0u);
 
     applied_motor_follow_left_permille = follow_output_state.command_left_permille;
@@ -224,7 +224,7 @@ int main(void)
     REQUIRE("duplicate sample retains PI proposal", follow_speed_pi_state.proposal_left_permille > 500u);
 
     prepare_follow_motor_targets(110u);
-    REQUIRE("stored proposal ramps on next 10 ms tick", follow_output_state.command_left_permille == 540u);
+    REQUIRE("stored proposal ramps on next 10 ms tick", follow_output_state.command_left_permille == 580u);
     REQUIRE("per-side command stays within one step", follow_output_state.command_right_permille == 500u);
 
     before_integral = (uint32_t)follow_speed_pi_state.left.integral_q16;
@@ -346,8 +346,9 @@ def main() -> int:
              "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1",
              "/DCARTEST_FOLLOW_DIFF_PERMILLE=200",
              "/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE=200",
-             "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
-             "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+             "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000",
+             "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
+             "/DCARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE=1000",
              "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
              "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
              "/I" + str(PROJECT_ROOT / "Inc"),

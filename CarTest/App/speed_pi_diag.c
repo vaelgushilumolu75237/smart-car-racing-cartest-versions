@@ -149,6 +149,7 @@ static void publish_current(uint32_t now_ms)
         car_speed_pi_diag_next_even_generation(generation_state);
     next.snapshot_ms = now_ms;
     memset(next.reserved, 0, sizeof(next.reserved));
+    next.reserved[0] = CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE;
     next.crc32 = 0u;
     next.crc32 = car_speed_pi_diag_snapshot_crc32(&next);
     publish_snapshot(&next);
@@ -185,6 +186,7 @@ void car_speed_pi_diag_begin(uint32_t start_token, uint32_t start_ms,
     next.snapshot_ms = start_ms;
     next.flags = CAR_SPEED_PI_DIAG_FLAG_ACTIVE;
     next.pi_type = pi_type;
+    next.reserved[0] = CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE;
     next.crc32 = car_speed_pi_diag_snapshot_crc32(&next);
 
     session_active = 1u;
@@ -275,14 +277,14 @@ uint8_t car_speed_pi_diag_update(const car_speed_pi_diag_values_t *values)
                 values->pi_proposal_valid != 0u &&
                 values->saturated_left != 0u &&
                 values->requested_left_permille >=
-                    CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE;
+                    next.reserved[0];
             const uint8_t count_upper_right =
                 values->enabled != 0u && values->armed != 0u &&
                 values->hold_active == 0u &&
                 values->pi_proposal_valid != 0u &&
                 values->saturated_right != 0u &&
                 values->requested_right_permille >=
-                    CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE;
+                    next.reserved[0];
 
             if (count_upper_left != 0u) {
                 next.saturation_left_ms = add_saturation_elapsed(

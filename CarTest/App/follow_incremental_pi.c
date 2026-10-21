@@ -32,10 +32,29 @@ static uint16_t approach_by_step(uint16_t current, uint16_t target,
     return current;
 }
 
-static int32_t nominal_to_target_millirps(uint16_t nominal_permille)
+static void nominal_pair_to_target_millirps(uint16_t nominal_left_permille,
+                                           uint16_t nominal_right_permille,
+                                           int32_t *target_left_millirps,
+                                           int32_t *target_right_millirps)
 {
-    return (int32_t)(((uint32_t)CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS *
-                      nominal_permille) / 500u);
+    uint16_t scale_permille = 500u;
+
+    if (nominal_left_permille > scale_permille) {
+        scale_permille = nominal_left_permille;
+    }
+    if (nominal_right_permille > scale_permille) {
+        scale_permille = nominal_right_permille;
+    }
+    if (target_left_millirps != 0) {
+        *target_left_millirps = (int32_t)(
+            ((uint32_t)CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS *
+             nominal_left_permille) / scale_permille);
+    }
+    if (target_right_millirps != 0) {
+        *target_right_millirps = (int32_t)(
+            ((uint32_t)CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS *
+             nominal_right_permille) / scale_permille);
+    }
 }
 
 static uint8_t valid_input(const car_follow_speed_pi_input_t *input)
@@ -197,10 +216,9 @@ uint32_t car_follow_incremental_pi_update(
             state->status = CAR_FOLLOW_SPEED_PI_STATUS_NOT_READY;
             return state->status;
         }
-        target_left = nominal_to_target_millirps(
-            input->nominal_left_permille);
-        target_right = nominal_to_target_millirps(
-            input->nominal_right_permille);
+        nominal_pair_to_target_millirps(input->nominal_left_permille,
+                                        input->nominal_right_permille,
+                                        &target_left, &target_right);
         seed_axis(&state->left, input->applied_left_permille,
                   input->nominal_left_permille, target_left,
                   input->measured_left_millirps);
@@ -229,8 +247,9 @@ uint32_t car_follow_incremental_pi_update(
         return state->status;
     }
 
-    target_left = nominal_to_target_millirps(input->nominal_left_permille);
-    target_right = nominal_to_target_millirps(input->nominal_right_permille);
+    nominal_pair_to_target_millirps(input->nominal_left_permille,
+                                    input->nominal_right_permille,
+                                    &target_left, &target_right);
     if (state->armed == 0u) {
         seed_axis(&state->left, input->applied_left_permille,
                   input->nominal_left_permille, target_left,

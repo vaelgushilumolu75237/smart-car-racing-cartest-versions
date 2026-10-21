@@ -91,6 +91,26 @@ def make_runtime_diagnostic(state, count=0, session_id=0, start_events=0,
     return bytes(raw)
 
 
+def make_receive_diagnostic(window_start=100, duration=1000,
+                            accepted_total=20, accepted_window=10,
+                            invalid_total=2, invalid_window=1,
+                            sequence=65535, flags=None):
+    if flags is None:
+        flags = (reader.RECEIVE_DIAGNOSTIC_FLAG_HAVE_SEQUENCE |
+                 reader.RECEIVE_DIAGNOSTIC_FLAG_WINDOW_VALID)
+    raw = bytearray(reader.RECEIVE_DIAGNOSTIC_SIZE)
+    snapshot_ms = (window_start + duration) & 0xFFFFFFFF
+    struct.pack_into("<IHHII", raw, 0, reader.RECEIVE_DIAGNOSTIC_MAGIC,
+                     reader.RECEIVE_DIAGNOSTIC_VERSION,
+                     reader.RECEIVE_DIAGNOSTIC_SIZE, 2, 0)
+    struct.pack_into("<12I", raw, 16, snapshot_ms, window_start, duration,
+                     accepted_total, accepted_window, invalid_total,
+                     invalid_window, 3, 1, 2, 0, 4)
+    struct.pack_into("<2H", raw, 64, sequence, flags)
+    struct.pack_into("<I", raw, 12, zlib.crc32(raw) & 0xFFFFFFFF)
+    return bytes(raw)
+
+
 def synthetic_diagnostic_plan(elf):
     plan = copy.deepcopy(reader.build_plan(elf))
     plan["runtime_diagnostic_snapshot"] = {
@@ -121,7 +141,8 @@ def synthetic_speed_pi_diagnostic_plan(elf):
 
 def make_speed_pi_diagnostic(start_token=7, flags=None, generation=2,
                              pi_type=2, saturation_left_ms=50,
-                             saturation_right_ms=20):
+                             saturation_right_ms=20,
+                             version=reader.SPEED_PI_DIAGNOSTIC_VERSION_V1):
     if flags is None:
         flags = (reader.SPEED_PI_DIAGNOSTIC_FLAG_ENABLED |
                  reader.SPEED_PI_DIAGNOSTIC_FLAG_ARMED |
@@ -129,14 +150,18 @@ def make_speed_pi_diagnostic(start_token=7, flags=None, generation=2,
                  reader.SPEED_PI_DIAGNOSTIC_FLAG_FROZEN)
     raw = bytearray(reader.SPEED_PI_DIAGNOSTIC_SIZE)
     struct.pack_into("<IHHII", raw, 0, reader.SPEED_PI_DIAGNOSTIC_MAGIC,
-                     reader.SPEED_PI_DIAGNOSTIC_VERSION,
+                     version,
                      reader.SPEED_PI_DIAGNOSTIC_SIZE, generation, 0)
     struct.pack_into("<4I", raw, 16, start_token, 1000, 1100, 1090)
     struct.pack_into("<4i", raw, 32, 2400, 2300, 2200, 2100)
     struct.pack_into("<6H", raw, 48, 500, 490, 700, 690, 680, 670)
     struct.pack_into("<6I", raw, 60, 3, 0, saturation_left_ms,
                      saturation_right_ms, flags, pi_type)
-    struct.pack_into("<11I", raw, 84, *([0] * 11))
+    reserved = [0] * 11
+    if version == reader.SPEED_PI_DIAGNOSTIC_VERSION_V2:
+        reserved[0] = reader.SPEED_PI_DIAGNOSTIC_V2_OUTPUT_CAP_PERMILLE
+        struct.pack_into("<6H", raw, 48, 500, 490, 1000, 990, 980, 970)
+    struct.pack_into("<11I", raw, 84, *reserved)
     crc_data = bytearray(raw)
     crc_data[12:16] = bytes(4)
     struct.pack_into("<I", raw, 12, zlib.crc32(crc_data) & 0xFFFFFFFF)
@@ -151,7 +176,9 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertEqual(plan["endianness"], "little")
         self.assertEqual(set(reader.REQUIRED_SCALAR_SYMBOLS), set(plan["required_scalar_symbols"]))
         self.assertEqual(set(reader.HOLD_SNAPSHOT_SYMBOLS), set(plan["optional_hold_snapshot_symbols"]))
-        self.assertEqual(len(plan["scalar_symbols"]), 17)
+        self.assertEqual(len(plan["scalar_symbols"]), 20)
+        self.assertEqual(plan["optional_receive_rate_symbols"],
+                         list(reader.RECEIVE_RATE_SYMBOLS))
         self.assertEqual(plan["descriptor_read"]["size"], 64)
         self.assertTrue(plan["descriptor_read"]["address"].startswith("0x080"))
         self.assertLessEqual(plan["scalar_read"]["size"],
@@ -231,6 +258,67 @@ class RunStatusReaderTests(unittest.TestCase):
         struct.pack_into("<I", reserved, 12, zlib.crc32(reserved) & 0xFFFFFFFF)
         with self.assertRaises(reader.StatusReadError):
             reader.decode_speed_pi_diagnostic(bytes(reserved))
+
+    def test_speed_pi_v2_declares_1000_output_cap_while_v1_keeps_700(self):
+        v1 = reader.decode_speed_pi_diagnostic(make_speed_pi_diagnostic())
+        v2 = reader.decode_speed_pi_diagnostic(make_speed_pi_diagnostic(
+            version=reader.SPEED_PI_DIAGNOSTIC_VERSION_V2))
+        self.assertEqual(v1["output_cap_permille"], 700)
+        self.assertEqual(v2["output_cap_permille"], 1000)
+        self.assertEqual(v2["requested_left_permille"], 1000)
+
+        invalid = bytearray(make_speed_pi_diagnostic(
+            version=reader.SPEED_PI_DIAGNOSTIC_VERSION_V2))
+        struct.pack_into("<I", invalid, 84, 700)
+        invalid[12:16] = bytes(4)
+        struct.pack_into("<I", invalid, 12, zlib.crc32(invalid) & 0xFFFFFFFF)
+        with self.assertRaisesRegex(reader.StatusReadError, "cap/reserved words"):
+            reader.decode_speed_pi_diagnostic(bytes(invalid))
+
+    def test_receive_snapshot_reports_wrap_safe_actual_rate_and_invalid_ratio(self):
+        decoded = reader.decode_receive_diagnostic(make_receive_diagnostic(
+            window_start=0xFFFFFFF0, duration=2010,
+            accepted_total=500, accepted_window=201,
+            invalid_total=50, invalid_window=10, sequence=7))
+        self.assertEqual(decoded["window_duration_ms"], 2010)
+        self.assertEqual(decoded["accepted_millifps"], 100000)
+        self.assertEqual(decoded["invalid_observation_permille"], 49)
+        self.assertEqual(decoded["latest_sequence"], 7)
+
+        torn = bytearray(make_receive_diagnostic())
+        torn[72] ^= 0x01
+        with self.assertRaisesRegex(reader.StatusReadError, "CRC32 is invalid"):
+            reader.decode_receive_diagnostic(bytes(torn))
+
+    def test_direct_receive_rate_scalars_are_optional_and_decoded_as_millifps(self):
+        base = reader.build_plan(ELF)
+        plan = copy.deepcopy(base)
+        start = plan["scalar_read"]["address_u32"]
+        for index, name in enumerate(reader.RECEIVE_RATE_SYMBOLS):
+            address = start + base["scalar_read"]["size"] + index * 4
+            plan["scalar_symbols"][name].update(
+                available=True, address="0x{:08X}".format(address),
+                address_u32=address, size=4, section=".bss")
+        plan["scalar_read"]["size"] += len(reader.RECEIVE_RATE_SYMBOLS) * 4
+        values = {
+            "car_rx_frame_rate_millifps": 27500,
+            "car_rx_invalid_observation_permille": 20,
+            "car_rx_frame_rate_valid": 1,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scalar = root / "scalars.bin"
+            header = root / "header.bin"
+            descriptor = root / "descriptor.bin"
+            scalar.write_bytes(make_scalar_region(plan, values))
+            header.write_bytes(make_idle_header(plan))
+            descriptor.write_bytes(exporter.inspect_elf(ELF).descriptor_bytes)
+            with mock.patch.object(reader, "build_plan", return_value=plan):
+                result = reader.decode_snapshot(ELF, scalar, header, descriptor)
+        self.assertEqual(result["scalars"]["car_rx_frame_rate_millifps"], 27500)
+        self.assertEqual(result["scalars"]["car_rx_frame_rate_fps"], 27.5)
+        self.assertTrue(result["scalars"]["car_rx_frame_rate_valid"])
+        self.assertIn("not camera sensor", result["scalars"]["car_rx_rate_semantics"])
 
     def test_speed_pi_manual_token_must_match_runtime_diagnostic(self):
         plan = reader.build_plan(ELF)

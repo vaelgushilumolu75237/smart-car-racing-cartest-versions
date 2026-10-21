@@ -14,8 +14,8 @@ extern "C" {
 #endif
 
 enum {
-    CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS = 2400u,
-    CAR_FOLLOW_INCREMENTAL_PI_OUTPUT_CAP_PERMILLE = 700u,
+    CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS = 4800u,
+    CAR_FOLLOW_INCREMENTAL_PI_OUTPUT_CAP_PERMILLE = 1000u,
     CAR_FOLLOW_INCREMENTAL_PI_TRACKING_TIME_MS = 200u,
     CAR_FOLLOW_INCREMENTAL_PI_KP_Q16 = 13107u,
     CAR_FOLLOW_INCREMENTAL_PI_KI_Q16 = 26214u
@@ -49,8 +49,10 @@ typedef struct {
 void car_follow_incremental_pi_reset(car_follow_incremental_pi_state_t *state);
 
 /* Pure, per-wheel incremental PI proposal. Each distinct observer sample is
-   consumed at most once. Hold freezes the accumulator; the first post-hold
-   sample seeds the accumulator and histories from actual output without a
+   consumed at most once. The target pair is normalized together so the larger
+   nominal side is at most 4800 milli-RPS; integer division truncates each
+   scaled side (650/350 permille maps to 4800/2584 milli-RPS). Hold freezes the
+   accumulator; the first post-hold sample seeds from actual output without a
    control step. */
 uint32_t car_follow_incremental_pi_update(
     car_follow_incremental_pi_state_t *state,

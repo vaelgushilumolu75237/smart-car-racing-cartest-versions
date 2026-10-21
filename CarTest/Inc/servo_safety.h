@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #ifndef CARTEST_FOLLOW_SERVO_SLEW_STEP_US
-#define CARTEST_FOLLOW_SERVO_SLEW_STEP_US 40u
+#define CARTEST_FOLLOW_SERVO_SLEW_STEP_US 120u
 #endif
 
 #ifdef __cplusplus

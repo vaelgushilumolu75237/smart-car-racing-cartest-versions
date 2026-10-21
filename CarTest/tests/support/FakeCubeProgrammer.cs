@@ -96,6 +96,8 @@ internal static class FakeCubeProgrammer
         bool scalarRead = address == Env("RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS");
         bool diagnosticRead = address == Env("RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS");
         bool speedPiDiagnosticRead = address == Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS");
+        bool receiveDiagnosticRead = address == Env("RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS");
+        bool speedPiTraceRead = address == Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS");
         if (mode == "connect-error" ||
             (mode == "connect-error-1000" && args[3] == "freq=1000") ||
             (mode == "status-only-error" && scalarRead))
@@ -141,6 +143,16 @@ internal static class FakeCubeProgrammer
         {
             fixturePath = Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH");
             expectedAddress = Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS");
+        }
+        else if (receiveDiagnosticRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS");
+        }
+        else if (speedPiTraceRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS");
         }
         else if (!String.IsNullOrEmpty(Env("RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH")) &&
                  address == expectedAddress && args[uploadIndex + 2] == "64")
@@ -205,6 +217,11 @@ internal static class FakeCubeProgrammer
             {
                 content[16] ^= 0x01;
                 UpdateSpeedPiCrc(content);
+            }
+            if (mode == "speed-pi-trace-crc-error" && speedPiTraceRead &&
+                content.Length > 64 + 44)
+            {
+                content[64 + 20] ^= 0x01;
             }
             Directory.CreateDirectory(Path.GetDirectoryName(args[uploadIndex + 3]));
             File.WriteAllBytes(args[uploadIndex + 3], content);

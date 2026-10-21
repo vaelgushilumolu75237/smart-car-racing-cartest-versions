@@ -12,6 +12,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $exportScript = Join-Path $projectRoot 'tools\export_run_log.ps1'
 $validator = Join-Path $projectRoot 'tools\runtime_log_export.py'
 $statusReader = Join-Path $projectRoot 'tools\run_status_reader.py'
+$fixtureBuilder = Join-Path $PSScriptRoot 'support\make_status_fixtures.py'
 $fakeSource = Join-Path $PSScriptRoot 'support\FakeCubeProgrammer.cs'
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -30,6 +31,10 @@ $layout = ($inspect -join [Environment]::NewLine) | ConvertFrom-Json
 $statusPlanLines = @(& $python $statusReader plan --elf $resolvedElf)
 if ($LASTEXITCODE -ne 0) { throw 'Could not inspect status read plan for fake CLI tests.' }
 $statusPlan = ($statusPlanLines -join [Environment]::NewLine) | ConvertFrom-Json
+$statusFixtureRoot = Join-Path $OutputRoot 'status snapshots'
+$statusFixtureLines = @(& $python $fixtureBuilder --elf $resolvedElf --out $statusFixtureRoot --start-token 1)
+if ($LASTEXITCODE -ne 0) { throw 'Could not create matching receive/trace diagnostic fixtures.' }
+$statusFixtureInfo = ($statusFixtureLines -join [Environment]::NewLine) | ConvertFrom-Json
 $serial = '1234567890'
 
 $descriptorFixture = Join-Path $OutputRoot 'target-flash-descriptor.bin'
@@ -115,7 +120,7 @@ function Write-SpeedPiDiagnosticFixture {
     param([string]$Path, [uint32]$StartToken, [uint32]$Flags, [uint32]$PiType)
     $bytes = New-Object byte[] 128
     Set-U32LE $bytes 0 0x47414950
-    Set-U16LE $bytes 4 1
+    Set-U16LE $bytes 4 2
     Set-U16LE $bytes 6 128
     Set-U32LE $bytes 8 2
     Set-U32LE $bytes 16 $StartToken
@@ -138,6 +143,7 @@ function Write-SpeedPiDiagnosticFixture {
     Set-U32LE $bytes 72 50
     Set-U32LE $bytes 76 $Flags
     Set-U32LE $bytes 80 $PiType
+    Set-U32LE $bytes 84 1000
     Set-U32LE $bytes 12 (Get-Crc32 -Bytes $bytes)
     [IO.File]::WriteAllBytes($Path, $bytes)
 }
@@ -192,6 +198,8 @@ $environmentNames = @(
     'RUNTIME_LOG_FAKE_DESCRIPTOR_ADDRESS', 'RUNTIME_LOG_FAKE_DESCRIPTOR_PATH',
     'RUNTIME_LOG_FAKE_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_DIAGNOSTIC_PATH',
     'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH',
+    'RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_PATH',
+    'RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS', 'RUNTIME_LOG_FAKE_SPEED_PI_TRACE_PATH',
     'RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS', 'RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_SIZE', 'RUNTIME_LOG_FAKE_PROBES',
@@ -237,6 +245,14 @@ function Invoke-FakeExport {
         'active' { $speedPiDiagnosticActivePath }
         default { $speedPiDiagnosticFrozenPath }
     }
+    $env:RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS = [string]$statusPlan.receive_diagnostic_snapshot.address
+    $env:RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_PATH = [string]$statusFixtureInfo.receive_diagnostic_path
+    $env:RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS = [string]$statusPlan.speed_pi_trace_snapshot.address
+    $env:RUNTIME_LOG_FAKE_SPEED_PI_TRACE_PATH = switch ($Mode) {
+        'idle' { [string]$statusFixtureInfo.speed_pi_trace_idle_path }
+        'active' { [string]$statusFixtureInfo.speed_pi_trace_active_path }
+        default { [string]$statusFixtureInfo.speed_pi_trace_frozen_path }
+    }
     $env:RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH = switch ($Mode) {
         'idle' { $idleHeaderPath }
         'active' { $activeHeaderPath }
@@ -276,36 +292,40 @@ function Get-ExportRunDirectory {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
-$successAddresses = @(
-    [string]$layout.descriptor_address,
-    [string]$layout.descriptor_address,
+$statusReadAddresses = @([string]$layout.descriptor_address,
     [string]$statusPlan.scalar_read.address,
-    [string]$statusPlan.header_read.address,
-    [string]$statusPlan.runtime_diagnostic_snapshot.address,
-    [string]$statusPlan.header_read.address,
-    [string]$layout.storage_address,
-    [string]$layout.storage_address,
-    [string]$layout.storage_address,
-    [string]$layout.descriptor_address,
-    [string]$statusPlan.scalar_read.address,
-    [string]$statusPlan.header_read.address,
-    [string]$statusPlan.runtime_diagnostic_snapshot.address,
-    [string]$statusPlan.header_read.address
-)
-$successSizes = @(
-    64, 64, [int]$statusPlan.scalar_read.size, 64, 64, 64,
-    64, [int]$fixtureHeader.payload_size, 64,
-    64, [int]$statusPlan.scalar_read.size, 64, 64, 64
-)
-if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
-    $successAddresses = @($successAddresses[0..4]) +
-        @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
-        @($successAddresses[5..12]) +
-        @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
-        @($successAddresses[13])
-    $successSizes = @($successSizes[0..4]) + @(128) +
-        @($successSizes[5..12]) + @(128) + @($successSizes[13])
+    [string]$statusPlan.header_read.address)
+$statusReadSizes = @(64, [int]$statusPlan.scalar_read.size, 64)
+if ($statusPlan.runtime_diagnostic_snapshot.available) {
+    $statusReadAddresses += [string]$statusPlan.runtime_diagnostic_snapshot.address
+    $statusReadSizes += 64
 }
+if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
+    $statusReadAddresses += [string]$statusPlan.speed_pi_diagnostic_snapshot.address
+    $statusReadSizes += 128
+}
+if ($statusPlan.receive_diagnostic_snapshot.available) {
+    $statusReadAddresses += [string]$statusPlan.receive_diagnostic_snapshot.address
+    $statusReadSizes += 96
+}
+if ($statusPlan.speed_pi_trace_snapshot.available) {
+    $statusReadAddresses += [string]$statusPlan.speed_pi_trace_snapshot.address
+    $statusReadSizes += 64
+}
+$statusReadAddresses += [string]$statusPlan.header_read.address
+$statusReadSizes += 64
+
+$exportPrefixAddresses = @([string]$layout.descriptor_address) + $statusReadAddresses +
+    @([string]$layout.storage_address)
+$exportPrefixSizes = @(64) + $statusReadSizes + @(64)
+if ($statusPlan.speed_pi_trace_snapshot.available) {
+    $exportPrefixAddresses += [string]$statusPlan.speed_pi_trace_snapshot.address
+    $exportPrefixSizes += [int]$statusPlan.speed_pi_trace_snapshot.size
+}
+$exportPrefixAddresses += @([string]$layout.storage_address, [string]$layout.storage_address)
+$exportPrefixSizes += @([int]$fixtureHeader.payload_size, 64)
+$successAddresses = $exportPrefixAddresses + $statusReadAddresses
+$successSizes = $exportPrefixSizes + $statusReadSizes
 
 function Assert-HotPlugUploadArguments {
     param(
@@ -379,6 +399,21 @@ try {
          -not $successMetadata.speed_pi_diagnostic_post_export.frozen)) {
         throw 'Speed PI diagnostic was not exported beside the CSV with a matching frozen PE7 token.'
     }
+    if ($statusPlan.speed_pi_trace_snapshot.available -and
+        (-not (Test-Path -LiteralPath $successMetadata.speed_pi_trace_csv -PathType Leaf) -or
+         -not (Test-Path -LiteralPath $successMetadata.speed_pi_trace_metadata -PathType Leaf) -or
+         $successMetadata.speed_pi_trace_status -ne 'verified')) {
+        throw 'Frozen Speed PI trace was not exported with validated CSV and metadata.'
+    }
+    if ($statusPlan.speed_pi_trace_snapshot.available) {
+        $traceMetadata = Get-Content -LiteralPath $successMetadata.speed_pi_trace_metadata -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not $traceMetadata.records_crc_valid -or $traceMetadata.sample_count -ne 2 -or
+            $traceMetadata.session.start_token -ne 1 -or
+            $traceMetadata.session.pi_type -ne 'incremental' -or
+            $traceMetadata.receive_diagnostic_sequence_link.status -ne 'latest_sequence_not_in_trace') {
+            throw 'Frozen trace did not preserve ring/session CRC evidence and the independent RX sequence link.'
+        }
+    }
     $statusJson = Get-Content -LiteralPath $successMetadata.status_snapshot -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($statusJson.flash_descriptor.status -ne 'matched' -or
         $statusJson.connection.probe_sn -ne $serial -or
@@ -415,7 +450,7 @@ try {
         if ($stateResult.ExitCode -ne 2) {
             throw "Stable $($stateCase.Name) status returned $($stateResult.ExitCode), expected no-run exit 2: $($stateResult.Output)"
         }
-        $stateReadCount = 6 + [int][bool]$statusPlan.speed_pi_diagnostic_snapshot.available
+        $stateReadCount = 1 + $statusReadAddresses.Count
         $stateFrequencies = @(1..$stateReadCount | ForEach-Object { '1000' })
         Assert-HotPlugUploadArguments -ArgsLog $stateResult.ArgsLog `
             -ExpectedFrequencies $stateFrequencies
@@ -427,6 +462,20 @@ try {
             (Test-Path -LiteralPath (Join-Path $stateRun.FullName 'run.csv')) -or
             $stateMetadata.csv) {
             throw "Stable $($stateCase.Name) status was reported as a successful CSV export."
+        }
+    }
+
+    if ($statusPlan.speed_pi_trace_snapshot.available) {
+        $traceFailure = Invoke-FakeExport -Name 'trace-crc-error' -Mode 'speed-pi-trace-crc-error'
+        if ($traceFailure.ExitCode -ne 3) {
+            throw "Corrupt frozen trace should retain the run CSV but report diagnostic inconsistency with exit 3: $($traceFailure.Output)"
+        }
+        $traceFailureRun = Get-ExportRunDirectory $traceFailure.CaseRoot
+        $traceFailureMetadata = Get-Content -LiteralPath (Join-Path $traceFailureRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not (Test-Path -LiteralPath $traceFailureMetadata.csv -PathType Leaf) -or
+            (Test-Path -LiteralPath (Join-Path $traceFailureRun.FullName 'speed-pi-trace.csv')) -or
+            $traceFailureMetadata.status -ne 'decoded_csv_diagnostic_inconsistent') {
+            throw 'Corrupt Speed PI trace was reported as a successful trace export or removed the independently validated runtime CSV.'
         }
     }
 
@@ -454,39 +503,33 @@ try {
     }
     $postDiagnosticRun = Get-ExportRunDirectory $postDiagnosticFailure.CaseRoot
     $postDiagnosticMetadata = Get-Content -LiteralPath (Join-Path $postDiagnosticRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $successPrefixEnd = if ($statusPlan.speed_pi_diagnostic_snapshot.available) { 9 } else { 8 }
-    $postFailureAddresses = @($successAddresses[0..$successPrefixEnd]) + @(
+    $postFailureAddresses = $exportPrefixAddresses + @(
         [string]$layout.descriptor_address,
-        [string]$statusPlan.scalar_read.address,
-        [string]$statusPlan.header_read.address,
-        [string]$statusPlan.runtime_diagnostic_snapshot.address,
-        [string]$statusPlan.header_read.address,
-        [string]$statusPlan.header_read.address,
-        [string]$statusPlan.runtime_diagnostic_snapshot.address,
-        [string]$statusPlan.header_read.address,
-        [string]$statusPlan.header_read.address,
-        [string]$statusPlan.runtime_diagnostic_snapshot.address,
-        [string]$statusPlan.header_read.address
-    )
-    $postFailureSizes = @($successSizes[0..$successPrefixEnd]) + @(
-        64, [int]$statusPlan.scalar_read.size, 64, 64, 64,
-        64, 64, 64, 64, 64, 64
-    )
+        [string]$statusPlan.scalar_read.address)
+    $postFailureSizes = $exportPrefixSizes + @(64, [int]$statusPlan.scalar_read.size)
+    $statusAttemptAddresses = @([string]$statusPlan.header_read.address)
+    $statusAttemptSizes = @(64)
+    if ($statusPlan.runtime_diagnostic_snapshot.available) {
+        $statusAttemptAddresses += [string]$statusPlan.runtime_diagnostic_snapshot.address
+        $statusAttemptSizes += 64
+    }
     if ($statusPlan.speed_pi_diagnostic_snapshot.available) {
-        $firstPiReadIndex = $successPrefixEnd + 4
-        $secondPiReadIndex = $successPrefixEnd + 7
-        $thirdPiReadIndex = $successPrefixEnd + 10
-        $postFailureAddresses = @($postFailureAddresses[0..$firstPiReadIndex]) +
-            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
-            @($postFailureAddresses[($firstPiReadIndex + 1)..$secondPiReadIndex]) +
-            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
-            @($postFailureAddresses[($secondPiReadIndex + 1)..$thirdPiReadIndex]) +
-            @([string]$statusPlan.speed_pi_diagnostic_snapshot.address) +
-            @($postFailureAddresses[($thirdPiReadIndex + 1)..($postFailureAddresses.Count - 1)])
-        $postFailureSizes = @($postFailureSizes[0..$firstPiReadIndex]) + @(128) +
-            @($postFailureSizes[($firstPiReadIndex + 1)..$secondPiReadIndex]) + @(128) +
-            @($postFailureSizes[($secondPiReadIndex + 1)..$thirdPiReadIndex]) + @(128) +
-            @($postFailureSizes[($thirdPiReadIndex + 1)..($postFailureSizes.Count - 1)])
+        $statusAttemptAddresses += [string]$statusPlan.speed_pi_diagnostic_snapshot.address
+        $statusAttemptSizes += 128
+    }
+    if ($statusPlan.receive_diagnostic_snapshot.available) {
+        $statusAttemptAddresses += [string]$statusPlan.receive_diagnostic_snapshot.address
+        $statusAttemptSizes += 96
+    }
+    if ($statusPlan.speed_pi_trace_snapshot.available) {
+        $statusAttemptAddresses += [string]$statusPlan.speed_pi_trace_snapshot.address
+        $statusAttemptSizes += 64
+    }
+    $statusAttemptAddresses += [string]$statusPlan.header_read.address
+    $statusAttemptSizes += 64
+    for ($retry = 0; $retry -lt 3; ++$retry) {
+        $postFailureAddresses += $statusAttemptAddresses
+        $postFailureSizes += $statusAttemptSizes
     }
     $postFailureFrequencies = @(1..$postFailureAddresses.Count | ForEach-Object { '1000' })
     Assert-HotPlugUploadArguments -ArgsLog $postDiagnosticFailure.ArgsLog `

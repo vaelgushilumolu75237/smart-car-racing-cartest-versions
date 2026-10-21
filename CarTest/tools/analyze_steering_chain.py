@@ -28,6 +28,19 @@ H743_FIELDS = (
 HOLD_QUANTUM_MS = {1: 20, 2: 50}
 U32_MODULUS = 1 << 32
 U16_MODULUS = 1 << 16
+CONTROL_EXTENSION_V2_COLUMN = "control_ext_v2_hex"
+CONTROL_EXTENSION_V2_FIELDS = (
+    "version", "flags", "pd_active", "preview_profile",
+    "preview_confirmed", "geometry_valid", "position_same_sign",
+    "duplicate", "profile_code", "position_p", "derivative_d",
+    "pd_output", "preview_candidate", "preview_gain_milli",
+    "preview_applied", "capture_dt_ms", "preview_state", "reset_code",
+    "sent_control", "crc16",
+)
+CONTROL_EXTENSION_V2_STAGE_FIELDS = (
+    "position_p", "derivative_d", "pd_output", "preview_candidate",
+    "preview_gain_milli", "preview_applied", "sent_control",
+)
 
 
 class AnalysisError(ValueError):
@@ -63,6 +76,92 @@ def _parse_bool(value: Any, name: str) -> bool:
     if text in ("0", "false", "no", "n"):
         return False
     _fail("{} must be a boolean/0/1 (got {!r})".format(name, value))
+
+
+def _crc16_ccitt_false(data: bytes) -> int:
+    crc = 0xFFFF
+    for byte in data:
+        crc ^= byte << 8
+        for _bit in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return crc
+
+
+def _decode_control_extension_v2(value: Any,
+                                 base: Mapping[str, Any]) -> Tuple[Dict[str, Any] | None, List[str], bool]:
+    """Decode and bind a camera V2 control record to its base trace row.
+
+    The extension is optional for historical traces. A present but invalid
+    extension remains visible with its decoded values and an explicit issue
+    list; callers must only aggregate values whose valid flag is true.
+    """
+    if value is None or not str(value).strip():
+        return None, [], False
+    text = str(value).strip()
+    if len(text) != 64 or any(character not in "0123456789abcdefABCDEF"
+                               for character in text):
+        return None, ["extension must be exactly 32 bytes of hexadecimal"], True
+    raw = bytes.fromhex(text)
+
+    def u16(offset: int) -> int:
+        return raw[offset] | (raw[offset + 1] << 8)
+
+    def i16(offset: int) -> int:
+        number = u16(offset)
+        return number - 0x10000 if number & 0x8000 else number
+
+    def u32(offset: int) -> int:
+        return (raw[offset] | (raw[offset + 1] << 8) |
+                (raw[offset + 2] << 16) | (raw[offset + 3] << 24))
+
+    flags = raw[1]
+    profile_code = (flags >> 6) & 0x03
+    record: Dict[str, Any] = {
+        "version": raw[0],
+        "flags": flags,
+        "pd_active": bool(flags & 0x01),
+        "preview_profile": bool(flags & 0x02),
+        "preview_confirmed": bool(flags & 0x04),
+        "geometry_valid": bool(flags & 0x08),
+        "position_same_sign": bool(flags & 0x10),
+        "duplicate": bool(flags & 0x20),
+        "profile_code": profile_code,
+        "sequence": u16(2),
+        "capture_ms": u32(4),
+        "send_ms": u32(8),
+        "position_p": i16(12),
+        "derivative_d": i16(14),
+        "pd_output": i16(16),
+        "preview_candidate": i16(18),
+        "preview_gain_milli": u16(20),
+        "preview_applied": i16(22),
+        "capture_dt_ms": u16(24),
+        "preview_state": raw[26],
+        "reset_code": raw[27],
+        "sent_control": i16(28),
+        "crc16": u16(30),
+    }
+    issues: List[str] = []
+    if record["version"] != 2:
+        issues.append("extension version is not 2")
+    expected_crc = _crc16_ccitt_false(raw[:30])
+    if record["crc16"] != expected_crc:
+        issues.append("extension CRC16/CCITT-FALSE mismatch")
+    for name in ("sequence", "capture_ms", "send_ms"):
+        if record[name] != base[name]:
+            issues.append("extension {} does not match base row".format(name))
+    if record["sent_control"] != base["sent_error_norm"]:
+        issues.append("extension sent_control does not match base packet error")
+    if profile_code == 3:
+        issues.append("extension profile code 3 is reserved")
+    if record["preview_state"] > 3:
+        issues.append("extension preview state is outside 0..3")
+    if record["reset_code"] > 11:
+        issues.append("extension reset code is outside 0..11")
+    return record, issues, True
 
 
 def _metadata_tokens(line: str) -> Dict[str, str]:
@@ -120,6 +219,16 @@ def _parse_camera_block(lines: Sequence[str], block_number: int) -> Tuple[Dict[s
         record["write_error"] = _parse_int(source.get("write_error"), "camera write_error")
         for name in CAMERA_FIELDS[7:]:
             record[name] = _parse_int(source.get(name), "camera " + name)
+        extension, extension_issues, extension_present = _decode_control_extension_v2(
+            source.get(CONTROL_EXTENSION_V2_COLUMN), record)
+        record["control_ext_v2_present"] = extension_present
+        record["control_ext_v2_valid"] = (
+            bool(extension_present and not extension_issues)
+            if extension_present else None)
+        record["control_ext_v2_issues"] = extension_issues
+        for name in CONTROL_EXTENSION_V2_FIELDS:
+            record["control_ext_v2_" + name] = (
+                extension.get(name) if extension is not None else None)
         record["_row_index"] = len(records)
         record["_trace_block"] = block_number
         records.append(record)
@@ -637,7 +746,7 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
             if not _is_effective_send(camera):
                 unmatched_h743.add(sequence)
                 continue
-            matched_rows.append({
+            matched_record = {
                 "camera_session": camera["camera_session"],
                 "camera_row_index": camera["_row_index"],
                 "sequence": sequence,
@@ -665,7 +774,15 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
                 "servo_requested_us": hrow["servo_requested_us"],
                 "servo_limited_us": hrow["servo_limited_us"],
                 "servo_applied_us": hrow["servo_applied_us"],
-            })
+                "control_ext_v2_present": camera.get("control_ext_v2_present", False),
+                "control_ext_v2_valid": camera.get("control_ext_v2_valid"),
+                "control_ext_v2_issues": "; ".join(
+                    camera.get("control_ext_v2_issues", [])),
+            }
+            for extension_field in CONTROL_EXTENSION_V2_FIELDS:
+                matched_record["control_ext_v2_" + extension_field] = camera.get(
+                    "control_ext_v2_" + extension_field)
+            matched_rows.append(matched_record)
 
     matched_seq_to_camera = {row["sequence"]: row for row in matched_rows}
     matched_send_sequences = sorted(matched_seq_to_camera)
@@ -689,6 +806,44 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
     valid_candidates = [row for row in camera_effective
                         if selected_camera_session is None or row["camera_session"] == selected_camera_session]
     unique_valid = [row for row in valid_candidates if len(candidates[row["sequence"]]) == 1]
+    control_extension_rows = [row for row in camera_rows
+                              if row.get("control_ext_v2_present")]
+    control_extension_invalid = [row for row in control_extension_rows
+                                 if not row.get("control_ext_v2_valid")]
+    control_extension_missing = len(camera_rows) - len(control_extension_rows)
+    control_extension_valid = [row for row in control_extension_rows
+                               if row.get("control_ext_v2_valid")]
+    if not control_extension_rows:
+        control_extension_status = "legacy_absent"
+    elif control_extension_invalid:
+        control_extension_status = "invalid"
+    elif control_extension_missing:
+        control_extension_status = "partial"
+    else:
+        control_extension_status = "valid"
+    unique_valid_control_extension = [
+        row for row in unique_valid if row.get("control_ext_v2_valid")]
+    control_extension_report = {
+        "status": control_extension_status,
+        "record_count": len(camera_rows),
+        "present_records": len(control_extension_rows),
+        "valid_records": len(control_extension_valid),
+        "invalid_records": len(control_extension_invalid),
+        "missing_records": control_extension_missing,
+        "invalid_rows": [{
+            "row_index": row["_row_index"],
+            "issues": row.get("control_ext_v2_issues", []),
+        } for row in control_extension_invalid],
+        "crc": "CRC16/CCITT-FALSE over bytes 0..29, stored little-endian at bytes 30..31",
+        "ranges": {
+            field: _range_summary(
+                int(row["control_ext_v2_" + field])
+                for row in unique_valid_control_extension
+                if row.get("control_ext_v2_" + field) is not None)
+            for field in CONTROL_EXTENSION_V2_STAGE_FIELDS
+        },
+        "range_basis": "Unique effective camera sends with a valid, base-row-matched V2 extension.",
+    }
     stage_fields = (
         "position_norm", "preview_candidate_norm", "preview_applied_norm", "sent_error_norm",
         "raw_control_norm", "filtered_error_norm", "reference_error_norm",
@@ -738,10 +893,15 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
         trace_warnings = []
     if metadata_mismatches:
         trace_warnings.append("camera diagnostic metadata count does not match parsed CSV rows")
+    if control_extension_invalid:
+        trace_warnings.append("camera control extension V2 has CRC, schema, or base-row binding errors")
+    if control_extension_rows and control_extension_missing:
+        trace_warnings.append("camera control extension V2 is missing from some rows")
     if snapshot.get("published") and not snapshot.get("usable"):
         trace_warnings.append("published hold snapshot values are incomplete or outside allowed ranges; hold attribution was refused")
     analysis_status = (
-        "incomplete_camera_trace" if trace_record_errors or metadata_mismatches else
+        "incomplete_camera_trace" if trace_record_errors or metadata_mismatches or
+        control_extension_invalid or (control_extension_rows and control_extension_missing) else
         "no_matched_sequences" if not matched_rows else
         "complete" if selected_camera_session is not None else
         "insufficient_session_evidence")
@@ -776,6 +936,7 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
             "metadata_count_mismatches": metadata_mismatches,
             "evidence_warnings": trace_warnings,
             "duplicate_or_cross_session_sequences": sorted(ambiguous_sequences),
+            "control_extension_v2": control_extension_report,
         },
         "sequence_comparison": {
             "camera_effective_full_sends": len(camera_effective),
@@ -843,6 +1004,9 @@ def _write_matched_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         "h743_row_index", "h743_t_ms", "h743_t_elapsed_ms", "h743_mode",
         "h743_latest_error_norm", "error_matches", "servo_requested_us",
         "servo_limited_us", "servo_applied_us",
+        "control_ext_v2_present", "control_ext_v2_valid",
+        "control_ext_v2_issues",
+        *("control_ext_v2_" + name for name in CONTROL_EXTENSION_V2_FIELDS),
     ]
     from io import StringIO
     stream = StringIO(newline="")
@@ -885,6 +1049,13 @@ def _render_markdown(report: Mapping[str, Any]) -> str:
         "",
         "Observed signed differences between recorded stages: `{}`. These retain recorded integer units and do not estimate a gain.".format(
             json.dumps(report["steering_command_stages"]["observed_differences"], sort_keys=True)),
+        "",
+        "Camera control extension V2: **{}** ({} valid, {} invalid, {} absent of {}). Per-frame P, D, P+D, preview, and final sent values are retained in the matched CSV when the extension passes its CRC and base-row binding checks.".format(
+            report["camera_trace"]["control_extension_v2"]["status"],
+            report["camera_trace"]["control_extension_v2"]["valid_records"],
+            report["camera_trace"]["control_extension_v2"]["invalid_records"],
+            report["camera_trace"]["control_extension_v2"]["missing_records"],
+            report["camera_trace"]["control_extension_v2"]["record_count"]),
         "",
         "Servo request/limit/applied differences: {} request-to-limited, {} limited-to-applied across {} matched H743 rows. Pulse-width values are software data, not mechanical angle measurements.".format(
             constraints["request_limited_difference_rows"], constraints["limited_applied_difference_rows"],

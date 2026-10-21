@@ -31,8 +31,8 @@ static car_speed_pi_diag_values_t sample_values(uint32_t now_ms,
     values.measured_right_millirps = 2050;
     values.nominal_ff_left_permille = 500u;
     values.nominal_ff_right_permille = 490u;
-    values.requested_left_permille = 700u;
-    values.requested_right_permille = 700u;
+    values.requested_left_permille = 1000u;
+    values.requested_right_permille = 1000u;
     values.applied_left_permille = 680u;
     values.applied_right_permille = 670u;
     values.status = 3u;
@@ -90,7 +90,7 @@ int main(void)
     CHECK(g_speed_pi_diag_snapshot.measured_left_millirps == 2100 &&
               g_speed_pi_diag_snapshot.target_right_millirps == 2300 &&
               g_speed_pi_diag_snapshot.nominal_ff_left_permille == 500u &&
-              g_speed_pi_diag_snapshot.requested_left_permille == 700u,
+              g_speed_pi_diag_snapshot.requested_left_permille == 1000u,
           "valid sample values were not published");
     CHECK(g_speed_pi_diag_snapshot.saturation_left_ms == 10u &&
               g_speed_pi_diag_snapshot.saturation_right_ms == 10u,

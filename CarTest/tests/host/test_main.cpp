@@ -968,9 +968,9 @@ void test_follow_output_differential_and_independent_ramps()
              state.target_left_permille, 600u);
     CHECK_EQ("right turn targets inner right at 400",
              state.target_right_permille, 400u);
-    CHECK_EQ("left side advances only one 10-permille step", left, 510u);
-    CHECK_EQ("right side independently advances one 10-permille step",
-             right, 490u);
+    CHECK_EQ("left side advances only one 40-permille step", left, 540u);
+    CHECK_EQ("right side independently advances one 40-permille step",
+             right, 460u);
 
     CHECK_EQ("left turn mirrors the right-turn target allocation",
              car_follow_output_update(&state, 30u, 500u, 100u, 100u, 1100u,
@@ -981,9 +981,9 @@ void test_follow_output_differential_and_independent_ramps()
     CHECK_EQ("left turn targets outer right at 600", state.target_right_permille,
              600u);
     CHECK_EQ("left-side target change is independently ramp limited",
-             left, 490u);
+             left, 460u);
     CHECK_EQ("right-side target change is independently ramp limited",
-             right, 510u);
+             right, 540u);
 
     CHECK_EQ("medium differential endpoint remains symmetric",
              car_follow_output_update(&state, 40u, 500u, 50u, 50u, 2500u,
@@ -998,9 +998,9 @@ void test_follow_output_differential_and_independent_ramps()
              car_follow_output_update(&state, 1000u, 500u, 50u, 50u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
-    CHECK_EQ("delayed left command does not catch up in one tick", left, 510u);
+    CHECK_EQ("delayed left command does not catch up in one tick", left, 540u);
     CHECK_EQ("delayed right command does not catch up in one tick", right,
-             490u);
+             460u);
 
     car_follow_output_hold(&state, 1001u, 237u, 418u);
     CHECK_EQ("hold freezes the applied left side independently",
@@ -1072,8 +1072,10 @@ void test_follow_output_differential_and_independent_ramps()
              car_follow_output_update(&state, 4u, 500u, 100u, 100u, 2500u,
                                       1530u, 1100u, 2500u, 1u, 1u,
                                       1u, 500u, 500u, &left, &right), 1u);
-    CHECK_EQ("wrapped ramp advances left by one step", left, 510u);
-    CHECK_EQ("wrapped ramp advances right by one step", right, 490u);
+    CHECK_EQ("wrapped ramp advances left by one 40-permille step", left,
+             540u);
+    CHECK_EQ("wrapped ramp advances right by one 40-permille step", right,
+             460u);
 
     CHECK_EQ("normal helper rejects base requests above 500",
              car_follow_output_update(&state, 14u, 501u, 0u, 0u, 2500u,
@@ -1293,9 +1295,9 @@ void test_turn_slope_assist_gate_and_per_side_slew()
     CHECK_EQ("assist state describes the selected command", state.slope_assist_active, 1u);
     CHECK_EQ("assist enters through one 40-permille left step", left, 540u);
     CHECK_EQ("assist enters through one 40-permille right step", right, 540u);
-    CHECK(state.target_left_permille <= 700u &&
-              state.target_right_permille <= 700u,
-          "both assisted side targets respect the fixed 700 hard ceiling");
+    CHECK(state.target_left_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE &&
+              state.target_right_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE,
+          "both assisted side targets respect the fixed 1000 hard ceiling");
     CHECK(state.target_left_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE,
           "left slope target passes the fixed hard-bound check");
     CHECK(state.target_right_permille <= CAR_FOLLOW_HARD_MAX_PERMILLE,
@@ -3808,8 +3810,8 @@ void test_application_follow_profile_recovers_and_runs_past_bench_limit()
              config.follow_right_encoder_counts_per_rev, 60239u);
     CHECK_EQ("application left encoder sign", config.follow_left_encoder_sign, 1);
     CHECK_EQ("application right encoder sign", config.follow_right_encoder_sign, -1);
-    CHECK_EQ("application Follow normal output ceiling is 60 percent",
-             config.follow_max_duty_permille, 600u);
+    CHECK_EQ("application Follow normal output ceiling is 100 percent",
+             config.follow_max_duty_permille, 1000u);
     CHECK_EQ("production Bench retains its separate 5.5 second limit",
              config.bench_run_limit_ms, 5500u);
 
@@ -6281,8 +6283,8 @@ void test_speed_pi_shadow_math_gates_and_antiwindup()
     CHECK_EQ("unconfigured PI clears stored integral", state.integral_q16,
              INT64_C(0));
     config.configured = 1u;
-    config.output_cap_permille = 701u;
-    CHECK_EQ("cap above independent 700 rejected",
+    config.output_cap_permille = 1001u;
+    CHECK_EQ("cap above independent 1000 rejected",
              car_speed_pi_update(&state, &config, &input, &output),
              CAR_SPEED_PI_STATUS_INVALID);
     CHECK_EQ("invalid cap has no permission", output.motor_permission, 0u);
@@ -6298,10 +6300,12 @@ void test_speed_pi_shadow_math_gates_and_antiwindup()
     CHECK_EQ("maximum bounded PI inputs remain defined",
              car_speed_pi_update(&state, &config, &input, &output),
              CAR_SPEED_PI_STATUS_RUNNING);
-    CHECK_EQ("maximum bounded PI input saturates at 700",
-             output.requested_permille, 700u);
+    CHECK_EQ("maximum bounded PI input saturates at 1000",
+             output.requested_permille, 1000u);
     CHECK_EQ("maximum bounded PI input reports saturation",
              output.saturated, 1u);
+    CHECK_EQ("1000-cap antiwindup suppresses outward integral growth",
+             state.integral_q16, INT64_C(0));
 
     config.kp_q16 = 0u;
     config.ki_q16 = 0u;
@@ -6377,12 +6381,31 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
     CHECK_EQ("qualified fresh sample arms the independent PI adapter",
              car_follow_speed_pi_update(&state, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
-    CHECK_EQ("straight speed target is 2400 milli-RPS",
+    CHECK_EQ("positional PI straight target remains 2400 milli-RPS",
              state.target_left_millirps, 2400);
     CHECK_EQ("steady speed proposal stays at 500 permille",
              state.proposal_left_permille, 500u);
     CHECK_EQ("steady right proposal stays at 500 permille",
              state.proposal_right_permille, 500u);
+
+    car_follow_speed_pi_state_t upper_cap{};
+    car_follow_speed_pi_input_t upper_cap_input = input;
+    upper_cap_input.sample_ms = 11u;
+    upper_cap_input.nominal_left_permille = 1000u;
+    upper_cap_input.nominal_right_permille = 1000u;
+    upper_cap_input.applied_left_permille = 1000u;
+    upper_cap_input.applied_right_permille = 1000u;
+    upper_cap_input.measured_left_millirps = 0;
+    upper_cap_input.measured_right_millirps = 0;
+    CHECK_EQ("Follow positional PI requests up to its 1000 cap",
+             car_follow_speed_pi_update(&upper_cap, &upper_cap_input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("Follow positional PI reaches exactly 1000",
+             upper_cap.proposal_left_permille, 1000u);
+    CHECK_EQ("Follow positional PI exposes upper saturation",
+             upper_cap.saturated_left, 1u);
+    CHECK_EQ("Follow positional antiwindup keeps its integral bounded",
+             upper_cap.left.integral_q16, INT64_C(0));
 
     const uint16_t proposal_before_duplicate = state.proposal_left_permille;
     const int64_t integral_before_duplicate = state.left.integral_q16;
@@ -6414,23 +6437,23 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
     CHECK_EQ("nominal left target remains 2400 milli-RPS",
              state.target_left_millirps, 2400);
 
-    CHECK_EQ("PI output ramp advances one 20-permille step",
+    CHECK_EQ("PI output ramp advances one 40-permille step",
              car_follow_speed_pi_ramp(&state, 1u, 500u, 500u,
                                       &command_left, &command_right), 1u);
-    CHECK_EQ("load correction slew is bounded to 20",
-             command_left, 520u);
+    CHECK_EQ("load correction slew is bounded to 40",
+             command_left, 540u);
     CHECK_EQ("unloaded side has no output step",
              command_right, 500u);
     CHECK_EQ("PI output ramp does not step before its 10 ms deadline",
-             car_follow_speed_pi_ramp(&state, 0u, 520u, 500u,
+             car_follow_speed_pi_ramp(&state, 0u, 540u, 500u,
                                       &command_left, &command_right), 1u);
     CHECK_EQ("not-due step leaves the applied left output unchanged",
-             command_left, 520u);
+             command_left, 540u);
 
     input.sample_ms = 30u;
     input.measured_left_millirps = 5000;
     input.measured_right_millirps = 5000;
-    input.applied_left_permille = 520u;
+    input.applied_left_permille = 540u;
     input.applied_right_permille = 500u;
     CHECK_EQ("overspeed sample reduces both side proposals",
              car_follow_speed_pi_update(&state, &input),
@@ -6455,7 +6478,7 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
     CHECK_EQ("zero correction keeps PI state armed",
              state.armed, 1u);
     CHECK_EQ("zero correction still ramps without resetting startup",
-             car_follow_speed_pi_ramp(&state, 1u, 20u, 20u,
+             car_follow_speed_pi_ramp(&state, 1u, 40u, 20u,
                                       &command_left, &command_right), 1u);
     CHECK_EQ("zero correction reaches zero within the allowed slew",
              command_left, 0u);
@@ -6473,13 +6496,14 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
     CHECK_EQ("underspeed ramp recovers from actual zero on left",
              car_follow_speed_pi_ramp(&state, 1u, 0u, 0u,
                                       &command_left, &command_right), 1u);
-    CHECK_EQ("underspeed recovery starts with a 20-permille left step",
-             command_left, 20u);
-    CHECK_EQ("underspeed recovery starts with a 20-permille right step",
-             command_right, 20u);
+    CHECK_EQ("underspeed recovery starts with a 40-permille left step",
+             command_left, 40u);
+    CHECK_EQ("underspeed recovery starts with a 40-permille right step",
+             command_right, 40u);
     CHECK_EQ("zero-coast recovery remains armed", state.armed, 1u);
 
     const int64_t hold_integral = state.left.integral_q16;
+    const uint16_t hold_proposal = state.proposal_left_permille;
     input.vision_hold = 1u;
     input.applied_left_permille = command_left;
     input.applied_right_permille = command_right;
@@ -6487,8 +6511,8 @@ void test_follow_speed_pi_adapter_sample_slew_hold_and_recovery()
                  &state, &input), CAR_FOLLOW_SPEED_PI_STATUS_HOLD);
     CHECK_EQ("vision hold preserves bounded integral",
              state.left.integral_q16, hold_integral);
-    CHECK_EQ("vision hold preserves stored proposal",
-             state.proposal_left_permille, 700u);
+    CHECK_EQ("vision hold freezes the stored proposal",
+             state.proposal_left_permille, hold_proposal);
 
     input.vision_hold = 0u;
     input.new_speed_sample = 0u;
@@ -6560,13 +6584,14 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
              saturated.proposal_left_permille, 650u);
     input.sample_ms = 20u;
     input.sample_elapsed_ms = 100u;
+    input.nominal_left_permille = 1000u;
     CHECK_EQ("large positive integral fills remaining cap headroom",
              car_follow_incremental_pi_update(&saturated, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
-    CHECK_EQ("650 plus a large positive integral reaches 700",
-             saturated.proposal_left_permille, 700u);
-    CHECK_EQ("upper-rail accumulator is bounded exactly at 700",
-             saturated.left.accumulator_q16, INT64_C(700) * q16);
+    CHECK_EQ("650 plus positive correction reaches the 1000 cap",
+             saturated.proposal_left_permille, 1000u);
+    CHECK_EQ("upper-rail accumulator is bounded exactly at 1000",
+             saturated.left.accumulator_q16, INT64_C(1000) * q16);
     CHECK_EQ("request at upper rail reports saturation",
              saturated.saturated_left, 1u);
     uint16_t command_left = 0u;
@@ -6582,8 +6607,8 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
     CHECK_EQ("continued positive error remains at the bounded upper rail",
              car_follow_incremental_pi_update(&saturated, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
-    CHECK_EQ("sustained upper rail stays at 700",
-             saturated.proposal_left_permille, 700u);
+    CHECK_EQ("sustained upper rail stays at 1000",
+             saturated.proposal_left_permille, 1000u);
     CHECK_EQ("sustained cap constraint remains visible",
              saturated.saturated_left, 1u);
     input.sample_ms = 40u;
@@ -6592,13 +6617,13 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
     CHECK_EQ("reverse speed error unwinds from the upper rail",
              car_follow_incremental_pi_update(&saturated, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
-    CHECK(saturated.proposal_left_permille < 700u,
+    CHECK(saturated.proposal_left_permille < 1000u,
           "reverse error promptly lowers the upper-saturated request");
 
     car_follow_incremental_pi_state_t lower_rail{};
     input = make_input();
     input.applied_left_permille = 50u;
-    input.measured_left_millirps = 5400;
+    input.measured_left_millirps = 6500;
     CHECK_EQ("incremental PI can seed near the lower output rail",
              car_follow_incremental_pi_update(&lower_rail, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
@@ -6631,6 +6656,10 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
     CHECK_EQ("fresh observer sample arms incremental PI",
              car_follow_incremental_pi_update(&resume, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("incremental straight left target is 4800 milli-RPS",
+             resume.target_left_millirps, 4800);
+    CHECK_EQ("incremental straight right target is 4800 milli-RPS",
+             resume.target_right_millirps, 4800);
     const int64_t accumulator_before_hold = resume.left.accumulator_q16;
     const uint16_t proposal_before_hold = resume.proposal_left_permille;
     input.vision_hold = 1u;
@@ -6655,8 +6684,10 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
              resume.proposal_left_permille, 450u);
     CHECK_EQ("resume accumulator is initialized from current actual output",
              resume.left.accumulator_q16, INT64_C(450) * q16);
+    CHECK_EQ("incremental straight target is 4800 milli-RPS",
+             resume.target_left_millirps, 4800);
     CHECK_EQ("resume stores current measured-speed error history",
-             resume.left.previous_error_millirps, 1400);
+             resume.left.previous_error_millirps, 3800);
     CHECK_EQ("resume stores current nominal feedforward history",
              resume.left.previous_feedforward_permille, 500u);
     const int64_t resume_accumulator = resume.left.accumulator_q16;
@@ -6724,8 +6755,29 @@ void test_follow_incremental_pi_saturation_resume_and_sample_guards()
     CHECK_EQ("large error-history difference uses defined wide arithmetic",
              car_follow_incremental_pi_update(&extreme, &input),
              CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
-    CHECK(extreme.proposal_left_permille <= 700u,
+    CHECK(extreme.proposal_left_permille <= 1000u,
           "extreme input remains bounded by the fixed output cap");
+
+    car_follow_incremental_pi_state_t scaled_pair{};
+    input = make_input();
+    input.sample_ms = 100u;
+    input.nominal_left_permille = 650u;
+    input.nominal_right_permille = 350u;
+    input.applied_left_permille = 650u;
+    input.applied_right_permille = 350u;
+    input.measured_left_millirps = 4800;
+    input.measured_right_millirps = 2584;
+    CHECK_EQ("incremental 65/35 pair seeds without an output jump",
+             car_follow_incremental_pi_update(&scaled_pair, &input),
+             CAR_FOLLOW_SPEED_PI_STATUS_RUNNING);
+    CHECK_EQ("largest nominal side maps to 4800 milli-RPS",
+             scaled_pair.target_left_millirps, 4800);
+    CHECK_EQ("scaled smaller side truncates to 2584 milli-RPS",
+             scaled_pair.target_right_millirps, 2584);
+    CHECK_EQ("scaled pair uses the current actual left output",
+             scaled_pair.proposal_left_permille, 650u);
+    CHECK_EQ("scaled pair uses the current actual right output",
+             scaled_pair.proposal_right_permille, 350u);
 
     car_follow_incremental_pi_state_t elapsed_guard{};
     input = make_input();

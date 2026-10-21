@@ -26,10 +26,14 @@ $sourceFiles = @(
     (Join-Path $projectRoot "App\follow_output.c"),
     (Join-Path $projectRoot "App\uart_rx_service.c"),
     (Join-Path $projectRoot "App\runtime_diag.c"),
+    (Join-Path $projectRoot "App\receive_diag.c"),
+    (Join-Path $projectRoot "App\speed_pi_trace.c"),
     (Join-Path $projectRoot "App\vision_protocol.cpp"),
     (Join-Path $PSScriptRoot "test_main.cpp"),
     (Join-Path $PSScriptRoot "test_vision_hold_profile.cpp"),
     (Join-Path $PSScriptRoot "test_speed_pi_diag.c"),
+    (Join-Path $PSScriptRoot "test_receive_diag.c"),
+    (Join-Path $PSScriptRoot "test_speed_pi_trace.c"),
     $vectorFile,
     $reverseVectorFile
 )
@@ -89,12 +93,19 @@ $objectFiles = @(
     (Join-Path $runDirectory "test_speed_pi_diag.obj"),
     (Join-Path $runDirectory "commissioning_hold_2000.obj"),
     (Join-Path $runDirectory "follow_output_hold_200.obj"),
-    (Join-Path $runDirectory "test_vision_hold_profile.obj")
+    (Join-Path $runDirectory "test_vision_hold_profile.obj"),
+    (Join-Path $runDirectory "receive_diag_host.obj"),
+    (Join-Path $runDirectory "speed_pi_trace_host.obj"),
+    (Join-Path $runDirectory "test_receive_diag.obj"),
+    (Join-Path $runDirectory "test_speed_pi_trace.obj")
 )
 $testExecutable = Join-Path $runDirectory "CarTestHostTests.exe"
 $speedPiDiagTestExecutable = Join-Path $runDirectory "CarTestSpeedPiDiagTests.exe"
 $visionHoldProfileTestExecutable = Join-Path $runDirectory "CarTestVisionHoldProfileTests.exe"
+$receiveDiagTestExecutable = Join-Path $runDirectory "CarTestReceiveDiagTests.exe"
+$speedPiTraceTestExecutable = Join-Path $runDirectory "CarTestSpeedPiTraceTests.exe"
 $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
+$traceBuildIdInclude = "/I`"$(Join-Path $PSScriptRoot 'fixtures')`""
 $runtimeLogBuildIdInclude = ""
 $runtimeLogBuildIdDefine = ""
 if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_FIXTURE_PATH)) {
@@ -160,7 +171,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[11])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile isolated FollowTurn slope-assist helper as C11 ===",
-    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_hold_at=car_follow_output_turn_hold_at /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_hold_at=car_follow_output_turn_hold_at /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile read-only run block reason classifier as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[9])`" `"$(Join-Path $projectRoot 'App\run_block_reason.c')`"",
@@ -179,6 +190,17 @@ $batchLines = @(
     "echo === Compile standalone PI diagnostic module and assertions ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCAR_SPEED_PI_DIAG_HOST_TEST /Fo`"$($objectFiles[19])`" `"$(Join-Path $projectRoot 'App\speed_pi_diag.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile standalone receive-rate diagnostic and assertions ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCAR_RECEIVE_DIAG_HOST_TEST /Fo`"$($objectFiles[24])`" `"$(Join-Path $projectRoot 'App\receive_diag.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[26])`" `"$(Join-Path $PSScriptRoot 'test_receive_diag.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile independent fixed-size speed PI ring trace and assertions ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument $traceBuildIdInclude /DCAR_SPEED_PI_TRACE_HOST_TEST /Fo`"$($objectFiles[25])`" `"$(Join-Path $projectRoot 'App\speed_pi_trace.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[27])`" `"$(Join-Path $PSScriptRoot 'test_speed_pi_trace.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "if errorlevel 1 exit /b %errorlevel%",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[20])`" `"$(Join-Path $PSScriptRoot 'test_speed_pi_diag.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile B/C hold deadline and deceleration profile ===",
@@ -190,15 +212,25 @@ $batchLines = @(
     "if errorlevel 1 exit /b %errorlevel%",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link actual CarTest pure modules and host assertions ===",
-    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`" `"$($objectFiles[18])`"",
+    "cl /nologo /Fe:`"$testExecutable`" `"$($objectFiles[0])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[7])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[11])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`" `"$($objectFiles[18])`" `"$($objectFiles[24])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link and run independent PI diagnostic assertions ===",
     "cl /nologo /Fe:`"$speedPiDiagTestExecutable`" `"$($objectFiles[19])`" `"$($objectFiles[20])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "`"$speedPiDiagTestExecutable`"",
     "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Link and run receive diagnostic assertions ===",
+    "cl /nologo /Fe:`"$receiveDiagTestExecutable`" `"$($objectFiles[24])`" `"$($objectFiles[26])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "`"$receiveDiagTestExecutable`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Link and run speed PI trace assertions ===",
+    "cl /nologo /Fe:`"$speedPiTraceTestExecutable`" `"$($objectFiles[25])`" `"$($objectFiles[27])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "`"$speedPiTraceTestExecutable`"",
+    "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link and run 2000 ms hold / 200 ms deceleration profile assertions ===",
-    "cl /nologo /Fe:`"$visionHoldProfileTestExecutable`" `"$($objectFiles[23])`" `"$($objectFiles[21])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[22])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`"",
+    "cl /nologo /Fe:`"$visionHoldProfileTestExecutable`" `"$($objectFiles[23])`" `"$($objectFiles[21])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[22])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`" `"$($objectFiles[24])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "`"$visionHoldProfileTestExecutable`"",
     "if errorlevel 1 exit /b %errorlevel%",
@@ -229,7 +261,7 @@ $batchLines = @(
     "python tests\host\test_follow_speed_pi_main.py --source Src\main.c",
     "if errorlevel 1 set TEST_EXIT=1",
     "echo === Execute production motor_apply speed PI zero-coast and guard paths ===",
-    "python tests\host\test_follow_output_path.py --source Src\main.c --output-dir test-data\speed-pi-trial-20261014\after\host-motor-apply",
+    "python tests\host\test_follow_output_path.py --source Src\main.c --output-dir test-data\speedpd-20261020-validation\host-motor-apply",
     "if errorlevel 1 set TEST_EXIT=1",
     "popd",
     "exit /b %TEST_EXIT%"

@@ -1,6 +1,8 @@
 #include "car_vision.h"
 
 #include <string.h>
+
+#include "receive_diag.h"
 #if defined(_MSC_VER)
 #include <intrin.h>
 #endif
@@ -18,9 +20,11 @@ static void publish_barrier(void)
 
 static void note_protocol_error(car_vision_rx_t *rx,
                                 car_control_t *control,
-                                uint8_t discarded_byte)
+                                uint8_t discarded_byte,
+                                uint32_t now_ms)
 {
     ++rx->protocol_error_count;
+    car_receive_diag_note_parser_error(now_ms);
     if (discarded_byte != 0u) {
         ++rx->discarded_byte_count;
     }
@@ -170,7 +174,7 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
 
         if ((parser_length_before == 0u && byte != VP_SYNC_BYTE_0) ||
             (parser_length_before == 1u && byte != VP_SYNC_BYTE_1)) {
-            note_protocol_error(rx, control, 1u);
+            note_protocol_error(rx, control, 1u, now_ms);
             dispatch_new_rx_faults(rx, control);
             return;
         }
@@ -181,13 +185,16 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
             if (control->rx_recovery_flush_required != 0u) {
                 return;
             }
+            car_receive_diag_note_frame(
+                frame.sequence, (frame.flags & VP_FLAG_VALID) != 0u,
+                arrival_ms);
             car_control_on_vision_frame_at_with_flags(
                 control, config, frame.sequence, frame.flags,
                 frame.confidence, frame.lateral_error, arrival_ms,
                 now_ms, pe7_raw_high);
             dispatch_new_rx_faults(rx, control);
         } else if (parser_length_before == (VP_FRAME_SIZE - 1u)) {
-            note_protocol_error(rx, control, 0u);
+            note_protocol_error(rx, control, 0u, now_ms);
             dispatch_new_rx_faults(rx, control);
             return;
         }

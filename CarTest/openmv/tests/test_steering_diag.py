@@ -59,6 +59,8 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertIsInstance(main._STEERING_DIAG, main._SteeringDiagBuffer)
         self.assertEqual(len(main._STEERING_DIAG.data), 256 * 32)
         self.assertEqual(len(main._STEERING_DIAG.extension_data), 256 * 16)
+        self.assertEqual(len(main._STEERING_DIAG.control_extension_data),
+                         256 * 32)
         self.assertEqual(main._SteeringDiagBuffer.RECORD_SIZE, 32)
         self.assertEqual(main._SteeringDiagBuffer.PRE_TRIGGER_CAPACITY, 64)
         self.assertEqual(main._SteeringDiagBuffer.POST_TRIGGER_CAPACITY, 192)
@@ -88,10 +90,20 @@ class SteeringDiagBufferTests(unittest.TestCase):
     def test_record_uses_actual_packet_bytes_and_fixed_little_endian_layout(self):
         period = 1 << 30
         frame = _frame(0xFFFF, 1, -1000)
+        control = {
+            "profile_code": 1, "pd_enabled": True,
+            "preview_enabled": True, "preview_confirmed": True,
+            "preview_geometry_valid": True, "preview_same_sign": True,
+            "duplicate": True, "position_p": -1000,
+            "derivative_d": -100, "pd_output": -925,
+            "preview_candidate": -100, "preview_gain_milli": 200,
+            "preview_applied": 75, "capture_dt_ms": 25,
+            "preview_state": 2, "reset_code": 5,
+        }
         recorded = self.diag.record(
             frame, True, False, True, period - 10, 5,
             -1000, -100, 75, -925, -900, 250, 255, 5, 0xFFFFFFFF,
-            tuple(range(16)))
+            tuple(range(16)), control)
         self.assertTrue(recorded)
         data = self.diag.data
         self.assertEqual(len(data), 256 * 32)
@@ -108,6 +120,28 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertEqual(data[26:28], bytes((255, 5)))
         self.assertEqual(main._SteeringDiagBuffer._u32(data, 28), 0xFFFFFFFF)
         self.assertEqual(self.diag.extension_data[:16], bytes(range(16)))
+        extension = self.diag.control_extension_data[:32]
+        self.assertEqual(extension[0], 2)
+        self.assertEqual(extension[1], 0x7F)
+        self.assertEqual(main._SteeringDiagBuffer._u16(extension, 2), 0xFFFF)
+        self.assertEqual(main._SteeringDiagBuffer._u32(extension, 4),
+                         period - 10)
+        self.assertEqual(main._SteeringDiagBuffer._u32(extension, 8), 5)
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 12), -1000)
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 14), -100)
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 16), -925)
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 18), -100)
+        self.assertEqual(main._SteeringDiagBuffer._u16(extension, 20), 200)
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 22), 75)
+        self.assertEqual(main._SteeringDiagBuffer._u16(extension, 24), 25)
+        self.assertEqual(extension[26:28], bytes((2, 5)))
+        self.assertEqual(main._SteeringDiagBuffer._i16(extension, 28), -1000)
+        expected_crc = vision_protocol.crc16_ccitt_false(extension[:30])
+        self.assertEqual(main._SteeringDiagBuffer._u16(extension, 30),
+                         expected_crc)
+        extension[8] ^= 1
+        self.assertNotEqual(main._SteeringDiagBuffer._u16(extension, 30),
+                            vision_protocol.crc16_ccitt_false(extension[:30]))
         self.assertEqual(self.diag.record_errors, 0)
 
     def test_none_pending_side_roundtrips_and_trigger_trace_is_chronological(self):
@@ -133,7 +167,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             self.diag.dump(config.BUILD_ID)
         lines = output.getvalue().splitlines()
-        rows = [line.split(",") for line in lines[3:-1]]
+        rows = [line.split(",") for line in lines[4:-1]]
         self.assertEqual(len(rows), 256)
         self.assertEqual([int(row[0]) for row in rows], list(range(6, 262)))
         self.assertEqual(rows[64][17 + 10], "-1")
@@ -194,8 +228,12 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertIn("overwritten=6 record_errors=0", lines[0])
         self.assertIn("ticks_period_ms=1073741824", lines[0])
         self.assertIn("extension=single_edge_candidate_v2", lines[1])
-        self.assertEqual(lines[2], self.diag._CSV_HEADER)
-        self.assertTrue(lines[3].startswith("6,"))
+        self.assertIn("control_extension_v2_record_size=32", lines[0])
+        self.assertIn("timestamps=camera_ticks_ms_snapshot_complete,uart_write_return",
+                      lines[2])
+        self.assertIn("14-15:derivative_d_i16_clamped_component", lines[2])
+        self.assertEqual(lines[3], self.diag._CSV_HEADER)
+        self.assertTrue(lines[4].startswith("6,"))
         self.assertTrue(lines[-2].startswith("69,"))
         self.assertEqual(lines[-1], "STEERING_DIAG_END")
 
@@ -651,7 +689,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             '                      "DISABLED", slope_hint,\n')
         return current
 
-    def test_vision_algorithm_ast_matches_baseline_after_diag_and_build_changes(self):
+    def test_unrelated_vision_ast_matches_baseline_after_control_changes(self):
         baseline_main = (BASELINE_DIR / "main.py").read_text(encoding="utf-8")
         current_main = (OPENMV_DIR / "main.py").read_text(encoding="utf-8")
         baseline_config = (BASELINE_DIR / "config.py").read_text(
@@ -679,12 +717,77 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         current_main = self._normalized_source(current_main)
         current_main = self._normalize_position_only_changes(
             current_main, baseline_main)
+        current_tree = ast.parse(current_main)
+        baseline_tree = ast.parse(baseline_main)
+
+        def named_definitions(tree):
+            return {node.name: ast.dump(node, include_attributes=False)
+                    for node in tree.body
+                    if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
+
+        current_defs = named_definitions(current_tree)
+        baseline_defs = named_definitions(baseline_tree)
         self.assertEqual(
-            ast.dump(ast.parse(current_main), include_attributes=False),
-            ast.dump(ast.parse(baseline_main), include_attributes=False))
+            current_defs.keys() - baseline_defs.keys(),
+            {"_FastAdaptivePreview", "_FastPositionPD"})
+        self.assertEqual(baseline_defs.keys() - current_defs.keys(), set())
+        changed_defs = {
+            "_FastRowWeightWorkspace", "_FreshObservationFilter",
+            "_main_fast", "_render_v7_preview_frame",
+            "_validate_fast_config",
+        }
         self.assertEqual(
-            ast.dump(ast.parse(current_config), include_attributes=False),
-            ast.dump(ast.parse(baseline_config), include_attributes=False))
+            {name for name in current_defs.keys() & baseline_defs.keys()
+             if current_defs[name] != baseline_defs[name]},
+            changed_defs)
+        for name in current_defs.keys() & baseline_defs.keys() - changed_defs:
+            self.assertEqual(current_defs[name], baseline_defs[name], name)
+
+        def assignments(source):
+            tree = ast.parse(source)
+            result = {}
+            other_statements = []
+            for node in tree.body:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            result[target.id] = ast.dump(
+                                node, include_attributes=False)
+                else:
+                    other_statements.append(ast.dump(
+                        node, include_attributes=False))
+            return result, other_statements
+
+        current_assignments, current_other = assignments(current_config)
+        baseline_assignments, baseline_other = assignments(baseline_config)
+        self.assertEqual(current_other, baseline_other)
+        new_assignments = {
+            "POSITION_PD_DERIVATIVE_TAU_MS", "POSITION_PD_D_LIMIT",
+            "POSITION_PD_MAX_DT_MS", "POSITION_PD_TIME_MS",
+            "PREVIEW_APPLIED_LIMIT", "PREVIEW_CANDIDATE_MIN_ABS",
+            "PREVIEW_CONFIRM_FRAMES", "PREVIEW_CONFIRM_MS",
+            "PREVIEW_MAX_GAIN", "PREVIEW_POSITION_FULL_GAIN_ABS",
+            "PREVIEW_POSITION_MIN_ABS", "PREVIEW_SLEW_PER_SECOND",
+            "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
+            "STEERING_FAR_MIN_SUPPORT_ROWS",
+            "STEERING_FAR_MIN_SUPPORT_SPAN", "STEERING_OUTPUT_LIMIT",
+        }
+        changed_assignments = {
+            "BUILD_ID", "OVERLAY_PERIOD_MS", "STEERING_SPLIT_GRID_Y",
+            "STEERING_SPLIT_IMAGE_Y", "TURN_RESPONSE_VERSION",
+        }
+        self.assertEqual(current_assignments.keys() - baseline_assignments.keys(),
+                         new_assignments)
+        self.assertEqual(baseline_assignments.keys() - current_assignments.keys(),
+                         set())
+        self.assertEqual(
+            {name for name in current_assignments.keys() &
+             baseline_assignments.keys()
+             if current_assignments[name] != baseline_assignments[name]},
+            changed_assignments)
+        for name in current_assignments.keys() & baseline_assignments.keys() - changed_assignments:
+            self.assertEqual(current_assignments[name],
+                             baseline_assignments[name], name)
 
 
 class _ThreeFrameUART:

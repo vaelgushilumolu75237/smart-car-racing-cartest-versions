@@ -23,7 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_PATH = PROJECT_ROOT / "Src" / "main.c"
 COMMISSIONING_HEADER = PROJECT_ROOT / "Inc" / "commissioning.h"
 DEFAULT_EVIDENCE_DIR = (
-    PROJECT_ROOT / "test-data" / "turn-response-20261014" / "control" / "output-path"
+    PROJECT_ROOT / "test-data" / "speedpd-20261020-validation" /
+    "host-output-path"
 )
 FUNCTION_NAMES = (
     "consume_follow_speed_pi_reset_request",
@@ -883,24 +884,54 @@ static void case_follow_guard_rejection(uint32_t caller, uint8_t reason)
     }
 }
 
-static void case_follow_hard_limit_rejected(uint32_t caller)
+static void case_follow_hard_limit_rejected(uint32_t caller, uint8_t side)
 {
+    const char *name = side == 0u ? "follow_over_1000_left" :
+                                    "follow_over_1000_right";
     reset_mock(caller); ++cases_run;
     car_control_state.follow_output_duty_permille = 500u;
-    follow_output_state.command_left_permille =
-        APP_FOLLOW_HARD_LIMIT_PERMILLE + 1u;
-    follow_output_state.command_right_permille = 500u;
+    follow_output_state.command_left_permille = side == 0u ?
+        APP_FOLLOW_HARD_LIMIT_PERMILLE + 1u : 500u;
+    follow_output_state.command_right_permille = side != 0u ?
+        APP_FOLLOW_HARD_LIMIT_PERMILLE + 1u : 500u;
     start_existing_motor_outputs(500u, 500u);
     start_existing_servo(1530u);
-    motor_apply(); expect_primask("follow_over_700_config", caller);
-    expect_u32("follow_over_700_config", "config_fault", CAR_FAULT_CONFIG,
+    motor_apply(); expect_primask(name, caller);
+    expect_u32(name, "config_fault", CAR_FAULT_CONFIG,
                car_control_state.fault);
-    expect_u32("follow_over_700_config", "fault_latched", 1u,
+    expect_u32(name, "fault_latched", 1u,
                car_control_state.fault_latched);
-    expect_u32("follow_over_700_config", "motor_stopped", 0u,
+    expect_u32(name, "motor_stopped", 0u,
                motor_outputs_active);
-    expect_u32("follow_over_700_config", "pwm_zero", 0u,
+    expect_u32(name, "pwm_zero", 0u,
                TIM3->CCR2 + TIM3->CCR3);
+}
+
+static void case_follow_limit_boundary(uint32_t caller)
+{
+    const uint16_t maximum = (uint16_t)APP_FOLLOW_NORMAL_LIMIT_PERMILLE;
+    reset_mock(caller); ++cases_run;
+    car_control_state.follow_output_duty_permille = maximum;
+    follow_output_state.startup_qualified = 1u;
+    follow_output_state.command_left_permille = maximum;
+    follow_output_state.command_right_permille = maximum;
+    start_existing_motor_outputs(maximum, maximum);
+    start_existing_servo(1530u);
+    motor_apply(); expect_primask("follow_1000_boundary", caller);
+    expect_u32("follow_1000_boundary", "normal and hard limits are 1000",
+               1000u, APP_FOLLOW_HARD_LIMIT_PERMILLE);
+    expect_u32("follow_1000_boundary", "normal profile cap is 1000",
+               1000u, APP_FOLLOW_NORMAL_LIMIT_PERMILLE);
+    expect_u32("follow_1000_boundary", "1000-permille output is permitted",
+               1u, motor_outputs_active);
+    expect_u32("follow_1000_boundary", "left applied output reaches cap",
+               1000u, applied_motor_follow_left_permille);
+    expect_u32("follow_1000_boundary", "right applied output reaches cap",
+               1000u, applied_motor_follow_right_permille);
+    expect_u32("follow_1000_boundary", "left PWM commits capped output",
+               1000u, TIM3->CCR2);
+    expect_u32("follow_1000_boundary", "right PWM commits capped output",
+               1000u, TIM3->CCR3);
 }
 
 static void case_bench_over_limit_rejected(uint32_t caller)
@@ -924,6 +955,30 @@ static void case_bench_over_limit_rejected(uint32_t caller)
                motor_outputs_active);
     expect_u32("bench_over_400_config", "pwm_zero", 0u,
                TIM3->CCR2 + TIM3->CCR3);
+}
+
+static void case_bench_limit_boundary(uint32_t caller)
+{
+    reset_mock(caller); ++cases_run;
+    app_config.bench_mode_compiled = 1u;
+    car_control_state.mode = CAR_MODE_BENCH_RUNNING;
+    car_control_state.follow_session_active = 0u;
+    car_control_state.road_drive_allowed = 0u;
+    car_control_state.bench_motor = (car_motor_t)1;
+    car_control_state.bench_output_duty_permille = APP_BENCH_LIMIT_PERMILLE;
+    start_existing_motor_outputs(APP_BENCH_LIMIT_PERMILLE,
+                                 APP_BENCH_LIMIT_PERMILLE);
+    motor_apply(); expect_primask("bench_400_boundary", caller);
+    expect_u32("bench_400_boundary", "400-permille bench request is accepted",
+               CAR_FAULT_NONE, car_control_state.fault);
+    expect_u32("bench_400_boundary", "400-permille bench output stays active",
+               1u, motor_outputs_active);
+    expect_u32("bench_400_boundary", "selected bench PWM receives exact 400 request",
+               400u, TIM3->CCR1);
+    expect_u32("bench_400_boundary", "bench guard records exact 400 maximum",
+               400u, car_bench_max_applied_duty_permille);
+    expect_u32("bench_400_boundary", "selected bench channel remains enabled",
+               1u, (TIM3->CCER & TIM_CCER_CC1E) != 0u ? 1u : 0u);
 }
 
 static void case_fault_or_uart(uint32_t caller, uint8_t uart_error)
@@ -986,7 +1041,7 @@ static void start_pi_zero_coast_fixture(void)
     start_existing_motor_outputs(20u, 20u);
 }
 
-#if CAR_CONTROL_VISION_HOLD_MS == 2000u
+#if CARTEST_HARDWARE_ACCEPTED && CAR_CONTROL_VISION_HOLD_MS == 2000u
 static void case_hold_deadline_2000ms(uint32_t caller)
 {
     reset_mock(caller); ++cases_run;
@@ -1054,8 +1109,8 @@ static void case_incremental_real_control_chain(uint32_t caller)
     motor_apply(); expect_primask("incremental_seed", caller);
     expect_u32("incremental_seed", "PI arms only on the next distinct valid sample",
                1u, APP_FOLLOW_PI_ARMED);
-    expect_u32("incremental_seed", "straight target is 2400 milli-RPS",
-               2400u, (uint32_t)APP_FOLLOW_PI_TARGET_LEFT);
+    expect_u32("incremental_seed", "straight target is 4800 milli-RPS",
+               4800u, (uint32_t)APP_FOLLOW_PI_TARGET_LEFT);
     expect_u32("incremental_seed", "seeded request follows actual 500 duty",
                500u, APP_FOLLOW_PI_REQUEST_LEFT);
 
@@ -1205,7 +1260,7 @@ static void case_zero_output_behavior(void)
 int main(void)
 {
     uint32_t caller;
-#if CAR_CONTROL_VISION_HOLD_MS == 2000u
+#if CARTEST_HARDWARE_ACCEPTED && CAR_CONTROL_VISION_HOLD_MS == 2000u
     for (caller = 0u; caller <= 1u; ++caller) {
         case_hold_deadline_2000ms(caller);
     }
@@ -1231,7 +1286,10 @@ int main(void)
         case_follow_guard_rejection(caller, 0u);
         if (caller == 0u) case_follow_guard_rejection(caller, 1u);
         case_follow_guard_rejection(caller, 2u);
-        case_follow_hard_limit_rejected(caller);
+        case_follow_hard_limit_rejected(caller, 0u);
+        case_follow_hard_limit_rejected(caller, 1u);
+        case_follow_limit_boundary(caller);
+        case_bench_limit_boundary(caller);
         case_bench_over_limit_rejected(caller);
         case_fault_or_uart(caller, 0u);
         case_fault_or_uart(caller, 1u);
@@ -1376,13 +1434,13 @@ def compiler_command(compiler: str, args: list[str], cwd: Path) -> subprocess.Co
 
 def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler: str,
                     evidence: Path, pi_enabled: bool = False,
-                    incremental_enabled: bool = False, hold_ms: int = 3000,
-                    hold_ramp_ms: int = 300) -> tuple[int, int, str, str]:
+                    incremental_enabled: bool = False, hold_ms: int = 2000,
+                    hold_ramp_ms: int = 200) -> tuple[int, int, str, str]:
     label = ("hardware-accepted" if macro_value else "hardware-locked") + \
         f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
         ("-incremental-pi" if incremental_enabled else "") + \
-        (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 3000 or
-         hold_ramp_ms != 300 else "")
+        (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 2000 or
+         hold_ramp_ms != 200 else "")
     with tempfile.TemporaryDirectory(prefix="CarTestFollowOutput-") as temp_name:
         temp = Path(temp_name)
         c_path = temp / "follow_output_path.c"
@@ -1405,12 +1463,12 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                         str(PROJECT_ROOT / "App" / "speed_pi.c"),
                         str(PROJECT_ROOT / "App" / "follow_speed_pi.c"),
                         str(PROJECT_ROOT / "App" / "follow_incremental_pi.c")]
-        turn_profile = diff_permille == 200 or hold_ms == 2000
+        turn_profile = diff_permille in (150, 200)
         if turn_profile:
             compile_args.extend([
                 f"/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE={diff_permille}",
-                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=700",
-                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000",
+                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
                 "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
                 "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120",
@@ -1419,11 +1477,11 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
         else:
             compile_args.extend([
                 f"/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE={diff_permille}",
-                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=600",
-                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+                "/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000",
+                "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
-                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=10",
-                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=40",
+                "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120",
                 "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=0",
             ])
         built = compiler_command(compiler, compile_args, temp)
@@ -1487,7 +1545,7 @@ def main() -> int:
     commissioning_text = COMMISSIONING_HEADER.read_text(encoding="utf-8-sig")
     hold_match = re.search(r"\bCARTEST_VISION_HOLD_MS\s+(\d+)u", commissioning_text)
     if hold_match is None or int(hold_match.group(1)) != 3000:
-        raise SystemExit("commissioning.h must default CARTEST_VISION_HOLD_MS to 3000u")
+        raise SystemExit("commissioning.h legacy fallback must remain 3000u")
     prelude = PRELUDE
     if "CARTEST_HOST_HOLD_DEADLINE_MS" not in prelude:
         raise SystemExit("host PRELUDE hold deadline placeholder is missing")
@@ -1555,12 +1613,12 @@ def main() -> int:
         failures.append("MSVC version evidence command failed or returned no banner")
     variants = []
     for macro, diff_permille, pi_enabled, incremental_enabled, hold_ms, hold_ramp_ms in (
-        (1, 0, False, False, 3000, 300),
-        (1, 50, False, False, 3000, 300),
-        (1, 100, False, False, 3000, 300),
-        (1, 200, False, False, 3000, 300),
-        (0, 0, False, False, 3000, 300),
-        (1, 200, True, False, 3000, 300),
+        (1, 0, False, False, 2000, 200),
+        (1, 50, False, False, 2000, 200),
+        (1, 100, False, False, 2000, 200),
+        (1, 200, False, False, 2000, 200),
+        (0, 0, False, False, 2000, 200),
+        (1, 200, True, False, 2000, 200),
         (1, 150, False, False, 2000, 200),
         (1, 150, True, True, 2000, 200),
     ):
@@ -1571,8 +1629,8 @@ def main() -> int:
         label = ("hardware-accepted" if macro else "hardware-locked") + \
             f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
             ("-incremental-pi" if incremental_enabled else "") + \
-            (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 3000 or
-             hold_ramp_ms != 300 else "")
+            (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 2000 or
+             hold_ramp_ms != 200 else "")
         variants.append({
             "name": label, "hardware_accepted": macro,
             "follow_speed_pi_enabled": pi_enabled,

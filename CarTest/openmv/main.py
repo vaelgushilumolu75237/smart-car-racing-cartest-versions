@@ -75,13 +75,18 @@ SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 1
 RING_SLOPE_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
-CACHED_WIDTH_BUILD_ID = "SECOND_TURN_CONTINUITY_20261018"
+CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS = tuple(
+    config.STEERING_CONTROL_PROFILE_BUILD_IDS)
+CACHED_WIDTH_BUILD_ID = dict(
+    CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS).get(
+        "pd", "BOTTOM80_POSPD_20261020")
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
 SINGLEEDGE_ROUTE_BUILD_IDS = (
-    ("cached_width", CACHED_WIDTH_BUILD_ID),
-    ("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),
-)
+    tuple(("cached_width", build_id)
+          for _profile, build_id in
+          CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS) +
+    (("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),))
 
 
 class _SteeringDiagBuffer:
@@ -92,6 +97,11 @@ class _SteeringDiagBuffer:
     PRE_TRIGGER_CAPACITY = 64
     POST_TRIGGER_CAPACITY = 192
     EXTENSION_RECORD_SIZE = 16
+    CONTROL_EXTENSION_VERSION = 2
+    CONTROL_EXTENSION_RECORD_SIZE = 32
+    _CRC16_NIBBLE_TABLE = (
+        0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
+        0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF)
     _CSV_HEADER = (
         "sequence,capture_ms,send_ms,valid,full_write,write_error,"
         "reverse_fresh,position_norm,preview_candidate_norm,"
@@ -101,12 +111,14 @@ class _SteeringDiagBuffer:
         "pair_max_center_delta2,pair_selected_side,pair_selection,"
         "pair_left_support,pair_right_support,candidate_flags,"
         "result_reason_code,pending_side,pending_count,anchor_rejects,"
-        "corridor_rejects,jump_breaks,gap_breaks")
+        "corridor_rejects,jump_breaks,gap_breaks,control_ext_v2_hex")
 
     def __init__(self):
         self.data = bytearray(self.CAPACITY * self.RECORD_SIZE)
         self.extension_data = bytearray(
             self.CAPACITY * self.EXTENSION_RECORD_SIZE)
+        self.control_extension_data = bytearray(
+            self.CAPACITY * self.CONTROL_EXTENSION_RECORD_SIZE)
         self.pre_count = 0
         self.pre_oldest = 0
         self.write_index = 0
@@ -169,7 +181,8 @@ class _SteeringDiagBuffer:
                capture_ms, send_ms, position, preview_candidate,
                preview_applied, raw_control, filtered_error,
                reference_error, row_count, source_code,
-               reverse_generation, candidate_diagnostic=None):
+               reverse_generation, candidate_diagnostic=None,
+               control_diagnostic=None):
         if self.frozen or frame is None or len(frame) < 10:
             return False
 
@@ -232,6 +245,9 @@ class _SteeringDiagBuffer:
         data[offset + 27] = source_code
         self._put_u32(data, offset + 28, reverse_generation)
         self._write_extension(slot, candidate_diagnostic)
+        self._write_control_extension(
+            slot, control_diagnostic, sequence, capture_ms, send_ms,
+            sent_error)
 
         if self.triggered:
             self.count += 1
@@ -278,6 +294,67 @@ class _SteeringDiagBuffer:
                 value = 255
             data[offset + index] = value
 
+    def _write_control_extension(self, slot, diagnostic, sequence,
+                                 capture_ms, send_ms, sent_control):
+        """Store a sequence/time-bound PD/preview record with its own CRC."""
+        record_size = self.CONTROL_EXTENSION_RECORD_SIZE
+        offset = slot * record_size
+        data = self.control_extension_data
+        for index in range(record_size):
+            data[offset + index] = 0
+        data[offset] = self.CONTROL_EXTENSION_VERSION
+        self._put_u16(data, offset + 2, sequence)
+        self._put_u32(data, offset + 4, capture_ms)
+        self._put_u32(data, offset + 8, send_ms)
+        self._put_i16(data, offset + 28, sent_control)
+        if diagnostic is None:
+            self._put_u16(data, offset + 24, 0xFFFF)
+        else:
+            profile_code = diagnostic.get("profile_code", 0) & 3
+            flags = (1 if diagnostic.get("pd_enabled") else 0)
+            if diagnostic.get("preview_enabled"):
+                flags |= 2
+            if diagnostic.get("preview_confirmed"):
+                flags |= 4
+            if diagnostic.get("preview_geometry_valid"):
+                flags |= 8
+            if diagnostic.get("preview_same_sign"):
+                flags |= 16
+            if diagnostic.get("duplicate"):
+                flags |= 32
+            flags |= profile_code << 6
+            data[offset + 1] = flags
+            self._put_i16(data, offset + 12,
+                          diagnostic.get("position_p", 0))
+            self._put_i16(data, offset + 14,
+                          diagnostic.get("derivative_d", 0))
+            self._put_i16(data, offset + 16,
+                          diagnostic.get("pd_output", 0))
+            self._put_i16(data, offset + 18,
+                          diagnostic.get("preview_candidate", 0))
+            self._put_u16(data, offset + 20,
+                          diagnostic.get("preview_gain_milli", 0))
+            self._put_i16(data, offset + 22,
+                          diagnostic.get("preview_applied", 0))
+            capture_dt_ms = diagnostic.get("capture_dt_ms", 0xFFFF)
+            if not isinstance(capture_dt_ms, int) or isinstance(
+                    capture_dt_ms, bool):
+                capture_dt_ms = 0xFFFF
+            else:
+                capture_dt_ms = max(0, min(0xFFFF, capture_dt_ms))
+            self._put_u16(data, offset + 24, capture_dt_ms)
+            data[offset + 26] = max(0, min(255, int(
+                diagnostic.get("preview_state", 0))))
+            data[offset + 27] = max(0, min(255, int(
+                diagnostic.get("reset_code", 0))))
+        crc = 0xFFFF
+        table = self._CRC16_NIBBLE_TABLE
+        for index in range(record_size - 2):
+            crc ^= data[offset + index] << 8
+            crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
+            crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
+        self._put_u16(data, offset + record_size - 2, crc)
+
     def freeze(self, reason="STOP"):
         if not self.frozen:
             self.frozen = True
@@ -312,7 +389,8 @@ class _SteeringDiagBuffer:
     def dump(self, build_id):
         data = self.data
         print("STEERING_DIAG_BEGIN build=%s format=3 capacity=256 "
-              "record_size=32 extension_record_size=16 pre_capacity=64 "
+              "record_size=32 extension_record_size=16 "
+              "control_extension_v2_record_size=32 pre_capacity=64 "
               "post_capacity=192 ticks_period_ms=%d count=%d frozen=%d "
               "triggered=%d pre_count=%d post_count=%d freeze_reason=%s overwritten=%d "
               "record_errors=%d" % (
@@ -348,6 +426,24 @@ class _SteeringDiagBuffer:
               "18:NO_ANCHORED_SINGLE_EDGE,"
               "19:NO_CURRENT_BOUNDARY_OR_WHITE_CLIP,"
               "20:OK_SINGLE_EDGE_LEFT,21:OK_SINGLE_EDGE_RIGHT" % build_id)
+        print("STEERING_DIAG_CONTROL_EXTENSION version=2 record_size=32 "
+              "timestamps=camera_ticks_ms_snapshot_complete,uart_write_return "
+              "fields="
+              "0:version,1:flags,2-3:sequence_u16,4-7:capture_ms_u32,"
+              "8-11:send_ms_u32,12-13:position_p_i16,"
+              "14-15:derivative_d_i16_clamped_component,"
+              "16-17:pd_output_i16,18-19:preview_candidate_i16,"
+              "20-21:preview_gain_milli_u16,22-23:preview_applied_i16,"
+              "24-25:capture_dt_ms_u16,26:preview_state,27:reset_code,"
+              "28-29:sent_control_i16,30-31:crc16_ccitt_false_little_endian;"
+              "flag_bits=1:pd_active,2:preview_profile,4:preview_confirmed,"
+              "8:geometry_valid,16:position_same_sign,32:duplicate,"
+              "64-128:profile_code;profile=0:no_pd,1:pd,2:pd_preview;"
+              "preview_state=0:STRAIGHT,1:CANDIDATE,2:CONFIRMED,3:EXIT;"
+              "reset=0:NONE,1:FIRST,2:INVALID,3:DT_GAP,4:IDENTITY,"
+              "5:REFERENCE,6:CAPTURE_GAP,7:FRAME_BUDGET,"
+              "8:REVERSE_RESET,9:UART_ERROR,10:CONTROL_TIMEOUT,"
+              "11:DISABLED")
         print(self._CSV_HEADER)
         for record_index in range(self.count):
             if self.triggered:
@@ -395,7 +491,12 @@ class _SteeringDiagBuffer:
                     value = -1
                 extension_values.append(str(value))
             extension_text = ",".join(extension_values)
-            print(base_text + "," + extension_text)
+            control_offset = slot * self.CONTROL_EXTENSION_RECORD_SIZE
+            control_data = self.control_extension_data
+            control_text = "".join(
+                "%02X" % control_data[control_offset + index]
+                for index in range(self.CONTROL_EXTENSION_RECORD_SIZE))
+            print(base_text + "," + extension_text + "," + control_text)
         print("STEERING_DIAG_END")
 
 
@@ -650,6 +751,11 @@ class _FreshObservationFilter:
             return 0
         if self.last_ms is not None:
             delta_ms = ticks_diff(now_ms, self.last_ms)
+            if delta_ms == 0:
+                if self.value is None:
+                    return 0
+                return (int(self.value + 0.5) if self.value >= 0.0 else
+                        -int(-self.value + 0.5))
             if delta_ms < 0 or delta_ms > self.max_gap_ms:
                 self.reset()
         if self.value is None:
@@ -663,10 +769,377 @@ class _FreshObservationFilter:
         return -int(-self.value + 0.5)
 
 
+_CONTROL_RESET_CODES = {
+    "NONE": 0,
+    "FIRST": 1,
+    "INVALID": 2,
+    "DT_GAP": 3,
+    "IDENTITY": 4,
+    "REFERENCE": 5,
+    "CAPTURE_GAP": 6,
+    "FRAME_BUDGET": 7,
+    "REVERSE_RESET": 8,
+    "UART_ERROR": 9,
+    "CONTROL_TIMEOUT": 10,
+    "DISABLED": 11,
+}
+
+
+class _FastPositionPD:
+    """Position PD workspace driven by the existing position EMA output."""
+
+    def __init__(self, settings):
+        self.tau_ms = int(settings.POSITION_PD_DERIVATIVE_TAU_MS)
+        self.td_ms = int(settings.POSITION_PD_TIME_MS)
+        self.d_limit = int(settings.POSITION_PD_D_LIMIT)
+        self.max_dt_ms = int(settings.POSITION_PD_MAX_DT_MS)
+        self.output_limit = int(settings.STEERING_OUTPUT_LIMIT)
+        self.last_ms = None
+        self.last_position = None
+        self.filtered_rate = 0.0
+        self.last_output = 0
+        self.last_derivative = 0
+        self.source = None
+        self.boundary_source = None
+        self.reference_kind = None
+        self.reference_y = None
+        self.pending_reset_code = _CONTROL_RESET_CODES["FIRST"]
+        self.info = {
+            "position_p": 0,
+            "derivative_d": 0,
+            "pd_output": 0,
+            "preview_candidate": 0,
+            "preview_gain_milli": 0,
+            "preview_applied": 0,
+            "capture_dt_ms": 0xFFFF,
+            "reset_code": _CONTROL_RESET_CODES["FIRST"],
+            "profile_code": 1,
+            "pd_enabled": True,
+            "preview_enabled": False,
+            "preview_confirmed": False,
+            "preview_geometry_valid": False,
+            "preview_same_sign": False,
+            "preview_state": 0,
+            "duplicate": False,
+        }
+
+    def _clear_state(self, reason):
+        self.last_ms = None
+        self.last_position = None
+        self.filtered_rate = 0.0
+        self.last_output = 0
+        self.last_derivative = 0
+        self.source = None
+        self.boundary_source = None
+        self.reference_kind = None
+        self.reference_y = None
+        self.pending_reset_code = _CONTROL_RESET_CODES.get(
+            reason, _CONTROL_RESET_CODES["IDENTITY"])
+
+    def reset(self, reason):
+        self._clear_state(reason)
+        info = self.info
+        info["position_p"] = 0
+        info["derivative_d"] = 0
+        info["pd_output"] = 0
+        info["capture_dt_ms"] = 0xFFFF
+        info["reset_code"] = self.pending_reset_code
+        info["duplicate"] = False
+
+    def update(self, capture_ms, capture_dt_ms, valid, position,
+               source, boundary_source, reference_kind, reference_y,
+               profile, ticks_diff):
+        info = self.info
+        profile_code = (0 if profile == "no_pd" else
+                        2 if profile == "pd_preview" else 1)
+        pd_enabled = profile_code != 0
+        info["profile_code"] = profile_code
+        info["pd_enabled"] = pd_enabled
+        info["preview_enabled"] = profile_code == 2
+        info["preview_candidate"] = 0
+        info["preview_gain_milli"] = 0
+        info["preview_applied"] = 0
+        info["preview_confirmed"] = False
+        info["preview_geometry_valid"] = False
+        info["preview_same_sign"] = False
+        info["duplicate"] = False
+
+        if not valid:
+            if self.pending_reset_code in (
+                    _CONTROL_RESET_CODES["NONE"],
+                    _CONTROL_RESET_CODES["FIRST"]):
+                self._clear_state("INVALID")
+            info["position_p"] = 0
+            info["derivative_d"] = 0
+            info["pd_output"] = 0
+            info["capture_dt_ms"] = (0xFFFF if capture_dt_ms is None else
+                                     max(0, min(0xFFFE, capture_dt_ms)))
+            info["reset_code"] = self.pending_reset_code
+            return info
+
+        was_duplicate = capture_dt_ms == 0
+        reset_reason = None
+        if self.last_ms is not None:
+            if (source != self.source or
+                    boundary_source != self.boundary_source or
+                    reference_kind != self.reference_kind):
+                reset_reason = "IDENTITY"
+            elif reference_y != self.reference_y:
+                reset_reason = "REFERENCE"
+        if reset_reason is not None:
+            self._clear_state(reset_reason)
+
+        dt_ms = capture_dt_ms
+        if dt_ms is not None and dt_ms < 0:
+            self._clear_state("DT_GAP")
+            dt_ms = None
+        elif dt_ms is not None and dt_ms > self.max_dt_ms:
+            self._clear_state("DT_GAP")
+
+        p_term = int(position)
+        if p_term < -self.output_limit:
+            p_term = -self.output_limit
+        elif p_term > self.output_limit:
+            p_term = self.output_limit
+
+        # A repeated capture must not change the EMA history or derivative
+        # state. Preserve the output already paired with that capture unless a
+        # newly detected identity requires a safe zero-derivative restart.
+        if was_duplicate:
+            info["position_p"] = p_term
+            if self.last_ms is None:
+                control = p_term
+                self.last_output = control
+            else:
+                control = self.last_output
+            info["derivative_d"] = self.last_derivative
+            info["pd_output"] = control
+            info["capture_dt_ms"] = 0
+            info["reset_code"] = self.pending_reset_code
+            info["duplicate"] = True
+            return info
+
+        reset_code = self.pending_reset_code
+        derivative = 0
+        if (pd_enabled and self.last_ms is not None and
+                dt_ms is not None and dt_ms > 0):
+            delta_position = p_term - self.last_position
+            measured_rate = delta_position * 1000.0 / dt_ms
+            alpha = self.tau_ms / float(self.tau_ms + dt_ms)
+            self.filtered_rate = (alpha * self.filtered_rate +
+                                  (1.0 - alpha) * measured_rate)
+            derivative = _rounded_local(
+                self.filtered_rate * self.td_ms / 1000.0)
+            if derivative < -self.d_limit:
+                derivative = -self.d_limit
+            elif derivative > self.d_limit:
+                derivative = self.d_limit
+        else:
+            self.filtered_rate = 0.0
+
+        control = p_term + derivative if pd_enabled else p_term
+        if control < -self.output_limit:
+            control = -self.output_limit
+        elif control > self.output_limit:
+            control = self.output_limit
+
+        self.last_ms = capture_ms
+        self.last_position = p_term
+        self.source = source
+        self.boundary_source = boundary_source
+        self.reference_kind = reference_kind
+        self.reference_y = reference_y
+        self.last_output = control
+        self.last_derivative = derivative if pd_enabled else 0
+        self.pending_reset_code = _CONTROL_RESET_CODES["NONE"]
+
+        info["position_p"] = p_term
+        info["derivative_d"] = self.last_derivative
+        info["pd_output"] = control
+        info["capture_dt_ms"] = (0xFFFF if dt_ms is None else
+                                 max(0, min(0xFFFE, dt_ms)))
+        info["reset_code"] = reset_code
+        return info
+
+
+class _FastAdaptivePreview:
+    """Independent confirmation, gain, cap, and slew state for preview."""
+
+    def __init__(self, settings):
+        self.min_candidate = int(settings.PREVIEW_CANDIDATE_MIN_ABS)
+        self.confirm_frames = int(settings.PREVIEW_CONFIRM_FRAMES)
+        self.confirm_ms = int(settings.PREVIEW_CONFIRM_MS)
+        self.position_min = int(settings.PREVIEW_POSITION_MIN_ABS)
+        self.position_full_gain = int(
+            settings.PREVIEW_POSITION_FULL_GAIN_ABS)
+        self.max_gain = float(settings.PREVIEW_MAX_GAIN)
+        self.applied_limit = int(settings.PREVIEW_APPLIED_LIMIT)
+        self.slew_per_second = int(settings.PREVIEW_SLEW_PER_SECOND)
+        self.max_dt_ms = int(settings.POSITION_PD_MAX_DT_MS)
+        self.last_ms = None
+        self.started_ms = None
+        self.stable_sign = 0
+        self.stable_count = 0
+        self.confirmed = False
+        self.applied = 0
+        self.source = None
+        self.boundary_source = None
+        self.reference_kind = None
+        self.reference_y = None
+        self.exit_active = False
+
+    def reset(self):
+        self.last_ms = None
+        self.started_ms = None
+        self.stable_sign = 0
+        self.stable_count = 0
+        self.confirmed = False
+        self.applied = 0
+        self.source = None
+        self.boundary_source = None
+        self.reference_kind = None
+        self.reference_y = None
+        self.exit_active = False
+
+    def update(self, capture_ms, capture_dt_ms, valid, enabled,
+               source, boundary_source, reference_kind, reference_y,
+               geometry_valid, candidate, position, ticks_diff, info):
+        info["preview_candidate"] = int(candidate)
+        info["preview_geometry_valid"] = bool(geometry_valid)
+        info["preview_same_sign"] = bool(
+            candidate != 0 and position != 0 and
+            ((candidate > 0) == (position > 0)))
+        info["preview_state"] = 0
+        info["preview_enabled"] = bool(enabled)
+        if not valid:
+            self.reset()
+            info["preview_gain_milli"] = 0
+            info["preview_applied"] = 0
+            info["preview_confirmed"] = False
+            info["preview_state"] = 0
+            return 0
+
+        was_duplicate = capture_dt_ms == 0 and self.last_ms is not None
+
+        identity_changed = (self.last_ms is not None and
+                            (source != self.source or
+                             boundary_source != self.boundary_source or
+                             reference_kind != self.reference_kind))
+        reference_changed = (self.last_ms is not None and
+                             reference_y != self.reference_y)
+        if identity_changed or reference_changed:
+            self.reset()
+
+        if not enabled:
+            self.reset()
+            info["preview_gain_milli"] = 0
+            info["preview_applied"] = 0
+            info["preview_confirmed"] = False
+            info["preview_state"] = 0
+            return 0
+
+        dt_ms = capture_dt_ms
+        if dt_ms is not None and (dt_ms < 0 or dt_ms > self.max_dt_ms):
+            self.reset()
+            dt_ms = None
+
+        # Preserve the preview confirmation and slew state across a duplicate
+        # sensor timestamp; the duplicate contributes no extra confirmation.
+        if was_duplicate:
+            info["preview_gain_milli"] = self._gain_milli(
+                abs(position) if self.confirmed else 0)
+            info["preview_applied"] = self.applied
+            info["preview_confirmed"] = self.confirmed
+            info["preview_state"] = (2 if self.confirmed else
+                                     3 if self.exit_active and self.applied
+                                     else 1 if self.stable_count else 0)
+            return self.applied
+
+        was_confirmed = self.confirmed
+        candidate_stable = bool(
+            geometry_valid and abs(candidate) >= self.min_candidate)
+        if candidate_stable:
+            candidate_sign = 1 if candidate > 0 else -1
+            if candidate_sign != self.stable_sign:
+                self.stable_sign = candidate_sign
+                self.stable_count = 1
+                self.started_ms = capture_ms
+            else:
+                self.stable_count += 1
+        else:
+            self.stable_sign = 0
+            self.stable_count = 0
+            self.started_ms = None
+
+        position_ok = bool(
+            abs(position) >= self.position_min and candidate != 0 and
+            ((candidate > 0) == (position > 0)))
+        confirmed = bool(candidate_stable and position_ok and
+                         self.stable_count >= self.confirm_frames and
+                         self.started_ms is not None and
+                         ticks_diff(capture_ms, self.started_ms) >=
+                         self.confirm_ms)
+        self.confirmed = confirmed
+        gain = 0.0
+        target = 0
+        if confirmed:
+            magnitude = abs(position)
+            progress = (magnitude - self.position_min) / float(
+                self.position_full_gain - self.position_min)
+            if progress < 0.0:
+                progress = 0.0
+            elif progress > 1.0:
+                progress = 1.0
+            gain = progress * self.max_gain
+            target = _rounded_local(candidate * gain)
+            if target < -self.applied_limit:
+                target = -self.applied_limit
+            elif target > self.applied_limit:
+                target = self.applied_limit
+
+        if self.last_ms is not None and dt_ms is not None and dt_ms > 0:
+            max_step = self.slew_per_second * dt_ms // 1000
+            delta = target - self.applied
+            if delta > max_step:
+                delta = max_step
+            elif delta < -max_step:
+                delta = -max_step
+            self.applied += delta
+        elif self.last_ms is None:
+            # Start from zero; there is no elapsed interval to slew through.
+            self.applied = 0
+
+        self.exit_active = bool(
+            (was_confirmed and not confirmed) or
+            (not confirmed and self.applied != 0))
+
+        self.last_ms = capture_ms
+        self.source = source
+        self.boundary_source = boundary_source
+        self.reference_kind = reference_kind
+        self.reference_y = reference_y
+        info["preview_gain_milli"] = int(gain * 1000.0 + 0.5)
+        info["preview_applied"] = self.applied
+        info["preview_confirmed"] = confirmed
+        info["preview_state"] = (2 if confirmed else
+                                 3 if self.exit_active else
+                                 1 if candidate_stable else 0)
+        return self.applied
+
+    def _gain_milli(self, magnitude):
+        if magnitude <= self.position_min:
+            return 0
+        if magnitude >= self.position_full_gain:
+            return int(self.max_gain * 1000.0 + 0.5)
+        return int((magnitude - self.position_min) *
+                   self.max_gain * 1000.0 /
+                   (self.position_full_gain - self.position_min) + 0.5)
+
+
 class _FastRowWeightWorkspace:
     """Preallocated same-frame row aggregation for the fast controller path.
 
-    Rows are grouped at grid y=18 (full-image y=36). Each available group is
+    Rows are grouped at grid y=12 (full-image y=24). Each available group is
     normalized internally, so row density cannot change its configured share.
     Bilateral rows must carry the boundary validator's per-row pair bit; single
     rows arrive only from the tracker's accepted row_status==1 output.
@@ -686,6 +1159,8 @@ class _FastRowWeightWorkspace:
         self._preview_y = array("i", range(60))
         self._preview_center_x2 = array("i", [0] * 60)
         self._preview_valid_rows = bytearray(60)
+        self._preview_touched_rows = array("i", [0] * 60)
+        self._preview_touched_count = 0
         self._preview_median_x2 = array("i", [0] * 5)
         self._preview_middle_y = array("i", [0] * 5)
         self._preview_middle_distance = array("i", [0] * 5)
@@ -695,6 +1170,8 @@ class _FastRowWeightWorkspace:
             "near_count": 0, "far_count": 0,
             "near_weight": 0.0, "far_weight": 0.0,
             "missing_group": "NONE", "supported_rows": 0,
+            "far_span": 0, "far_support_ok": False,
+            "weight_mode": "NONE",
             "position_error": 0, "heading_error": 0,
             "heading_contribution": 0, "preview_candidate": 0,
             "steering_error": 0,
@@ -704,6 +1181,8 @@ class _FastRowWeightWorkspace:
             "preview_near_x": None, "preview_near_y": None,
             "preview_far_x": None, "preview_far_y": None,
             "preview_curvature_cells": 0.0,
+            "filtered_position": 0, "pd_error": 0,
+            "preview_gain_milli": 0, "preview_applied": 0,
         }
 
     def clear(self, reason="NO_ACCEPTED_ROWS"):
@@ -719,6 +1198,9 @@ class _FastRowWeightWorkspace:
         info["far_weight"] = 0.0
         info["missing_group"] = "NONE"
         info["supported_rows"] = 0
+        info["far_span"] = 0
+        info["far_support_ok"] = False
+        info["weight_mode"] = "NONE"
         info["position_error"] = 0
         info["heading_error"] = 0
         info["heading_contribution"] = 0
@@ -733,9 +1215,14 @@ class _FastRowWeightWorkspace:
         info["preview_far_x"] = None
         info["preview_far_y"] = None
         info["preview_curvature_cells"] = 0.0
-        for index in range(len(self._row_weight)):
-            self._row_weight[index] = 0
-            self._preview_valid_rows[index] = 0
+        info["filtered_position"] = 0
+        info["pd_error"] = 0
+        info["preview_gain_milli"] = 0
+        info["preview_applied"] = 0
+        touched = self._preview_touched_rows
+        for index in range(self._preview_touched_count):
+            self._preview_valid_rows[touched[index]] = 0
+        self._preview_touched_count = 0
         return info
 
     def _compute_road_preview(self, count, settings, conflicting_centers):
@@ -1027,6 +1514,8 @@ class _FastRowWeightWorkspace:
         preview_valid_rows = self._preview_valid_rows
         near_count = 0
         far_count = 0
+        far_min_y = height
+        far_max_y = -1
         for index in range(count):
             if ring_route:
                 y = index
@@ -1067,10 +1556,17 @@ class _FastRowWeightWorkspace:
                 else:
                     preview_valid_rows[y] = 1
                     preview_centers[y] = center_x2
+                    self._preview_touched_rows[
+                        self._preview_touched_count] = y
+                    self._preview_touched_count += 1
                     preview_count += 1
             if y < split_y:
                 groups[accepted_count] = 1
                 far_count += 1
+                if y < far_min_y:
+                    far_min_y = y
+                if y > far_max_y:
+                    far_max_y = y
             else:
                 groups[accepted_count] = 2
                 near_count += 1
@@ -1083,24 +1579,32 @@ class _FastRowWeightWorkspace:
         info["near_count"] = near_count
         info["far_count"] = far_count
         info["supported_rows"] = accepted_count
-        if near_count and far_count:
+        if near_count == 0:
+            info["reason"] = "NO_NEAR_SUPPORTED_ROWS"
+            info["source"] = "NONE"
+            info["missing_group"] = "NEAR"
+            return info
+        far_span = far_max_y - far_min_y if far_count else 0
+        far_support_ok = bool(
+            far_count >= settings.STEERING_FAR_MIN_SUPPORT_ROWS and
+            far_span >= settings.STEERING_FAR_MIN_SUPPORT_SPAN)
+        info["far_span"] = far_span
+        info["far_support_ok"] = far_support_ok
+        if far_support_ok:
             near_weight = int(settings.STEERING_NEAR_WEIGHT *
                               self._WEIGHT_SCALE + 0.5)
             far_weight = self._WEIGHT_SCALE - near_weight
             info["near_weight"] = near_weight / float(self._WEIGHT_SCALE)
             info["far_weight"] = far_weight / float(self._WEIGHT_SCALE)
-        elif near_count:
+            info["weight_mode"] = "NEAR_FAR_80_20"
+        else:
             near_weight = self._WEIGHT_SCALE
             far_weight = 0
             info["near_weight"] = 1.0
             info["far_weight"] = 0.0
-            info["missing_group"] = "FAR"
-        else:
-            near_weight = 0
-            far_weight = self._WEIGHT_SCALE
-            info["near_weight"] = 0.0
-            info["far_weight"] = 1.0
-            info["missing_group"] = "NEAR"
+            info["missing_group"] = (
+                "FAR" if far_count == 0 else "FAR_SUPPORT_INSUFFICIENT")
+            info["weight_mode"] = "NEAR_ONLY"
 
         row_weights = self._row_weight
         near_seen = 0
@@ -1172,13 +1676,9 @@ class _FastRowWeightWorkspace:
         else:
             self._compute_road_preview(
                 preview_count, settings, preview_conflicting_centers)
-            steering_error, rejection_reason, applied_contribution = \
-                _compose_ordinary_steering_error(
-                    info["position_error"], info["preview_candidate"],
-                    getattr(settings, "ORDINARY_PREVIEW_CONTROL_ENABLED", False))
-            info["heading_contribution"] = applied_contribution
-            info["preview_rejection_reason"] = rejection_reason
-            info["steering_error"] = steering_error
+            info["heading_contribution"] = 0
+            info["preview_rejection_reason"] = "AWAITING_CONTROL_PROFILE"
+            info["steering_error"] = info["position_error"]
         return info
 
 
@@ -1699,10 +2199,15 @@ def _validate_fast_config():
     _validate_v7_runtime_apis()
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
-    if not isinstance(getattr(config, "ORDINARY_PREVIEW_CONTROL_ENABLED", None),
-                      bool):
+    control_profile = getattr(config, "STEERING_CONTROL_PROFILE", None)
+    if control_profile not in ("no_pd", "pd", "pd_preview"):
         raise ValueError(
-            "V7 ORDINARY_PREVIEW_CONTROL_ENABLED must be bool")
+            "V7 STEERING_CONTROL_PROFILE must be no_pd, pd or pd_preview")
+    expected_profile_build = dict(
+        CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS).get(control_profile)
+    if getattr(config, "BUILD_ID", None) != expected_profile_build:
+        raise RuntimeError(
+            "V7 control profile/build mismatch; install its matching config.py")
     contour_enabled = getattr(config, "CONTOUR_RECOVERY_ENABLED", None)
     if not isinstance(contour_enabled, bool):
         raise ValueError("V7 CONTOUR_RECOVERY_ENABLED must be bool")
@@ -1744,8 +2249,8 @@ def _validate_fast_config():
         raise ValueError("V7 OVERLAY_ENABLED must be bool")
     overlay_period = getattr(config, "OVERLAY_PERIOD_MS", None)
     if (not isinstance(overlay_period, int) or isinstance(overlay_period, bool)
-            or overlay_period < 1 or overlay_period > 100):
-        raise ValueError("V7 OVERLAY_PERIOD_MS must be in 1..100 ms")
+            or overlay_period < 1 or overlay_period > 200):
+        raise ValueError("V7 OVERLAY_PERIOD_MS must be in 1..200 ms")
     if getattr(config, "SURFACE_MODE", None) != "gray_unified":
         raise ValueError("V7 requires the single gray_unified camera path")
     if (config.FRAME_SIZE_NAME != "QQVGA" or
@@ -1764,17 +2269,33 @@ def _validate_fast_config():
             tuple(config.GRAY_THRESHOLD_BLOCKS) != expected_blocks):
         raise ValueError(
             "turn-response ROI must use floor=8 and the four ordered blocks")
-    if (getattr(config, "STEERING_SPLIT_IMAGE_Y", None) != 36 or
-            getattr(config, "STEERING_SPLIT_GRID_Y", None) != 18 or
+    if (getattr(config, "STEERING_SPLIT_IMAGE_Y", None) != 24 or
+            getattr(config, "STEERING_SPLIT_GRID_Y", None) != 12 or
             config.STEERING_SPLIT_IMAGE_Y !=
             config.STEERING_SPLIT_GRID_Y * config.SURFACE_PIXEL_SCALE):
         raise ValueError(
-            "turn-response split must remain full y=36 / grid y=18")
+            "turn-response split must remain full y=24 / grid y=12")
     if (getattr(config, "STEERING_FAR_WEIGHT", None) != 0.20 or
             getattr(config, "STEERING_NEAR_WEIGHT", None) != 0.80 or
             getattr(config, "TURN_RESPONSE_VERSION", None) !=
-            "LOWER70_UPPER30_V1"):
+            "BOTTOM80_TOP20_Y24_V2" or
+            config.STEERING_FAR_MIN_SUPPORT_ROWS != 3 or
+            config.STEERING_FAR_MIN_SUPPORT_SPAN != 2):
         raise ValueError("turn-response weighting config/build mismatch")
+    if (config.POSITION_PD_DERIVATIVE_TAU_MS != 60 or
+            config.POSITION_PD_TIME_MS != 30 or
+            config.POSITION_PD_D_LIMIT != 100 or
+            config.POSITION_PD_MAX_DT_MS != 100 or
+            config.STEERING_OUTPUT_LIMIT != 1000 or
+            config.PREVIEW_CANDIDATE_MIN_ABS != 80 or
+            config.PREVIEW_CONFIRM_FRAMES != 3 or
+            config.PREVIEW_CONFIRM_MS != 60 or
+            config.PREVIEW_POSITION_MIN_ABS != 50 or
+            config.PREVIEW_POSITION_FULL_GAIN_ABS != 250 or
+            config.PREVIEW_MAX_GAIN != 0.35 or
+            config.PREVIEW_APPLIED_LIMIT != 100 or
+            config.PREVIEW_SLEW_PER_SECOND != 500):
+        raise ValueError("position PD/preview config/build mismatch")
     if getattr(config, "OBSERVATION_FILTER_ALPHA", None) != 0.70:
         raise ValueError("turn-response filter alpha must remain 0.70")
     if (isinstance(config.SURFACE_MIN_CONFIDENCE, bool) or
@@ -2517,41 +3038,39 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
         if source in ("ring_left", "ring_right"):
             details1 = "POS%+d RINGH%+d" % (
                 position_error, heading_error)
-            details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
+            details2 = "CMD%+d P%+d" % (
+                weight_info.get("pd_error", raw_ctrl),
+                weight_info.get("filtered_position", filtered_error))
             details3 = "W%d/%d %s" % (
                 far_percent, near_percent, gate_reason)
         else:
-            details1 = "POS%+d A%+d CAN%+d" % (
-                position_error, contribution,
+            details1 = "P%+d D%+d CAN%+d" % (
+                weight_info.get("filtered_position", position_error),
+                weight_info.get("derivative_d", 0),
                 weight_info.get("preview_candidate", contribution))
-            details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
+            details2 = "CMD%+d EMA%+d" % (
+                weight_info.get("pd_error", raw_ctrl),
+                weight_info.get("filtered_position", filtered_error))
             if weight_info.get("preview_valid"):
-                preview_mode = ("P_ON" if getattr(
-                    config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-                    else "P_OFF")
-                details3 = "%s N%.1f F%.1f" % (
-                    preview_mode, weight_info["preview_near_x"],
-                    weight_info["preview_far_x"])
+                preview_mode = weight_info.get("profile_short", "PD")
+                preview_state = weight_info.get("preview_state_name", "STR")
+                details3 = "%s %s A%+d" % (
+                    preview_mode, preview_state,
+                    weight_info.get("preview_applied", 0))
             else:
-                preview_mode = ("P_ON" if getattr(
-                    config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-                    else "P_OFF")
-                details3 = "%s NONE W%d/%d" % (
-                    preview_mode,
-                    far_percent, near_percent)
+                preview_mode = weight_info.get("profile_short", "PD")
+                preview_state = weight_info.get("preview_state_name", "STR")
+                details3 = "%s %s W%d/%d" % (
+                    preview_mode, preview_state, far_percent, near_percent)
     elif valid:
         details1 = "POS UNAVAILABLE"
-        details2 = "CTRL%+d FILT%+d" % (raw_ctrl, filtered_error)
-        details3 = ("P_ON NONE" if getattr(
-            config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-            else "P_OFF NONE")
+        details2 = "CMD%+d EMA%+d" % (raw_ctrl, filtered_error)
+        details3 = "%s NONE" % str(config.STEERING_CONTROL_PROFILE).upper()
     else:
         details0 = "BP15 INVALID"
         details1 = "GATE %s" % gate_reason
-        details2 = "CTRL0 FILT0"
-        details3 = ("P_ON NONE" if getattr(
-            config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-            else "P_OFF NONE")
+        details2 = "CMD0 EMA0"
+        details3 = "%s NONE" % str(config.STEERING_CONTROL_PROFILE).upper()
     return (details0[:24], details1[:24], details2[:24], details3[:24])
 
 
@@ -2726,11 +3245,11 @@ class _V7OverlayState:
 
 
 def _render_v7_preview_frame(img, selection, surface_result, road_result,
-                             reference, valid, raw_ctrl, filtered_error,
+                             reference, valid, control_command, filtered_error,
                              processing_ms, fps, overlay_state, now_ms,
                              flush_func=None, weight_info=None,
                              contour_trace_info=None, contour_used=False):
-    """Draw every captured frame, refresh details at 100 ms, then flush it.
+    """Draw every captured frame, refresh details at the configured interval, then flush it.
 
     This runs only after detection and the observation UART write. The flush
     time is kept separate from capture-to-send age and drawing time.
@@ -2750,12 +3269,13 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
                 config.OVERLAY_PERIOD_MS):
             overlay_state.text_cache = _build_gray_overlay_text_cache(
                 selection, surface_result, road_result, reference, valid,
-                raw_ctrl, filtered_error, processing_ms, fps, weight_info)
+                control_command, filtered_error, processing_ms, fps,
+                weight_info)
             overlay_state.last_text_ms = now_ms
             overlay_state.last_status = current_status
         _draw_gray_result(
             img, selection, surface_result, road_result, reference, valid,
-            raw_ctrl, filtered_error, processing_ms, fps,
+            control_command, filtered_error, processing_ms, fps,
             overlay_state.text_cache, weight_info, contour_trace_info,
             contour_used)
         overlay_state.draw_us = time.ticks_diff(
@@ -3203,6 +3723,7 @@ def _main_fast(duration_s=None, run_id=0):
             raise RuntimeError(
                 "V7 sensor exposure %dus exceeds %dus limit" %
                 (exposure_us, exposure_cap_us))
+    control_profile = config.STEERING_CONTROL_PROFILE
 
     sensor_id_text = ("0x%04X" % (sensor_id & 0xFFFF)
                       if isinstance(sensor_id, int) else
@@ -3215,7 +3736,7 @@ def _main_fast(duration_s=None, run_id=0):
           "slope_hint=always0 contour_api=%d contour_backend=%s "
           "sensor_id=%s "
           "camera=160x120 grid=80x60 floor=%d budget=%dms "
-          "detail_text=%dms preview=per_frame ordinary_preview=%s "
+          "detail_text=%dms control_profile=%s preview=per_frame "
           "uart=3@115200/8N1 exposure_us=%s "
           "exposure_cap_us=%s gain_db=%s "
           "gray_backend=%s topology_backend=%s boundary_backend=%s "
@@ -3229,9 +3750,7 @@ def _main_fast(duration_s=None, run_id=0):
               sensor_id_text,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
-              ("on" if getattr(config,
-                               "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-               else "off"),
+              control_profile,
               str(exposure_us), str(exposure_cap_us), str(gain_db),
               getattr(fast_gray, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_topology, "COMPILER_BACKEND", "UNKNOWN"),
@@ -3249,6 +3768,8 @@ def _main_fast(duration_s=None, run_id=0):
         config.OBSERVATION_FILTER_MAX_GAP_MS,
         0)  # Quality is diagnostic only for this fast geometry path.
     row_weight_workspace = _FastRowWeightWorkspace()
+    position_pd = _FastPositionPD(config)
+    adaptive_preview = _FastAdaptivePreview(config)
     reverse_input_buffer = bytearray(reverse_control.MAX_FEED_BYTES)
     reverse_drain_state = array("i", [0])
     reverse_generation = reverse_parser.generation
@@ -3304,6 +3825,8 @@ def _main_fast(duration_s=None, run_id=0):
                     single_edge_tracker.clear("CAPTURE_GAP")
                     ring_slope_tracker.clear("CAPTURE_GAP")
                     observation_filter.reset()
+                    position_pd.reset("CAPTURE_GAP")
+                    adaptive_preview.reset()
                     previous_source = None
                     previous_reference_kind = None
                     previous_reference_y = None
@@ -3314,10 +3837,11 @@ def _main_fast(duration_s=None, run_id=0):
         capture_us = time.ticks_diff(capture_end_us, capture_start_us)
         capture_end_ms = time.ticks_ms()
         capture_interrupted = False
+        capture_dt_ms = None
         if last_capture_end_ms is not None:
-            capture_gap_ms = time.ticks_diff(
+            capture_dt_ms = time.ticks_diff(
                 capture_end_ms, last_capture_end_ms)
-            if capture_gap_ms < 0 or capture_gap_ms >= \
+            if capture_dt_ms < 0 or capture_dt_ms >= \
                     reverse_control.DEFAULT_TIMEOUT_MS:
                 capture_interrupted = True
                 reverse_parser.invalidate("CAPTURE_GAP")
@@ -3333,6 +3857,13 @@ def _main_fast(duration_s=None, run_id=0):
             single_edge_tracker.clear(reverse_parser.last_event)
             ring_slope_tracker.clear(reverse_parser.last_event)
             observation_filter.reset()
+            reset_reason = ("REVERSE_RESET" if
+                            reverse_parser.last_event == "RESET" else
+                            "CONTROL_TIMEOUT" if "TIMEOUT" in
+                            reverse_parser.last_event else
+                            "REVERSE_RESET")
+            position_pd.reset(reset_reason)
+            adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
@@ -3342,6 +3873,8 @@ def _main_fast(duration_s=None, run_id=0):
             single_edge_tracker.clear("CAPTURE_GAP")
             ring_slope_tracker.clear("CAPTURE_GAP")
             observation_filter.reset()
+            position_pd.reset("CAPTURE_GAP")
+            adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
@@ -3562,6 +4095,8 @@ def _main_fast(duration_s=None, run_id=0):
             reverse_drain_state[0] = 1
             single_edge_tracker.clear(reverse_parser.last_event)
             observation_filter.reset()
+            position_pd.reset("CONTROL_TIMEOUT")
+            adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
@@ -3678,7 +4213,7 @@ def _main_fast(duration_s=None, run_id=0):
                     # This is the same-frame row aggregate; `reference`
                     # remains the independently validated geometric safety
                     # reference used by source-switch and boundary checks.
-                    raw_error = weight_info["steering_error"]
+                    raw_error = weight_info["position_error"]
                     selection["lateral_error"] = raw_error
                 except (KeyError, TypeError, ValueError, OverflowError):
                     raw_valid = False
@@ -3697,7 +4232,12 @@ def _main_fast(duration_s=None, run_id=0):
             source_now = selection.get("source")
             kind_now = reference["kind"]
             reference_x_now = reference.get("x")
-            reference_y_now = reference.get("y")
+            # EMA identity follows the same current supported weighted row
+            # used by the controller, not the independent safety marker.
+            reference_y_now = weight_info.get("reference_row_y")
+            if (reference_y_now is None and source_now in
+                    ("ring_left", "ring_right")):
+                reference_y_now = reference.get("y")
             source_or_kind_changed = (previous_source is not None and
                                       (source_now != previous_source or
                                        kind_now != previous_reference_kind))
@@ -3713,10 +4253,9 @@ def _main_fast(duration_s=None, run_id=0):
                 filter_reset_reason = "SOURCE_OR_REFERENCE_KIND"
             elif (previous_reference_y is not None and
                   reference_y_now is not None and
-                  abs(reference_y_now - previous_reference_y) >
-                  config.GRAY_FILTER_REFERENCE_Y_RESET_CELLS):
+                  reference_y_now != previous_reference_y):
                 observation_filter.reset()
-                filter_reset_reason = "REFERENCE_Y_SHIFT"
+                filter_reset_reason = "REFERENCE_ROW_CHANGED"
         else:
             previous_source = None
             previous_reference_kind = None
@@ -3735,6 +4274,8 @@ def _main_fast(duration_s=None, run_id=0):
             single_edge_tracker.clear("FRAME_BUDGET")
             ring_slope_tracker.clear("FRAME_BUDGET")
             observation_filter.reset()
+            position_pd.reset("FRAME_BUDGET")
+            adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
@@ -3749,7 +4290,7 @@ def _main_fast(duration_s=None, run_id=0):
             reference = None
             filter_reset_reason = "FRAME_BUDGET"
 
-        now_ms = time.ticks_ms()
+        now_ms = capture_end_ms
         filtered_error = observation_filter.update(
             now_ms, raw_valid, quality if raw_valid else 0,
             raw_error if raw_valid else 0, time.ticks_diff)
@@ -3757,10 +4298,79 @@ def _main_fast(duration_s=None, run_id=0):
         if not valid:
             raw_error = 0
             filtered_error = 0
+        control_source = selection.get("source", "NONE") if valid else "NONE"
+        control_boundary_source = selection.get(
+            "boundary_source", "OBSERVED_BOTH" if control_source == "road"
+            else "NONE")
+        control_reference_kind = (reference.get("kind")
+                                  if reference is not None else "NONE")
+        # The weighted supported row is the controller identity. The
+        # geometric safety reference remains independent of this value.
+        control_reference_y = weight_info.get("reference_row_y")
+        if (control_reference_y is None and reference is not None and
+                control_source in ("ring_left", "ring_right")):
+            control_reference_y = reference.get("y")
+        control_info = position_pd.update(
+            capture_end_ms, capture_dt_ms, valid, filtered_error,
+            control_source, control_boundary_source,
+            control_reference_kind, control_reference_y,
+            control_profile, time.ticks_diff)
+        preview_candidate = weight_info.get("preview_candidate", 0)
+        preview_geometry_valid = bool(weight_info.get("preview_valid"))
+        preview_eligible_source = control_source in (
+            "road", "single_left", "single_right")
+        preview_enabled = bool(control_info.get("preview_enabled") and
+                               preview_eligible_source)
+        preview_applied = adaptive_preview.update(
+            capture_end_ms, capture_dt_ms, valid, preview_enabled,
+            control_source, control_boundary_source,
+            control_reference_kind, control_reference_y,
+            preview_geometry_valid, preview_candidate, filtered_error,
+            time.ticks_diff, control_info)
+        final_control = control_info.get("pd_output", 0) + preview_applied
+        if final_control < -config.STEERING_OUTPUT_LIMIT:
+            final_control = -config.STEERING_OUTPUT_LIMIT
+        elif final_control > config.STEERING_OUTPUT_LIMIT:
+            final_control = config.STEERING_OUTPUT_LIMIT
+        if not valid:
+            final_control = 0
+        weight_info["filtered_position"] = filtered_error
+        weight_info["pd_error"] = final_control
+        weight_info["heading_contribution"] = preview_applied
+        weight_info["preview_gain_milli"] = control_info.get(
+            "preview_gain_milli", 0)
+        weight_info["preview_applied"] = preview_applied
+        weight_info["derivative_d"] = control_info.get("derivative_d", 0)
+        weight_info["position_p"] = control_info.get("position_p", 0)
+        weight_info["preview_state"] = control_info.get("preview_state", 0)
+        preview_state_index = min(3, max(0, int(
+            control_info.get("preview_state", 0))))
+        weight_info["preview_state_name"] = (
+            "STRAIGHT", "CANDIDATE", "CONFIRMED", "EXIT")[
+                preview_state_index]
+        weight_info["profile_short"] = {
+            "no_pd": "NO_PD", "pd": "PD", "pd_preview": "PD+PREV"
+        }.get(control_profile, "PD")
+        weight_info["steering_error"] = final_control
+        control_info["preview_applied"] = preview_applied
+        control_info["preview_candidate"] = preview_candidate
+        control_info["preview_geometry_valid"] = preview_geometry_valid
+        control_info["preview_enabled"] = preview_enabled
+        if not valid:
+            raw_error = 0
+            filtered_error = 0
+            control_info["position_p"] = 0
+            control_info["pd_output"] = 0
+            control_info["derivative_d"] = 0
+            control_info["preview_applied"] = 0
+            weight_info["filtered_position"] = 0
+            weight_info["pd_error"] = 0
+            weight_info["steering_error"] = 0
+            weight_info["heading_contribution"] = 0
         else:
             previous_source = selection.get("source")
             previous_reference_kind = reference["kind"]
-            previous_reference_y = reference.get("y")
+            previous_reference_y = control_reference_y
             previous_reference_x = reference.get("x")
         reference_end_us = time.ticks_us()
 
@@ -3772,7 +4382,7 @@ def _main_fast(duration_s=None, run_id=0):
             packet = vision_protocol.pack_frame(
                 sequence, 1 if valid else 0,
                 quality if valid else 0,
-                filtered_error if valid else 0,
+                final_control if valid else 0,
                 0)
             packet_ready_us = time.ticks_us()
             packet_ready_age_us = time.ticks_diff(
@@ -3805,6 +4415,27 @@ def _main_fast(duration_s=None, run_id=0):
                 selection["reason"] = "FRAME_BUDGET"
                 reference = None
                 filter_reset_reason = "FRAME_BUDGET_PACKET_READY"
+                position_pd.reset("FRAME_BUDGET")
+                adaptive_preview.reset()
+                final_control = 0
+                control_info["position_p"] = 0
+                control_info["derivative_d"] = 0
+                control_info["pd_output"] = 0
+                control_info["preview_applied"] = 0
+                control_info["preview_gain_milli"] = 0
+                control_info["preview_confirmed"] = False
+                control_info["preview_state"] = 0
+                control_info["reset_code"] = _CONTROL_RESET_CODES[
+                    "FRAME_BUDGET"]
+                weight_info["position_p"] = 0
+                weight_info["derivative_d"] = 0
+                weight_info["preview_applied"] = 0
+                weight_info["preview_gain_milli"] = 0
+                weight_info["preview_state"] = 0
+                weight_info["preview_state_name"] = "STRAIGHT"
+                weight_info["pd_error"] = 0
+                weight_info["steering_error"] = 0
+                weight_info["heading_contribution"] = 0
                 packet = vision_protocol.pack_frame(sequence, 0, 0, 0, 0)
             if len(packet) != 12:
                 raise ValueError("vision_protocol returned a non-12-byte frame")
@@ -3865,7 +4496,7 @@ def _main_fast(duration_s=None, run_id=0):
                     weight_info.get("heading_contribution", 0),
                     raw_error, filtered_error, diag_reference_error,
                     diag_row_count, diag_source_code, reverse_generation,
-                    candidate_diagnostic)
+                    candidate_diagnostic, control_info)
                 if not diag_was_frozen and _STEERING_DIAG.frozen:
                     single_edge_tracker.freeze_diagnostic_snapshot()
             except Exception:
@@ -3887,6 +4518,8 @@ def _main_fast(duration_s=None, run_id=0):
             single_edge_tracker.clear("OBSERVATION_UART_ERROR")
             ring_slope_tracker.clear("OBSERVATION_UART_ERROR")
             observation_filter.reset()
+            position_pd.reset("UART_ERROR")
+            adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
@@ -3939,7 +4572,7 @@ def _main_fast(duration_s=None, run_id=0):
 
         _render_v7_preview_frame(
             img, selection, no_surface_result, road_result, reference,
-            valid, raw_error, filtered_error,
+            valid, final_control if valid else 0, filtered_error,
             capture_to_send_us // 1000, clock.fps(), overlay_state,
             time.ticks_ms(), weight_info=weight_info,
             contour_trace_info=(contour_trace_info
@@ -3994,7 +4627,8 @@ def _main_fast(duration_s=None, run_id=0):
                   "preview_block=- "
                   "contour=%d/%d:%s:%d/%d "
                   "rowref=%s reference_error=%s "
-                  "boundary=%s:%d/%d ref=%s pos_weighted=%d raw_ctrl=%d filt=%d "
+                  "boundary=%s:%d/%d ref=%s pos_weighted=%d raw_pos=%d "
+                  "pos_ema=%d tx_cmd=%d "
                   "filter=%s "
                   "age_send_ms=%d trusted_block_count=%d "
                   "threshold_min=%s threshold_max=%s "
@@ -4056,9 +4690,7 @@ def _main_fast(duration_s=None, run_id=0):
                       str(ring_candidate.get("near_seed_x"))[:5],
                       str(ring_candidate.get("near_seed_y"))[:5],
                       "DISABLED", slope_hint,
-                      ("ON" if getattr(
-                          config, "ORDINARY_PREVIEW_CONTROL_ENABLED", False)
-                       else "OFF"),
+                       control_profile,
                       weight_info.get("heading_contribution", 0),
                       weight_info.get("preview_candidate", 0),
                       weight_info.get("preview_curvature_cells", 0.0),
@@ -4076,11 +4708,25 @@ def _main_fast(duration_s=None, run_id=0):
                       weight_info.get("position_error", 0) if valid else 0,
                       raw_error if valid else 0,
                       filtered_error if valid else 0,
+                      final_control if valid else 0,
                       filter_reset_reason,
                       capture_to_send_us // 1000, trusted_blocks,
                       str(threshold_min), str(threshold_max), last_tx_result,
                       tx_error_count, detector_error_count,
                       latest_detector_error, clock.fps()))
+            print("V7CTRL seq=%d profile=%s p=%+d d_component=%+d pd=%+d tx_cmd=%+d "
+                  "preview=%s:%+d candidate=%+d gain=%d dt=%d reset=%d" % (
+                      sequence_sent, control_profile,
+                      control_info.get("position_p", 0),
+                      control_info.get("derivative_d", 0),
+                      control_info.get("pd_output", 0),
+                      final_control if valid else 0,
+                      weight_info.get("preview_state_name", "STRAIGHT"),
+                      weight_info.get("preview_applied", 0),
+                      weight_info.get("preview_candidate", 0),
+                      weight_info.get("preview_gain_milli", 0),
+                      control_info.get("capture_dt_ms", 0xFFFF),
+                      control_info.get("reset_code", 0)))
             debug_us = time.ticks_diff(time.ticks_us(), debug_start_us)
             last_debug_ms = debug_now_ms
 

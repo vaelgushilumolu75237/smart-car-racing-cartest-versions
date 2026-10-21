@@ -359,6 +359,8 @@ try {
         $headerAfterDestination = '<diagnostic-directory>\runtime-log-header-after.bin'
         $diagnosticDestination = '<diagnostic-directory>\runtime-diagnostic.bin'
         $speedPiDiagnosticDestination = '<diagnostic-directory>\speed-pi-diagnostic.bin'
+        $receiveDiagnosticDestination = '<diagnostic-directory>\receive-diagnostic.bin'
+        $speedPiTraceHeaderDestination = '<diagnostic-directory>\speed-pi-trace-header.bin'
         $plannedReads = New-Object System.Collections.Generic.List[object]
         $plannedReads.Add([ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) })
         $plannedReads.Add([ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) })
@@ -368,6 +370,12 @@ try {
         }
         if ($plan.speed_pi_diagnostic_snapshot.available) {
             $plannedReads.Add([ordered]@{ purpose = '128-byte generation/CRC-protected speed PI session snapshot'; arguments = @(Get-ReadArguments -Address $plan.speed_pi_diagnostic_snapshot.address -Size 128 -Destination $speedPiDiagnosticDestination) })
+        }
+        if ($plan.receive_diagnostic_snapshot.available) {
+            $plannedReads.Add([ordered]@{ purpose = '96-byte generation/CRC-protected receive-rate and sequence snapshot'; arguments = @(Get-ReadArguments -Address $plan.receive_diagnostic_snapshot.address -Size 96 -Destination $receiveDiagnosticDestination) })
+        }
+        if ($plan.speed_pi_trace_snapshot.available) {
+            $plannedReads.Add([ordered]@{ purpose = '64-byte generation/CRC-protected speed PI trace header'; arguments = @(Get-ReadArguments -Address $plan.speed_pi_trace_snapshot.address -Size 64 -Destination $speedPiTraceHeaderDestination) })
         }
         $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header after diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerAfterDestination) })
         $result = [ordered]@{
@@ -416,6 +424,8 @@ try {
         -Size $script:Plan.scalar_read.size -Destination $scalarPath
     $diagnosticAvailable = [bool]$script:Plan.runtime_diagnostic_snapshot.available
     $speedPiDiagnosticAvailable = [bool]$script:Plan.speed_pi_diagnostic_snapshot.available
+    $receiveDiagnosticAvailable = [bool]$script:Plan.receive_diagnostic_snapshot.available
+    $speedPiTraceAvailable = [bool]$script:Plan.speed_pi_trace_snapshot.available
     $decoded = $null
     $decodeFailure = $null
     for ($attempt = 1; $attempt -le 3; ++$attempt) {
@@ -424,6 +434,8 @@ try {
         $headerAfterPath = Join-Path $script:RunDirectory ("runtime-log-header-after-{0}.bin" -f $suffix)
         $diagnosticPath = Join-Path $script:RunDirectory ("runtime-diagnostic-{0}.bin" -f $suffix)
         $speedPiDiagnosticPath = Join-Path $script:RunDirectory ("speed-pi-diagnostic-{0}.bin" -f $suffix)
+        $receiveDiagnosticPath = Join-Path $script:RunDirectory ("receive-diagnostic-{0}.bin" -f $suffix)
+        $speedPiTraceHeaderPath = Join-Path $script:RunDirectory ("speed-pi-trace-header-{0}.bin" -f $suffix)
         Invoke-StatusRead -Tag ("header-before-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerBeforePath
         if ($diagnosticAvailable) {
@@ -433,6 +445,14 @@ try {
         if ($speedPiDiagnosticAvailable) {
             Invoke-StatusRead -Tag ("speed-pi-diagnostic-{0}" -f $suffix) `
                 -Address $script:Plan.speed_pi_diagnostic_snapshot.address -Size 128 -Destination $speedPiDiagnosticPath
+        }
+        if ($receiveDiagnosticAvailable) {
+            Invoke-StatusRead -Tag ("receive-diagnostic-{0}" -f $suffix) `
+                -Address $script:Plan.receive_diagnostic_snapshot.address -Size 96 -Destination $receiveDiagnosticPath
+        }
+        if ($speedPiTraceAvailable) {
+            Invoke-StatusRead -Tag ("speed-pi-trace-header-{0}" -f $suffix) `
+                -Address $script:Plan.speed_pi_trace_snapshot.address -Size 64 -Destination $speedPiTraceHeaderPath
         }
         Invoke-StatusRead -Tag ("header-after-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerAfterPath
@@ -447,6 +467,12 @@ try {
         }
         if ($speedPiDiagnosticAvailable) {
             $decodeArguments += @('--speed-pi-diagnostic', $speedPiDiagnosticPath)
+        }
+        if ($receiveDiagnosticAvailable) {
+            $decodeArguments += @('--receive-diagnostic', $receiveDiagnosticPath)
+        }
+        if ($speedPiTraceAvailable) {
+            $decodeArguments += @('--speed-pi-trace-header', $speedPiTraceHeaderPath)
         }
         $script:Stage = "decode-snapshot-attempt-$suffix"
         try {
@@ -511,6 +537,15 @@ try {
     if ($decoded.speed_pi_diagnostic_snapshot) {
         $pi = $decoded.speed_pi_diagnostic_snapshot
         Write-Output ("Speed PI: type={0}; status={1}; token={2} (matches runtime token={3}); target_mRPS={4}/{5}; measured_mRPS={6}/{7}; nominal_FF={8}/{9}; requested={10}/{11}; applied={12}/{13}; upper-cap_ms={14}/{15}; active={16}; frozen={17}; hold={18}" -f $pi.pi_type_name, $pi.status_name, $pi.start_token, $pi.start_token_matches_runtime_diagnostic, $pi.target_left_millirps, $pi.target_right_millirps, $pi.measured_left_millirps, $pi.measured_right_millirps, $pi.nominal_ff_left_permille, $pi.nominal_ff_right_permille, $pi.requested_left_permille, $pi.requested_right_permille, $pi.applied_left_permille, $pi.applied_right_permille, $pi.saturation_left_ms, $pi.saturation_right_ms, $pi.active, $pi.frozen, $pi.hold_active)
+    }
+    if ($decoded.receive_diagnostic_snapshot) {
+        $rx = $decoded.receive_diagnostic_snapshot
+        $rxRate = if ($null -eq $rx.accepted_fps) { 'warming' } else { '{0:F3}' -f $rx.accepted_fps }
+        Write-Output ("RX window: accepted={0}/{1} ms ({2} parser-accepted fps); invalid-observation={3}; missing-seq={4}; rejected-seq={5}; parser-errors={6}; latest-seq={7}" -f $rx.accepted_window, $rx.window_duration_ms, $rxRate, $rx.invalid_observation_window, $rx.missing_sequence_window, $rx.sequence_reject_window, $rx.parser_error_total, $rx.latest_sequence)
+    }
+    if ($decoded.speed_pi_trace_header) {
+        $trace = $decoded.speed_pi_trace_header
+        Write-Output ("PI trace: state={0}; type={1}; token={2}; count={3}; total={4}; lost={5}; build-id={6}" -f $trace.state_name, $trace.pi_type_name, $trace.start_token, $trace.count, $trace.total_samples, $trace.lost_samples, $trace.build_id)
     }
     foreach ($warning in @($decoded.warnings)) { Write-Output ("Warning: {0}" -f $warning) }
     Write-Output ("Diagnostic JSON: {0}" -f (Join-Path $script:RunDirectory 'run-status.json'))

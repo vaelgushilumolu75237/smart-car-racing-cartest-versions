@@ -34,6 +34,10 @@ PUBLIC_TEST_FIXTURES = (
     "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
 )
 UPHILL_A_BASELINE_SHA256 = "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d"
+UPHILL_FROZEN_PROFILE_SHA256 = {
+    "B": "f50336905ea5a072f687a2a0edaa74412f115ed5e21f40ced85c0dd378e0866c",
+    "C": "3c7da3c26054764bec0949753212272d37857c015d5f351d13b4a0b085755d4f",
+}
 # The public checkpoint carries only these explicit A/B/C delivery artifacts
 # and their summaries. Do not copy the broader deliverables tree or build logs.
 UPHILL_PROFILE_DELIVERIES = {
@@ -50,6 +54,22 @@ UPHILL_PROFILE_DELIVERIES = {
 }
 UPHILL_ARTIFACT_MANIFEST = "deliverables/H743_Uphill_20261019/artifact-manifest.json"
 UPHILL_BUILD_SUMMARY = "deliverables/H743_Uphill_20261019/build-summary.json"
+SPEEDPD_PROFILE_DELIVERIES = {
+    "B": {
+        "profile": "DebugFollowTurn65",
+        "elf": "deliverables/H743_SpeedPD_20261020/B_OpenLoop/CarTest.elf",
+        "manifest": "deliverables/H743_SpeedPD_20261020/B_OpenLoop/manifest.json",
+    },
+    "C": {
+        "profile": "DebugFollowIncrementalPI",
+        "elf": "deliverables/H743_SpeedPD_20261020/C_IncrementalPI/CarTest.elf",
+        "manifest": "deliverables/H743_SpeedPD_20261020/C_IncrementalPI/manifest.json",
+    },
+}
+SPEEDPD_ARTIFACT_MANIFEST = "deliverables/H743_SpeedPD_20261020/artifact-manifest.json"
+SPEEDPD_BUILD_SUMMARY = "deliverables/H743_SpeedPD_20261020/build-summary.json"
+OPENMV_SPEEDPD_ROOT = "deliverables/OpenMV_Bottom80_Steering_20261021"
+OPENMV_SPEEDPD_PACKAGES = ("no_pd", "pd", "pd_preview")
 PUBLIC_DELIVERY_FILES = (
     "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
     "deliverables/H743_Uphill_20261019/A_Baseline/manifest.json",
@@ -59,6 +79,12 @@ PUBLIC_DELIVERY_FILES = (
     UPHILL_PROFILE_DELIVERIES["C"]["manifest"],
     UPHILL_ARTIFACT_MANIFEST,
     UPHILL_BUILD_SUMMARY,
+    SPEEDPD_PROFILE_DELIVERIES["B"]["elf"],
+    SPEEDPD_PROFILE_DELIVERIES["B"]["manifest"],
+    SPEEDPD_PROFILE_DELIVERIES["C"]["elf"],
+    SPEEDPD_PROFILE_DELIVERIES["C"]["manifest"],
+    SPEEDPD_ARTIFACT_MANIFEST,
+    SPEEDPD_BUILD_SUMMARY,
 )
 
 
@@ -131,6 +157,21 @@ def copy_allowlisted_file(source: Path, destination: Path, relative_name: str):
     shutil.copy2(item, target)
 
 
+def normalize_relative_path(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value.replace("\\", "/")
+
+
+def index_build_rows(summary: dict) -> dict:
+    builds = summary.get("builds", [])
+    if isinstance(builds, dict):
+        return {str(name): row for name, row in builds.items() if isinstance(row, dict)}
+    if isinstance(builds, list):
+        return {row.get("preset"): row for row in builds if isinstance(row, dict)}
+    raise RuntimeError("Build summary must contain build rows keyed by preset or a list of rows.")
+
+
 def verify_uphill_deliveries(source: Path):
     a_elf = source / PUBLIC_DELIVERY_FILES[0]
     a_manifest = source / PUBLIC_DELIVERY_FILES[1]
@@ -154,21 +195,19 @@ def verify_uphill_deliveries(source: Path):
         raise RuntimeError("Uphill artifact manifest or build summary is missing or invalid.") from error
 
     artifacts = artifact_manifest.get("artifacts", {})
-    build_rows = {row.get("preset"): row for row in build_summary.get("builds", [])}
+    build_rows = index_build_rows(build_summary)
     for variant, spec in UPHILL_PROFILE_DELIVERIES.items():
         delivery_elf = source / spec["elf"]
         delivery_manifest_path = source / spec["manifest"]
-        build_elf = source / "build" / spec["profile"] / "CarTest.elf"
         for path, label in ((delivery_elf, "delivery ELF"),
-                            (delivery_manifest_path, "delivery manifest"),
-                            (build_elf, "profile build ELF")):
+                            (delivery_manifest_path, "delivery manifest")):
             if not path.is_file() or path.is_symlink():
                 raise RuntimeError(f"Uphill {variant} {label} is missing or linked: {path}")
 
         delivery_bytes = delivery_elf.read_bytes()
-        if delivery_bytes != build_elf.read_bytes():
-            raise RuntimeError(f"Uphill {variant} delivery ELF differs from {spec['profile']}.")
         elf_sha256 = hashlib.sha256(delivery_bytes).hexdigest()
+        if elf_sha256 != UPHILL_FROZEN_PROFILE_SHA256[variant]:
+            raise RuntimeError(f"Frozen uphill {variant} delivery ELF hash mismatch.")
         try:
             variant_manifest = json.loads(
                 delivery_manifest_path.read_text(encoding="utf-8-sig"))
@@ -179,13 +218,117 @@ def verify_uphill_deliveries(source: Path):
             raise RuntimeError(f"Uphill {variant} manifest does not match its ELF/profile.")
 
         artifact = artifacts.get(variant, {})
-        if (artifact.get("delivery_path") != spec["elf"] or
+        if (normalize_relative_path(artifact.get("delivery_path")) != spec["elf"] or
                 artifact.get("sha256") != elf_sha256 or
-                artifact.get("export_elf") != spec["elf"]):
+                normalize_relative_path(artifact.get("export_elf")) != spec["elf"]):
             raise RuntimeError(f"Top-level artifact manifest does not match uphill {variant}.")
         build_row = build_rows.get(spec["profile"], {})
-        if build_row.get("exit_code") != 0 or build_row.get("sha256") != elf_sha256:
-            raise RuntimeError(f"Build summary does not match uphill {variant} ELF.")
+        if (build_row.get("exit_code") != 0 or
+                build_row.get("sha256") != elf_sha256 or
+                normalize_relative_path(build_row.get("elf")) != f"build/{spec['profile']}/CarTest.elf"):
+            raise RuntimeError(f"Frozen build summary does not match uphill {variant} ELF.")
+
+
+def verify_speedpd_deliveries(source: Path):
+    """Require new B/C snapshots to match the current builds, leaving uphill frozen."""
+    try:
+        artifact_manifest = json.loads(
+            (source / SPEEDPD_ARTIFACT_MANIFEST).read_text(encoding="utf-8-sig"))
+        build_summary = json.loads(
+            (source / SPEEDPD_BUILD_SUMMARY).read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("SpeedPD artifact manifest or build summary is missing or invalid.") from error
+
+    artifacts = artifact_manifest.get("artifacts", {})
+    if build_summary.get("source_inputs_stable") is not True:
+        raise RuntimeError("SpeedPD build summary does not certify stable source inputs.")
+    build_rows = index_build_rows(build_summary)
+    for variant, spec in SPEEDPD_PROFILE_DELIVERIES.items():
+        delivery_elf = source / spec["elf"]
+        delivery_manifest_path = source / spec["manifest"]
+        build_elf = source / "build" / spec["profile"] / "CarTest.elf"
+        for path, label in ((delivery_elf, "delivery ELF"),
+                            (delivery_manifest_path, "delivery manifest"),
+                            (build_elf, "profile build ELF")):
+            if not path.is_file() or path.is_symlink():
+                raise RuntimeError(f"SpeedPD {variant} {label} is missing or linked: {path}")
+
+        delivery_bytes = delivery_elf.read_bytes()
+        if delivery_bytes != build_elf.read_bytes():
+            raise RuntimeError(f"SpeedPD {variant} delivery ELF differs from {spec['profile']}.")
+        elf_sha256 = hashlib.sha256(delivery_bytes).hexdigest()
+        try:
+            variant_manifest = json.loads(
+                delivery_manifest_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"SpeedPD {variant} manifest is invalid.") from error
+        if (variant_manifest.get("profile") != spec["profile"] or
+                variant_manifest.get("sha256") != elf_sha256):
+            raise RuntimeError(f"SpeedPD {variant} manifest does not match its ELF/profile.")
+
+        artifact = artifacts.get(variant, {})
+        if (normalize_relative_path(artifact.get("delivery_path")) != spec["elf"] or
+                artifact.get("sha256") != elf_sha256 or
+                normalize_relative_path(artifact.get("export_elf")) != spec["elf"]):
+            raise RuntimeError(f"SpeedPD artifact manifest does not match {variant}.")
+        build_row = build_rows.get(spec["profile"], {})
+        if (build_row.get("exit_code") != 0 or
+                build_row.get("sha256") != elf_sha256 or
+                normalize_relative_path(build_row.get("elf")) != f"build/{spec['profile']}/CarTest.elf"):
+            raise RuntimeError(f"SpeedPD build summary does not match {variant} ELF.")
+
+
+def verify_openmv_speedpd_packages(source: Path) -> list[str]:
+    """Validate and return only the explicit runtime files for the three camera variants."""
+    allowlisted: list[str] = []
+    shared_runtime_names: set[str] | None = None
+    for profile in OPENMV_SPEEDPD_PACKAGES:
+        relative_root = f"{OPENMV_SPEEDPD_ROOT}/{profile}"
+        package_root = source / relative_root
+        manifest_path = package_root / "PACKAGE_MANIFEST.json"
+        readme_path = package_root / "README.md"
+        for path, label in ((manifest_path, "manifest"), (readme_path, "README")):
+            if not path.is_file() or path.is_symlink():
+                raise RuntimeError(f"OpenMV SpeedPD {profile} {label} is missing or linked.")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"OpenMV SpeedPD {profile} manifest is invalid.") from error
+        runtime_files = manifest.get("runtime_files")
+        if (manifest.get("schema_version") != 1 or
+                manifest.get("control_profile") != profile or
+                not manifest.get("package_id") or not manifest.get("build_id") or
+                manifest.get("runtime_file_count") != 20 or
+                not isinstance(runtime_files, list) or len(runtime_files) != 20):
+            raise RuntimeError(f"OpenMV SpeedPD {profile} manifest metadata is incomplete.")
+
+        runtime_names: set[str] = set()
+        for entry in runtime_files:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if (not isinstance(name, str) or Path(name).name != name or
+                    not name.endswith(".py") or name in runtime_names):
+                raise RuntimeError(f"OpenMV SpeedPD {profile} runtime file list is unsafe or duplicated.")
+            runtime_names.add(name)
+            runtime_path = package_root / name
+            if not runtime_path.is_file() or runtime_path.is_symlink():
+                raise RuntimeError(f"OpenMV SpeedPD {profile} runtime file is missing or linked: {name}")
+            runtime_bytes = runtime_path.read_bytes()
+            runtime_sha = hashlib.sha256(runtime_bytes).hexdigest()
+            if (entry.get("size_bytes") != len(runtime_bytes) or
+                    entry.get("sha256") != runtime_sha or
+                    entry.get("mpy_cross_exit_code") != 0):
+                raise RuntimeError(f"OpenMV SpeedPD {profile} runtime/compiler evidence mismatch: {name}")
+            allowlisted.append(f"{relative_root}/{name}")
+
+        if shared_runtime_names is None:
+            shared_runtime_names = runtime_names
+        elif runtime_names != shared_runtime_names:
+            raise RuntimeError("OpenMV SpeedPD profiles do not share the same runtime module set.")
+        allowlisted.extend((
+            f"{relative_root}/PACKAGE_MANIFEST.json",
+            f"{relative_root}/README.md",
+        ))
+    return allowlisted
 
 
 def main():
@@ -211,6 +354,8 @@ def main():
         if not (source / "build" / profile / "CarTest.elf").is_file():
             raise RuntimeError(f"Build the declared profile before checkpointing: {profile}")
     verify_uphill_deliveries(source)
+    verify_speedpd_deliveries(source)
+    openmv_speedpd_files = verify_openmv_speedpd_packages(source)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -243,6 +388,8 @@ def main():
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture, destination)
     for name in PUBLIC_DELIVERY_FILES:
+        copy_allowlisted_file(source, target, name)
+    for name in openmv_speedpd_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"

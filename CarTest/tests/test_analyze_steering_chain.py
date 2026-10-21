@@ -1,6 +1,7 @@
 """Evidence-bound clock/session and latest-hold matching tests."""
 
 import sys
+import csv
 import json
 import tempfile
 import unittest
@@ -92,6 +93,58 @@ def make_camera_meta(block_count=1, record_errors=0):
     }
 
 
+def encode_control_extension(sequence, capture_ms, send_ms, sent_control,
+                             *, flags=0x41, position_p=25,
+                             derivative_d=-5, pd_output=20,
+                             preview_candidate=31, preview_gain_milli=750,
+                             preview_applied=29, capture_dt_ms=16,
+                             preview_state=2, reset_code=0):
+    record = bytearray(32)
+
+    def put_u16(offset, value):
+        record[offset:offset + 2] = int(value).to_bytes(2, "little", signed=False)
+
+    def put_i16(offset, value):
+        record[offset:offset + 2] = int(value).to_bytes(2, "little", signed=True)
+
+    def put_u32(offset, value):
+        record[offset:offset + 4] = int(value).to_bytes(4, "little", signed=False)
+
+    record[0] = 2
+    record[1] = flags
+    put_u16(2, sequence)
+    put_u32(4, capture_ms)
+    put_u32(8, send_ms)
+    put_i16(12, position_p)
+    put_i16(14, derivative_d)
+    put_i16(16, pd_output)
+    put_i16(18, preview_candidate)
+    put_u16(20, preview_gain_milli)
+    put_i16(22, preview_applied)
+    put_u16(24, capture_dt_ms)
+    record[26] = preview_state
+    record[27] = reset_code
+    put_i16(28, sent_control)
+    put_u16(30, analyzer._crc16_ccitt_false(record[:30]))
+    return record.hex()
+
+
+def write_camera_trace(path, cameras, extensions=None):
+    fields = list(analyzer.CAMERA_FIELDS)
+    if extensions is not None:
+        fields.append(analyzer.CONTROL_EXTENSION_V2_COLUMN)
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        stream.write("# ticks_period_ms=256 count={} record_errors=0\n".format(
+            len(cameras)))
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        for index, camera in enumerate(cameras):
+            row = {name: camera[name] for name in analyzer.CAMERA_FIELDS}
+            if extensions is not None:
+                row[analyzer.CONTROL_EXTENSION_V2_COLUMN] = extensions[index]
+            writer.writerow(row)
+
+
 class AnalyzeSteeringChainTests(unittest.TestCase):
     def _valid_inputs(self):
         cameras = [camera_row(65535, 248, 250, 20, index=0),
@@ -111,6 +164,118 @@ class AnalyzeSteeringChainTests(unittest.TestCase):
         self.assertEqual(len(matches), 3)
         self.assertIsNone(report["clock_alignment"]["estimate"])
         self.assertIn("no cross-clock subtraction", report["clock_alignment"]["uncertainty"])
+
+    def test_control_extension_v2_crc_and_base_row_binding(self):
+        self.assertEqual(analyzer._crc16_ccitt_false(b"123456789"), 0x29B1)
+        base = {"sequence": 7, "capture_ms": 100, "send_ms": 108,
+                "sent_error_norm": -35}
+        valid = encode_control_extension(7, 100, 108, -35)
+        decoded, issues, present = analyzer._decode_control_extension_v2(valid, base)
+        self.assertTrue(present)
+        self.assertEqual(issues, [])
+        self.assertEqual(decoded["position_p"], 25)
+        self.assertEqual(decoded["derivative_d"], -5)
+        self.assertEqual(decoded["pd_output"], 20)
+        self.assertEqual(decoded["preview_candidate"], 31)
+        self.assertEqual(decoded["preview_applied"], 29)
+        self.assertEqual(decoded["sent_control"], -35)
+
+        mismatches = (
+            ("sequence", encode_control_extension(8, 100, 108, -35)),
+            ("capture_ms", encode_control_extension(7, 101, 108, -35)),
+            ("send_ms", encode_control_extension(7, 100, 109, -35)),
+            ("sent_control", encode_control_extension(7, 100, 108, -34)),
+        )
+        for field, extension in mismatches:
+            with self.subTest(field=field):
+                _decoded, row_issues, _present = analyzer._decode_control_extension_v2(
+                    extension, base)
+                expected = ("sent_control" if field == "sent_control" else field)
+                self.assertTrue(any(expected in issue for issue in row_issues),
+                                row_issues)
+
+        corrupt = bytearray.fromhex(valid)
+        corrupt[30] ^= 0x01
+        _decoded, crc_issues, _present = analyzer._decode_control_extension_v2(
+            corrupt.hex(), base)
+        self.assertIn("extension CRC16/CCITT-FALSE mismatch", crc_issues)
+
+    def test_control_extension_v2_fields_flow_to_matched_rows(self):
+        meta, cameras, status, h743 = self._valid_inputs()
+        extensions = [
+            encode_control_extension(65535, 248, 250, 20,
+                                     position_p=40, derivative_d=-10,
+                                     pd_output=30, preview_candidate=45,
+                                     preview_applied=43),
+            encode_control_extension(0, 2, 5, -50,
+                                     position_p=-30, derivative_d=-20,
+                                     pd_output=-50, preview_candidate=-42,
+                                     preview_applied=-40, flags=0x82,
+                                     preview_state=1, reset_code=3),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = Path(directory) / "camera.csv"
+            matched_path = Path(directory) / "matched.csv"
+            write_camera_trace(trace_path, cameras, extensions)
+            camera_meta, loaded_cameras = analyzer.load_camera_trace(trace_path)
+            report, matched = analyzer.analyze(camera_meta, loaded_cameras,
+                                               status, h743)
+            analyzer._write_matched_csv(matched_path, matched)
+            with matched_path.open("r", encoding="utf-8", newline="") as stream:
+                exported_matches = list(csv.DictReader(stream))
+
+        self.assertEqual(report["status"], "complete")
+        extension_report = report["camera_trace"]["control_extension_v2"]
+        self.assertEqual(extension_report["status"], "valid")
+        self.assertEqual(extension_report["valid_records"], 2)
+        self.assertEqual(extension_report["invalid_records"], 0)
+        self.assertEqual(extension_report["ranges"]["position_p"]["min"], -30)
+        by_sequence = {row["sequence"]: row for row in matched}
+        self.assertEqual(by_sequence[65535]["control_ext_v2_position_p"], 40)
+        self.assertEqual(by_sequence[65535]["control_ext_v2_derivative_d"], -10)
+        self.assertEqual(by_sequence[65535]["control_ext_v2_pd_output"], 30)
+        self.assertEqual(by_sequence[65535]["control_ext_v2_preview_candidate"], 45)
+        self.assertEqual(by_sequence[65535]["control_ext_v2_preview_applied"], 43)
+        self.assertEqual(by_sequence[65535]["control_ext_v2_sent_control"], 20)
+        self.assertTrue(by_sequence[0]["control_ext_v2_valid"])
+        exported = next(row for row in exported_matches if row["sequence"] == "65535")
+        self.assertEqual(exported["control_ext_v2_pd_output"], "30")
+        self.assertEqual(exported["control_ext_v2_preview_candidate"], "45")
+        self.assertEqual(exported["control_ext_v2_sent_control"], "20")
+
+    def test_legacy_camera_trace_without_control_extension_remains_complete(self):
+        _meta, cameras, status, h743 = self._valid_inputs()
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = Path(directory) / "legacy-camera.csv"
+            write_camera_trace(trace_path, cameras)
+            camera_meta, loaded_cameras = analyzer.load_camera_trace(trace_path)
+            report, matched = analyzer.analyze(camera_meta, loaded_cameras,
+                                               status, h743)
+
+        self.assertEqual(report["status"], "complete")
+        self.assertEqual(report["camera_trace"]["control_extension_v2"]["status"],
+                         "legacy_absent")
+        self.assertEqual(report["camera_trace"]["control_extension_v2"]["present_records"], 0)
+        self.assertTrue(matched)
+        self.assertIsNone(matched[0]["control_ext_v2_position_p"])
+
+    def test_invalid_control_extension_marks_trace_incomplete(self):
+        _meta, cameras, status, h743 = self._valid_inputs()
+        extension = bytearray.fromhex(
+            encode_control_extension(65535, 248, 250, 20))
+        extension[30] ^= 0x01
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = Path(directory) / "bad-extension-camera.csv"
+            write_camera_trace(trace_path, cameras,
+                               [extension.hex(), encode_control_extension(0, 2, 5, -50)])
+            camera_meta, loaded_cameras = analyzer.load_camera_trace(trace_path)
+            report, _matched = analyzer.analyze(camera_meta, loaded_cameras,
+                                                status, h743)
+
+        self.assertEqual(report["status"], "incomplete_camera_trace")
+        self.assertEqual(report["camera_trace"]["control_extension_v2"]["invalid_records"], 1)
+        self.assertTrue(any("control extension V2" in warning
+                            for warning in report["camera_trace"]["evidence_warnings"]))
 
     def test_hold_snapshot_matches_only_unique_latest_entry_near_its_time_and_sequence(self):
         meta, cameras, status, h743 = self._valid_inputs()

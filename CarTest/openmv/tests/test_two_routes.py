@@ -286,19 +286,23 @@ class TwoRouteTests(unittest.TestCase):
         self.assertEqual(switched["boundary_source"], "RIGHT_ONLY")
         self.assertEqual(tracker.cache_rows, 0)
 
-    def test_only_the_two_explicit_route_build_pairs_validate(self):
-        for route, build in main.SINGLEEDGE_ROUTE_BUILD_IDS:
-            with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", route), \
+    def test_each_cached_width_profile_build_validates(self):
+        for profile, build in config.STEERING_CONTROL_PROFILE_BUILD_IDS:
+            with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "cached_width"), \
+                    patch.object(config, "STEERING_CONTROL_PROFILE", profile), \
                     patch.object(config, "BUILD_ID", build):
                 self.assertTrue(main._validate_fast_config())
         with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "clipped_midpoint"), \
-                patch.object(config, "BUILD_ID", "ARBITRARY_BUILD"):
+                patch.object(config, "STEERING_CONTROL_PROFILE", "pd"), \
+                patch.object(config, "BUILD_ID", dict(
+                    config.STEERING_CONTROL_PROFILE_BUILD_IDS)["pd"]):
             with self.assertRaisesRegex(RuntimeError, "route/build mismatch"):
                 main._validate_fast_config()
         with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "cached_width"), \
+                patch.object(config, "STEERING_CONTROL_PROFILE", "pd"), \
                 patch.object(config, "BUILD_ID",
-                             main.CLIPPED_MIDPOINT_BUILD_ID):
-            with self.assertRaisesRegex(RuntimeError, "route/build mismatch"):
+                             "ARBITRARY_BUILD"):
+            with self.assertRaisesRegex(RuntimeError, "profile/build mismatch"):
                 main._validate_fast_config()
 
     def test_overlay_draws_midpoint_chain_boundary_and_clip_separately(self):

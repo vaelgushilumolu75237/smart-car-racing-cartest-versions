@@ -435,15 +435,27 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         frame, log, tracker = self._run_main_fast(True, 0)
         self.assertEqual(len(frame), 12)
         self.assertEqual(frame[6], 0x01)
-        weighted_position = main._normalize_fast_reference(46.0, WIDTH)
-        self.assertEqual(int.from_bytes(frame[8:10], "little", signed=True),
-                         weighted_position)
+        packet_command = int.from_bytes(frame[8:10], "little", signed=True)
+        control_line = next(line for line in log.splitlines()
+                            if line.startswith("V7CTRL "))
+        control = dict(token.split("=", 1) for token in control_line.split()[1:]
+                       if "=" in token)
+        self.assertEqual(int(control["preview"].split(":", 1)[1]), 0)
+        self.assertEqual(packet_command, int(control["tx_cmd"]))
+        self.assertEqual(packet_command, int(control["pd"]))
+        self.assertEqual(
+            packet_command,
+            max(-1000, min(1000,
+                           int(control["p"]) +
+                           int(control["d_component"]))))
         self.assertIn("source=ring_right", log)
         self.assertIn("preview=+0", log)
         self.assertIn("preview_candidate=+0", log)
         self.assertIn("preview_block=-", log)
         self.assertIn("reference_error=-", log)
-        self.assertIn("raw_ctrl=%d" % weighted_position, log)
+        self.assertIn("raw_pos=", log)
+        self.assertIn("pos_ema=", log)
+        self.assertIn("tx_cmd=%d" % packet_command, log)
         self.assertIn("auth=1 geo=1", log)
         self.assertIn("ring=INSIDE_RIGHT", log)
         self.assertIn("ref=49.0,53.0", log)
@@ -529,7 +541,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                             baseline_dir, names, saved)
                     current_frames, current_log = self._run_fixture_sequence(
                         main, config, fixture, stop_after=12)
-                    # Preview intentionally changes the steering payload;
+                    # Position PD intentionally changes the steering payload;
                     # route authority, sequence and validity remain ordinary.
                     for current, baseline in zip(current_frames, baseline_frames):
                         self.assertEqual(current[:8], baseline[:8])
@@ -542,7 +554,9 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                     self.assertIn("preview_candidate=", current_log)
                     self.assertIn("preview_block=", current_log)
                     self.assertIn("reference_error=", current_log)
-                    self.assertIn("raw_ctrl=", current_log)
+                    self.assertIn("raw_pos=", current_log)
+                    self.assertIn("pos_ema=", current_log)
+                    self.assertIn("tx_cmd=", current_log)
                     self.assertEqual(len(current_frames), 12)
                     for frame in current_frames:
                         self.assertEqual(len(frame), 12)

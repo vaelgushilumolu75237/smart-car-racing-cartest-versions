@@ -58,7 +58,7 @@
     },
     {
       "name": "DebugFollow",
-      "displayName": "DebugFollow - straight 500 permille; normal 600; hard 700; diff 0",
+      "displayName": "DebugFollow - base 500; normal and hard 1000; diff 0; hold 2000 ms; decel 200 ms",
       "inherits": "default",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
@@ -67,12 +67,14 @@
         "CARTEST_ENABLE_STEERING": "OFF",
         "CARTEST_HARDWARE_ACCEPTED": "ON",
         "CARTEST_RUNTIME_LOG_ENABLED": "ON",
-        "CARTEST_FOLLOW_DIFF_PERMILLE": "0"
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "0",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200"
       }
     },
     {
       "name": "DebugFollowNoLog",
-      "displayName": "DebugFollowNoLog - straight 500 permille; normal 600; hard 700; diff 0; RAM log off",
+      "displayName": "DebugFollowNoLog - base 500; normal and hard 1000; diff 0; hold 2000 ms; RAM log off",
       "inherits": "DebugFollow",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -81,7 +83,7 @@
     },
     {
       "name": "DebugFollowDiff5",
-      "displayName": "DebugFollowDiff5 - motors enabled; d=50 permille; PE7 toggle; 70% hard cap",
+      "displayName": "DebugFollowDiff5 - base 500; d=50 permille; 1000 cap; 2000/200 ms hold/decel",
       "inherits": "DebugFollow",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -90,7 +92,7 @@
     },
     {
       "name": "DebugFollowDiff10",
-      "displayName": "DebugFollowDiff10 - motors enabled; d=100 permille; PE7 toggle; 70% hard cap",
+      "displayName": "DebugFollowDiff10 - base 500; d=100 permille; 1000 cap; 2000/200 ms hold/decel",
       "inherits": "DebugFollow",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -99,7 +101,7 @@
     },
     {
       "name": "DebugFollowTurn",
-      "displayName": "DebugFollowTurn - 70/30 turn target; servo 120us/20ms; motor 40 permille/10ms",
+      "displayName": "DebugFollowTurn - 70/30 target; 1000 cap; servo 120us/20ms; motor 40/10ms; hold 2000/200ms",
       "inherits": "DebugFollow",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -109,7 +111,7 @@
     },
     {
       "name": "DebugFollowSpeedPI",
-      "displayName": "DebugFollowSpeedPI - experimental independent encoder speed PI; target 2400 milli-RPS; RAM log ON",
+      "displayName": "DebugFollowSpeedPI - positional encoder PI; target 2400 milli-RPS; 1000 cap; RAM log ON",
       "inherits": "DebugFollowTurn",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -131,7 +133,7 @@
     },
     {
       "name": "DebugFollowIncrementalPI",
-      "displayName": "DebugFollowIncrementalPI - 65/35 turn target; incremental encoder speed PI; hold 2000 ms; decel 200 ms; RAM log ON",
+      "displayName": "DebugFollowIncrementalPI - 65/35; incremental encoder PI; 1000 cap; hold 2000/200 ms; RAM log ON",
       "inherits": "DebugFollowTurn65",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {

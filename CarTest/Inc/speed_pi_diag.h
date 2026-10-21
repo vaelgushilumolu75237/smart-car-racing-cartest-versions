@@ -10,9 +10,10 @@ extern "C" {
 
 enum {
     CAR_SPEED_PI_DIAG_MAGIC = 0x47414950u, /* Little-endian bytes "PIAG". */
-    CAR_SPEED_PI_DIAG_VERSION = 1u,
+    CAR_SPEED_PI_DIAG_VERSION = 2u,
     CAR_SPEED_PI_DIAG_SIZE = 128u,
-    CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE = 700u,
+    CAR_SPEED_PI_DIAG_V1_OUTPUT_CAP_PERMILLE = 700u,
+    CAR_SPEED_PI_DIAG_OUTPUT_CAP_PERMILLE = 1000u,
     CAR_SPEED_PI_DIAG_TYPE_NONE = 0u,
     CAR_SPEED_PI_DIAG_TYPE_POSITION = 1u,
     CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL = 2u,
@@ -55,11 +56,11 @@ typedef struct CAR_SPEED_PI_DIAG_PACKED {
     uint16_t applied_right_permille;    /* 58 */
     uint32_t status;                 /* 60: car_follow_speed_pi status value */
     uint32_t termination_fault;      /* 64: car fault value at session stop */
-    uint32_t saturation_left_ms;     /* 68: time at 700 permille upper cap */
+    uint32_t saturation_left_ms;     /* 68: time at versioned upper cap */
     uint32_t saturation_right_ms;    /* 72: same; 0-output does not count */
     uint32_t flags;                  /* 76: enabled/armed/active/sample/frozen/hold */
     uint32_t pi_type;                /* 80: CAR_SPEED_PI_DIAG_TYPE_* */
-    uint32_t reserved[11];           /* 84..127: zero in version 1 */
+    uint32_t reserved[11];           /* 84: cap; 88..127 zero in version 2 */
 } car_speed_pi_diag_snapshot_t;
 
 #if defined(_MSC_VER)
@@ -109,7 +110,7 @@ void car_speed_pi_diag_begin(uint32_t start_token, uint32_t start_ms,
    and enabled/armed state are refreshed on every call. Saturation time adds
    sample_elapsed_ms only once per distinct sample_ms when the sample is valid,
    the PI proposal is valid, armed, and not held, the side is saturated, and
-   its request reaches the 700-permille upper cap. */
+   its request reaches the cap recorded in reserved[0]. */
 uint8_t car_speed_pi_diag_update(const car_speed_pi_diag_values_t *values);
 
 /* Freeze the record before resetting PI state or changing session state. */

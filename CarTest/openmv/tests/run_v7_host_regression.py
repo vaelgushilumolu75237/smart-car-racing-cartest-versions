@@ -27,7 +27,7 @@ FROZEN_MANIFEST = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.jso
 FROZEN_ZIP = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.zip"
 FROZEN_INVENTORY = FROZEN_DIR / "source-sha256.csv"
 BUILD_OLD = "SIXTH_V7_FAST_GRAY_RT45_20261005"
-BUILD_NEW = "SECOND_TURN_CONTINUITY_20261018"
+BUILD_NEW = "BOTTOM80_POSPD_20261020"
 TEST_NAMES = (
     "test_fast_gray.py",
     "test_fast_topology.py",
@@ -202,6 +202,10 @@ def main():
                     expected=1,
                     reason="adapt historical BUILD literal to current package identity")
                 content = replace_fixture(
+                    content, name, '"config/build mismatch"',
+                    '"control profile/build mismatch"',
+                    reason="match the explicit profile/build guard wording")
+                content = replace_fixture(
                     content, name, frozen_stub, cartest_stub,
                     reason="add current confidence-diagnostic API to frozen test double")
                 content = replace_fixture(
@@ -327,7 +331,7 @@ def main():
         environment.pop("V7_REQUIRE_BOARD_KERNEL_EQUIVALENCE", None)
         print("SUITE_CLASS=FROZEN_V7_BEHAVIORAL_COMPATIBILITY")
         print("FIXTURE_SOURCE_HASHES=VERIFIED_UNCHANGED")
-        print("TARGET_RUNTIME_CONFIG=SECOND_TURN_CONTINUITY_20261018")
+        print("TARGET_RUNTIME_CONFIG=BOTTOM80_POSPD_20261020")
         print("TEMPORARY_TEST_COPY_ADAPTATIONS=" +
               json.dumps(adaptations_applied, sort_keys=True))
         completed = subprocess.run(

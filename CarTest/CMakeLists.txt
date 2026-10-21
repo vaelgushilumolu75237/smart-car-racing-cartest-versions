@@ -55,7 +55,7 @@ if(CARTEST_VISION_HOLD_RAMP_MS GREATER CARTEST_VISION_HOLD_MS)
 endif()
 if(CARTEST_ENABLE_FOLLOW_SPEED_PI AND
    (NOT CARTEST_ENABLE_FOLLOW OR NOT CARTEST_ENABLE_FOLLOW_TURN OR
-    NOT CARTEST_HARDWARE_ACCEPTED))
+    NOT CARTEST_HARDWARE_ACCEPTED OR NOT CARTEST_RUNTIME_LOG_ENABLED))
   message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_SPEED_PI requires FollowTurn and explicit hardware-output acceptance.")
 endif()
 if(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI AND
@@ -71,7 +71,7 @@ if(CARTEST_ENABLE_FOLLOW_TURN)
     message(FATAL_ERROR "FollowTurn requires CARTEST_FOLLOW_DIFF_PERMILLE=150 or 200.")
   endif()
   set(_cartest_follow_inner_diff_permille "${CARTEST_FOLLOW_DIFF_PERMILLE}")
-  set(_cartest_follow_normal_limit_permille "700")
+  set(_cartest_follow_normal_limit_permille "1000")
   set(_cartest_follow_output_ramp_step_permille "40")
   set(_cartest_follow_servo_slew_step_us "120")
 else()
@@ -79,12 +79,18 @@ else()
     message(FATAL_ERROR "CARTEST_FOLLOW_DIFF_PERMILLE=150 or 200 is reserved for CARTEST_ENABLE_FOLLOW_TURN=ON.")
   endif()
   set(_cartest_follow_inner_diff_permille "${CARTEST_FOLLOW_DIFF_PERMILLE}")
-  set(_cartest_follow_normal_limit_permille "600")
-  set(_cartest_follow_output_ramp_step_permille "10")
-  set(_cartest_follow_servo_slew_step_us "40")
+  if(CARTEST_ENABLE_FOLLOW)
+    set(_cartest_follow_normal_limit_permille "1000")
+    set(_cartest_follow_output_ramp_step_permille "40")
+    set(_cartest_follow_servo_slew_step_us "120")
+  else()
+    set(_cartest_follow_normal_limit_permille "600")
+    set(_cartest_follow_output_ramp_step_permille "10")
+    set(_cartest_follow_servo_slew_step_us "40")
+  endif()
 endif()
 set(_cartest_follow_startup_ramp_step_permille "10")
-set(_cartest_follow_hard_limit_permille "700")
+set(_cartest_follow_hard_limit_permille "1000")
 if(NOT CARTEST_ENABLE_FOLLOW AND NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "0")
   message(FATAL_ERROR "A nonzero Follow differential is legal only in a Follow profile.")
 endif()
@@ -132,7 +138,7 @@ set(_cartest_build_id_material
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
   "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
-  "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=700;tracking_ms=200\n"
+  "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=1000;tracking_ms=200\n"
   "vision_hold_ms=${CARTEST_VISION_HOLD_MS};vision_hold_ramp_ms=${CARTEST_VISION_HOLD_RAMP_MS}\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
   "follow_diff_permille=${CARTEST_FOLLOW_DIFF_PERMILLE}\n"
@@ -196,6 +202,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_incremental_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_diag.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_trace.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/receive_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_log.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/run_block_reason.c"
@@ -237,7 +245,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS=2400
   CARTEST_FOLLOW_SPEED_PI_KP_Q16=13107
   CARTEST_FOLLOW_SPEED_PI_KI_Q16=26214
-  CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE=700
+  CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE=1000
   CARTEST_FOLLOW_SPEED_PI_TRACKING_TIME_MS=200
   CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=${_cartest_follow_normal_limit_permille}
   CARTEST_FOLLOW_HARD_LIMIT_PERMILLE=${_cartest_follow_hard_limit_permille}

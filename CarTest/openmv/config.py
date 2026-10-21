@@ -20,15 +20,22 @@ V7_UART_WRITE_RESERVE_US = 22000  # UART 20 ms timeout plus 2 ms guard.
 DEBUG_ENABLED = True
 # Keep grayscale frames unmodified for calibration by setting this False.
 OVERLAY_ENABLED = True
-OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
+OVERLAY_PERIOD_MS = 200  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-# This package isolates ordinary-road position control for the next vehicle
-# comparison.  Preview geometry is still computed and reported, but it does
-# not contribute to the ordinary road steering packet.
-BUILD_ID = "SECOND_TURN_CONTINUITY_20261018"
-ORDINARY_PREVIEW_CONTROL_ENABLED = False
+# Bottom-80/top-20 position weighting is shared by three control profiles:
+# "no_pd" (filtered position only), "pd" (default), and "pd_preview"
+# (PD plus confirmed adaptive preview). Preview geometry stays diagnostic in
+# the first two profiles.
+STEERING_CONTROL_PROFILE = "pd"
+STEERING_CONTROL_PROFILE_BUILD_IDS = (
+    ("no_pd", "BOTTOM80_NO_PD_20261020"),
+    ("pd", "BOTTOM80_POSPD_20261020"),
+    ("pd_preview", "BOTTOM80_PD_PREVIEW_20261020"),
+)
+BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
+    STEERING_CONTROL_PROFILE, "BOTTOM80_INVALID_20261020")
 STEERING_DIAG_ENABLED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
@@ -55,12 +62,33 @@ SURFACE_GRID_WIDTH = 80
 SURFACE_GRID_HEIGHT = 60
 SURFACE_PIXEL_SCALE = 2
 SURFACE_ROI_FLOOR_Y = 8  # Full-resolution y=16; preserves the upper turn band.
-# Full-frame weighting split: grid y=18 maps to full-resolution y=36.
-STEERING_SPLIT_IMAGE_Y = 36
-STEERING_SPLIT_GRID_Y = 18
+# Full-frame weighting split: grid y=12 maps to full-resolution y=24.
+# Rows below this line provide the 80% near share; rows above provide 20% far.
+STEERING_SPLIT_IMAGE_Y = 24
+STEERING_SPLIT_GRID_Y = 12
 STEERING_FAR_WEIGHT = 0.20
 STEERING_NEAR_WEIGHT = 0.80
-TURN_RESPONSE_VERSION = "LOWER70_UPPER30_V1"
+TURN_RESPONSE_VERSION = "BOTTOM80_TOP20_Y24_V2"
+STEERING_FAR_MIN_SUPPORT_ROWS = 3
+STEERING_FAR_MIN_SUPPORT_SPAN = 2
+
+# Position PD acts after the existing position EMA. The derivative is low-pass
+# filtered before Td is applied; limits are in the protocol's normalized units.
+POSITION_PD_DERIVATIVE_TAU_MS = 60
+POSITION_PD_TIME_MS = 30
+POSITION_PD_D_LIMIT = 100
+POSITION_PD_MAX_DT_MS = 100
+STEERING_OUTPUT_LIMIT = 1000
+
+# Adaptive preview is enabled only by STEERING_CONTROL_PROFILE="pd_preview".
+PREVIEW_CANDIDATE_MIN_ABS = 80
+PREVIEW_CONFIRM_FRAMES = 3
+PREVIEW_CONFIRM_MS = 60
+PREVIEW_POSITION_MIN_ABS = 50
+PREVIEW_POSITION_FULL_GAIN_ABS = 250
+PREVIEW_MAX_GAIN = 0.35
+PREVIEW_APPLIED_LIMIT = 100
+PREVIEW_SLEW_PER_SECOND = 500
 # Ring entry ports may be within a 5% viewport inset (4 cells on the 80-cell
 # grid). This margin is only a crop-side connection tolerance; it is unrelated
 # to the 80/20 steering weights and does not relax road/clearance checks.

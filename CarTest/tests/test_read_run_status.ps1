@@ -28,7 +28,9 @@ $fixtureBuilderOutput = @(& $python $fixtureBuilder --elf $resolvedElf --out $fi
 if ($LASTEXITCODE -ne 0) { throw 'Could not synthesize matching ELF status fixtures.' }
 $fixtureInfo = ($fixtureBuilderOutput -join [Environment]::NewLine) | ConvertFrom-Json
 $attemptReadCount = 2 + [int][bool]$fixtureInfo.diagnostic_available +
-    [int][bool]$fixtureInfo.speed_pi_diagnostic_available
+    [int][bool]$fixtureInfo.speed_pi_diagnostic_available +
+    [int][bool]$fixtureInfo.receive_diagnostic_available +
+    [int][bool]$fixtureInfo.speed_pi_trace_available
 $normalReadCount = 2 + $attemptReadCount
 $normalFrequencies = @(); for ($i = 0; $i -lt $normalReadCount; ++$i) { $normalFrequencies += '1000' }
 $fallbackFrequencies = @('1000'); for ($i = 0; $i -lt $normalReadCount; ++$i) { $fallbackFrequencies += '400' }
@@ -41,6 +43,8 @@ $environmentNames = @(
     'RUN_STATUS_FAKE_DESCRIPTOR_ADDRESS', 'RUN_STATUS_FAKE_DESCRIPTOR_FIXTURE',
     'RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_DIAGNOSTIC_FIXTURE',
     'RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_FIXTURE',
+    'RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_FIXTURE',
+    'RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS', 'RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE',
     'RUN_STATUS_FAKE_SCALAR_ADDRESS', 'RUN_STATUS_FAKE_SCALAR_SIZE',
     'RUN_STATUS_FAKE_SCALAR_FIXTURE', 'RUN_STATUS_FAKE_HEADER_ADDRESS',
     'RUN_STATUS_FAKE_HEADER_FIXTURE', 'RUN_STATUS_FAKE_MODE',
@@ -73,6 +77,10 @@ function Invoke-StatusCase {
     $env:RUN_STATUS_FAKE_DIAGNOSTIC_FIXTURE = Join-Path $fixtureRoot 'runtime-diagnostic.bin'
     $env:RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS = [string]$fixtureInfo.speed_pi_diagnostic_address
     $env:RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_FIXTURE = Join-Path $fixtureRoot 'speed-pi-diagnostic-idle.bin'
+    $env:RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS = [string]$fixtureInfo.receive_diagnostic_address
+    $env:RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_FIXTURE = [string]$fixtureInfo.receive_diagnostic_path
+    $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS = [string]$fixtureInfo.speed_pi_trace_address
+    $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE = [string]$fixtureInfo.speed_pi_trace_idle_path
     $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = [string]$fixtureInfo.scalar_address
     $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$fixtureInfo.scalar_size
     $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $scalarFixture
@@ -144,6 +152,16 @@ function Assert-ReadSequence {
             $expectedSizes.Add(128)
             $readIndex++
         }
+        if ($fixtureInfo.receive_diagnostic_available) {
+            $expectedAddresses.Add([string]$fixtureInfo.receive_diagnostic_address)
+            $expectedSizes.Add(96)
+            $readIndex++
+        }
+        if ($fixtureInfo.speed_pi_trace_available) {
+            $expectedAddresses.Add([string]$fixtureInfo.speed_pi_trace_address)
+            $expectedSizes.Add(64)
+            $readIndex++
+        }
         $expectedAddresses.Add($headerAddress)
         $expectedSizes.Add(64)
         $readIndex++
@@ -181,6 +199,15 @@ try {
         $status.connection.actual_frequency_khz -ne 950) {
         throw 'Status report did not preserve IDLE/no-CSV, non-atomic reads, descriptor, and actual rate.'
     }
+    if ($fixtureInfo.receive_diagnostic_available -and
+        ($status.receive_diagnostic_snapshot.accepted_millifps -ne 30000 -or
+         $status.receive_diagnostic_snapshot.latest_sequence -ne 30)) {
+        throw 'Receive snapshot did not preserve parser-accepted rate and sequence data.'
+    }
+    if ($fixtureInfo.speed_pi_trace_available -and
+        $status.speed_pi_trace_header.state_name -ne 'idle') {
+        throw 'IDLE status did not report an IDLE PI trace header.'
+    }
 
     $badCrcHeader = Join-Path $fixtureRoot 'runtime-log-header-idle-bad-crc.bin'
     $diagnosticIdle = Join-Path $fixtureRoot 'runtime-diagnostic.bin'
@@ -188,11 +215,15 @@ try {
     if ($fixtureInfo.speed_pi_diagnostic_available) {
         $retrySequence += Join-Path $fixtureRoot 'speed-pi-diagnostic-idle.bin'
     }
+    if ($fixtureInfo.receive_diagnostic_available) { $retrySequence += $fixtureInfo.receive_diagnostic_path }
+    if ($fixtureInfo.speed_pi_trace_available) { $retrySequence += $fixtureInfo.speed_pi_trace_idle_path }
     $retrySequence += $badCrcHeader
     $retrySequence += @($headerFixture, $diagnosticIdle)
     if ($fixtureInfo.speed_pi_diagnostic_available) {
         $retrySequence += Join-Path $fixtureRoot 'speed-pi-diagnostic-idle.bin'
     }
+    if ($fixtureInfo.receive_diagnostic_available) { $retrySequence += $fixtureInfo.receive_diagnostic_path }
+    if ($fixtureInfo.speed_pi_trace_available) { $retrySequence += $fixtureInfo.speed_pi_trace_idle_path }
     $retrySequence += $headerFixture
     $crcRetry = Invoke-StatusCase -Name 'retry-invalid-header-crc-then-idle' `
         -Mode success -UploadFixtureSequence $retrySequence
@@ -213,10 +244,14 @@ try {
     if ($fixtureInfo.speed_pi_diagnostic_available) {
         $inconsistentSequence += Join-Path $fixtureRoot 'speed-pi-diagnostic-frozen.bin'
     }
+    if ($fixtureInfo.receive_diagnostic_available) { $inconsistentSequence += $fixtureInfo.receive_diagnostic_path }
+    if ($fixtureInfo.speed_pi_trace_available) { $inconsistentSequence += $fixtureInfo.speed_pi_trace_frozen_header_path }
     $inconsistentSequence += @($frozenHeader, $frozenHeader, $diagnosticFrozen)
     if ($fixtureInfo.speed_pi_diagnostic_available) {
         $inconsistentSequence += Join-Path $fixtureRoot 'speed-pi-diagnostic-frozen.bin'
     }
+    if ($fixtureInfo.receive_diagnostic_available) { $inconsistentSequence += $fixtureInfo.receive_diagnostic_path }
+    if ($fixtureInfo.speed_pi_trace_available) { $inconsistentSequence += $fixtureInfo.speed_pi_trace_frozen_header_path }
     $inconsistentSequence += $frozenHeader
     $inconsistentRetry = Invoke-StatusCase -Name 'retry-transition-then-stable-frozen' `
         -Mode success -UploadFixtureSequence $inconsistentSequence
@@ -266,7 +301,9 @@ try {
     $dryJson = $dry.Output | ConvertFrom-Json
     if ($dryJson.status -ne 'dry_run' -or $dryJson.connected -or
         $dryJson.reads.Count -ne (4 + [int][bool]$fixtureInfo.diagnostic_available +
-            [int][bool]$fixtureInfo.speed_pi_diagnostic_available) -or
+            [int][bool]$fixtureInfo.speed_pi_diagnostic_available +
+            [int][bool]$fixtureInfo.receive_diagnostic_available +
+            [int][bool]$fixtureInfo.speed_pi_trace_available) -or
         (Test-Path -LiteralPath $dry.ArgsLog)) {
         throw 'Status DryRun must list Flash/scalar/header/diagnostic/header reads without running the CLI.'
     }
@@ -288,6 +325,20 @@ try {
         if (@($dryJson.reads[$dryReadIndex].arguments)[7] -ne [string]$fixtureInfo.speed_pi_diagnostic_address -or
             @($dryJson.reads[$dryReadIndex].arguments)[8] -ne '128') {
             throw 'Status DryRun omitted the 128-byte speed PI diagnostic snapshot.'
+        }
+        $dryReadIndex++
+    }
+    if ($fixtureInfo.receive_diagnostic_available) {
+        if (@($dryJson.reads[$dryReadIndex].arguments)[7] -ne [string]$fixtureInfo.receive_diagnostic_address -or
+            @($dryJson.reads[$dryReadIndex].arguments)[8] -ne '96') {
+            throw 'Status DryRun omitted the 96-byte receive-rate and sequence snapshot.'
+        }
+        $dryReadIndex++
+    }
+    if ($fixtureInfo.speed_pi_trace_available) {
+        if (@($dryJson.reads[$dryReadIndex].arguments)[7] -ne [string]$fixtureInfo.speed_pi_trace_address -or
+            @($dryJson.reads[$dryReadIndex].arguments)[8] -ne '64') {
+            throw 'Status DryRun omitted the 64-byte PI trace header snapshot.'
         }
         $dryReadIndex++
     }

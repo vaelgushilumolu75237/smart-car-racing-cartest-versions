@@ -1,425 +1,423 @@
 {
-  "schema_version": 7,
-  "package_id": "SECOND_TURN_CONTINUITY_20261018",
-  "build_id": "SECOND_TURN_CONTINUITY_20261018",
-  "release_status": "SOFTWARE_TESTED_VEHICLE_VALIDATION_PENDING",
-  "delivery_date": "2026-10-19",
-  "git_tag": "v20261018-second-turn",
-  "route_mode": "cached_width",
-  "runtime_api": {
-    "v7_fast_pipeline": 7,
-    "singleedge": 2,
-    "reverse_control": 1,
-    "fast_ring_slope": 2,
-    "contour_trace": 1,
-    "contour_route": 1
+  "build_id": "BOTTOM80_POSPD_20261020",
+  "control": {
+    "control_diagnostic_extension": {
+      "capture_send_timestamps": "camera ticks_ms; camera-clock-relative",
+      "crc": "CRC-16/CCITT-FALSE over bytes 0-29, stored little-endian at 30-31",
+      "derivative_field": "D component after its +/-100 clamp and before total P+D clamp",
+      "record_bytes": 32,
+      "sent_control": "signed control from actual base observation frame",
+      "sequence": "independent u16",
+      "version": 2
+    },
+    "far_support": "at least 3 rows spanning at least 2 grid rows; otherwise near-only",
+    "invalid_position": "no near rows",
+    "observation_uart": "12-byte V1, unchanged",
+    "pd": {
+      "combined_output_limit": 1000,
+      "derivative_component_limit": 100,
+      "derivative_low_pass_tau_ms": 60,
+      "derivative_time_ms": 30,
+      "duplicate_capture": "no history update; hold output",
+      "input": "filtered position only",
+      "maximum_capture_dt_ms": 100
+    },
+    "position_ema": "existing EMA, unchanged",
+    "preview": {
+      "applied_limit": 100,
+      "candidate_min_abs": 80,
+      "confirmation_min_ms": 60,
+      "default_enabled": false,
+      "linear_gain_full_at_position_abs": 250,
+      "maximum_gain": 0.35,
+      "position_min_abs": 50,
+      "same_sign_distinct_frames": 3,
+      "slew_per_second": 500
+    },
+    "reset_conditions": [
+      "invalid capture",
+      "capture dt over 100 ms",
+      "identity change",
+      "actual selected weighted reference-row change"
+    ],
+    "row_weighting": "full-image y=24 split; near 0.80, far 0.20"
   },
+  "control_profile": "pd",
+  "cross_compile": {
+    "all_exit_codes_zero": true,
+    "command_template": "mpy-cross -march=armv7emsp -s <module.py> -o <module.mpy> <module.py>",
+    "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
+    "compiler_sha256": "cced6a90ad63e31e0ef319cc52a33d582005e828aeef16abca01b15ba63b4b94",
+    "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+    "module_count": 20,
+    "modules": [
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/adaptive_detector.mpy",
+        "compiled_sha256": "1746d2e8a8bf3ec2b9afc83565d26f201b4300882ba3342eb985c010d5f1f8cd",
+        "compiled_size_bytes": 13897,
+        "exit_code": 0,
+        "name": "adaptive_detector.py",
+        "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/boundary_evidence.mpy",
+        "compiled_sha256": "c3ba3f004fb96c5ac595fab5ae1a2628edca1241e6623e3cd1ae90c2e74b36d3",
+        "compiled_size_bytes": 5655,
+        "exit_code": 0,
+        "name": "boundary_evidence.py",
+        "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/config.mpy",
+        "compiled_sha256": "173b21791d697451739693a96598a8d4805896ebad994131bbccb87331a4079b",
+        "compiled_size_bytes": 9888,
+        "exit_code": 0,
+        "name": "config.py",
+        "source_sha256": "0514f3c8a1b896d8c362d720bea271f4170e899fff7da1560cc41afcefe67005"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/contour_route.mpy",
+        "compiled_sha256": "d55e9fe91412e72728f07930a25b1def277190faa776c5e78c0ea2a2591df6b4",
+        "compiled_size_bytes": 8348,
+        "exit_code": 0,
+        "name": "contour_route.py",
+        "source_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/contour_trace.mpy",
+        "compiled_sha256": "0a3f6e6d59e03a660eb29921a26af9b11c75ae7e5b3d9022d28f642a1325edcf",
+        "compiled_size_bytes": 10508,
+        "exit_code": 0,
+        "name": "contour_trace.py",
+        "source_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_boundary.mpy",
+        "compiled_sha256": "7743fced56e7eefc3782f8dcc453a90d295fc8b0694613c9dc3bdbeee865d4ee",
+        "compiled_size_bytes": 28374,
+        "exit_code": 0,
+        "name": "fast_boundary.py",
+        "source_sha256": "c569c82f52dd7d81b8d77c665b1b847be711c7439b21e9ab7901a81dd3b5e3f3"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_gray.mpy",
+        "compiled_sha256": "0a879bee1f43b02044c7025f6b18331d30367dfb01264767b20012ef1ab5bd65",
+        "compiled_size_bytes": 13973,
+        "exit_code": 0,
+        "name": "fast_gray.py",
+        "source_sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_path.mpy",
+        "compiled_sha256": "997aa61251b4948afed8f63433e99735ee735ab275330de2d9103501cf5e7c27",
+        "compiled_size_bytes": 23150,
+        "exit_code": 0,
+        "name": "fast_path.py",
+        "source_sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_ring_slope.mpy",
+        "compiled_sha256": "3765f6affda7e6e7f815ff934b851c9445cb5fe2b5819438e13dabb03768d6f5",
+        "compiled_size_bytes": 20723,
+        "exit_code": 0,
+        "name": "fast_ring_slope.py",
+        "source_sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_single_edge.mpy",
+        "compiled_sha256": "a148e043805e4812b28a767b94e45225fc50cb67510c18cb581123d9eec52acc",
+        "compiled_size_bytes": 46125,
+        "exit_code": 0,
+        "name": "fast_single_edge.py",
+        "source_sha256": "b2c52ba0dd6d67ccae7fcf428db9fff1b15dcad9f65530dd2145eb05480d2577"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_topology.mpy",
+        "compiled_sha256": "37342e4defdad9a866a197a11d79a791179f4b950868f1367637902e78adfa68",
+        "compiled_size_bytes": 14891,
+        "exit_code": 0,
+        "name": "fast_topology.py",
+        "source_sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/grayscale_adapter.mpy",
+        "compiled_sha256": "fc4bdb8bc76e938b06815a90ddae30fcebb78c1ee45f65b7bcded53c2ec84b45",
+        "compiled_size_bytes": 2152,
+        "exit_code": 0,
+        "name": "grayscale_adapter.py",
+        "source_sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/line_detector.mpy",
+        "compiled_sha256": "4398ce167d043b82d2fe75c906c5498839199eb3073d0d9a5d44dd453cbc981f",
+        "compiled_size_bytes": 4047,
+        "exit_code": 0,
+        "name": "line_detector.py",
+        "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/main.mpy",
+        "compiled_sha256": "93fccc43578a34c2b3af68b1668cf150f90642807a9f870fac20a28ed75bccd5",
+        "compiled_size_bytes": 68777,
+        "exit_code": 0,
+        "name": "main.py",
+        "source_sha256": "fa02fda625174138935be5fed3892838840143881e6b1c09d9f3466b9e78ce70"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/reverse_control.mpy",
+        "compiled_sha256": "333af1360fd2f7a6421c5f6fa102e2f9fae24df70c0d9595f947ba530b8b879d",
+        "compiled_size_bytes": 2495,
+        "exit_code": 0,
+        "name": "reverse_control.py",
+        "source_sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/road_detector.mpy",
+        "compiled_sha256": "444a82d3c6a1ba9d044c56423ca5ab19e99e876dc3596661f09e477e44d99cb9",
+        "compiled_size_bytes": 8340,
+        "exit_code": 0,
+        "name": "road_detector.py",
+        "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/source_selector.mpy",
+        "compiled_sha256": "34a6a43fb3d69ea91a3a17a0f64bdda0a11df94a84ee596a06a296600ee723b0",
+        "compiled_size_bytes": 2740,
+        "exit_code": 0,
+        "name": "source_selector.py",
+        "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/surface_detector.mpy",
+        "compiled_sha256": "5480785430fc6bc07062cc35b875dbb02751c2a8a6eea3339a02c5e3fe182641",
+        "compiled_size_bytes": 11852,
+        "exit_code": 0,
+        "name": "surface_detector.py",
+        "source_sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/thresholding.mpy",
+        "compiled_sha256": "c26ee89585cf69e0566d42aa28dfb0230c1b4239f6130735a0fb4540a77d18fb",
+        "compiled_size_bytes": 3590,
+        "exit_code": 0,
+        "name": "thresholding.py",
+        "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706"
+      },
+      {
+        "compiled_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/vision_protocol.mpy",
+        "compiled_sha256": "7babe2230c87cad1c80776a734b0f92643b69abc1ff516e5ebf47a7e2e338c58",
+        "compiled_size_bytes": 1285,
+        "exit_code": 0,
+        "name": "vision_protocol.py",
+        "source_sha256": "92d81492e8fd8bc433893c8e3ea4d94c99c5e2b3554043ae4c1ebc64974fc52d"
+      }
+    ],
+    "scope": "MicroPython .mpy source compatibility for the OpenMV ARMv7EM-SP target; not board execution or Viper machine-code runtime proof",
+    "target": "armv7emsp"
+  },
+  "hardware_validation": {
+    "camera_board_runtime_tested": false,
+    "openmv_uploaded": false,
+    "production_45fps_verified": false,
+    "vehicle_tested": false
+  },
+  "limits": [
+    "Host tests and mpy-cross do not establish board runtime or vehicle steering.",
+    "No camera upload, H743 flash/reset, or motor start was performed.",
+    "OpenMV production 45 fps remains unverified."
+  ],
+  "matching_mpy_cross_compiler_available": false,
+  "package_id": "BOTTOM80_POSPD_20261020",
+  "release_status": "HOST_TESTED_CROSS_COMPILED_HARDWARE_VALIDATION_PENDING",
+  "route_mode": "cached_width",
   "runtime_file_count": 20,
   "runtime_files": [
     {
+      "compiled_sha256": "1746d2e8a8bf3ec2b9afc83565d26f201b4300882ba3342eb985c010d5f1f8cd",
+      "compiled_size_bytes": 13897,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/adaptive_detector.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "adaptive_detector.py",
-      "size_bytes": 44071,
       "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 13987,
-      "compiled_sha256": "c2c1d06aa7c37fd88c12489a241c43a1265a0b833b6528f775152dd767648b12"
+      "size_bytes": 44071
     },
     {
+      "compiled_sha256": "c3ba3f004fb96c5ac595fab5ae1a2628edca1241e6623e3cd1ae90c2e74b36d3",
+      "compiled_size_bytes": 5655,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/boundary_evidence.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "boundary_evidence.py",
-      "size_bytes": 18818,
       "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 5745,
-      "compiled_sha256": "612380a1f961fbc5f43444366c86ed0e27da523e4bfcfe174d8ce5b92cb2bf60"
+      "size_bytes": 18818
     },
     {
+      "compiled_sha256": "173b21791d697451739693a96598a8d4805896ebad994131bbccb87331a4079b",
+      "compiled_size_bytes": 9888,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/config.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "config.py",
-      "size_bytes": 16146,
-      "sha256": "443abef629e7316d890d740e926edb9f257155e8c8ae5711beeb349cbab60f3d",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 9328,
-      "compiled_sha256": "9ca46ff6711d3574a86bcae5233fcb49e0563f9e3571f60fe81adf08357adec3"
+      "sha256": "0514f3c8a1b896d8c362d720bea271f4170e899fff7da1560cc41afcefe67005",
+      "size_bytes": 17184
     },
     {
+      "compiled_sha256": "d55e9fe91412e72728f07930a25b1def277190faa776c5e78c0ea2a2591df6b4",
+      "compiled_size_bytes": 8348,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/contour_route.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "contour_route.py",
-      "size_bytes": 24945,
       "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 8438,
-      "compiled_sha256": "88809dc9fdc8e8252c8d82bad6d3b0adc75b8cdfaccf5c939347c5a4b2f44f34"
+      "size_bytes": 24945
     },
     {
+      "compiled_sha256": "0a3f6e6d59e03a660eb29921a26af9b11c75ae7e5b3d9022d28f642a1325edcf",
+      "compiled_size_bytes": 10508,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/contour_trace.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "contour_trace.py",
-      "size_bytes": 38987,
       "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 10598,
-      "compiled_sha256": "c5d26da51018bea96810b76c00a41a93924778d8e8bab7a0050e943478099b93"
+      "size_bytes": 38987
     },
     {
+      "compiled_sha256": "7743fced56e7eefc3782f8dcc453a90d295fc8b0694613c9dc3bdbeee865d4ee",
+      "compiled_size_bytes": 28374,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_boundary.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_boundary.py",
-      "size_bytes": 51180,
       "sha256": "c569c82f52dd7d81b8d77c665b1b847be711c7439b21e9ab7901a81dd3b5e3f3",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 28464,
-      "compiled_sha256": "cd7fa19056c5fc866e16d42cd49664eaa7cee5b0f2ecf69682bbc2df4687dfb2"
+      "size_bytes": 51180
     },
     {
+      "compiled_sha256": "0a879bee1f43b02044c7025f6b18331d30367dfb01264767b20012ef1ab5bd65",
+      "compiled_size_bytes": 13973,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_gray.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_gray.py",
-      "size_bytes": 30014,
       "sha256": "b4c47e8340c345f7c24942f90660b6ee756381dbaa2a26111f77db2f8ba5f335",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 14063,
-      "compiled_sha256": "84efc4a383c9954e2aecde5cee99825dff1bd2b4bfa7b3f3690df53c277e675c"
+      "size_bytes": 30014
     },
     {
+      "compiled_sha256": "997aa61251b4948afed8f63433e99735ee735ab275330de2d9103501cf5e7c27",
+      "compiled_size_bytes": 23150,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_path.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_path.py",
-      "size_bytes": 41451,
       "sha256": "0709c70b75c7e8d9babeba302ea12e5e4cffa3a365a1184aef081d813384862a",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 23240,
-      "compiled_sha256": "c1769afe6b31952a21ce16b8160e7bf9346d994be09462c9969420421a4b55a5"
+      "size_bytes": 41451
     },
     {
+      "compiled_sha256": "3765f6affda7e6e7f815ff934b851c9445cb5fe2b5819438e13dabb03768d6f5",
+      "compiled_size_bytes": 20723,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_ring_slope.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_ring_slope.py",
-      "size_bytes": 75024,
       "sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 20813,
-      "compiled_sha256": "98b0bb4c2e137719e6f77e455c62f418f232eb8f6b67eda9e74b0e7ddcf30d0e"
+      "size_bytes": 75024
     },
     {
+      "compiled_sha256": "a148e043805e4812b28a767b94e45225fc50cb67510c18cb581123d9eec52acc",
+      "compiled_size_bytes": 46125,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_single_edge.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_single_edge.py",
-      "size_bytes": 84329,
       "sha256": "b2c52ba0dd6d67ccae7fcf428db9fff1b15dcad9f65530dd2145eb05480d2577",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 46215,
-      "compiled_sha256": "e48fc75f6999f99427ceeb5b8a0cdfb13325b3492c628a87acfaf26630330e03"
+      "size_bytes": 84329
     },
     {
+      "compiled_sha256": "37342e4defdad9a866a197a11d79a791179f4b950868f1367637902e78adfa68",
+      "compiled_size_bytes": 14891,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/fast_topology.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "fast_topology.py",
-      "size_bytes": 42030,
       "sha256": "218ac677002290c055a813414fe306b0c4fa3838b3b93ae788a925ea189751e8",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 14981,
-      "compiled_sha256": "583a0ddcb3fb871027ade81aface808b2ecfa00f7b1b3b96c9e872dc16282ecc"
+      "size_bytes": 42030
     },
     {
+      "compiled_sha256": "fc4bdb8bc76e938b06815a90ddae30fcebb78c1ee45f65b7bcded53c2ec84b45",
+      "compiled_size_bytes": 2152,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/grayscale_adapter.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "grayscale_adapter.py",
-      "size_bytes": 7589,
       "sha256": "bc5858238069c09bb3c06bba3986db7754cde63233d33694459c51e8207a7867",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 2242,
-      "compiled_sha256": "50aa7ca0dd492aa8c2a0374a332adcb818911ad211e5cc2de33dfa19d0dda15f"
+      "size_bytes": 7589
     },
     {
+      "compiled_sha256": "4398ce167d043b82d2fe75c906c5498839199eb3073d0d9a5d44dd453cbc981f",
+      "compiled_size_bytes": 4047,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/line_detector.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "line_detector.py",
-      "size_bytes": 11979,
       "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 4137,
-      "compiled_sha256": "2cc54e254be81a66410b7579eb50d2cdc1bb9acc2308fdd388af6934422482ae"
+      "size_bytes": 11979
     },
     {
+      "compiled_sha256": "93fccc43578a34c2b3af68b1668cf150f90642807a9f870fac20a28ed75bccd5",
+      "compiled_size_bytes": 68777,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/main.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "main.py",
-      "size_bytes": 184125,
-      "sha256": "7c28dd3ce5f554588ae7f6e8ab731a9b66775fcf97cefb1665eb3e88f5e2c68d",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 60165,
-      "compiled_sha256": "df219a3a5f4af05b0ee31f731be860852eecd0d033399340135a116f89f73a63"
+      "sha256": "fa02fda625174138935be5fed3892838840143881e6b1c09d9f3466b9e78ce70",
+      "size_bytes": 212921
     },
     {
+      "compiled_sha256": "333af1360fd2f7a6421c5f6fa102e2f9fae24df70c0d9595f947ba530b8b879d",
+      "compiled_size_bytes": 2495,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/reverse_control.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "reverse_control.py",
-      "size_bytes": 7657,
       "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 2585,
-      "compiled_sha256": "34f56c881ca0a9a330db12faa0bd1b0ddf9098c04888f406bc581ee36b045002"
+      "size_bytes": 7657
     },
     {
+      "compiled_sha256": "444a82d3c6a1ba9d044c56423ca5ab19e99e876dc3596661f09e477e44d99cb9",
+      "compiled_size_bytes": 8340,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/road_detector.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "road_detector.py",
-      "size_bytes": 26649,
       "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 8430,
-      "compiled_sha256": "8047a55036ca64343299e0d654a540cf2e78330feab3b5701e350748628b6450"
+      "size_bytes": 26649
     },
     {
+      "compiled_sha256": "34a6a43fb3d69ea91a3a17a0f64bdda0a11df94a84ee596a06a296600ee723b0",
+      "compiled_size_bytes": 2740,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/source_selector.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "source_selector.py",
-      "size_bytes": 8802,
       "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 2830,
-      "compiled_sha256": "22236441880e05cc5afdc03d347962c64fca34100b43ebf2f5157c5c39f00f15"
+      "size_bytes": 8802
     },
     {
+      "compiled_sha256": "5480785430fc6bc07062cc35b875dbb02751c2a8a6eea3339a02c5e3fe182641",
+      "compiled_size_bytes": 11852,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/surface_detector.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "surface_detector.py",
-      "size_bytes": 42567,
       "sha256": "85be03658e9709606a0538179159174c3bd06870796d3b826ef7ccaf290ed44b",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 11942,
-      "compiled_sha256": "4202adc1fcbfa480da843a6fd331d57552161955c69ce3c61c1133c011b477b1"
+      "size_bytes": 42567
     },
     {
+      "compiled_sha256": "c26ee89585cf69e0566d42aa28dfb0230c1b4239f6130735a0fb4540a77d18fb",
+      "compiled_size_bytes": 3590,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/thresholding.mpy",
+      "mpy_cross_exit_code": 0,
       "name": "thresholding.py",
-      "size_bytes": 12363,
       "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-      "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 3680,
-      "compiled_sha256": "12a18ca83ba57b728e6b8475d0e2eb0918e9ab0a4cab963a03eb3657edf046be"
+      "size_bytes": 12363
     },
     {
-      "name": "vision_protocol.py",
-      "size_bytes": 3130,
-      "sha256": "92d81492e8fd8bc433893c8e3ea4d94c99c5e2b3554043ae4c1ebc64974fc52d",
+      "compiled_sha256": "7babe2230c87cad1c80776a734b0f92643b69abc1ff516e5ebf47a7e2e338c58",
+      "compiled_size_bytes": 1285,
+      "compiled_validation_path": "test-data/speedpd-20261020-validation/camera/mpy-cross-armv7emsp/pd/vision_protocol.mpy",
       "mpy_cross_exit_code": 0,
-      "compiled_size_bytes": 1375,
-      "compiled_sha256": "65beeec527eb8c9e8bd4cdac5981737daaf18673c3923ba6d8c435a687018435"
+      "name": "vision_protocol.py",
+      "sha256": "92d81492e8fd8bc433893c8e3ea4d94c99c5e2b3554043ae4c1ebc64974fc52d",
+      "size_bytes": 3130
     }
   ],
-  "single_edge": {
-    "min_rows": 5,
-    "min_span_grid_rows": 6,
-    "max_missing_rows": 3,
-    "anchor_radius_cells": 16,
-    "short_near_chain_allowed": true,
-    "side_switch_consecutive_frames": 2,
-    "side_switch_max_center_delta_cells": 12,
-    "side_switch_requires_actual_overlap": true,
-    "width_cache_updated_only_by_measured_bilateral_rows": true,
-    "new_ring_or_slope_strategy": false,
-    "candidate_agreement_min_common_rows": 5,
-    "candidate_agreement_min_common_span_grid_rows": 6,
-    "candidate_agreement_max_center_delta_cells": 3,
-    "candidate_agreement_requires_left_before_right": true
-  },
-  "paired_h743": {
-    "recommended_preset": "DebugFollowTurn",
-    "straight_duties_permille": [
-      500,
-      500
-    ],
-    "max_turn_duties_outer_inner_permille": [
-      700,
-      300
-    ],
-    "normal_servo_step_us_per_20ms": 120,
-    "normal_motor_step_permille_per_10ms": 40,
-    "startup_motor_step_permille_per_10ms": 10,
-    "servo_endpoints_us": [
-      1100,
-      1530,
-      2500
-    ],
-    "vision_hold_ms": 3000,
-    "hold_servo": "last accepted valid error target, endpoint and slew protected",
-    "hold_motors": "linear deceleration from entry actual duties over 300ms; high side target 400 permille, proportional low side floor 300 without increasing either entry",
-    "communications_timeout_ms": 250,
-    "recovery_frames": 3,
-    "elfs": [
-      {
-        "preset": "Debug",
-        "path": "build/Debug/CarTest.elf",
-        "sha256": "6268f49f71e3826285d77caf8ff57f89c83ea432e5806c2fa7a3d1fc85c98ce1",
-        "bytes": 1940636,
-        "build_id": "50ba27cc9c684526c6d565b73c764c40",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugSteering",
-        "path": "build/DebugSteering/CarTest.elf",
-        "sha256": "8ce6eb9e79d6cb74d6a192e9c0c4916407d12c24e953833aaf98e31f2697646d",
-        "bytes": 1940656,
-        "build_id": "7b4c7f5a11a0264b760fda0dd38480e8",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugBench",
-        "path": "build/DebugBench/CarTest.elf",
-        "sha256": "8dc658de060132a3f1e18f490b2714097570b1acea9cb95de7e41f532a4f9d1b",
-        "bytes": 1941168,
-        "build_id": "ef584f90a8be59c0e6d2d20db23b0831",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollow",
-        "path": "build/DebugFollow/CarTest.elf",
-        "sha256": "d373561e3757b7e016fce44ad0cb93396c4ac32e0fadcc44ce3d6bd7055552b2",
-        "bytes": 1945336,
-        "build_id": "1edad6fbf28a3eea44a28fd03218fb95",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollowNoLog",
-        "path": "build/DebugFollowNoLog/CarTest.elf",
-        "sha256": "bf4b7738d4c2dd70382621362395e2b05213ffb0810e0d1ff1758daa57e28a45",
-        "bytes": 1937700,
-        "build_id": "c6ae5129cdcd65cd72b543fe57a78957",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollowDiff5",
-        "path": "build/DebugFollowDiff5/CarTest.elf",
-        "sha256": "83cefd31416cb40631ad9719b5c55dc2f678a4f356e91c776df9f583d4e575bf",
-        "bytes": 1945356,
-        "build_id": "49aaddf60f4cab8195a059ca81e29095",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollowDiff10",
-        "path": "build/DebugFollowDiff10/CarTest.elf",
-        "sha256": "6a09b5b3c4dab9ec804ccddde3075a8ee9684a35385ad8575c5eef12ff2a42ac",
-        "bytes": 1945360,
-        "build_id": "0e25c7ce3cfed68f312cd7e5651ba1ca",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollowTurn",
-        "path": "build/DebugFollowTurn/CarTest.elf",
-        "sha256": "625c75c469243fdc730a5f47ec038ff41c68af291f1e5bb49d3ba17c67cc36c5",
-        "bytes": 1945732,
-        "build_id": "e50eb013247cb64999b512e9ad6e289e",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      },
-      {
-        "preset": "DebugFollowSpeedPI",
-        "path": "build/DebugFollowSpeedPI/CarTest.elf",
-        "sha256": "0168807dac75203a90137fe0ac639ae808720fb4e46da7f663bc25ecb6a6c730",
-        "bytes": 1952748,
-        "build_id": "c435dcef5f278c7c4b10954489e83081",
-        "configure_exit": 0,
-        "build_exit": 0,
-        "matches_preserved_baseline": false
-      }
-    ],
-    "paired_with_openmv_build_id": "SECOND_TURN_CONTINUITY_20261018",
-    "baseline_id": "second-turn-20261018-baseline",
-    "unchanged_from_preserved_baseline": false,
-    "source_roots_unchanged_from_preserved_baseline": false,
-    "rebuilt_for_this_release": true,
-    "elf_count_verified": 9,
-    "flash_performed_for_this_release": false,
-    "hold_deceleration_ms": 300
-  },
-  "diagnostics": {
-    "camera_enabled_by_default": true,
-    "camera_records": 256,
-    "camera_record_bytes": 32,
-    "camera_freeze": "first successful full-write valid-to-invalid transition; freezes after 192 post-trigger records",
-    "camera_record_errors_reported": true,
-    "single_edge_extension": "16-byte per-frame candidate extension aligned with base trace; automatic one-time dump on accepted reverse RESET after KEEP, optional explicit dump",
-    "uart_observation_bytes": 12,
-    "h743_log_header_bytes": 64,
-    "h743_log_record_bytes": 64,
-    "h743_log_version": 2,
-    "hold_quantum_ms_by_version": {
-      "1": 20,
-      "2": 50
-    },
-    "target_flash_descriptor_required_before_ram": true,
-    "idle_csv_created": false,
-    "camera_extension_record_bytes": 16,
-    "camera_pre_trigger_records": 64,
-    "camera_post_trigger_records": 192,
-    "camera_dump": "automatic one-time trace dump on accepted reverse RESET after KEEP; optional explicit dump",
-    "pending_side_none_encoding": "signed -1 in tracker data, byte 255 in the extension record and CSV as -1",
-    "h743_cpu_snapshot_bytes": 64
-  },
+  "schema_version": 1,
+  "target_runtime_reported_version": "MicroPython 1.28.0-49",
   "validation": {
-    "openmv_host_tests_run": 177,
-    "openmv_host_tests_passed": 177,
-    "openmv_host_tests_skipped": 0,
-    "openmv_host_suites": 16,
-    "openmv_host_exit_code": 0,
-    "frozen_v7_tests_run": 79,
-    "frozen_v7_tests_skipped": 1,
-    "mpy_cross_count": 20,
-    "mpy_cross_target": "armv7emsp",
-    "mpy_cross_compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
-    "mpy_cross_compiler_sha256": "cced6a90ad63e31e0ef319cc52a33d582005e828aeef16abca01b15ba63b4b94",
-    "h743_elf_count_unchanged": 0,
-    "h743_elfs_rebuilt": true,
-    "h743_elfs_match_preserved_baseline": false,
-    "h743_source_roots_unchanged_from_preserved_baseline": false,
-    "report": "test-data/second-turn-20261018-validation/camera/REPORT.md",
-    "host_log": "test-data/second-turn-20261018-validation/camera/unittest-discover-openmv-tests.log",
-    "mpy_log": "test-data/second-turn-20261018-validation/camera/mpy-cross-armv7emsp.log",
-    "openmv_host_command": "python -m unittest discover -s openmv/tests -p \"test_*.py\" -v",
-    "host_test_total_run": 256,
-    "host_test_total_passed": 255,
-    "host_test_total_skipped": 1,
-    "host_test_suite_count": 17,
-    "frozen_v7_tests_passed": 78,
-    "frozen_v7_exit_code": 0,
-    "frozen_v7_command": "python openmv/tests/run_v7_host_regression.py",
-    "additional_camera_suites_rerun": [
-      {
-        "name": "test_turn_response_weights",
-        "tests_run": 8,
-        "exit_code": 0,
-        "log": "test-data/second-turn-20261018-validation/camera/test_turn_response_weights.log"
-      },
-      {
-        "name": "test_steering_diag",
-        "tests_run": 17,
-        "exit_code": 0,
-        "log": "test-data/second-turn-20261018-validation/camera/test_steering_diag.log"
-      }
-    ],
-    "mpy_cross_exit_code": 0,
-    "mpy_cross_compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
-    "mpy_cross_command_template": "\"D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe\" -march=armv7emsp -o \"<validation-output>.mpy\" \"<openmv-source>.py\"",
-    "commands_and_exits": "test-data/second-turn-20261018-validation/camera/commands-and-exits.json",
-    "frozen_v7_log": "test-data/second-turn-20261018-validation/camera/frozen-v7-regression.log",
-    "h743_rebuilt_this_validation": true,
-    "h743_rechecked_this_validation": true,
-    "h743_host_cases": 69,
-    "h743_host_assertions": 7109,
-    "h743_host_failures": 0,
-    "h743_full_host_exit_code": 0,
-    "h743_output_path_variants": 6,
-    "export_python_tests": 18,
-    "export_integration_exit_code": 0,
-    "status_integration_exit_code": 0,
-    "overall_report": "docs/SECOND_TURN_VALIDATION_20261018_CN.md"
-  },
-  "hardware_validation": {
-    "openmv_uploaded_for_this_release": false,
-    "h743_flashed_or_reset_for_this_release": false,
-    "motors_started_by_agent": false,
-    "camera_runtime_tested": false,
-    "h743_uart_reception_tested": false,
-    "vehicle_behavior_tested": false
-  },
-  "limits": [
-    "Host tests and mpy-cross do not establish OpenMV board runtime or vehicle steering.",
-    "The frozen Viper equivalence test is skipped because no board-produced manifest was available.",
-    "No OpenMV upload, H743 flash/reset or motor start was performed. Hardware acceptance remains pending."
-  ],
-  "position_only_control": {
-    "ordinary_road_preview_control_enabled": false,
-    "preview_candidate_retained_for_diagnostics": true,
-    "ordinary_road_preview_applied_contribution": 0,
-    "existing_position_weighting": "near 0.80, far 0.20",
-    "observation_filter_alpha": 0.7,
-    "uart_protocol": "12-byte V1 unchanged",
-    "h743_parameters_changed": true,
-    "h743_change_scope": "hold deceleration and independent diagnostic snapshot; steering gains and normal slew limits unchanged"
+    "frozen_v7_suite": "see test-data/speedpd-20261020-validation/camera/frozen-v7-regression.log",
+    "host_performance": "see test-data/speedpd-20261020-validation/camera/host-performance-comparison.json",
+    "production_host_suite": "see test-data/speedpd-20261020-validation/camera/openmv-unittest-discover.log"
   }
 }

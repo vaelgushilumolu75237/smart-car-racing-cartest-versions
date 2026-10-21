@@ -43,7 +43,12 @@ HOLD_SNAPSHOT_SYMBOLS = (
     "car_vision_hold_snapshot_left_permille",
     "car_vision_hold_snapshot_right_permille",
 )
-SCALAR_SYMBOLS = REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS
+RECEIVE_RATE_SYMBOLS = (
+    "car_rx_frame_rate_millifps",
+    "car_rx_invalid_observation_permille",
+    "car_rx_frame_rate_valid",
+)
+SCALAR_SYMBOLS = REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS + RECEIVE_RATE_SYMBOLS
 SIGNED_SCALAR_SYMBOLS = {"car_vision_hold_snapshot_error_norm"}
 SCALAR_SIZE = 4
 MAX_SCALAR_READ_SIZE = 8192
@@ -65,7 +70,8 @@ DIAGNOSTIC_FLAGS_LOG_ENABLED = 0x0001
 DIAGNOSTIC_KNOWN_FLAGS = DIAGNOSTIC_FLAGS_LOG_ENABLED
 SPEED_PI_DIAGNOSTIC_SYMBOL = "g_speed_pi_diag_snapshot"
 SPEED_PI_DIAGNOSTIC_MAGIC = 0x47414950
-SPEED_PI_DIAGNOSTIC_VERSION = 1
+SPEED_PI_DIAGNOSTIC_VERSION_V1 = 1
+SPEED_PI_DIAGNOSTIC_VERSION_V2 = 2
 SPEED_PI_DIAGNOSTIC_SIZE = 128
 SPEED_PI_DIAGNOSTIC_CRC_OFFSET = 12
 SPEED_PI_DIAGNOSTIC_CRC_SIZE = 4
@@ -88,7 +94,38 @@ SPEED_PI_STATUS_NAMES = {
     0: "stopped", 1: "disabled", 2: "not_ready", 3: "running",
     4: "hold", 5: "invalid",
 }
-SPEED_PI_OUTPUT_CAP_PERMILLE = 700
+SPEED_PI_DIAGNOSTIC_V1_OUTPUT_CAP_PERMILLE = 700
+SPEED_PI_DIAGNOSTIC_V2_OUTPUT_CAP_PERMILLE = 1000
+SPEED_PI_TRACE_SYMBOL = "g_speed_pi_trace"
+SPEED_PI_TRACE_MAGIC = 0x43525450
+SPEED_PI_TRACE_VERSION = 1
+SPEED_PI_TRACE_HEADER_SIZE = 64
+SPEED_PI_TRACE_SAMPLE_SIZE = 48
+SPEED_PI_TRACE_CAPACITY = 2048
+SPEED_PI_TRACE_SIZE = (SPEED_PI_TRACE_HEADER_SIZE +
+                       SPEED_PI_TRACE_SAMPLE_SIZE * SPEED_PI_TRACE_CAPACITY)
+SPEED_PI_TRACE_STATE_NAMES = {0: "idle", 1: "active", 2: "frozen"}
+SPEED_PI_TRACE_FLAG_SPEED_VALID = 1 << 0
+SPEED_PI_TRACE_FLAG_ARMED = 1 << 1
+SPEED_PI_TRACE_FLAG_HOLD = 1 << 2
+SPEED_PI_TRACE_FLAG_PROPOSAL_VALID = 1 << 3
+SPEED_PI_TRACE_KNOWN_FLAGS = (
+    SPEED_PI_TRACE_FLAG_SPEED_VALID | SPEED_PI_TRACE_FLAG_ARMED |
+    SPEED_PI_TRACE_FLAG_HOLD | SPEED_PI_TRACE_FLAG_PROPOSAL_VALID
+)
+RECEIVE_DIAGNOSTIC_SYMBOL = "g_receive_diag_snapshot"
+RECEIVE_DIAGNOSTIC_MAGIC = 0x47414952
+RECEIVE_DIAGNOSTIC_VERSION = 1
+RECEIVE_DIAGNOSTIC_SIZE = 96
+RECEIVE_DIAGNOSTIC_CRC_OFFSET = 12
+RECEIVE_DIAGNOSTIC_FLAG_HAVE_SEQUENCE = 1 << 0
+RECEIVE_DIAGNOSTIC_FLAG_WINDOW_VALID = 1 << 1
+RECEIVE_DIAGNOSTIC_KNOWN_FLAGS = (
+    RECEIVE_DIAGNOSTIC_FLAG_HAVE_SEQUENCE |
+    RECEIVE_DIAGNOSTIC_FLAG_WINDOW_VALID
+)
+D2_SRAM_START = 0x30000000
+D2_SRAM_END = 0x30020000
 
 
 class StatusReadError(ValueError):
@@ -101,6 +138,40 @@ def _fail(message: str) -> None:
 
 def _hex(address: int) -> str:
     return "0x{:08X}".format(address)
+
+
+def _optional_ram_snapshot_plan(symbols, sections, name, section_name,
+                                expected_size, range_start, range_end):
+    symbol = symbols.get(name)
+    if symbol is None:
+        return {
+            "available": False, "symbol": name, "address": None,
+            "address_u32": None, "size": None, "section": None,
+        }
+    section = exporter._section_for_symbol(sections, symbol, section_name)
+    if symbol.size != expected_size:
+        _fail("ELF symbol '{}' must be exactly {} bytes (found {})".format(
+            name, expected_size, symbol.size))
+    if section.kind != 8:
+        _fail("ELF symbol '{}' must be backed by a NOLOAD {} section".format(
+            name, section_name))
+    if not (section.flags & 0x2 and section.flags & 0x1):
+        _fail("ELF symbol '{}' is not in allocated writable RAM".format(name))
+    if section.alignment < 32 or symbol.value % 32:
+        _fail("ELF symbol '{}' must be 32-byte aligned".format(name))
+    if not (range_start <= symbol.value and
+            symbol.value + expected_size <= range_end):
+        _fail("ELF symbol '{}' is outside its assigned STM32H743 SRAM range".format(
+            name))
+    return {
+        "available": True,
+        "symbol": name,
+        "address": _hex(symbol.value),
+        "address_u32": symbol.value,
+        "size": expected_size,
+        "section": section.name,
+        "section_alignment": section.alignment,
+    }
 
 
 def build_plan(elf_path: str | Path) -> Dict[str, Any]:
@@ -244,6 +315,13 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
             "section_alignment": speed_pi_section.alignment,
         }
 
+    receive_diagnostic_plan = _optional_ram_snapshot_plan(
+        symbols, sections, RECEIVE_DIAGNOSTIC_SYMBOL, ".receive_diag",
+        RECEIVE_DIAGNOSTIC_SIZE, D1_SRAM_START, D1_SRAM_END)
+    speed_pi_trace_plan = _optional_ram_snapshot_plan(
+        symbols, sections, SPEED_PI_TRACE_SYMBOL, ".speed_pi_trace",
+        SPEED_PI_TRACE_SIZE, D2_SRAM_START, D2_SRAM_END)
+
     return {
         "elf_path": str(layout.path),
         "elf_sha256": layout.sha256,
@@ -260,6 +338,7 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         },
         "required_scalar_symbols": list(REQUIRED_SCALAR_SYMBOLS),
         "optional_hold_snapshot_symbols": list(HOLD_SNAPSHOT_SYMBOLS),
+        "optional_receive_rate_symbols": list(RECEIVE_RATE_SYMBOLS),
         "scalar_symbols": planned_symbols,
         "scalar_read": {
             "address": _hex(symbol_start),
@@ -275,6 +354,8 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         },
         "runtime_diagnostic_snapshot": diagnostic_plan,
         "speed_pi_diagnostic_snapshot": speed_pi_diagnostic_plan,
+        "receive_diagnostic_snapshot": receive_diagnostic_plan,
+        "speed_pi_trace_snapshot": speed_pi_trace_plan,
         "record_area_read": False,
     }
 
@@ -417,7 +498,9 @@ def decode_speed_pi_diagnostic(raw: bytes) -> Dict[str, Any]:
         "<IHHII", raw, 0)
     if magic != SPEED_PI_DIAGNOSTIC_MAGIC:
         _fail("Speed PI diagnostic snapshot magic is invalid")
-    if version != SPEED_PI_DIAGNOSTIC_VERSION or size != SPEED_PI_DIAGNOSTIC_SIZE:
+    if version not in (SPEED_PI_DIAGNOSTIC_VERSION_V1,
+                       SPEED_PI_DIAGNOSTIC_VERSION_V2) or \
+            size != SPEED_PI_DIAGNOSTIC_SIZE:
         _fail("Speed PI diagnostic snapshot version/size is unsupported")
     if generation == 0 or generation & 1:
         _fail("Speed PI diagnostic snapshot generation is zero or odd (writer active or uninitialized)")
@@ -437,23 +520,30 @@ def decode_speed_pi_diagnostic(raw: bytes) -> Dict[str, Any]:
     (status, termination_fault, saturation_left_ms, saturation_right_ms,
      flags, pi_type) = struct.unpack_from("<6I", raw, 60)
     reserved = struct.unpack_from("<11I", raw, 84)
+    output_cap = (SPEED_PI_DIAGNOSTIC_V1_OUTPUT_CAP_PERMILLE
+                  if version == SPEED_PI_DIAGNOSTIC_VERSION_V1 else
+                  SPEED_PI_DIAGNOSTIC_V2_OUTPUT_CAP_PERMILLE)
 
     if flags & ~SPEED_PI_DIAGNOSTIC_KNOWN_FLAGS:
         _fail("Speed PI diagnostic snapshot contains unsupported flag bits")
     if (flags & SPEED_PI_DIAGNOSTIC_FLAG_ACTIVE and
             flags & SPEED_PI_DIAGNOSTIC_FLAG_FROZEN):
         _fail("Speed PI diagnostic snapshot cannot be both ACTIVE and FROZEN")
-    if any(reserved):
+    if version == SPEED_PI_DIAGNOSTIC_VERSION_V1 and any(reserved):
         _fail("Speed PI diagnostic snapshot reserved words are not zero")
+    if (version == SPEED_PI_DIAGNOSTIC_VERSION_V2 and
+            (reserved[0] != output_cap or any(reserved[1:]))):
+        _fail("Speed PI V2 snapshot cap/reserved words are invalid")
     if pi_type not in SPEED_PI_TYPE_NAMES:
         _fail("Speed PI diagnostic snapshot contains an unknown PI type")
     if any(value < 0 or value > 100_000_000 for value in
            (target_left, target_right, measured_left, measured_right)):
         _fail("Speed PI diagnostic snapshot contains a speed outside the supported range")
-    if any(value > SPEED_PI_OUTPUT_CAP_PERMILLE for value in
+    if any(value > output_cap for value in
            (nominal_left, nominal_right, requested_left, requested_right,
             applied_left, applied_right)):
-        _fail("Speed PI diagnostic snapshot contains an output above the 700-permille cap")
+        _fail("Speed PI diagnostic snapshot contains an output above its versioned {}-permille cap".format(
+            output_cap))
 
     return {
         "magic": "PIAG",
@@ -484,7 +574,8 @@ def decode_speed_pi_diagnostic(raw: bytes) -> Dict[str, Any]:
         "saturation_left_ms": saturation_left_ms,
         "saturation_right_ms": saturation_right_ms,
         "saturation_semantics": (
-            "Cumulative sampled duration at the 700-permille upper cap; "
+            "Cumulative sampled duration at the {}-permille upper cap; ".format(
+                output_cap) +
             "counted once per distinct valid sample_ms while armed, saturated, "
             "and outside vision hold. Zero-output intervals do not count."
         ),
@@ -497,8 +588,167 @@ def decode_speed_pi_diagnostic(raw: bytes) -> Dict[str, Any]:
         "hold_active": bool(flags & SPEED_PI_DIAGNOSTIC_FLAG_HOLD_ACTIVE),
         "pi_type": pi_type,
         "pi_type_name": SPEED_PI_TYPE_NAMES[pi_type],
+        "output_cap_permille": output_cap,
         "reserved": list(reserved),
         "start_token_matches_runtime_diagnostic": None,
+    }
+
+
+def decode_receive_diagnostic(raw: bytes) -> Dict[str, Any]:
+    """Validate the 96-byte receive-rate/sequence snapshot."""
+    if len(raw) != RECEIVE_DIAGNOSTIC_SIZE:
+        _fail("Receive diagnostic snapshot must be exactly {} bytes (found {})".format(
+            RECEIVE_DIAGNOSTIC_SIZE, len(raw)))
+    magic, version, size, generation, observed_crc = struct.unpack_from(
+        "<IHHII", raw, 0)
+    if magic != RECEIVE_DIAGNOSTIC_MAGIC:
+        _fail("Receive diagnostic snapshot magic is invalid")
+    if version != RECEIVE_DIAGNOSTIC_VERSION or size != RECEIVE_DIAGNOSTIC_SIZE:
+        _fail("Receive diagnostic snapshot version/size is unsupported")
+    if generation == 0 or generation & 1:
+        _fail("Receive diagnostic snapshot generation is zero or odd (writer active or uninitialized)")
+    crc_data = bytearray(raw)
+    crc_data[RECEIVE_DIAGNOSTIC_CRC_OFFSET:
+             RECEIVE_DIAGNOSTIC_CRC_OFFSET + 4] = bytes(4)
+    computed_crc = zlib.crc32(crc_data) & 0xFFFFFFFF
+    if computed_crc != observed_crc:
+        _fail("Receive diagnostic snapshot CRC32 is invalid")
+
+    (snapshot_ms, window_start_ms, window_duration_ms, accepted_total,
+     accepted_window, invalid_total, invalid_window, missing_total,
+     missing_window, rejected_total, rejected_window, parser_error_total) = \
+        struct.unpack_from("<12I", raw, 16)
+    latest_sequence, flags = struct.unpack_from("<2H", raw, 64)
+    reserved = struct.unpack_from("<7I", raw, 68)
+    if flags & ~RECEIVE_DIAGNOSTIC_KNOWN_FLAGS:
+        _fail("Receive diagnostic snapshot contains unsupported flag bits")
+    if any(reserved):
+        _fail("Receive diagnostic snapshot reserved words are not zero")
+    if invalid_total > accepted_total or invalid_window > accepted_window:
+        _fail("Receive diagnostic invalid-observation counts exceed accepted-frame counts")
+    if accepted_window > accepted_total or missing_window > missing_total or \
+            rejected_window > rejected_total:
+        _fail("Receive diagnostic window counts exceed lifetime counters")
+    if ((snapshot_ms - window_start_ms) & 0xFFFFFFFF) != window_duration_ms:
+        _fail("Receive diagnostic snapshot/window timestamps disagree")
+    window_valid = bool(flags & RECEIVE_DIAGNOSTIC_FLAG_WINDOW_VALID)
+    if window_valid != (window_duration_ms >= 1000):
+        _fail("Receive diagnostic window-valid flag disagrees with actual elapsed time")
+    have_sequence = bool(flags & RECEIVE_DIAGNOSTIC_FLAG_HAVE_SEQUENCE)
+    accepted_millifps = (int((accepted_window * 1_000_000) // window_duration_ms)
+                         if window_valid else None)
+    return {
+        "magic": "RIAG",
+        "version": version,
+        "size": size,
+        "generation": generation,
+        "crc32_read": "0x{:08X}".format(observed_crc),
+        "crc32_computed": "0x{:08X}".format(computed_crc),
+        "crc_valid": True,
+        "snapshot_ms": snapshot_ms,
+        "window_start_ms": window_start_ms,
+        "window_duration_ms": window_duration_ms,
+        "accepted_total": accepted_total,
+        "accepted_window": accepted_window,
+        "accepted_fps": (accepted_window * 1000.0 / window_duration_ms
+                         if window_valid else None),
+        "accepted_millifps": accepted_millifps,
+        "invalid_observation_permille": (
+            (invalid_window * 1000 // accepted_window)
+            if window_valid and accepted_window else 0 if window_valid else None),
+        "invalid_observation_total": invalid_total,
+        "invalid_observation_window": invalid_window,
+        "missing_sequence_total": missing_total,
+        "missing_sequence_window": missing_window,
+        "sequence_reject_total": rejected_total,
+        "sequence_reject_window": rejected_window,
+        "parser_error_total": parser_error_total,
+        "latest_sequence": latest_sequence,
+        "have_sequence": have_sequence,
+        "window_valid": window_valid,
+        "flags": flags,
+        "reserved": list(reserved),
+    }
+
+
+def decode_speed_pi_trace_header(raw: bytes,
+                                 expected_build_id: str | None = None) -> Dict[str, Any]:
+    """Validate the fixed trace header without reading its 2048-record ring."""
+    if len(raw) != SPEED_PI_TRACE_HEADER_SIZE:
+        _fail("Speed PI trace header must be exactly {} bytes (found {})".format(
+            SPEED_PI_TRACE_HEADER_SIZE, len(raw)))
+    magic, version, size, generation, observed_crc, records_crc = \
+        struct.unpack_from("<IHHIII", raw, 0)
+    if magic != SPEED_PI_TRACE_MAGIC:
+        _fail("Speed PI trace header magic is invalid")
+    if version != SPEED_PI_TRACE_VERSION or size != SPEED_PI_TRACE_HEADER_SIZE:
+        _fail("Speed PI trace header version/size is unsupported")
+    if generation == 0 or generation & 1:
+        _fail("Speed PI trace header generation is zero or odd (writer active or uninitialized)")
+    crc_data = bytearray(raw)
+    crc_data[12:16] = bytes(4)
+    computed_crc = zlib.crc32(crc_data) & 0xFFFFFFFF
+    if computed_crc != observed_crc:
+        _fail("Speed PI trace header CRC32 is invalid")
+    start_token, start_ms, stop_ms = struct.unpack_from("<3I", raw, 20)
+    capacity, count, next_index = struct.unpack_from("<3H", raw, 32)
+    pi_type, state = struct.unpack_from("<2B", raw, 38)
+    total_samples, lost_samples = struct.unpack_from("<2I", raw, 40)
+    build_id = raw[48:64].hex()
+    if capacity != SPEED_PI_TRACE_CAPACITY:
+        _fail("Speed PI trace capacity does not match the ELF ABI")
+    if count > capacity or next_index >= capacity:
+        _fail("Speed PI trace count/index is outside ring capacity")
+    if state not in SPEED_PI_TRACE_STATE_NAMES:
+        _fail("Speed PI trace state is unknown")
+    if pi_type not in SPEED_PI_TYPE_NAMES:
+        _fail("Speed PI trace PI type is unknown")
+    if not any(raw[48:64]):
+        _fail("Speed PI trace build ID is empty")
+    if expected_build_id is not None and build_id != expected_build_id.lower():
+        _fail("Speed PI trace build ID does not match the selected ELF")
+
+    state_name = SPEED_PI_TRACE_STATE_NAMES[state]
+    if state == 0:
+        if (records_crc != 0 or start_token != 0 or start_ms != 0 or
+                stop_ms != 0 or pi_type != 0 or count != 0 or
+                next_index != 0 or total_samples != 0 or lost_samples != 0):
+            _fail("IDLE speed PI trace header contains run data")
+    elif state == 1:
+        if start_token == 0 or pi_type == 0:
+            _fail("ACTIVE speed PI trace header is missing its session identity")
+    else:
+        if start_token == 0 or pi_type == 0:
+            _fail("FROZEN speed PI trace header is missing its session identity")
+        if total_samples < count or lost_samples != total_samples - count:
+            _fail("FROZEN speed PI trace count/lost-sample values disagree")
+        if total_samples < capacity and (count != total_samples or
+                                         next_index != total_samples):
+            _fail("FROZEN speed PI trace ring indices disagree before capacity")
+        if total_samples >= capacity and count != capacity:
+            _fail("FROZEN speed PI trace ring is not full after capacity")
+    return {
+        "magic": "PTRC",
+        "version": version,
+        "size": size,
+        "generation": generation,
+        "header_crc32_read": "0x{:08X}".format(observed_crc),
+        "header_crc32_computed": "0x{:08X}".format(computed_crc),
+        "header_crc_valid": True,
+        "records_crc32": "0x{:08X}".format(records_crc),
+        "start_token": start_token,
+        "start_ms": start_ms,
+        "stop_ms": stop_ms,
+        "capacity": capacity,
+        "count": count,
+        "next_index": next_index,
+        "pi_type": pi_type,
+        "pi_type_name": SPEED_PI_TYPE_NAMES[pi_type],
+        "state": state,
+        "state_name": state_name,
+        "total_samples": total_samples,
+        "lost_samples": lost_samples,
+        "build_id": build_id,
     }
 
 
@@ -644,7 +894,9 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                     descriptor_path: str | Path | None = None,
                     header_after_path: str | Path | None = None,
                     diagnostic_path: str | Path | None = None,
-                    speed_pi_diagnostic_path: str | Path | None = None) -> Dict[str, Any]:
+                    speed_pi_diagnostic_path: str | Path | None = None,
+                    receive_diagnostic_path: str | Path | None = None,
+                    speed_pi_trace_header_path: str | Path | None = None) -> Dict[str, Any]:
     plan = build_plan(elf_path)
     flash_descriptor = None
     if descriptor_path is not None:
@@ -683,6 +935,23 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     entry_value = scalars.get("car_vision_hold_snapshot_entry")
     scalars["car_vision_hold_snapshot_published"] = (
         None if entry_value is None else bool(entry_value))
+    receive_rate_present = [name for name in RECEIVE_RATE_SYMBOLS
+                            if plan["scalar_symbols"][name]["available"]]
+    scalars["car_rx_rate_watch_status"] = (
+        "unavailable" if not receive_rate_present else
+        "available" if len(receive_rate_present) == len(RECEIVE_RATE_SYMBOLS)
+        else "partial")
+    rx_valid_value = scalars.get("car_rx_frame_rate_valid")
+    scalars["car_rx_frame_rate_valid"] = (
+        None if rx_valid_value is None else bool(rx_valid_value))
+    rx_rate_value = scalars.get("car_rx_frame_rate_millifps")
+    scalars["car_rx_frame_rate_fps"] = (
+        float(rx_rate_value) / 1000.0
+        if rx_valid_value and rx_rate_value is not None else None)
+    scalars["car_rx_rate_semantics"] = (
+        "Parser-accepted frames per second, including invalid observations; "
+        "not camera sensor acquisition FPS."
+    )
     header = _decode_header(header_raw, plan["build_id"], plan["log_version"])
     header_after = _decode_header(header_after_raw, plan["build_id"], plan["log_version"])
     diagnostic = None
@@ -740,13 +1009,61 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     elif speed_pi_diagnostic_path is not None:
         _fail("A speed PI diagnostic upload was supplied for an ELF without g_speed_pi_diag_snapshot")
 
+    receive_diagnostic = None
+    receive_plan = plan["receive_diagnostic_snapshot"]
+    if receive_plan["available"]:
+        if receive_diagnostic_path is None:
+            _fail("Selected ELF contains g_receive_diag_snapshot but no snapshot upload was supplied")
+        receive_diagnostic = decode_receive_diagnostic(
+            Path(receive_diagnostic_path).read_bytes())
+    elif receive_diagnostic_path is not None:
+        _fail("A receive diagnostic upload was supplied for an ELF without g_receive_diag_snapshot")
+
+    speed_pi_trace_header = None
+    trace_plan = plan["speed_pi_trace_snapshot"]
+    if trace_plan["available"]:
+        if speed_pi_trace_header_path is None:
+            _fail("Selected ELF contains g_speed_pi_trace but no header upload was supplied")
+        speed_pi_trace_header = decode_speed_pi_trace_header(
+            Path(speed_pi_trace_header_path).read_bytes(), plan["build_id"])
+        trace_state = speed_pi_trace_header["state_name"]
+        if (trace_state == "active" and
+                state_after == exporter.STATE_FROZEN):
+            speed_pi_warnings.append(
+                "Speed PI trace is still ACTIVE while the runtime log is FROZEN.")
+            diagnostic_class = "inconsistent"
+        if (speed_pi_trace_header["state"] != 0 and
+                speed_pi_diagnostic is not None and
+                speed_pi_diagnostic["pi_type"] == 0):
+            speed_pi_warnings.append(
+                "A PI trace session exists while the PI diagnostic reports no selected PI type.")
+            diagnostic_class = "inconsistent"
+        if speed_pi_diagnostic is not None and speed_pi_diagnostic["pi_type"] != 0:
+            expected_trace_state = ("active" if speed_pi_diagnostic["active"] else
+                                    "frozen" if speed_pi_diagnostic["frozen"] else None)
+            if expected_trace_state and speed_pi_trace_header["state_name"] != expected_trace_state:
+                speed_pi_warnings.append(
+                    "Speed PI trace state does not match the enabled PI session snapshot.")
+                diagnostic_class = "inconsistent"
+            if (speed_pi_trace_header["state"] != 0 and
+                    speed_pi_trace_header["start_token"] != speed_pi_diagnostic["start_token"]):
+                speed_pi_warnings.append(
+                    "Speed PI trace start token does not match the PI diagnostic snapshot.")
+                diagnostic_class = "inconsistent"
+    elif speed_pi_trace_header_path is not None:
+        _fail("A speed PI trace header was supplied for an ELF without g_speed_pi_trace")
+
     consistency_warnings = [
-        "Scalar region, runtime diagnostic, and runtime-log headers use separate SWD uploads; "
-        "the two headers bracket the single-record CRC-protected diagnostic snapshot."
+        "Scalar region, diagnostics, and runtime-log headers use separate SWD uploads; "
+        "the runtime headers bracket the CRC-protected snapshots."
     ]
     warnings = list(header["warnings"]) + list(header_after["warnings"]) + consistency_warnings
     warnings.extend(diagnostic_warnings)
     warnings.extend(speed_pi_warnings)
+    if receive_diagnostic is not None:
+        warnings.append(
+            "Receive diagnostics count parser-accepted frames (including invalid observations); "
+            "they do not report camera sensor acquisition FPS and have no PE7 session token.")
     if descriptor_path is None:
         warnings.append("Target Flash descriptor was not uploaded; the running firmware ELF was not verified.")
     status = diagnostic_class or ("read_with_warnings" if warnings else
@@ -763,12 +1080,13 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "flash_descriptor": flash_descriptor,
         "observing_active_progress": active_progress,
         "consistency_note": (
-            "The 64-byte runtime and 128-byte speed PI diagnostic snapshots are each "
-            "generation/CRC-protected records. Runtime-log headers are uploaded before and "
-            "after them. The speed PI snapshot is linked to the current run by the manual "
-            "PE7 start token, checked against the runtime diagnostic when present. ACTIVE "
-            "records may advance during separate SWD calls; stable IDLE/FROZEN state, count, "
-            "session, and enabled PI lifecycle must agree."
+            "The 64-byte runtime, 128-byte speed PI, 96-byte receive, and 64-byte PI trace "
+            "header snapshots are separate generation/CRC-protected SWD reads, bracketed "
+            "by runtime-log headers. Receive windows are independently sampled and carry "
+            "no PE7 session token. The PI trace header is linked by build ID and start token; "
+            "the full chronological ring and per-record CRCs are checked only by the frozen "
+            "trace exporter. ACTIVE records may advance during separate SWD calls; stable "
+            "IDLE/FROZEN state, count, session, and enabled PI lifecycle must agree."
         ),
         "elf": {
             "path": plan["elf_path"],
@@ -785,6 +1103,8 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "runtime_log_header_after": plan["header_read"],
             "runtime_diagnostic_snapshot": plan["runtime_diagnostic_snapshot"],
             "speed_pi_diagnostic_snapshot": plan["speed_pi_diagnostic_snapshot"],
+            "receive_diagnostic_snapshot": plan["receive_diagnostic_snapshot"],
+            "speed_pi_trace_snapshot": plan["speed_pi_trace_snapshot"],
             "runtime_log_record_area_read": False,
         },
         "scalars": scalars,
@@ -792,6 +1112,8 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "runtime_log_header_after": header_after,
         "runtime_diagnostic_snapshot": diagnostic,
         "speed_pi_diagnostic_snapshot": speed_pi_diagnostic,
+        "receive_diagnostic_snapshot": receive_diagnostic,
+        "speed_pi_trace_header": speed_pi_trace_header,
         "raw_files": {
             "scalar_region": {
                 "path": str(Path(scalar_path).resolve()),
@@ -818,6 +1140,16 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                 "bytes": len(Path(speed_pi_diagnostic_path).read_bytes()),
                 "sha256": hashlib.sha256(Path(speed_pi_diagnostic_path).read_bytes()).hexdigest(),
             }),
+            "receive_diagnostic_snapshot": (None if receive_diagnostic_path is None else {
+                "path": str(Path(receive_diagnostic_path).resolve()),
+                "bytes": len(Path(receive_diagnostic_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(receive_diagnostic_path).read_bytes()).hexdigest(),
+            }),
+            "speed_pi_trace_header": (None if speed_pi_trace_header_path is None else {
+                "path": str(Path(speed_pi_trace_header_path).resolve()),
+                "bytes": len(Path(speed_pi_trace_header_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(speed_pi_trace_header_path).read_bytes()).hexdigest(),
+            }),
         },
     }
 
@@ -841,6 +1173,10 @@ def build_parser() -> argparse.ArgumentParser:
                                help="optional 64-byte g_runtime_diag_snapshot upload")
     decode_parser.add_argument("--speed-pi-diagnostic",
                                help="optional 128-byte g_speed_pi_diag_snapshot upload")
+    decode_parser.add_argument("--receive-diagnostic",
+                               help="optional 96-byte g_receive_diag_snapshot upload")
+    decode_parser.add_argument("--speed-pi-trace-header",
+                               help="optional 64-byte g_speed_pi_trace header upload")
     decode_parser.add_argument("--descriptor",
                                help="optional uploaded 64-byte Flash descriptor to verify the target ELF")
     return parser
@@ -856,7 +1192,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                                        descriptor_path=args.descriptor,
                                        header_after_path=args.header_after,
                                        diagnostic_path=args.runtime_diagnostic,
-                                       speed_pi_diagnostic_path=args.speed_pi_diagnostic))
+                                       speed_pi_diagnostic_path=args.speed_pi_diagnostic,
+                                       receive_diagnostic_path=args.receive_diagnostic,
+                                       speed_pi_trace_header_path=args.speed_pi_trace_header))
         return 0
     except (StatusReadError, exporter.ExportError, OSError, struct.error) as exc:
         print("run-status-reader: {}".format(exc), file=sys.stderr)

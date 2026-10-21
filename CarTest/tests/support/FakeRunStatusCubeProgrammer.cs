@@ -98,6 +98,18 @@ internal static class FakeRunStatusCubeProgrammer
             expectedSizeText = "128";
             fixture = Env("RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_FIXTURE");
         }
+        else if (address == Env("RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS"))
+        {
+            expectedAddress = Env("RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS");
+            expectedSizeText = "96";
+            fixture = Env("RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_FIXTURE");
+        }
+        else if (address == Env("RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS"))
+        {
+            expectedAddress = Env("RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS");
+            expectedSizeText = "64";
+            fixture = Env("RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE");
+        }
         else if (address == Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS"))
         {
             expectedAddress = Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS");

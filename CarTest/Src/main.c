@@ -10,8 +10,10 @@
 #include "run_block_reason.h"
 #include "runtime_diag.h"
 #include "runtime_log.h"
+#include "receive_diag.h"
 #include "servo_safety.h"
 #include "speed_pi_diag.h"
+#include "speed_pi_trace.h"
 #include "speed_observer.h"
 #include "uart_rx_service.h"
 #include "stm32h7xx_hal.h"
@@ -57,32 +59,40 @@
     ((CARTEST_FOLLOW_DIFF_PERMILLE != 150) && \
      (CARTEST_FOLLOW_DIFF_PERMILLE != 200)) || \
     (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != CARTEST_FOLLOW_DIFF_PERMILLE) || \
-    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700) || \
-    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000) || \
     (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
     (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
     (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120)
 #error "FollowTurn requires a 65/35 or 70/30 differential with 120us/20ms steering and 40-permille/10ms motor ramp."
 #endif
-#if CARTEST_FOLLOW_DIFF_PERMILLE == 200 && \
-    (CARTEST_VISION_HOLD_MS != 3000 || CARTEST_VISION_HOLD_RAMP_MS != 300)
-#error "DebugFollowTurn requires the legacy 3000 ms hold and 300 ms deceleration."
+#if CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200
+#error "FollowTurn requires a 2000 ms hold deadline and 200 ms deceleration."
 #endif
-#if CARTEST_FOLLOW_DIFF_PERMILLE == 150 && \
-    (CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200)
-#error "DebugFollowTurn65 requires the 2000 ms hold and 200 ms deceleration."
-#endif
-#else
+#elif CARTEST_FOLLOW_MODE_COMPILED
 #if (CARTEST_FOLLOW_DIFF_PERMILLE != 0) && \
     (CARTEST_FOLLOW_DIFF_PERMILLE != 50) && \
     (CARTEST_FOLLOW_DIFF_PERMILLE != 100) || \
     (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != CARTEST_FOLLOW_DIFF_PERMILLE) || \
-    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 600) || \
-    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000) || \
     (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 40)
-#error "Legacy Follow requires differential 0, 50, or 100 with its original limits and rates."
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120) || \
+    (CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200)
+#error "Follow requires 1000-permille caps, 40/10 ms motor ramp, 120/20 us servo slew, and a 2000/200 ms hold profile."
+#endif
+#else
+#if CARTEST_FOLLOW_DIFF_PERMILLE != 0 || \
+    CARTEST_FOLLOW_INNER_DIFF_PERMILLE != 0 || \
+    CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 600 || \
+    CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000 || \
+    CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10 || \
+    CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 10 || \
+    CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 40 || \
+    CARTEST_VISION_HOLD_MS != 3000 || \
+    CARTEST_VISION_HOLD_RAMP_MS != 300
+#error "Non-Follow profiles must preserve the 600-permille legacy output cap, 10-permille motor ramp, 40-us servo slew, and 3000/300 ms hold profile."
 #endif
 #endif
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED && \
@@ -99,13 +109,13 @@
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED && \
     (!CARTEST_FOLLOW_MODE_COMPILED || !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
      !CARTEST_HARDWARE_ACCEPTED || \
-     CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700 || \
+     CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000 || \
      CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40 || \
      CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120 || \
      CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS != 2400 || \
      CARTEST_FOLLOW_SPEED_PI_KP_Q16 != 13107 || \
      CARTEST_FOLLOW_SPEED_PI_KI_Q16 != 26214 || \
-     CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE != 700 || \
+     CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE != 1000 || \
      CARTEST_FOLLOW_SPEED_PI_TRACKING_TIME_MS != 200)
 #error "The speed PI trial requires the exact accepted FollowTurn profile and provisional PI parameters."
 #endif
@@ -159,6 +169,16 @@
 #define APP_ENCODER_LEFT_B_GPIO_PIN GPIO_PIN_0  /* PA0 / TIM2_CH1 */
 #define APP_ENCODER_RIGHT_A_GPIO_PIN GPIO_PIN_7 /* PC7 / TIM8_CH2 */
 #define APP_ENCODER_RIGHT_B_GPIO_PIN GPIO_PIN_6 /* PC6 / TIM8_CH1 */
+
+/* Exporters use these ROM symbols to require a frozen speed trace for the
+   two PI builds even though the older 128-byte snapshot is C-only. */
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED && CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+const uint8_t g_speed_pi_trace_profile_incremental
+    __attribute__((used)) = 2u;
+#elif CARTEST_FOLLOW_SPEED_PI_ENABLED
+const uint8_t g_speed_pi_trace_profile_position
+    __attribute__((used)) = 1u;
+#endif
 
 /* These numeric values are intentionally stable for Live Watch diagnosis. */
 typedef enum {
@@ -216,6 +236,7 @@ typedef enum {
     CAR_INIT_ERROR_IWDG_LSI_NOT_READY = 22u,
     CAR_INIT_ERROR_IWDG_REGISTER_UPDATE_TIMEOUT = 25u,
     CAR_INIT_ERROR_IWDG_READBACK = 26u,
+    CAR_INIT_ERROR_TRACE_SRAM = 27u,
     CAR_INIT_ERROR_UNCLASSIFIED = 0x7FFFFFFFu
 } car_init_error_t;
 
@@ -429,6 +450,12 @@ static uint16_t speed_pi_diag_last_request_right;
 static uint16_t speed_pi_diag_last_applied_left;
 static uint16_t speed_pi_diag_last_applied_right;
 #endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static uint8_t speed_pi_trace_session_active;
+static uint32_t speed_pi_trace_start_token;
+static uint8_t speed_pi_trace_have_sample;
+static uint32_t speed_pi_trace_last_sample_ms;
+#endif
 
 static car_config_t app_config;
 
@@ -538,6 +565,10 @@ static void apply_manual_stop_effects(uint32_t effects);
 static void speed_pi_diag_publish(uint32_t now_ms, uint8_t allow_new_sample,
                                   uint8_t force);
 static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms);
+#endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static void speed_pi_trace_publish_sample(void);
+static void speed_pi_trace_freeze_if_stopped(uint32_t now_ms);
 #endif
 #if CARTEST_RUNTIME_LOG_ENABLED
 static car_runtime_log_session_kind_t runtime_log_start_edge(
@@ -2229,6 +2260,68 @@ static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms)
 }
 #endif
 
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static void speed_pi_trace_publish_sample(void)
+{
+    car_speed_pi_trace_values_t values = {0};
+    const uint32_t primask = __get_PRIMASK();
+    const uint8_t new_sample =
+        speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_SAMPLE &&
+        (speed_pi_trace_have_sample == 0u ||
+         speed_observer_result.sample_ms != speed_pi_trace_last_sample_ms);
+
+    if (speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_SAMPLE) {
+        speed_pi_trace_have_sample = 1u;
+        speed_pi_trace_last_sample_ms = speed_observer_result.sample_ms;
+    }
+    if (speed_pi_trace_session_active == 0u || new_sample == 0u) {
+        return;
+    }
+
+    __disable_irq();
+    values.record_ms = HAL_GetTick();
+    values.sample_ms = speed_observer_result.sample_ms;
+    values.vision_sequence = car_control_state.latest_rx_have_frame != 0u
+        ? car_control_state.latest_rx_sequence : 0u;
+    values.vision_arrival_ms = car_control_state.latest_rx_have_frame != 0u
+        ? car_control_state.latest_rx_arrival_ms : 0u;
+    values.pi_type = CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+        ? CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL
+        : CAR_SPEED_PI_DIAG_TYPE_POSITION;
+    values.speed_valid = speed_observer_result.valid;
+    values.armed = APP_FOLLOW_PI_ARMED;
+    values.hold_active = car_control_state.vision_hold_active;
+    values.proposal_valid = APP_FOLLOW_PI_ARMED != 0u &&
+        APP_FOLLOW_PI_STATUS == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
+        follow_speed_pi_reset_pending == 0u;
+    values.target_left_millirps = APP_FOLLOW_PI_TARGET_LEFT;
+    values.target_right_millirps = APP_FOLLOW_PI_TARGET_RIGHT;
+    values.measured_left_millirps = speed_observer_result.left_millirps;
+    values.measured_right_millirps = speed_observer_result.right_millirps;
+    values.requested_left_permille = APP_FOLLOW_PI_REQUEST_LEFT;
+    values.requested_right_permille = APP_FOLLOW_PI_REQUEST_RIGHT;
+    values.applied_left_permille = applied_motor_follow_left_permille;
+    values.applied_right_permille = applied_motor_follow_right_permille;
+    __set_PRIMASK(primask);
+    car_speed_pi_trace_append(&values);
+}
+
+static void speed_pi_trace_freeze_if_stopped(uint32_t now_ms)
+{
+    const uint8_t terminal_state =
+        manual_run_button.run_request == 0u ||
+        car_control_state.fault_latched != 0u;
+
+    if (speed_pi_trace_session_active == 0u || terminal_state == 0u) {
+        return;
+    }
+    /* This CRC covers up to 96 KiB. Call only after motor_apply() has stopped
+       the outputs, and with interrupts enabled so UART service can continue. */
+    car_speed_pi_trace_freeze(now_ms);
+    speed_pi_trace_session_active = 0u;
+}
+#endif
+
 static void consume_follow_speed_pi_reset_request(void)
 {
     const uint32_t primask = __get_PRIMASK();
@@ -3478,6 +3571,22 @@ static void runtime_log_publish_sample(
 
     car_runtime_diag_note_log_update_call();
     car_runtime_log_update(&sample, start_kind);
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+    if (start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW) {
+        const uint32_t start_token = car_runtime_log_last_start_token();
+        if (start_token != 0u &&
+            (speed_pi_trace_session_active == 0u ||
+             start_token != speed_pi_trace_start_token)) {
+            const uint8_t pi_type = CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+                ? CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL
+                : CAR_SPEED_PI_DIAG_TYPE_POSITION;
+            car_speed_pi_trace_begin(start_token, now_ms, pi_type);
+            speed_pi_trace_session_active = 1u;
+            speed_pi_trace_start_token = start_token;
+            speed_pi_trace_have_sample = 0u;
+        }
+    }
+#endif
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
     if (start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW) {
         const uint32_t start_token = car_runtime_log_last_start_token();
@@ -3519,6 +3628,18 @@ static void runtime_diag_publish_snapshot(uint32_t now_ms)
     values.reset_flags = car_init_rcc_rsr_reset_snapshot;
     values.log_enabled = (uint8_t)CARTEST_RUNTIME_LOG_ENABLED;
     (void)car_runtime_diag_update(&values);
+}
+
+static HAL_StatusTypeDef speed_pi_trace_sram_enable(void)
+{
+    uint32_t enabled;
+
+    /* D2 SRAM1 is clock-gated on this device. The trace section is NOLOAD, so
+       explicitly enable and read back its clock before any trace access. */
+    RCC->AHB2ENR |= RCC_AHB2ENR_D2SRAM1EN;
+    enabled = RCC->AHB2ENR;
+    __DSB();
+    return (enabled & RCC_AHB2ENR_D2SRAM1EN) != 0u ? HAL_OK : HAL_ERROR;
 }
 
 int main(void)
@@ -3638,6 +3759,12 @@ int main(void)
 #else
     car_runtime_log_invalidate();
 #endif
+    init_status = speed_pi_trace_sram_enable();
+    if (init_status != HAL_OK) {
+        init_failure(CAR_FAULT_CONFIG, CAR_INIT_ERROR_TRACE_SRAM, init_status);
+    }
+    car_speed_pi_trace_init();
+    car_receive_diag_init(HAL_GetTick());
     car_speed_pi_diag_init();
     car_runtime_diag_init(car_init_rcc_rsr_reset_snapshot,
                           (uint8_t)CARTEST_RUNTIME_LOG_ENABLED);
@@ -3844,6 +3971,11 @@ int main(void)
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
         speed_pi_diag_publish(HAL_GetTick(), 1u, 0u);
 #endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+        speed_pi_trace_publish_sample();
+        speed_pi_trace_freeze_if_stopped(HAL_GetTick());
+#endif
+        car_receive_diag_publish(HAL_GetTick());
         runtime_diag_publish_snapshot(HAL_GetTick());
         iwdg_refresh();
     }

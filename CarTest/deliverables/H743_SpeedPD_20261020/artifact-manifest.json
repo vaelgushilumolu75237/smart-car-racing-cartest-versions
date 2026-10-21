@@ -1,0 +1,36 @@
+{
+    "schema_version":  1,
+    "package":  "H743_SpeedPD_20261020",
+    "generated_utc":  "2026-10-21T03:44:51.4817406Z",
+    "project":  "CarTest STM32H743VIT6",
+    "build_summary":  "deliverables\\H743_SpeedPD_20261020\\build-summary.json",
+    "artifacts":  {
+                      "B":  {
+                                "label":  "B_OpenLoop",
+                                "profile":  "DebugFollowTurn65",
+                                "delivery_path":  "deliverables\\H743_SpeedPD_20261020\\B_OpenLoop\\CarTest.elf",
+                                "sha256":  "da015c3940388f908a0e622bc9eae9354465c5c41380a1461aee6b2370b143a3",
+                                "export_elf":  "deliverables\\H743_SpeedPD_20261020\\B_OpenLoop\\CarTest.elf",
+                                "build_id":  "2c6a744e5a2de056055fac95732b0cb7",
+                                "description":  "FollowTurn open-loop motor duty profile with speed PI disabled."
+                            },
+                      "C":  {
+                                "label":  "C_IncrementalPI",
+                                "profile":  "DebugFollowIncrementalPI",
+                                "delivery_path":  "deliverables\\H743_SpeedPD_20261020\\C_IncrementalPI\\CarTest.elf",
+                                "sha256":  "ed89731d79262608e51f7f45db796af8531745245fe3cceab35620c2ce086aa7",
+                                "export_elf":  "deliverables\\H743_SpeedPD_20261020\\C_IncrementalPI\\CarTest.elf",
+                                "build_id":  "7d85f31537056cd909b2dbb1e7790348",
+                                "description":  "FollowTurn with encoder speed feedback using the incremental PI producer."
+                            }
+                  },
+    "per_variant_manifests":  {
+                                  "B":  "deliverables\\H743_SpeedPD_20261020\\B_OpenLoop\\manifest.json",
+                                  "C":  "deliverables\\H743_SpeedPD_20261020\\C_IncrementalPI\\manifest.json"
+                              },
+    "restore_archive":  {
+                            "path":  "deliverables/CarTest_PreSpeedPD_20261020-174128_Restore.zip",
+                            "sha256":  "40518d4b929c9e407bf6f6bdea9db6c8fb748b9c939a46f9c0459600979c69fd"
+                        },
+    "hardware_validation":  "No hardware validation was performed during packaging."
+}

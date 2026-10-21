@@ -1,62 +1,17 @@
-# CarTest OpenMV production package
+# CarTest OpenMV camera
 
-Current package: `SECOND_TURN_CONTINUITY_20261018`, route `cached_width`. Upload all 20 top-level `.py` files together and restart the interpreter. Do not upload tests or host-compiled `.mpy` files. `PACKAGE_MANIFEST.json` lists the exact runtime hashes. The historical clipped-midpoint variant is not maintained.
+The production source defaults to profile `pd`, build ID `BOTTOM80_POSPD_20261020`. Three complete upload packages are in `../deliverables/OpenMV_Bottom80_Steering_20261021/`. The first camera trial should use `no_pd` to establish the same perception and weighted-position baseline before enabling derivative control. Upload one package at a time: copy its 20 top-level `.py` files together and restart the OpenMV interpreter. Do not mix profiles or upload host `.mpy` files or tests.
 
-The previous MicroPython array-allocation compatibility fix is retained. This release retains RAM diagnostics and paired H743 3000ms last-error hold, repairs single-edge segment selection, and increases the normal FollowTurn output rates. See `../docs/CONTOUR_ARRAYFIX_20261016_CN.md` for the historical allocation issue, and the current steering-hold guide below for this release.
+| Package | Control behavior | Trial order |
+| --- | --- | --- |
+| `no_pd` | Existing position EMA output only | First |
+| `pd` | Position-only P+D after the EMA | Second |
+| `pd_preview` | PD plus bounded confirmed geometry preview | Optional last |
 
-## Steering-chain diagnostics and paired H743 hold
+All profiles preserve the same image and route processing. Full-image y=24 divides the 80% near and 20% far groups. The far group must contain at least three supported rows spanning at least two grid rows; otherwise the near rows normalize to the full position. No near rows means an invalid position. The existing EMA is retained. PD uses only that filtered position, a 60 ms low-pass derivative, 30 ms derivative time, D limit 100, maximum capture interval 100 ms, and combined output limit 1000. Invalid frames, long capture gaps, source/identity changes and changes to the actual selected weighted reference row reset the controller. Repeated captures do not advance its history.
 
-This release changes single-edge recovery and the normal FollowTurn slew/ramp rates. Optional RAM-only diagnostics are enabled by default for this diagnostic release: 128 records of 32 bytes, rolling oldest-first and frozen after the first successfully sent valid-to-invalid transition. Freezing diagnostics never freezes detection or UART transmission. No per-frame print is added; the independent `diag_trace` performance stage accounts for record overhead. Disable `STEERING_DIAG_ENABLED` to avoid allocating the buffer.
+Preview remains off in `no_pd` and `pd`. In `pd_preview`, a geometry-qualified candidate of at least 80 magnitude must keep the same sign for three distinct captures over at least 60 ms, with same-sign filtered position of at least 50. Gain rises linearly to 0.35 at position magnitude 250, with applied contribution capped at 100 and slew limited to 500 per second. Existing geometry conflict, invalidity, identity and reference resets remain in force.
 
-After manually stopping the vehicle with PE7, stop the camera script without resetting the interpreter and call `steering_diag_dump()` in the REPL. Save the BEGIN/END text for offline comparison. Power loss, reset, or re-running clears camera RAM. Camera and MCU clocks are independent; do not treat their absolute difference as UART latency.
+The 12-byte observation UART V1 frame is unchanged. The camera diagnostic dump has a separate 32-byte control-extension v2 record with its own sequence, capture/send camera-clock timestamps, actual sent command and CRC-16/CCITT-FALSE. Camera times are relative to the OpenMV clock and must not be subtracted from STM32 arrival times as if they shared an epoch.
 
-The paired H743 firmware retains the last trusted received error for at most 3000ms from its receive time. Servo motion may finish toward that existing target through the existing endpoint protection; each motor holds its actual entry duty. Communications faults and manual stop still override the hold. MCU log semantic version is 2 with the same 64-byte layout; the new decoder remains compatible with version 1. See `../docs/AGGRESSIVE_TURN_20261016_CN.md` for paired upload/export and acceptance steps.
-
-## Single-edge segment recovery
-
-Single-edge recovery follows the nearest supported segment from bottom to top; a local bad row no longer vetoes all valid segments. Single-edge-only limits are five rows, six grid rows of span, up to three missing rows and a 16-cell identity-anchor radius. A short segment may use its closest actually supported reference row. Opposite-side recovery needs two consecutive candidates and overlapping accepted centers within 12 cells; no overlap cannot authorize a side switch. True transitions, measured-width provenance, clear road corridors and unresolved branch rejection remain required. Detailed rejection diagnostics use an independent extension and do not change the 32-byte camera trace or 12-byte UART protocol.
-
-## Normal steering
-
-This comparison version disables the ordinary-road preview contribution while
-leaving its computation visible. `preview_candidate` is the geometry-qualified
-candidate and `heading_contribution`/`preview` is the amount actually sent;
-with `ORDINARY_PREVIEW_CONTROL_ENABLED = False`, the latter is 0 and the
-ordinary road packet uses only the current weighted position error. This does
-not change the existing 80/20 lower/upper image weighting or turn the
-controller into a fixed single-row reference. Ring routes retain their
-existing position-only behavior.
-
-The original current-route preview gates remain: three disjoint five-row windows, at least 15 rows over 12 grid rows, a supported reference near y=40, and at least 1.5 cells of curvature residual in the heading direction. Heading gain is 2 and the diagnostic candidate is bounded to +/-400. The transmitted position control remains bounded to +/-1000. `preview_candidate` reports the qualified candidate, while `preview`/`heading_contribution` reports the applied amount. The supported row-40 `reference_error` is diagnostic only. No past heading substitutes for missing current geometry.
-
-Accepted centers retain lower-70%-image weight 0.8 and upper-30%-image weight 0.2, with internal normalization per group. The full-image split is y=36, grid y=18. Missing groups are reported and the available group is normalized to 1.0. Initial observation EMA remains 0.70. These are software-trial settings, not measured optimal gains.
-
-## Supplied contour code and current recovery
-
-`contour_trace.py` ports the supplied four-direction left/right wall-following decisions with configurable dimensions, fixed storage and bounded termination. The missing original `get_image_sum()` is replaced by an explicit convention: known white=255, known dark=0, unknown/outside=125. This is an adaptation, not a verified reconstruction of an unavailable complete champion project.
-
-Moving-average filtering, equal-arc resampling, tangent/normal offset and local-angle corner utilities are also provided. Their original C bodies were not supplied; these functions are implementations from the description. They do not establish camera inverse perspective, physical track width or a complete element state machine. Uncalibrated fixed-pixel normal offsets do not control this vehicle.
-
-`contour_route.py` tries the follower after explicit ordinary path misses. Healthy prior paths and rejected prior failures are preserved. Unresolved branches/islands/ambiguities cannot be overridden. The near seed must contain the image center and have two known-dark borders. Accepted rows require unique actual horizontal dark/white transitions, a known-white interior, enough span and continuity, and the existing nearby reference. Clipped or unknown cells are never measured edges. A contour candidate still passes the original boundary/reference validators before selection.
-
-Runtime recovery uses the 80x60 grid, at most 256 points per side and 1024 follower iterations. Its Python backend and execution time are reported separately; existing grayscale/path Viper labels do not imply that this follower is Viper. Board time and heap use remain to be measured.
-
-## Lifecycle and unchanged interfaces
-
-Reliable single-edge tracking still uses validated bilateral width/identity history and fresh H743 RESET/KEEP. Inferred rows never update measured widths. Validated current contour pairs may update the existing bilateral cache through the same gates.
-
-The paired H743 repair restarts RESET/KEEP for each consumed physical PE7 start event and clears stale local KEEP/fresh gates. One start intent remains pending through reset and fresh observations. KEEP without RESET stays rejected by the camera. Invalid route frames do not repeatedly RESET. PE7 remains press once to start, press again to stop.
-
-Ring routing remains experimental with its existing current-geometry and authorization gates. No new ring override, slope classifier, pitch-sensor behavior or finish-line stop is introduced. The missing `find_circle`, `GetExpectSpeed` and `find_zebra` bodies are not presented as reproduced originals. Normal-turn and ring tests remain separate.
-
-Observation protocol remains 12-byte V1, CRC-16/CCITT-FALSE, 115200 8N1; confidence stays diagnostic. Reverse control remains 8-byte RESET/KEEP with a 250ms lease. FollowTurn normal servo slew is 120us/20ms and each motor changes at most 40 permille/10ms. Startup ramps, endpoints, 70/30 maximum differential targets, first complete PWM checks, 3000ms vision-loss cutoff and three-frame recovery are retained. PWM telemetry is not a mechanical angle measurement.
-
-## Validation and delivery
-
-Final hashes, host results, actual ARMv7em compiler results and board-validation limits are in `PACKAGE_MANIFEST.json`. The bundled compiler is older than the reported board runtime; compilation is not runtime equivalence. The real-board Viper equivalence case is skipped without a board-produced manifest.
-
-Run host tests from `CarTest`, including both new `openmv/tests/test_contour_*.py` suites and existing regressions. H743 is built separately with `tools/build.ps1`; camera Python upload and MCU ELF flashing are separate operations.
-
-Source/configuration/ELF snapshots and detailed validation stay under workspace `test-data/`. Actual vehicle logs/media are excluded from public checkpoints. Annotated compressed videos and overlay-masking sensitivity runs are not native sensor captures or closed-loop vehicle acceptance.
-
-See `../docs/CONTOUR_PORT_20261016_CN.md` and `../docs/CONTOUR_REPAIR_20261016_CN.md`. The withdrawn sign-priority controller is historical in `../docs/STEERING_PRIORITY_20261015_CN.md`.
+`PACKAGE_MANIFEST.json` identifies the default `pd` package. Each upload folder has its own manifest, build ID and file hashes. All 60 profile modules were cross-compiled with bundled mpy-cross 1.25.0 for the ARMv7EM-SP target. The reported board runtime is MicroPython 1.28.0-49; no matching mpy-cross compiler was available in the IDE archive, so 1.28 compiler acceptance remains unverified. The production OpenMV host suite passes 183 tests. The frozen V7 suite ran 79 tests: 78 passed and one board-only case was skipped. These are host and compiler checks only. `test-data/speedpd-20261020-validation/camera/host-performance-comparison.json` reports the full-clear versus touched-row aggregation comparison and controller-only profile timing on synthetic CPython inputs. It does not benchmark the sensor/Viper frame loop or predict camera frame rate. No image-processing resolution reduction or safety-gate removal was made for speed. Production OpenMV 45 fps and vehicle behavior remain unverified; no camera upload or motor run was performed.
