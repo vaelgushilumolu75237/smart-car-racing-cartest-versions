@@ -4,17 +4,28 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import textwrap
 import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+TOOLS = ROOT / "tools"
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
+
+from build_openmv_ram_preview_probe import VIPER_MARKER_FUNCTION
+from openmv_preview_marker import decode_preview_marker_rgb888
+
+
 PATCH = ROOT / "tools" / "vendor-patches" / "openmv-v5.0.0" / (
     "0001-csi-snapshot-preview-kwarg.patch")
 MANIFEST = PATCH.with_name("manifest.json")
@@ -66,8 +77,77 @@ class PreviewPatchContractTests(unittest.TestCase):
                  "ram_usb_preview_probe.py").read_text(encoding="utf-8")
         self.assertIn('getattr(sensor, "PREVIEW_CONTROL_API", None) != 1', probe)
         self.assertIn('getattr(csi, "PREVIEW_CONTROL_API", None) != 1', probe)
-        self.assertIn("PREVIEW_EVERY_N = 4", probe)
-        self.assertIn("SCALE = 0.25", probe)
+        self.assertIn("PREVIEW_EVERY_N = 1", probe)
+        self.assertIn("SCALE = 1.0", probe)
+        self.assertIn("PREVIEW_QUALITY = 30", probe)
+        self.assertIn("copy=True", probe)
+        self.assertIn("marker=D3/seq16/crc8", probe)
+        self.assertIn("_write_preview_marker_viper", probe)
+        self.assertIn("self.latest_image.bytearray()", probe)
+        self.assertIn("sensor.snapshot(preview=False)", probe)
+        self.assertIn("quality=PREVIEW_QUALITY", probe)
+        self.assertIn("preview.flush()", probe)
+        self.assertIn("BOARD_PROBE_COUNTS input_frames=%d preview_publishes=%d ",
+                      probe)
+        self.assertIn("marker_writes=%d marker_total_us=%d", probe)
+        self.assertIn("int(320 * SCALE), int(120 * SCALE)", probe)
+        self.assertNotIn("draw_string(", probe)
+        self.assertNotRegex(probe, r"\.clear\(\s*96\s*\)")
+
+    def test_standalone_marker_matches_builder_and_host_decoder(self) -> None:
+        probe = (ROOT / "openmv" / "tests" /
+                 "ram_usb_preview_probe.py").read_text(encoding="utf-8")
+        probe_tree = ast.parse(probe)
+        probe_marker = next(
+            node for node in probe_tree.body
+            if isinstance(node, ast.FunctionDef) and
+            node.name == "_write_preview_marker_viper")
+        builder_tree = ast.parse(
+            textwrap.dedent(VIPER_MARKER_FUNCTION).strip())
+        builder_marker = next(
+            node for node in builder_tree.body
+            if isinstance(node, ast.FunctionDef))
+        self.assertEqual(ast.dump(probe_marker, include_attributes=False),
+                         ast.dump(builder_marker, include_attributes=False))
+
+        class _ViperHostCompat:
+            @staticmethod
+            def viper(function):
+                return function
+
+        namespace = {"micropython": _ViperHostCompat,
+                     "ptr8": lambda buffer: buffer}
+        marker_source = textwrap.dedent(VIPER_MARKER_FUNCTION).strip()
+        exec(compile(marker_source, "preview_marker_test.py", "exec"),
+             namespace)
+        draw_marker = namespace["_write_preview_marker_viper"]
+        for sequence in (1, 0x1234, 0xFFFF):
+            gray = bytearray(320 * 120)
+            draw_marker(gray, sequence)
+            rgb888 = bytearray(len(gray) * 3)
+            for index, value in enumerate(gray):
+                offset = index * 3
+                rgb888[offset] = value
+                rgb888[offset + 1] = value
+                rgb888[offset + 2] = value
+            decoded = decode_preview_marker_rgb888(rgb888, 320, 120)
+            self.assertEqual(decoded["status"], "ok")
+            self.assertEqual(decoded["sequence"], sequence)
+            self.assertEqual(decoded["magic"], 0xD3)
+
+    def test_probe_marker_runs_after_control_write_and_overlay(self) -> None:
+        source = (ROOT / "openmv" / "main.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        functions = {
+            node.name: ast.get_source_segment(source, node)
+            for node in tree.body if isinstance(node, ast.FunctionDef)
+        }
+        main_fast = functions["_main_fast"]
+        preview_frame = functions["_render_v7_preview_frame"]
+        self.assertLess(main_fast.index("written = uart.write(packet)"),
+                        main_fast.index("_render_v7_preview_frame("))
+        self.assertLess(preview_frame.index("_draw_gray_result("),
+                        preview_frame.index("flush_func()"))
 
     def test_flag_contract_preserves_default_and_suppresses_false(self) -> None:
         def flags(preview: bool = True) -> int:

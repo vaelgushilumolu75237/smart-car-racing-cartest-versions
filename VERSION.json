@@ -1,7 +1,7 @@
 {
-  "version": "v20261024-ackermann320-static60",
-  "status": "experimental-static60-no-preview",
-  "branch": "experimental/ackermann320-static60",
-  "files": 571,
+  "version": "v20261024-usb-preview-api-built",
+  "status": "experimental-built-unflashed-60fps-unverified",
+  "branch": "experimental/usb-preview-api-built",
+  "files": 596,
   "hardware_actions": "none"
 }

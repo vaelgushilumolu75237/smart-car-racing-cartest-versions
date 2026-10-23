@@ -20,6 +20,69 @@ def write_json(path: Path, value):
 
 
 class CheckpointAllowlistTests(unittest.TestCase):
+    def make_native_preview_fixture(self, source: Path):
+        for relative_name in checkpoint.OPENMV_NATIVE_PREVIEW_REQUIRED_FILES:
+            source_path = PROJECT / relative_name
+            destination = source / relative_name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source_path.read_bytes())
+        patch_path = source / checkpoint.OPENMV_NATIVE_PREVIEW_PATCH
+        patch_path.parent.mkdir(parents=True, exist_ok=True)
+        patch_path.write_bytes((PROJECT / checkpoint.OPENMV_NATIVE_PREVIEW_PATCH).read_bytes())
+
+    def test_openmv_native_preview_candidate_is_validated_and_explicitly_allowlisted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            self.make_native_preview_fixture(source)
+            delivery = source / checkpoint.OPENMV_NATIVE_PREVIEW_ROOT
+            (delivery / "README.md").write_text("Review notes\n", encoding="utf-8")
+            (delivery / "EVIDENCE.md").write_text("Build evidence\n", encoding="utf-8")
+            (delivery / "ci-artifact.zip").write_bytes(b"must stay local")
+
+            allowlist = checkpoint.verify_openmv_native_preview_delivery(source)
+
+            self.assertEqual(allowlist, [
+                *checkpoint.OPENMV_NATIVE_PREVIEW_REQUIRED_FILES,
+                *checkpoint.OPENMV_NATIVE_PREVIEW_OPTIONAL_DOCUMENTS,
+            ])
+            self.assertNotIn(
+                f"{checkpoint.OPENMV_NATIVE_PREVIEW_ROOT}/ci-artifact.zip", allowlist)
+            self.assertEqual(set(checkpoint.OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256), {
+                Path(name).name for name in checkpoint.OPENMV_NATIVE_PREVIEW_REQUIRED_FILES
+                if Path(name).name in checkpoint.OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256
+            })
+
+    def test_openmv_native_preview_rejects_missing_artifact(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            self.make_native_preview_fixture(source)
+            (source / checkpoint.OPENMV_NATIVE_PREVIEW_ROOT / "firmware.elf").unlink()
+
+            with self.assertRaisesRegex(RuntimeError, "allowlisted artifact is missing"):
+                checkpoint.verify_openmv_native_preview_delivery(source)
+
+    def test_openmv_native_preview_rejects_artifact_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            self.make_native_preview_fixture(source)
+            firmware_bin = source / checkpoint.OPENMV_NATIVE_PREVIEW_ROOT / "firmware.bin"
+            damaged = bytearray(firmware_bin.read_bytes())
+            damaged[-1] ^= 1
+            firmware_bin.write_bytes(damaged)
+
+            with self.assertRaisesRegex(RuntimeError, "artifact hash mismatch: firmware.bin"):
+                checkpoint.verify_openmv_native_preview_delivery(source)
+
+    def test_openmv_native_preview_rejects_live_patch_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            self.make_native_preview_fixture(source)
+            patch_path = source / checkpoint.OPENMV_NATIVE_PREVIEW_PATCH
+            patch_path.write_bytes(patch_path.read_bytes() + b"\n")
+
+            with self.assertRaisesRegex(RuntimeError, "live pinned patch hash"):
+                checkpoint.verify_openmv_native_preview_delivery(source)
+
     def test_ackermann_delivery_pair_and_twelve_build_rows_are_hash_checked(self):
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp)

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import urllib.error
 import urllib.request
@@ -106,6 +107,41 @@ OPENMV_ACKERMANN_RUNTIME_FILES = frozenset({
     "road_detector.py", "source_selector.py", "surface_detector.py",
     "thresholding.py", "vision_protocol.py",
 })
+OPENMV_NATIVE_PREVIEW_ROOT = "deliverables/OpenMV_NativePreview_20261024"
+OPENMV_NATIVE_PREVIEW_REQUIRED_FILES = tuple(
+    f"{OPENMV_NATIVE_PREVIEW_ROOT}/{name}" for name in (
+        "firmware.bin", "firmware.elf", "build-summary.txt",
+        "build-summary.txt.sha256", "artifact-manifest.json",
+    )
+)
+# These two named review documents may be added by the release owner. No other
+# candidate-folder files (including the CI zip and logs) enter the checkpoint.
+OPENMV_NATIVE_PREVIEW_OPTIONAL_DOCUMENTS = tuple(
+    f"{OPENMV_NATIVE_PREVIEW_ROOT}/{name}" for name in ("README.md", "EVIDENCE.md")
+)
+OPENMV_NATIVE_PREVIEW_PATCH = (
+    "tools/vendor-patches/openmv-v5.0.0/0001-csi-snapshot-preview-kwarg.patch")
+OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256 = (
+    "2bbb92b2b25705002ae16b9e9f18f57fc171ca8f0549680cc15260cce0b468d5")
+OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256 = {
+    "build-summary.txt": "5f448297965d25ec76807ca3e3404ca4753c3acf73880c9dd5cf2bae87996dd7",
+    "build-summary.txt.sha256": "4b7467ab38a26d14ffc08c7b94cc6f90465ba8133ff524d2487d63e2f7343876",
+    "firmware.bin": "9689d686881d2d358694f580256d0698f01226cd018c6f6951d1d7abf5c663b7",
+    "firmware.elf": "dafaec93152163769e81e0f86fcd9b280b289f4e6a49a87d1c29ac1fd559caaa",
+}
+OPENMV_NATIVE_PREVIEW_EXPECTED_BUILD = {
+    "openmv_tag": "v5.0.0",
+    "openmv_commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+    "openmv_sdk_version": "1.6.0",
+    "patch_sha256": OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256,
+    "firmware.bin_sha256": OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256["firmware.bin"],
+    "firmware.elf_sha256": OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256["firmware.elf"],
+}
+OPENMV_NATIVE_PREVIEW_RUN_ID = 40003611704
+OPENMV_NATIVE_PREVIEW_BIN_BYTES = 1_736_532
+OPENMV_NATIVE_PREVIEW_ELF_BYTES = 11_322_036
+OPENMV_NATIVE_PREVIEW_VECTOR_SP = 0x00010000
+OPENMV_NATIVE_PREVIEW_VECTOR_RESET = 0x08040299
 PUBLIC_DELIVERY_FILES = (
     "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
     "deliverables/H743_Uphill_20261019/A_Baseline/manifest.json",
@@ -487,6 +523,116 @@ def verify_ackermann_deliveries(source: Path, expected_presets: set[str]):
             raise RuntimeError(f"Ackermann build summary does not match {variant} ELF.")
 
 
+def _require_regular_checkpoint_file(source: Path, relative_name: str, label: str) -> Path:
+    path = source
+    for part in Path(relative_name).parts:
+        path = path / part
+        if path.is_symlink():
+            raise RuntimeError(f"OpenMV native-preview {label} is linked: {relative_name}")
+    if not path.is_file():
+        raise RuntimeError(f"OpenMV native-preview {label} is missing: {relative_name}")
+    return path
+
+
+def verify_openmv_native_preview_delivery(source: Path) -> list[str]:
+    """Validate and return only the pinned, not-yet-flashed OPENMV4P firmware candidate."""
+    candidate_root = source / OPENMV_NATIVE_PREVIEW_ROOT
+    if candidate_root.is_symlink():
+        raise RuntimeError("OpenMV native-preview delivery directory is linked.")
+
+    required_paths = {
+        relative_name: _require_regular_checkpoint_file(
+            source, relative_name, "allowlisted artifact")
+        for relative_name in OPENMV_NATIVE_PREVIEW_REQUIRED_FILES
+    }
+    manifest_path = required_paths[
+        f"{OPENMV_NATIVE_PREVIEW_ROOT}/artifact-manifest.json"]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV native-preview artifact manifest is invalid.") from error
+    if (not isinstance(manifest, dict) or
+            manifest.get("run_id") != OPENMV_NATIVE_PREVIEW_RUN_ID or
+            manifest.get("conclusion") != "success" or
+            manifest.get("hardware_flashed") is not False or
+            manifest.get("hardware_tested") is not False):
+        raise RuntimeError("OpenMV native-preview run evidence is not the pinned successful, unflashed build.")
+
+    manifest_hashes = manifest.get("files_sha256")
+    if manifest_hashes != OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256:
+        raise RuntimeError("OpenMV native-preview artifact manifest file/hash allowlist does not match the pinned build.")
+    for name, expected_sha256 in OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256.items():
+        relative_name = f"{OPENMV_NATIVE_PREVIEW_ROOT}/{name}"
+        content = required_paths[relative_name].read_bytes()
+        if hashlib.sha256(content).hexdigest() != expected_sha256:
+            raise RuntimeError(f"OpenMV native-preview artifact hash mismatch: {name}")
+
+    summary_path = required_paths[f"{OPENMV_NATIVE_PREVIEW_ROOT}/build-summary.txt"]
+    try:
+        summary_lines = summary_path.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise RuntimeError("OpenMV native-preview build summary is unreadable.") from error
+    summary = {}
+    for line in summary_lines:
+        if not line or "=" not in line:
+            raise RuntimeError("OpenMV native-preview build summary has an invalid row.")
+        key, value = line.split("=", 1)
+        if not key or key in summary:
+            raise RuntimeError("OpenMV native-preview build summary has duplicate or empty keys.")
+        summary[key] = value
+    if summary != OPENMV_NATIVE_PREVIEW_EXPECTED_BUILD:
+        raise RuntimeError("OpenMV native-preview tag, commit, SDK, patch, or image hashes do not match the pinned build.")
+
+    summary_sha = hashlib.sha256(summary_path.read_bytes()).hexdigest()
+    summary_sha_path = required_paths[
+        f"{OPENMV_NATIVE_PREVIEW_ROOT}/build-summary.txt.sha256"]
+    try:
+        summary_sha_fields = summary_sha_path.read_text(encoding="ascii").strip().split()
+    except (OSError, UnicodeDecodeError) as error:
+        raise RuntimeError("OpenMV native-preview build-summary checksum is unreadable.") from error
+    if summary_sha != OPENMV_NATIVE_PREVIEW_EXPECTED_FILES_SHA256["build-summary.txt"]:
+        raise RuntimeError("OpenMV native-preview build-summary hash is not the pinned build.")
+    if summary_sha_fields != [summary_sha, "build-summary.txt"]:
+        raise RuntimeError("OpenMV native-preview build-summary checksum does not match the summary file.")
+
+    patch_path = _require_regular_checkpoint_file(
+        source, OPENMV_NATIVE_PREVIEW_PATCH, "pinned source patch")
+    patch_sha = hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    if patch_sha != OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256:
+        raise RuntimeError("OpenMV native-preview live pinned patch hash does not match the expected patch.")
+    if summary.get("patch_sha256") != patch_sha:
+        raise RuntimeError("OpenMV native-preview build summary patch hash does not match the live patch.")
+
+    firmware_bin = required_paths[f"{OPENMV_NATIVE_PREVIEW_ROOT}/firmware.bin"].read_bytes()
+    firmware_elf = required_paths[f"{OPENMV_NATIVE_PREVIEW_ROOT}/firmware.elf"].read_bytes()
+    if len(firmware_bin) != OPENMV_NATIVE_PREVIEW_BIN_BYTES:
+        raise RuntimeError("OpenMV native-preview firmware.bin size does not match the pinned image.")
+    if len(firmware_elf) != OPENMV_NATIVE_PREVIEW_ELF_BYTES:
+        raise RuntimeError("OpenMV native-preview firmware.elf size does not match the pinned image.")
+    if (len(firmware_elf) < 52 or firmware_elf[:4] != b"\x7fELF" or
+            firmware_elf[4] != 1 or firmware_elf[5] != 1 or firmware_elf[6] != 1):
+        raise RuntimeError("OpenMV native-preview firmware.elf is not a little-endian ELF32 image.")
+    elf_type, elf_machine, elf_version, elf_entry = struct.unpack_from("<HHII", firmware_elf, 16)
+    if (elf_type != 2 or elf_machine != 40 or elf_version != 1 or
+            elf_entry != OPENMV_NATIVE_PREVIEW_VECTOR_RESET or
+            b"OPENMV4P" not in firmware_elf or b"STM32H743" not in firmware_elf):
+        raise RuntimeError("OpenMV native-preview ELF target or entry point does not match OPENMV4P.")
+    if len(firmware_bin) < 8:
+        raise RuntimeError("OpenMV native-preview firmware.bin is too short for a vector table.")
+    vector_sp, vector_reset = struct.unpack_from("<II", firmware_bin, 0)
+    if (vector_sp != OPENMV_NATIVE_PREVIEW_VECTOR_SP or
+            vector_reset != elf_entry or vector_reset != OPENMV_NATIVE_PREVIEW_VECTOR_RESET):
+        raise RuntimeError("OpenMV native-preview firmware.bin vector table does not match the ELF.")
+
+    allowlisted = list(OPENMV_NATIVE_PREVIEW_REQUIRED_FILES)
+    for relative_name in OPENMV_NATIVE_PREVIEW_OPTIONAL_DOCUMENTS:
+        path = source / relative_name
+        if path.exists() or path.is_symlink():
+            _require_regular_checkpoint_file(source, relative_name, "optional review document")
+            allowlisted.append(relative_name)
+    return allowlisted
+
+
 def verify_openmv_ackermann_packages(source: Path) -> list[str]:
     """Return only the declared production runtime files for the paired camera packages."""
     allowlisted: list[str] = []
@@ -633,6 +779,7 @@ def main():
     verify_ackermann_deliveries(source, set(profile_names))
     openmv_speedpd_files = verify_openmv_speedpd_packages(source)
     openmv_ackermann_files = verify_openmv_ackermann_packages(source)
+    openmv_native_preview_files = verify_openmv_native_preview_delivery(source)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -669,6 +816,8 @@ def main():
     for name in openmv_speedpd_files:
         copy_allowlisted_file(source, target, name)
     for name in openmv_ackermann_files:
+        copy_allowlisted_file(source, target, name)
+    for name in openmv_native_preview_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
