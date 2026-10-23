@@ -24,18 +24,19 @@ OVERLAY_PERIOD_MS = 200  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-# Bottom-80/top-20 position weighting is shared by three control profiles:
-# "no_pd" (filtered position only), "pd" (default), and "pd_preview"
-# (PD plus confirmed adaptive preview). Preview geometry stays diagnostic in
-# the first two profiles.
-STEERING_CONTROL_PROFILE = "pd"
+# The coordinated profile uses PD plus confirmed adaptive preview and the
+# independent speed-request stage. geometry_perf_only retains the same PD and
+# preview behavior with the prior .35/100 preview bounds and no speed request.
+STEERING_CONTROL_PROFILE = "pd_preview"
 STEERING_CONTROL_PROFILE_BUILD_IDS = (
-    ("no_pd", "BOTTOM80_NO_PD_20261020"),
-    ("pd", "BOTTOM80_POSPD_20261020"),
-    ("pd_preview", "BOTTOM80_PD_PREVIEW_20261020"),
+    ("no_pd", "OPENMV_ACKERMANN320_NO_PD_20261022"),
+    ("pd", "OPENMV_ACKERMANN320_PD_20261022"),
+    ("pd_preview", "OPENMV_ACKERMANN320_COORDINATED_20261022"),
+    ("geometry_perf_only", "OPENMV_ACKERMANN320_GEOMETRY_PERF_ONLY_20261022"),
+    ("coordinated", "OPENMV_ACKERMANN320_COORDINATED_20261022"),
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
-    STEERING_CONTROL_PROFILE, "BOTTOM80_INVALID_20261020")
+    STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
 STEERING_DIAG_ENABLED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
@@ -44,9 +45,11 @@ LEGACY_BUILD_ID = "SIXTH_V4_BOUNDARY_GUARD_20261003"
 VISION_BACKEND = "fast"  # Explicit diagnostics: "compare"; V4: "legacy".
 CONTOUR_RECOVERY_ENABLED = True  # Bounded Python fallback for eligible path misses.
 
-FRAME_SIZE_NAME = "QQVGA"
-IMAGE_WIDTH = 160
+FRAME_SIZE_NAME = "QVGA"
+IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 120
+SENSOR_WINDOW_X = 0
+SENSOR_WINDOW_Y = 60
 AUTO_EXPOSURE = True
 AUTO_EXPOSURE_MAX_US = 10000  # V7 exposure cap; compare keeps legacy AEC.
 EXPOSURE_US = 10000  # Used only when AUTO_EXPOSURE is False.
@@ -60,17 +63,17 @@ SURFACE_MODE = "gray_unified"
 SURFACE_MODES = ("gray_unified",)
 SURFACE_GRID_WIDTH = 80
 SURFACE_GRID_HEIGHT = 60
-SURFACE_PIXEL_SCALE = 2
+SURFACE_PIXEL_SCALE_X = 4
+SURFACE_PIXEL_SCALE_Y = 2
 SURFACE_ROI_FLOOR_Y = 8  # Full-resolution y=16; preserves the upper turn band.
-# Full-frame weighting split: grid y=12 maps to full-resolution y=24.
-# Rows below this line provide the 80% near share; rows above provide 20% far.
-STEERING_SPLIT_IMAGE_Y = 24
-STEERING_SPLIT_GRID_Y = 12
-STEERING_FAR_WEIGHT = 0.20
-STEERING_NEAR_WEIGHT = 0.80
-TURN_RESPONSE_VERSION = "BOTTOM80_TOP20_Y24_V2"
-STEERING_FAR_MIN_SUPPORT_ROWS = 3
-STEERING_FAR_MIN_SUPPORT_SPAN = 2
+# Q6-independent fixed point row weights. Entry y is the mean of the two
+# original 320x120 crop rows covered by grid row y (4x2 minpool).
+STEERING_ROW_WEIGHT_Q_SCALE = 1000
+STEERING_ROW_WEIGHT_Q = (164, 220, 274, 326, 375, 423, 470, 514, 556, 596, 635, 671, 706, 738, 769, 798, 825, 850, 873, 894, 913, 931, 946, 959, 971, 980, 988, 994, 998, 1000, 1000, 998, 994, 988, 980, 971, 959, 946, 931, 913, 894, 873, 850, 825, 798, 769, 738, 706, 671, 635, 596, 556, 514, 470, 423, 375, 326, 274, 220, 164)
+STEERING_CORE_RAW_Y_MIN = 40
+STEERING_CORE_RAW_Y_MAX = 79
+STEERING_CORE_MIN_SUPPORT_ROWS = 3
+STEERING_CORE_MIN_SUPPORT_SPAN_GRID = 2
 
 # Position PD acts after the existing position EMA. The derivative is low-pass
 # filtered before Td is applied; limits are in the protocol's normalized units.
@@ -80,15 +83,25 @@ POSITION_PD_D_LIMIT = 100
 POSITION_PD_MAX_DT_MS = 100
 STEERING_OUTPUT_LIMIT = 1000
 
-# Adaptive preview is enabled only by STEERING_CONTROL_PROFILE="pd_preview".
+# Adaptive preview is enabled by the pd_preview compatibility selector and
+# the two named Ackermann package selectors.
 PREVIEW_CANDIDATE_MIN_ABS = 80
 PREVIEW_CONFIRM_FRAMES = 3
 PREVIEW_CONFIRM_MS = 60
 PREVIEW_POSITION_MIN_ABS = 50
 PREVIEW_POSITION_FULL_GAIN_ABS = 250
-PREVIEW_MAX_GAIN = 0.35
-PREVIEW_APPLIED_LIMIT = 100
+PREVIEW_MAX_GAIN = 0.45
+PREVIEW_APPLIED_LIMIT = 120
 PREVIEW_SLEW_PER_SECOND = 500
+SPEED_STAGE_ENABLED = True
+SPEED_CANDIDATE_MIN_ABS = 80
+SPEED_CANDIDATE_CONFIRM_FRAMES = 3
+SPEED_CANDIDATE_CONFIRM_MS = 60
+SPEED_RELEASE_POSITION_ABS = 50
+SPEED_RELEASE_CANDIDATE_ABS = 80
+SPEED_RELEASE_CONFIRM_MS = 300
+SPEED_EXIT_PHASE_MS = 800
+SPEED_SLOWDOWN_REQUEST_PERMILLE = 1000
 # Ring entry ports may be within a 5% viewport inset (4 cells on the 80-cell
 # grid). This margin is only a crop-side connection tolerance; it is unrelated
 # to the 80/20 steering weights and does not relax road/clearance checks.
@@ -105,7 +118,8 @@ GRAY_THRESHOLD_BLOCKS = (
     (0, 46, 80, 60),
 )
 GRAY_SENSOR_WARMUP_MS = 1000
-GRAY_MINPOOL_SCALE = 2
+GRAY_MINPOOL_SCALE_X = 4
+GRAY_MINPOOL_SCALE_Y = 2
 GRAY_SOURCE_AGREEMENT_CELLS = 6.0
 GRAY_SHARED_REFERENCE_MAX_GAP_CELLS = 4.0
 # Legacy selector diagnostic only; V6 does not use this tiebreak.

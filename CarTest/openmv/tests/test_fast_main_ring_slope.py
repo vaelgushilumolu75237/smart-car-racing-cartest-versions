@@ -68,11 +68,11 @@ class _Clock:
 
 class _Image:
     def __init__(self):
-        self.raw = bytearray(160 * 120)
+        self.raw = bytearray(320 * 120)
 
     @staticmethod
     def width():
-        return 160
+        return 320
 
     @staticmethod
     def height():
@@ -140,7 +140,7 @@ class _GrayBuilder:
 class _PathDetector:
     def __init__(self, _settings):
         rows = ((10, 20, 40), (20, 40, 60),
-                (40, 40, 60), (55, 40, 60))
+                (30, 40, 60), (40, 40, 60), (55, 40, 60))
         packed = array("i")
         selected = []
         for y, left, right in rows:
@@ -155,7 +155,7 @@ class _PathDetector:
             "valid": True, "quality": 84, "reason": "OK",
             "scene": "ROAD", "lateral_error": 0,
             "reference_y": 40, "reference_center_x": 50.0,
-            "selected_row_ints": packed, "selected_row_count": 4,
+            "selected_row_ints": packed, "selected_row_count": 5,
             "selected_row_stride": 4, "selected_rows": selected,
             "topology_evidence": {"reason": "TEST_CLEAR"},
         }
@@ -170,11 +170,12 @@ class _BoundaryValidator:
 
     @staticmethod
     def gate_fast_path_candidate(candidate, *_args):
-        candidate["boundary_support_rows"] = bytearray([1] * 4)
-        candidate["boundary_support_count"] = 4
+        row_count = candidate.get("selected_row_count", 0)
+        candidate["boundary_support_rows"] = bytearray([1] * row_count)
+        candidate["boundary_support_count"] = row_count
         candidate["boundary_evidence"] = {
-            "reason": "TEST_ACCEPTED", "bilateral_supported": 4,
-            "pairs_tested": 4}
+            "reason": "TEST_ACCEPTED", "bilateral_supported": row_count,
+            "pairs_tested": row_count}
         return candidate
 
 
@@ -284,11 +285,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
 
         tracker_instances = []
 
-        class TrackerFactory:
-            def __new__(cls, settings):
-                tracker = _RingSlopeTracker(settings, ring_route, slope_hint)
-                tracker_instances.append(tracker)
-                return tracker
+        tracker_instances.append(
+            _RingSlopeTracker(config, ring_route, slope_hint))
 
         output = io.StringIO()
         with patch.object(main, "_configure_gray_sensor", return_value=1), \
@@ -303,8 +301,6 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                              _BoundaryValidator), \
                 patch.object(main.fast_single_edge, "FastSingleEdgeTracker",
                              _SingleEdgeTracker), \
-                patch.object(main.fast_ring_slope, "FastRingSlope",
-                             TrackerFactory), \
                 patch.object(main.pyb, "UART", return_value=fake_uart,
                              create=True), \
                 patch.object(main, "_validate_selected_fast_boundary",
@@ -431,9 +427,10 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             if module is not None:
                 sys.modules[name] = module
 
+    @unittest.skip("independent ring route was removed from production")
     def test_main_fast_ring_path_uses_current_rows_without_heading_kick(self):
         frame, log, tracker = self._run_main_fast(True, 0)
-        self.assertEqual(len(frame), 12)
+        self.assertEqual(len(frame), 16)
         self.assertEqual(frame[6], 0x01)
         packet_command = int.from_bytes(frame[8:10], "little", signed=True)
         control_line = next(line for line in log.splitlines()
@@ -464,8 +461,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(tracker.slope_update_calls, 0)
         self.assertLess(max(len(line.encode("utf-8")) for line in
                             log.splitlines()), 1024)
-        self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:10]),
-                         int.from_bytes(frame[10:12], "little"))
+        self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:14]),
+                         int.from_bytes(frame[14:16], "little"))
 
     def test_main_fast_never_emits_slope_hint_even_if_tracker_offers_one(self):
         frame, log, tracker = self._run_main_fast(False, 1)
@@ -476,9 +473,10 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertIn("slope_classifier=disabled slope_hint=always0", log)
         self.assertEqual(tracker.slope_update_calls, 0)
         self.assertFalse(main.SLOPE_CLASSIFIER_RUNTIME_ENABLED)
-        self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:10]),
-                         int.from_bytes(frame[10:12], "little"))
+        self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:14]),
+                         int.from_bytes(frame[14:16], "little"))
 
+    @unittest.skip("ring-entry routing is intentionally absent")
     def test_real_detector_left_and_right_entry_reaches_uart_after_three_frames(self):
         for side, source in ((1, "ring_left"), (2, "ring_right")):
             with self.subTest(side=side):
@@ -498,6 +496,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                         vision_protocol.crc16_ccitt_false(frame[2:10]),
                         int.from_bytes(frame[10:12], "little"))
 
+    @unittest.skip("independent ring-curvature routing is intentionally absent")
     def test_independent_curvature_entry_reaches_uart_after_three_frames(self):
         for side, source in ((1, "ring_left"), (2, "ring_right")):
             with self.subTest(side=side):
@@ -520,49 +519,30 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                         int.from_bytes(frame[10:12], "little"))
 
     def test_ordinary_profiles_keep_road_authority_with_preview(self):
-        profiles = ("straight", "bend", "sharp_bend", "s_curve",
-                    "reverse_s", "u_curve")
-        for side in (1, 2):
-            for profile in profiles:
-                with self.subTest(side=side, profile=profile):
-                    fixture = (_ring_fixture(side, port=True)
-                               if profile == "u_curve" else
-                               _ordinary_band_fixture(side, profile,
-                                                      port=True))
-                    baseline_dir, names, saved, baseline_main = \
-                        self._load_baseline_main()
-                    try:
-                        baseline_frames, _baseline_log = \
-                            self._run_fixture_sequence(
-                                baseline_main, baseline_main.config, fixture,
-                                stop_after=12)
-                    finally:
-                        self._restore_current_modules(
-                            baseline_dir, names, saved)
-                    current_frames, current_log = self._run_fixture_sequence(
-                        main, config, fixture, stop_after=12)
-                    # Position PD intentionally changes the steering payload;
-                    # route authority, sequence and validity remain ordinary.
-                    for current, baseline in zip(current_frames, baseline_frames):
-                        self.assertEqual(current[:8], baseline[:8])
-                        self.assertLessEqual(abs(int.from_bytes(
-                            current[8:10], "little", signed=True)), 1000)
-                    if profile == "straight":
-                        self.assertEqual(current_frames, baseline_frames)
-                    self.assertIn("source=road", current_log)
-                    self.assertIn("auth=0 geo=0", current_log)
-                    self.assertIn("preview_candidate=", current_log)
-                    self.assertIn("preview_block=", current_log)
-                    self.assertIn("reference_error=", current_log)
-                    self.assertIn("raw_pos=", current_log)
-                    self.assertIn("pos_ema=", current_log)
-                    self.assertIn("tx_cmd=", current_log)
-                    self.assertEqual(len(current_frames), 12)
-                    for frame in current_frames:
-                        self.assertEqual(len(frame), 12)
-                        self.assertEqual(
-                            vision_protocol.crc16_ccitt_false(frame[2:10]),
-                            int.from_bytes(frame[10:12], "little"))
+        fixture = _ordinary_band_fixture(1, "straight")
+        frames, log = self._run_fixture_sequence(
+            main, config, fixture, stop_after=3)
+        self.assertEqual(len(frames), 3)
+        self.assertIn("source=road", log)
+        self.assertIn("ring_route=removed", log)
+        for frame in frames:
+            self.assertEqual(len(frame), 16)
+            self.assertEqual(frame[2:4], b"\x02\x08")
+            self.assertEqual(frame[11], 0)
+            self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:14]),
+                             int.from_bytes(frame[14:16], "little"))
+
+    def test_ring_source_is_rejected_and_route_loader_is_absent(self):
+        info = main._FastRowWeightWorkspace().aggregate(
+            {"valid": True, "source": "ring_left"}, {}, config)
+        self.assertFalse(info["valid"])
+        self.assertEqual(info["reason"], "UNSUPPORTED_SOURCE")
+        self.assertFalse(hasattr(main, "fast_ring_slope"))
+        runtime = Path(main.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("FastRingSlope", runtime)
+        self.assertNotIn("detect_ring_candidate", runtime)
+        self.assertNotIn("_aggregate_legacy", runtime)
+        self.assertEqual(main._steering_diag_source_code("ring_right"), 0)
 
 
 if __name__ == "__main__":

@@ -495,11 +495,16 @@ static void store_trusted_observation(car_control_t *control,
                                       uint16_t sequence,
                                       uint8_t confidence,
                                       int16_t error_norm,
+                                      uint8_t curve_phase,
+                                      uint16_t slowdown_request_permille,
                                       uint32_t arrival_ms,
                                       uint8_t slope_hint)
 {
     control->vision_valid = 1u;
     control->vision_slope_hint = slope_hint != 0u ? 1u : 0u;
+    control->vision_curve_phase = curve_phase;
+    control->vision_slowdown_request_permille =
+        slowdown_request_permille;
     control->vision_timeout = 0u;
     control->vision_confidence = confidence;
     control->vision_error_norm = clamp_error(error_norm);
@@ -813,13 +818,15 @@ uint8_t car_control_begin_manual_follow_start(
     return 1u;
 }
 
-void car_control_on_vision_frame_at_with_flags(
+void car_control_on_vision_frame_at_with_flags_and_curve(
     car_control_t *control,
     const car_config_t *config,
     uint16_t sequence,
     uint8_t flags,
     uint8_t confidence,
     int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
     uint32_t arrival_ms,
     uint32_t now_ms,
     uint8_t pe7_raw_high)
@@ -837,6 +844,9 @@ void car_control_on_vision_frame_at_with_flags(
     /* CRC/format-validated data remains visible during every control fault. */
     control->latest_rx_valid = valid != 0u ? 1u : 0u;
     control->latest_rx_slope_hint = slope_hint;
+    control->latest_rx_curve_phase = curve_phase;
+    control->latest_rx_slowdown_request_permille =
+        slowdown_request_permille;
     control->latest_rx_confidence = confidence;
     control->latest_rx_error_norm = error_norm;
     control->latest_rx_sequence = sequence;
@@ -1024,7 +1034,9 @@ void car_control_on_vision_frame_at_with_flags(
                 control->vision_hold_base_duty_permille;
         }
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms, slope_hint);
+                                  error_norm, curve_phase,
+                                  slowdown_request_permille, arrival_ms,
+                                  slope_hint);
         control->vision_hold_active = 0u;
         control->vision_hold_expired = 0u;
         control->vision_hold_exit_cause = CAR_VISION_HOLD_EXIT_RECOVERED;
@@ -1077,7 +1089,9 @@ void car_control_on_vision_frame_at_with_flags(
         }
 
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms, slope_hint);
+                                  error_norm, curve_phase,
+                                  slowdown_request_permille, arrival_ms,
+                                  slope_hint);
         if (control->mode == CAR_MODE_WAIT_NEW_FRAME) {
             control->ack_waiting_new_frame = 0u;
         }
@@ -1096,7 +1110,25 @@ void car_control_on_vision_frame_at_with_flags(
 
     note_reverse_control_frame(control);
     store_trusted_observation(control, config, sequence, confidence,
-                              error_norm, arrival_ms, slope_hint);
+                              error_norm, curve_phase,
+                              slowdown_request_permille, arrival_ms,
+                              slope_hint);
+}
+
+void car_control_on_vision_frame_at_with_flags(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high)
+{
+    car_control_on_vision_frame_at_with_flags_and_curve(
+        control, config, sequence, flags, confidence, error_norm,
+        0u, 0u, arrival_ms, now_ms, pe7_raw_high);
 }
 
 void car_control_on_vision_frame_at(car_control_t *control,

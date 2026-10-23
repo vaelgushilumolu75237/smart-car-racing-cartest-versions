@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 OPENMV_DIR = Path(__file__).resolve().parents[1]
 PROJECT_DIR = OPENMV_DIR.parent
-BASELINE_DIR = (PROJECT_DIR / "test-data" /
-                "steering-hold3s-20261016" / "baseline" / "openmv")
+BASELINE_DIR = (OPENMV_DIR / "tests" / "fixtures" /
+                "steering_hold3s_20261016")
 TEST_DIR = OPENMV_DIR / "tests"
 for _path in (OPENMV_DIR, TEST_DIR):
     if str(_path) not in sys.path:
@@ -143,6 +143,60 @@ class SteeringDiagBufferTests(unittest.TestCase):
         self.assertNotEqual(main._SteeringDiagBuffer._u16(extension, 30),
                             vision_protocol.crc16_ccitt_false(extension[:30]))
         self.assertEqual(self.diag.record_errors, 0)
+
+    def test_viper_crc_matches_reference_and_full_record_bytes(self):
+        table = main._SteeringDiagBuffer._CRC16_NIBBLE_TABLE_ARRAY
+        for seed in range(64):
+            offset = seed % 7
+            payload = bytearray((index * 37 + seed * 19) & 0xFF
+                                for index in range(offset + 32))
+            expected = vision_protocol.crc16_ccitt_false(
+                payload[offset:offset + 30])
+            actual = main._crc16_control_extension_viper(
+                payload, offset, table)
+            self.assertEqual(actual, expected, seed)
+            self.assertEqual(payload[offset + 30], expected & 0xFF, seed)
+            self.assertEqual(payload[offset + 31], expected >> 8, seed)
+
+        reference = main._SteeringDiagBuffer()
+        accelerated = main._SteeringDiagBuffer()
+        control = {
+            "profile_code": 3, "pd_enabled": True,
+            "preview_enabled": True, "preview_confirmed": True,
+            "preview_geometry_valid": False, "preview_same_sign": True,
+            "duplicate": False, "position_p": -321,
+            "derivative_d": 123, "pd_output": -198,
+            "preview_candidate": 77, "preview_gain_milli": 600,
+            "preview_applied": 46, "capture_dt_ms": 19,
+            "preview_state": 2, "reset_code": 4,
+        }
+        frame = _frame(0xBEEF, 1, -777)
+        args = (frame, True, False, True, 0x12345678, 0x23456789,
+                -321, 77, 46, -198, -208, 15, 22, 5, 0xDEADBEEF,
+                tuple(range(16)), control)
+        with patch.object(main, "_NATIVE_ACCELERATION_ENABLED", False):
+            self.assertTrue(reference.record(*args))
+        with patch.object(main, "_NATIVE_ACCELERATION_ENABLED", True):
+            self.assertTrue(accelerated.record(*args))
+        self.assertEqual(accelerated.data, reference.data)
+        self.assertEqual(accelerated.extension_data, reference.extension_data)
+        self.assertEqual(accelerated.control_extension_data,
+                         reference.control_extension_data)
+        self.assertEqual(accelerated.curve_trace_data,
+                         reference.curve_trace_data)
+
+        no_diag_reference = main._SteeringDiagBuffer()
+        no_diag_accelerated = main._SteeringDiagBuffer()
+        no_diag_args = (
+            _frame(17, 1, 400), True, False, True,
+            0x7FFFFFFF, -0x80000000, 0x7FFFFFFF, -0x80000000,
+            40000, -40000, 32768, -32769, 1000, 8, -1, None, None)
+        with patch.object(main, "_NATIVE_ACCELERATION_ENABLED", False):
+            self.assertTrue(no_diag_reference.record(*no_diag_args))
+        with patch.object(main, "_NATIVE_ACCELERATION_ENABLED", True):
+            self.assertTrue(no_diag_accelerated.record(*no_diag_args))
+        self.assertEqual(no_diag_accelerated.control_extension_data,
+                         no_diag_reference.control_extension_data)
 
     def test_none_pending_side_roundtrips_and_trigger_trace_is_chronological(self):
         tracker = fast_single_edge.FastSingleEdgeTracker(config)
@@ -479,10 +533,6 @@ class SteeringDiagBufferTests(unittest.TestCase):
                 patch.object(main.fast_single_edge,
                              "FastSingleEdgeTracker",
                              main_harness._SingleEdgeTracker), \
-                patch.object(main.fast_ring_slope, "FastRingSlope",
-                             lambda settings: main_harness._RingSlopeTracker(
-                                 settings, ring_route=False,
-                                 slope_hint=0)), \
                 patch.object(main._FastRowWeightWorkspace, "aggregate",
                              new=capture_weight_output), \
                 patch.object(main._FastRowWeightWorkspace,
@@ -502,7 +552,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
 
         self.assertEqual(detector_instances[0].calls, 3)
         self.assertEqual(len(uart.frames), 3)
-        self.assertEqual([len(frame) for frame in uart.frames], [12, 12, 12])
+        self.assertEqual([len(frame) for frame in uart.frames], [16, 16, 16])
         self.assertEqual([frame[4] for frame in uart.frames], [0, 1, 2])
         self.assertEqual([frame[6] & vision_protocol.FLAG_VALID
                           for frame in uart.frames], [1, 0, 1])
@@ -565,10 +615,6 @@ class SteeringDiagBufferTests(unittest.TestCase):
                 patch.object(main.fast_single_edge,
                              "FastSingleEdgeTracker",
                              main_harness._SingleEdgeTracker), \
-                patch.object(main.fast_ring_slope, "FastRingSlope",
-                             lambda settings: main_harness._RingSlopeTracker(
-                                 settings, ring_route=False,
-                                 slope_hint=0)), \
                 patch.object(main.pyb, "UART", return_value=uart,
                              create=True), \
                 patch.object(main, "_validate_selected_fast_boundary",
@@ -583,7 +629,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
             self.assertTrue(main.steering_diag_dump())
 
         self.assertEqual(len(uart.frames), 1)
-        self.assertEqual(len(uart.frames[0]), 12)
+        self.assertEqual(len(uart.frames[0]), 16)
         self.assertTrue(uart.frames[0][6] & vision_protocol.FLAG_VALID)
         self.assertEqual(diag.record_errors, 1)
         self.assertEqual(diag.count, 0)
@@ -729,12 +775,32 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         baseline_defs = named_definitions(baseline_tree)
         self.assertEqual(
             current_defs.keys() - baseline_defs.keys(),
-            {"_FastAdaptivePreview", "_FastPositionPD"})
+            {"_FastAdaptivePreview", "_FastPositionPD", "_FastSpeedStage",
+             "_V7SummaryQueue", "_drain_v7_summary_queue",
+             "_noop_preview_flush", "_v7_overlay_status",
+             "_weighted_row_sums_viper",
+             "_aggregate_selected_rows_viper",
+             "_crc16_control_extension_viper",
+             "_write_control_extension_viper",
+             "_write_camera_diag_record_viper"})
         self.assertEqual(baseline_defs.keys() - current_defs.keys(), set())
+        # Geometry/V2 work intentionally adjusts camera setup, pixel mapping,
+        # runtime API checks, and per-window summaries in addition to the
+        # steering-control and RAM-fixture paths. Keep this list explicit so
+        # unrelated definitions remain frozen against the prior runtime.
         changed_defs = {
             "_FastRowWeightWorkspace", "_FreshObservationFilter",
+            "_V7OverlayState", "_draw_gray_result",
+            "_draw_sparse_surface_contour", "_draw_sparse_road_contour",
+            "_service_reverse_control", "_selected_reference",
+            "_validate_selected_fast_boundary", "_rounded_local",
+            "_normalize_fast_reference",
+            "_selected_actual_boundaries",
             "_main_fast", "_render_v7_preview_frame",
-            "_validate_fast_config",
+            "_validate_fast_config", "_configure_sensor",
+            "_configure_gray_sensor", "_surface_pixel",
+            "_validate_v6_gray_config", "_validate_v7_runtime_apis",
+            "_load_fast_runtime", "_main_compare", "_print_v7_summary",
         }
         self.assertEqual(
             {name for name in current_defs.keys() & baseline_defs.keys()
@@ -762,24 +828,41 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         baseline_assignments, baseline_other = assignments(baseline_config)
         self.assertEqual(current_other, baseline_other)
         new_assignments = {
+            "GRAY_MINPOOL_SCALE_X", "GRAY_MINPOOL_SCALE_Y",
             "POSITION_PD_DERIVATIVE_TAU_MS", "POSITION_PD_D_LIMIT",
             "POSITION_PD_MAX_DT_MS", "POSITION_PD_TIME_MS",
             "PREVIEW_APPLIED_LIMIT", "PREVIEW_CANDIDATE_MIN_ABS",
             "PREVIEW_CONFIRM_FRAMES", "PREVIEW_CONFIRM_MS",
             "PREVIEW_MAX_GAIN", "PREVIEW_POSITION_FULL_GAIN_ABS",
             "PREVIEW_POSITION_MIN_ABS", "PREVIEW_SLEW_PER_SECOND",
+            "SENSOR_WINDOW_X", "SENSOR_WINDOW_Y",
+            "SPEED_CANDIDATE_CONFIRM_FRAMES", "SPEED_CANDIDATE_CONFIRM_MS",
+            "SPEED_CANDIDATE_MIN_ABS", "SPEED_EXIT_PHASE_MS",
+            "SPEED_RELEASE_CANDIDATE_ABS", "SPEED_RELEASE_CONFIRM_MS",
+            "SPEED_RELEASE_POSITION_ABS", "SPEED_SLOWDOWN_REQUEST_PERMILLE",
+            "SPEED_STAGE_ENABLED",
+            "STEERING_CORE_MIN_SUPPORT_ROWS",
+            "STEERING_CORE_MIN_SUPPORT_SPAN_GRID",
+            "STEERING_CORE_RAW_Y_MAX", "STEERING_CORE_RAW_Y_MIN",
             "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
-            "STEERING_FAR_MIN_SUPPORT_ROWS",
-            "STEERING_FAR_MIN_SUPPORT_SPAN", "STEERING_OUTPUT_LIMIT",
+            "STEERING_OUTPUT_LIMIT", "STEERING_ROW_WEIGHT_Q",
+            "STEERING_ROW_WEIGHT_Q_SCALE", "SURFACE_PIXEL_SCALE_X",
+            "SURFACE_PIXEL_SCALE_Y",
         }
         changed_assignments = {
-            "BUILD_ID", "OVERLAY_PERIOD_MS", "STEERING_SPLIT_GRID_Y",
-            "STEERING_SPLIT_IMAGE_Y", "TURN_RESPONSE_VERSION",
+            "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",
+            "OVERLAY_PERIOD_MS",
+        }
+        removed_assignments = {
+            "GRAY_MINPOOL_SCALE", "STEERING_FAR_WEIGHT",
+            "STEERING_NEAR_WEIGHT", "STEERING_SPLIT_GRID_Y",
+            "STEERING_SPLIT_IMAGE_Y", "SURFACE_PIXEL_SCALE",
+            "TURN_RESPONSE_VERSION",
         }
         self.assertEqual(current_assignments.keys() - baseline_assignments.keys(),
                          new_assignments)
         self.assertEqual(baseline_assignments.keys() - current_assignments.keys(),
-                         set())
+                         removed_assignments)
         self.assertEqual(
             {name for name in current_assignments.keys() &
              baseline_assignments.keys()

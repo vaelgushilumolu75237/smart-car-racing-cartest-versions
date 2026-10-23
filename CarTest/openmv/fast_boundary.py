@@ -137,93 +137,12 @@ class _SupportPointView:
 
 
 @micropython.viper
-def _measure_side_viper(self, row: int, side: int) -> int:
-    """Read one dark hit and up to three known bright pixels."""
+def _gate_viper(self) -> int:
+    """Run bounded evidence counts over staged selected-row coordinates."""
     luma = ptr8(self._current_luma)
     dark = ptr8(self._current_dark)
     white = ptr8(self._current_white)
     known = ptr8(self._current_known)
-    records = ptr32(self._records)
-    output = ptr32(self._row_output)
-    width = int(self.width)
-    height = int(self.height)
-    row_stride = int(_ROW_STRIDE)
-    output_stride = int(_OUTPUT_STRIDE)
-    step_scale = int(STEP_SCALE)
-    fraction_scale = int(FRACTION_SCALE)
-    total = width * height
-    record_base = row * row_stride
-    output_base = row * output_stride + side * 4
-    hit_offset = 1 + side * 4
-    hit = int(records[record_base + hit_offset])
-    output[output_base] = 0
-    output[output_base + 1] = 0
-    output[output_base + 2] = 0
-    output[output_base + 3] = 0
-    if hit < 0 or hit >= total:
-        return 0
-    if known[hit] == 0 or dark[hit] == 0:
-        return 0
-
-    value0 = 0
-    value1 = 0
-    value2 = 0
-    sample_count = 0
-    for sample in range(3):
-        index = int(records[record_base + hit_offset + 1 + sample])
-        if index < 0 or index >= total:
-            continue
-        if known[index] == 0 or white[index] == 0:
-            continue
-        value = int(luma[index])
-        if sample_count == 0:
-            value0 = value
-        elif sample_count == 1:
-            value1 = value
-        else:
-            value2 = value
-        sample_count += 1
-    if sample_count < 2:
-        return 0
-
-    if sample_count == 2:
-        white2 = value0 + value1
-    else:
-        if value0 > value1:
-            temp = value0
-            value0 = value1
-            value1 = temp
-        if value1 > value2:
-            temp = value1
-            value1 = value2
-            value2 = temp
-        if value0 > value1:
-            temp = value0
-            value0 = value1
-            value1 = temp
-        white2 = value1 * 2
-
-    step2 = white2 - int(luma[hit]) * 2
-    denominator2 = white2
-    if denominator2 < 2:
-        denominator2 = 2
-    output[output_base] = step2
-    output[output_base + 1] = white2
-    output[output_base + 2] = 1
-
-    minimum_step_scaled = int(self._minimum_step_scaled)
-    minimum_fraction_scaled = int(self._minimum_fraction_scaled)
-    if step2 * step_scale < minimum_step_scaled * 2:
-        return 0
-    if step2 * fraction_scale < denominator2 * minimum_fraction_scaled:
-        return 0
-    output[output_base + 3] = 1
-    return 1
-
-
-@micropython.viper
-def _gate_viper(self) -> int:
-    """Run bounded evidence counts over staged selected-row coordinates."""
     records = ptr32(self._records)
     output = ptr32(self._row_output)
     metrics = ptr32(self._metrics)
@@ -231,7 +150,16 @@ def _gate_viper(self) -> int:
     support_y = ptr32(self._support_y)
     row_stride = int(_ROW_STRIDE)
     output_stride = int(_OUTPUT_STRIDE)
+    step_scale = int(STEP_SCALE)
+    fraction_scale = int(FRACTION_SCALE)
+    total = int(PIXELS)
     count = int(self._current_count)
+    minimum_step_scaled = int(self._minimum_step_scaled)
+    minimum_fraction_scaled = int(self._minimum_fraction_scaled)
+    target_available = int(self._target_available)
+    target_x = int(self._target_x_q)
+    target_y = int(self._target_y_q)
+    target_radius = int(self._target_radius_q)
     for metric in range(8):
         metrics[metric] = 0
     support_count = 0
@@ -243,8 +171,120 @@ def _gate_viper(self) -> int:
         record_base = row * row_stride
         if records[record_base] == 0:
             continue
-        left_ok = int(_measure_side_viper(self, row, 0))
-        right_ok = int(_measure_side_viper(self, row, 1))
+
+        # Inline the left and right side measurements here. Calling the Viper
+        # helper through the Python bridge twice per row dominated this small
+        # bounded gate on OpenMV even though the helper itself was compiled.
+        left_ok = 0
+        left_hit = int(records[record_base + 1])
+        if left_hit >= 0 and left_hit < total:
+            if known[left_hit] != 0 and dark[left_hit] != 0:
+                left_value0 = 0
+                left_value1 = 0
+                left_value2 = 0
+                left_sample_count = 0
+                for sample in range(3):
+                    index = int(records[record_base + 2 + sample])
+                    if index < 0 or index >= total:
+                        continue
+                    if known[index] == 0 or white[index] == 0:
+                        continue
+                    value = int(luma[index])
+                    if left_sample_count == 0:
+                        left_value0 = value
+                    elif left_sample_count == 1:
+                        left_value1 = value
+                    else:
+                        left_value2 = value
+                    left_sample_count += 1
+                if left_sample_count >= 2:
+                    if left_sample_count == 2:
+                        left_white2 = left_value0 + left_value1
+                    else:
+                        if left_value0 > left_value1:
+                            temp = left_value0
+                            left_value0 = left_value1
+                            left_value1 = temp
+                        if left_value1 > left_value2:
+                            temp = left_value1
+                            left_value1 = left_value2
+                            left_value2 = temp
+                        if left_value0 > left_value1:
+                            temp = left_value0
+                            left_value0 = left_value1
+                            left_value1 = temp
+                        left_white2 = left_value1 * 2
+
+                    left_step2 = left_white2 - int(luma[left_hit]) * 2
+                    left_denominator2 = left_white2
+                    if left_denominator2 < 2:
+                        left_denominator2 = 2
+                    output[output_base] = left_step2
+                    output[output_base + 1] = left_white2
+                    output[output_base + 2] = 1
+
+                    if (left_step2 * step_scale >=
+                            minimum_step_scaled * 2 and
+                            left_step2 * fraction_scale >=
+                            left_denominator2 * minimum_fraction_scaled):
+                        output[output_base + 3] = 1
+                        left_ok = 1
+
+        right_ok = 0
+        right_hit = int(records[record_base + 5])
+        if right_hit >= 0 and right_hit < total:
+            if known[right_hit] != 0 and dark[right_hit] != 0:
+                right_value0 = 0
+                right_value1 = 0
+                right_value2 = 0
+                right_sample_count = 0
+                for sample in range(3):
+                    index = int(records[record_base + 6 + sample])
+                    if index < 0 or index >= total:
+                        continue
+                    if known[index] == 0 or white[index] == 0:
+                        continue
+                    value = int(luma[index])
+                    if right_sample_count == 0:
+                        right_value0 = value
+                    elif right_sample_count == 1:
+                        right_value1 = value
+                    else:
+                        right_value2 = value
+                    right_sample_count += 1
+                if right_sample_count >= 2:
+                    if right_sample_count == 2:
+                        right_white2 = right_value0 + right_value1
+                    else:
+                        if right_value0 > right_value1:
+                            temp = right_value0
+                            right_value0 = right_value1
+                            right_value1 = temp
+                        if right_value1 > right_value2:
+                            temp = right_value1
+                            right_value1 = right_value2
+                            right_value2 = temp
+                        if right_value0 > right_value1:
+                            temp = right_value0
+                            right_value0 = right_value1
+                            right_value1 = temp
+                        right_white2 = right_value1 * 2
+
+                    right_step2 = right_white2 - int(luma[right_hit]) * 2
+                    right_denominator2 = right_white2
+                    if right_denominator2 < 2:
+                        right_denominator2 = 2
+                    output[output_base + 4] = right_step2
+                    output[output_base + 5] = right_white2
+                    output[output_base + 6] = 1
+
+                    if (right_step2 * step_scale >=
+                            minimum_step_scaled * 2 and
+                            right_step2 * fraction_scale >=
+                            right_denominator2 * minimum_fraction_scaled):
+                        output[output_base + 7] = 1
+                        right_ok = 1
+
         metrics[2] += left_ok
         metrics[3] += right_ok
         metrics[4] += int(output[output_base + 2])
@@ -253,15 +293,12 @@ def _gate_viper(self) -> int:
             metrics[0] += 1
             support_x[support_count] = int(records[record_base + 9])
             support_y[support_count] = int(records[record_base + 10])
-            if int(self._target_available) != 0:
-                dx = int(self._target_x_q) - \
-                    int(support_x[support_count])
-                dy = int(self._target_y_q) - \
-                    int(support_y[support_count])
-                radius = int(self._target_radius_q)
-                if dx <= radius and dx >= -radius and \
-                        dy <= radius and dy >= -radius and \
-                        dx * dx + dy * dy <= radius * radius:
+            if target_available != 0:
+                dx = target_x - int(support_x[support_count])
+                dy = target_y - int(support_y[support_count])
+                if dx <= target_radius and dx >= -target_radius and \
+                        dy <= target_radius and dy >= -target_radius and \
+                        dx * dx + dy * dy <= target_radius * target_radius:
                     metrics[1] += 1
             support_count += 1
         output[output_base + 8] = 1 if left_ok != 0 and right_ok != 0 else 0
@@ -392,8 +429,7 @@ def _stage_path_viper(self) -> int:
     stride = int(self._current_stride)
     for row in range(count):
         record_base = row * row_stride
-        for field in range(row_stride):
-            records[record_base + field] = 0
+        records[record_base] = 0
         source_base = row * stride
         y = int(rows[source_base])
         left = int(rows[source_base + 1])
@@ -405,7 +441,6 @@ def _stage_path_viper(self) -> int:
                 right >= width:
             continue
         row_offset = y * width
-        records[record_base] = 1
         if left > 0:
             records[record_base + 1] = row_offset + left - 1
         else:
@@ -434,6 +469,7 @@ def _stage_path_viper(self) -> int:
             records[record_base + 8] = -1
         records[record_base + 9] = left + right
         records[record_base + 10] = y * 2
+        records[record_base] = 1
     return 0
 
 
@@ -645,8 +681,7 @@ class FastBoundaryEvidence:
 
         for row_index in range(count):
             record_base = row_index * _ROW_STRIDE
-            for field in range(_ROW_STRIDE):
-                self._records[record_base + field] = 0
+            self._records[record_base] = 0
             row = rows[row_index]
             left = row.get("left")
             right = row.get("right")
@@ -669,7 +704,6 @@ class FastBoundaryEvidence:
             except (TypeError, ValueError, OverflowError):
                 continue
 
-            self._records[record_base] = 1
             self._records[record_base + 9] = point_x_q
             self._records[record_base + 10] = point_y_q
             left_hit_x = left_x - 1.0
@@ -684,6 +718,7 @@ class FastBoundaryEvidence:
                                  -1.0)
             else:
                 self._records[record_base + 5] = -1
+            self._records[record_base] = 1
 
     @micropython.native
     def _stage_target(self, target):
@@ -713,8 +748,7 @@ class FastBoundaryEvidence:
         rows = self._current_path_rows
         for row_index in range(self._current_count):
             record_base = row_index * _ROW_STRIDE
-            for field in range(_ROW_STRIDE):
-                self._records[record_base + field] = 0
+            self._records[record_base] = 0
             source_base = row_index * self._current_stride
             y = int(rows[source_base])
             left = int(rows[source_base + 1])
@@ -724,7 +758,6 @@ class FastBoundaryEvidence:
                     left < 0 or right < left or right >= self.width:
                 continue
             row_offset = y * self.width
-            self._records[record_base] = 1
             self._records[record_base + 1] = (
                 row_offset + left - 1 if left > 0 else -1)
             self._records[record_base + 2] = row_offset + left
@@ -741,18 +774,16 @@ class FastBoundaryEvidence:
                 row_offset + right - 2 if right > 1 else -1)
             self._records[record_base + 9] = left + right
             self._records[record_base + 10] = y * 2
+            self._records[record_base] = 1
 
-    def _host_measure_side(self, row, side):
+    def _host_measure_side(self, row, side, minimum_step_scaled,
+                           minimum_fraction_scaled):
         record_base = row * _ROW_STRIDE
         output_base = row * _OUTPUT_STRIDE + side * 4
         hit_offset = 1 + side * 4
         hit = self._records[record_base + hit_offset]
         total = self.width * self.height
         output = self._row_output
-        output[output_base] = 0
-        output[output_base + 1] = 0
-        output[output_base + 2] = 0
-        output[output_base + 3] = 0
         if hit < 0 or hit >= total or not self._current_known[hit] or \
                 not self._current_dark[hit]:
             return 0
@@ -789,16 +820,22 @@ class FastBoundaryEvidence:
         output[output_base] = step2
         output[output_base + 1] = white2
         output[output_base + 2] = 1
-        if step2 * STEP_SCALE < self._minimum_step_scaled * 2:
+        if step2 * STEP_SCALE < minimum_step_scaled * 2:
             return 0
         if step2 * FRACTION_SCALE < \
-                denominator2 * self._minimum_fraction_scaled:
+                denominator2 * minimum_fraction_scaled:
             return 0
         output[output_base + 3] = 1
         return 1
 
     def _host_gate(self):
         metrics = self._metrics
+        minimum_step_scaled = self._minimum_step_scaled
+        minimum_fraction_scaled = self._minimum_fraction_scaled
+        target_available = self._target_available
+        target_x = self._target_x_q
+        target_y = self._target_y_q
+        target_radius = self._target_radius_q
         for index in range(8):
             metrics[index] = 0
         support_count = 0
@@ -809,8 +846,10 @@ class FastBoundaryEvidence:
             record_base = row * _ROW_STRIDE
             if self._records[record_base] == 0:
                 continue
-            left_ok = self._host_measure_side(row, 0)
-            right_ok = self._host_measure_side(row, 1)
+            left_ok = self._host_measure_side(
+                row, 0, minimum_step_scaled, minimum_fraction_scaled)
+            right_ok = self._host_measure_side(
+                row, 1, minimum_step_scaled, minimum_fraction_scaled)
             metrics[2] += left_ok
             metrics[3] += right_ok
             metrics[4] += self._row_output[output_base + 2]
@@ -821,12 +860,12 @@ class FastBoundaryEvidence:
                 point_y = self._records[record_base + 10]
                 self._support_x[support_count] = point_x
                 self._support_y[support_count] = point_y
-                if self._target_available:
-                    dx = self._target_x_q - point_x
-                    dy = self._target_y_q - point_y
-                    radius = self._target_radius_q
-                    if (abs(dx) <= radius and abs(dy) <= radius and
-                            dx * dx + dy * dy <= radius * radius):
+                if target_available:
+                    dx = target_x - point_x
+                    dy = target_y - point_y
+                    if (abs(dx) <= target_radius and
+                            abs(dy) <= target_radius and
+                            dx * dx + dy * dy <= target_radius * target_radius):
                         metrics[1] += 1
                 support_count += 1
             self._row_output[output_base + 8] = int(

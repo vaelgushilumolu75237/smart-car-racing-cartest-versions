@@ -29,6 +29,12 @@ HOLD_QUANTUM_MS = {1: 20, 2: 50}
 U32_MODULUS = 1 << 32
 U16_MODULUS = 1 << 16
 CONTROL_EXTENSION_V2_COLUMN = "control_ext_v2_hex"
+CURVE_TRACE_V2_COLUMN = "curve_trace_v2_hex"
+CURVE_TRACE_V2_FIELDS = (
+    "version", "payload_length", "sequence", "flags", "frame_valid",
+    "slope_hint", "confidence", "lateral_error", "curve_phase",
+    "slowdown_request_permille", "reserved", "crc16",
+)
 CONTROL_EXTENSION_V2_FIELDS = (
     "version", "flags", "pd_active", "preview_profile",
     "preview_confirmed", "geometry_valid", "position_same_sign",
@@ -164,6 +170,79 @@ def _decode_control_extension_v2(value: Any,
     return record, issues, True
 
 
+def _decode_curve_trace_v2(value: Any,
+                           base: Mapping[str, Any]) -> Tuple[Dict[str, Any] | None, List[str], bool]:
+    """Decode a raw V2 UART frame and bind it to its camera trace row.
+
+    The wire frame contains no timestamp. Capture/send timing therefore comes
+    only from the associated base row and is never decoded or cross-clock
+    compared from these bytes.
+    """
+    if value is None or not str(value).strip():
+        return None, [], False
+    text = str(value).strip()
+    if len(text) != 32 or any(character not in "0123456789abcdefABCDEF"
+                               for character in text):
+        return None, ["trace must be exactly 16 bytes of hexadecimal"], True
+    raw = bytes.fromhex(text)
+
+    def u16(offset: int) -> int:
+        return raw[offset] | (raw[offset + 1] << 8)
+
+    def i16(offset: int) -> int:
+        number = u16(offset)
+        return number - 0x10000 if number & 0x8000 else number
+
+    flags = raw[6]
+    record: Dict[str, Any] = {
+        "version": raw[2],
+        "payload_length": raw[3],
+        "sequence": u16(4),
+        "flags": flags,
+        "frame_valid": bool(flags & 0x01),
+        "slope_hint": bool(flags & 0x02),
+        "confidence": raw[7],
+        "lateral_error": i16(8),
+        "curve_phase": raw[10],
+        "reserved": raw[11],
+        "slowdown_request_permille": u16(12),
+        "crc16": u16(14),
+    }
+    issues: List[str] = []
+    if raw[0:2] != bytes((0xA5, 0x5A)):
+        issues.append("sync header is not A5 5A")
+    if record["version"] != 2:
+        issues.append("frame version is not 2")
+    if record["payload_length"] != 8:
+        issues.append("payload length is not 8")
+    if flags & ~0x03:
+        issues.append("frame contains unknown flag bits")
+    if record["reserved"] != 0:
+        issues.append("reserved byte is nonzero")
+    if record["crc16"] != _crc16_ccitt_false(raw[2:14]):
+        issues.append("frame CRC16/CCITT-FALSE mismatch")
+    if record["confidence"] > 100:
+        issues.append("confidence is outside 0..100")
+    if not -1000 <= record["lateral_error"] <= 1000:
+        issues.append("lateral error is outside -1000..1000")
+    if record["curve_phase"] > 3:
+        issues.append("curve phase is reserved outside 0..3")
+    if record["slowdown_request_permille"] > 1000:
+        issues.append("slowdown request is outside 0..1000 permille")
+    if not record["frame_valid"] and (
+            flags != 0 or record["confidence"] != 0 or
+            record["lateral_error"] != 0 or record["curve_phase"] != 0 or
+            record["slowdown_request_permille"] != 0):
+        issues.append("invalid observation has nonzero observation/control fields")
+    if record["sequence"] != base["sequence"]:
+        issues.append("frame sequence does not match base row")
+    if record["frame_valid"] != base["valid"]:
+        issues.append("frame valid flag does not match base row")
+    if record["lateral_error"] != base["sent_error_norm"]:
+        issues.append("frame lateral error does not match base packet error")
+    return record, issues, True
+
+
 def _metadata_tokens(line: str) -> Dict[str, str]:
     result: Dict[str, str] = {}
     cleaned = line.strip().lstrip("# ")
@@ -229,6 +308,15 @@ def _parse_camera_block(lines: Sequence[str], block_number: int) -> Tuple[Dict[s
         for name in CONTROL_EXTENSION_V2_FIELDS:
             record["control_ext_v2_" + name] = (
                 extension.get(name) if extension is not None else None)
+        curve_trace, curve_issues, curve_present = _decode_curve_trace_v2(
+            source.get(CURVE_TRACE_V2_COLUMN), record)
+        record["curve_trace_v2_present"] = curve_present
+        record["curve_trace_v2_valid"] = (
+            bool(curve_present and not curve_issues) if curve_present else None)
+        record["curve_trace_v2_issues"] = curve_issues
+        for name in CURVE_TRACE_V2_FIELDS:
+            record["curve_trace_v2_" + name] = (
+                curve_trace.get(name) if curve_trace is not None else None)
         record["_row_index"] = len(records)
         record["_trace_block"] = block_number
         records.append(record)
@@ -778,10 +866,17 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
                 "control_ext_v2_valid": camera.get("control_ext_v2_valid"),
                 "control_ext_v2_issues": "; ".join(
                     camera.get("control_ext_v2_issues", [])),
+                "curve_trace_v2_present": camera.get("curve_trace_v2_present", False),
+                "curve_trace_v2_valid": camera.get("curve_trace_v2_valid"),
+                "curve_trace_v2_issues": "; ".join(
+                    camera.get("curve_trace_v2_issues", [])),
             }
             for extension_field in CONTROL_EXTENSION_V2_FIELDS:
                 matched_record["control_ext_v2_" + extension_field] = camera.get(
                     "control_ext_v2_" + extension_field)
+            for trace_field in CURVE_TRACE_V2_FIELDS:
+                matched_record["curve_trace_v2_" + trace_field] = camera.get(
+                    "curve_trace_v2_" + trace_field)
             matched_rows.append(matched_record)
 
     matched_seq_to_camera = {row["sequence"]: row for row in matched_rows}
@@ -844,6 +939,41 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
         },
         "range_basis": "Unique effective camera sends with a valid, base-row-matched V2 extension.",
     }
+    curve_trace_rows = [row for row in camera_rows
+                        if row.get("curve_trace_v2_present")]
+    curve_trace_invalid = [row for row in curve_trace_rows
+                           if not row.get("curve_trace_v2_valid")]
+    curve_trace_missing = len(camera_rows) - len(curve_trace_rows)
+    curve_trace_valid = [row for row in curve_trace_rows
+                         if row.get("curve_trace_v2_valid")]
+    if not curve_trace_rows:
+        curve_trace_status = "legacy_absent"
+    elif curve_trace_invalid:
+        curve_trace_status = "invalid"
+    elif curve_trace_missing:
+        curve_trace_status = "partial"
+    else:
+        curve_trace_status = "valid"
+    curve_trace_report = {
+        "status": curve_trace_status,
+        "record_count": len(camera_rows),
+        "present_records": len(curve_trace_rows),
+        "valid_records": len(curve_trace_valid),
+        "invalid_records": len(curve_trace_invalid),
+        "missing_records": curve_trace_missing,
+        "invalid_rows": [{
+            "row_index": row["_row_index"],
+            "issues": row.get("curve_trace_v2_issues", []),
+        } for row in curve_trace_invalid],
+        "layout": "actual 16-byte UART V2 frame: A5 5A, version, payload length, sequence LE, flags, confidence, signed lateral error LE, curve phase, reserved zero, slowdown request permille LE, CRC-16/CCITT-FALSE over bytes 2..13 stored LE",
+        "sequence_binding": "The frame sequence, valid flag, and lateral error are checked against the same CSV row. Capture/send timestamps come from the CSV row; the wire frame contains no timestamp.",
+        "curve_phase_counts": dict(Counter(
+            int(row["curve_trace_v2_curve_phase"])
+            for row in curve_trace_valid)),
+        "slowdown_request_permille": _range_summary(
+            int(row["curve_trace_v2_slowdown_request_permille"])
+            for row in curve_trace_valid),
+    }
     stage_fields = (
         "position_norm", "preview_candidate_norm", "preview_applied_norm", "sent_error_norm",
         "raw_control_norm", "filtered_error_norm", "reference_error_norm",
@@ -897,11 +1027,16 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
         trace_warnings.append("camera control extension V2 has CRC, schema, or base-row binding errors")
     if control_extension_rows and control_extension_missing:
         trace_warnings.append("camera control extension V2 is missing from some rows")
+    if curve_trace_invalid:
+        trace_warnings.append("camera curve trace V2 has CRC, schema, range, or base-row binding errors")
+    if curve_trace_rows and curve_trace_missing:
+        trace_warnings.append("camera curve trace V2 is missing from some rows")
     if snapshot.get("published") and not snapshot.get("usable"):
         trace_warnings.append("published hold snapshot values are incomplete or outside allowed ranges; hold attribution was refused")
     analysis_status = (
         "incomplete_camera_trace" if trace_record_errors or metadata_mismatches or
-        control_extension_invalid or (control_extension_rows and control_extension_missing) else
+        control_extension_invalid or (control_extension_rows and control_extension_missing) or
+        curve_trace_invalid or (curve_trace_rows and curve_trace_missing) else
         "no_matched_sequences" if not matched_rows else
         "complete" if selected_camera_session is not None else
         "insufficient_session_evidence")
@@ -937,6 +1072,7 @@ def analyze(camera_meta: Mapping[str, Any], camera_rows: List[Dict[str, Any]],
             "evidence_warnings": trace_warnings,
             "duplicate_or_cross_session_sequences": sorted(ambiguous_sequences),
             "control_extension_v2": control_extension_report,
+            "curve_trace_v2": curve_trace_report,
         },
         "sequence_comparison": {
             "camera_effective_full_sends": len(camera_effective),
@@ -1007,6 +1143,9 @@ def _write_matched_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         "control_ext_v2_present", "control_ext_v2_valid",
         "control_ext_v2_issues",
         *("control_ext_v2_" + name for name in CONTROL_EXTENSION_V2_FIELDS),
+        "curve_trace_v2_present", "curve_trace_v2_valid",
+        "curve_trace_v2_issues",
+        *("curve_trace_v2_" + name for name in CURVE_TRACE_V2_FIELDS),
     ]
     from io import StringIO
     stream = StringIO(newline="")
@@ -1056,6 +1195,13 @@ def _render_markdown(report: Mapping[str, Any]) -> str:
             report["camera_trace"]["control_extension_v2"]["invalid_records"],
             report["camera_trace"]["control_extension_v2"]["missing_records"],
             report["camera_trace"]["control_extension_v2"]["record_count"]),
+        "",
+        "Camera curve trace V2: **{}** ({} valid, {} invalid, {} absent of {}). The matched CSV retains decoded phase/request fields after CRC and same-row sequence/valid/error checks. Wire bytes carry no timestamp; row capture/send values remain the only timing evidence.".format(
+            report["camera_trace"]["curve_trace_v2"]["status"],
+            report["camera_trace"]["curve_trace_v2"]["valid_records"],
+            report["camera_trace"]["curve_trace_v2"]["invalid_records"],
+            report["camera_trace"]["curve_trace_v2"]["missing_records"],
+            report["camera_trace"]["curve_trace_v2"]["record_count"]),
         "",
         "Servo request/limit/applied differences: {} request-to-limited, {} limited-to-applied across {} matched H743 rows. Pulse-width values are software data, not mechanical angle measurements.".format(
             constraints["request_limited_difference_rows"], constraints["limited_applied_difference_rows"],

@@ -1,0 +1,138 @@
+﻿{
+    "schema_version":  1,
+    "generated_utc":  "2026-10-22T20:11:30.0363343Z",
+    "builds":  [
+                   {
+                       "preset":  "Debug",
+                       "exit_code":  0,
+                       "log":  "build-logs/Debug.log",
+                       "exitcode_file":  "build-logs/Debug.exitcode",
+                       "elf":  "build/Debug/CarTest.elf",
+                       "bytes":  2007224,
+                       "sha256":  "78e57aaaba83d3cb2b8582b8b502e07ece0cb08ce97dd254af0a2772a7da0905",
+                       "started_utc":  "2026-10-22T20:11:16.1308223Z",
+                       "finished_utc":  "2026-10-22T20:11:17.5773881Z"
+                   },
+                   {
+                       "preset":  "DebugSteering",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugSteering.log",
+                       "exitcode_file":  "build-logs/DebugSteering.exitcode",
+                       "elf":  "build/DebugSteering/CarTest.elf",
+                       "bytes":  2007248,
+                       "sha256":  "977c1439e1ba6d696349ae20b345cccf4242d0fffb5fb499ef61998a08b71fc6",
+                       "started_utc":  "2026-10-22T20:11:17.5805550Z",
+                       "finished_utc":  "2026-10-22T20:11:18.8207982Z"
+                   },
+                   {
+                       "preset":  "DebugBench",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugBench.log",
+                       "exitcode_file":  "build-logs/DebugBench.exitcode",
+                       "elf":  "build/DebugBench/CarTest.elf",
+                       "bytes":  2007772,
+                       "sha256":  "345170c264caa1165c8d9b4682bb2fdc1b04b9141ab1120bbaae94a51b576484",
+                       "started_utc":  "2026-10-22T20:11:18.8207982Z",
+                       "finished_utc":  "2026-10-22T20:11:19.9599146Z"
+                   },
+                   {
+                       "preset":  "DebugFollow",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollow.log",
+                       "exitcode_file":  "build-logs/DebugFollow.exitcode",
+                       "elf":  "build/DebugFollow/CarTest.elf",
+                       "bytes":  2011952,
+                       "sha256":  "7f5e0250fafcfa02f83077c7071cc642132aec7ecf22327b57107508b5a196c4",
+                       "started_utc":  "2026-10-22T20:11:19.9599146Z",
+                       "finished_utc":  "2026-10-22T20:11:21.0903387Z"
+                   },
+                   {
+                       "preset":  "DebugFollowNoLog",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowNoLog.log",
+                       "exitcode_file":  "build-logs/DebugFollowNoLog.exitcode",
+                       "elf":  "build/DebugFollowNoLog/CarTest.elf",
+                       "bytes":  2004368,
+                       "sha256":  "22baa3b7e65fd9ca9fcf8d515f500759d7cf7d466107ab295e7c37b8a2120e44",
+                       "started_utc":  "2026-10-22T20:11:21.0910081Z",
+                       "finished_utc":  "2026-10-22T20:11:22.1865570Z"
+                   },
+                   {
+                       "preset":  "DebugFollowDiff5",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowDiff5.log",
+                       "exitcode_file":  "build-logs/DebugFollowDiff5.exitcode",
+                       "elf":  "build/DebugFollowDiff5/CarTest.elf",
+                       "bytes":  2011976,
+                       "sha256":  "b659d89d12bf82698f4752840dc610b36f077737ee38d8432331d7da8b434f89",
+                       "started_utc":  "2026-10-22T20:11:22.1865570Z",
+                       "finished_utc":  "2026-10-22T20:11:23.3302280Z"
+                   },
+                   {
+                       "preset":  "DebugFollowDiff10",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowDiff10.log",
+                       "exitcode_file":  "build-logs/DebugFollowDiff10.exitcode",
+                       "elf":  "build/DebugFollowDiff10/CarTest.elf",
+                       "bytes":  2011972,
+                       "sha256":  "1940c170d4d0b71069d434256b4d23b4451c30fc10cbd876ae93332d80ad4c5c",
+                       "started_utc":  "2026-10-22T20:11:23.3302280Z",
+                       "finished_utc":  "2026-10-22T20:11:24.4320212Z"
+                   },
+                   {
+                       "preset":  "DebugFollowTurn",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowTurn.log",
+                       "exitcode_file":  "build-logs/DebugFollowTurn.exitcode",
+                       "elf":  "build/DebugFollowTurn/CarTest.elf",
+                       "bytes":  2012308,
+                       "sha256":  "756af3a94b3d98db720c0603ae190968ab86dbe501f95e4f76bbddccd0a0f732",
+                       "started_utc":  "2026-10-22T20:11:24.4320212Z",
+                       "finished_utc":  "2026-10-22T20:11:25.5544273Z"
+                   },
+                   {
+                       "preset":  "DebugFollowSpeedPI",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowSpeedPI.log",
+                       "exitcode_file":  "build-logs/DebugFollowSpeedPI.exitcode",
+                       "elf":  "build/DebugFollowSpeedPI/CarTest.elf",
+                       "bytes":  2022940,
+                       "sha256":  "113a9b541f869ad16639a28a17f65dc11b255e627c1c9aec7a9382cc1d5e6919",
+                       "started_utc":  "2026-10-22T20:11:25.5544273Z",
+                       "finished_utc":  "2026-10-22T20:11:26.7656933Z"
+                   },
+                   {
+                       "preset":  "DebugFollowTurn65",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowTurn65.log",
+                       "exitcode_file":  "build-logs/DebugFollowTurn65.exitcode",
+                       "elf":  "build/DebugFollowTurn65/CarTest.elf",
+                       "bytes":  2012316,
+                       "sha256":  "70357075a891188a99fa406d6b129521490657b8cd91bbd51bd4e356a07ddea0",
+                       "started_utc":  "2026-10-22T20:11:26.7661983Z",
+                       "finished_utc":  "2026-10-22T20:11:27.8617714Z"
+                   },
+                   {
+                       "preset":  "DebugFollowIncrementalPI",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowIncrementalPI.log",
+                       "exitcode_file":  "build-logs/DebugFollowIncrementalPI.exitcode",
+                       "elf":  "build/DebugFollowIncrementalPI/CarTest.elf",
+                       "bytes":  2041352,
+                       "sha256":  "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70",
+                       "started_utc":  "2026-10-22T20:11:27.8620773Z",
+                       "finished_utc":  "2026-10-22T20:11:28.9526784Z"
+                   },
+                   {
+                       "preset":  "DebugFollowIncrementalPIBaseline",
+                       "exit_code":  0,
+                       "log":  "build-logs/DebugFollowIncrementalPIBaseline.log",
+                       "exitcode_file":  "build-logs/DebugFollowIncrementalPIBaseline.exitcode",
+                       "elf":  "build/DebugFollowIncrementalPIBaseline/CarTest.elf",
+                       "bytes":  2039224,
+                       "sha256":  "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655",
+                       "started_utc":  "2026-10-22T20:11:28.9542650Z",
+                       "finished_utc":  "2026-10-22T20:11:30.0363343Z"
+                   }
+               ]
+}

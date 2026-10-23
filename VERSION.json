@@ -1,7 +1,7 @@
 {
-  "version": "v20261021-speedpd48",
-  "status": "experimental-host-tested-board-unverified",
-  "branch": "experiment/speedpd48",
-  "files": 478,
+  "version": "v20261024-ackermann320-static60",
+  "status": "experimental-static60-no-preview",
+  "branch": "experimental/ackermann320-static60",
+  "files": 571,
   "hardware_actions": "none"
 }

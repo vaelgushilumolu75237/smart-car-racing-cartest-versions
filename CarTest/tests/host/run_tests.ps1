@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $logDirectory = Join-Path $PSScriptRoot "logs"
-$vectorFile = Join-Path $projectRoot "tests\data\vision-protocol-v1.csv"
+$vectorFile = Join-Path $projectRoot "tests\data\vision-protocol-v2.csv"
 $reverseVectorFile = Join-Path $projectRoot "openmv\tests\data\reverse-control-v1.csv"
 $sourceFiles = @(
     (Join-Path $projectRoot "App\commissioning.c"),

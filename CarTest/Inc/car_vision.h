@@ -25,6 +25,10 @@ typedef struct {
     volatile uint32_t uart_error_count;
     volatile uint32_t queue_overflow_count;
     volatile uint32_t protocol_error_count;
+    volatile uint32_t protocol_version_mismatch_count;
+    volatile uint32_t protocol_format_error_count;
+    volatile uint32_t protocol_crc_error_count;
+    volatile uint32_t protocol_field_error_count;
     volatile uint32_t discarded_byte_count;
     volatile uint32_t partial_timeout_count;
     volatile uint32_t queue_age_reject_count;
@@ -41,6 +45,8 @@ typedef struct {
     vp_parser parser;
     uint32_t partial_last_byte_ms;
     uint8_t partial_active;
+    uint8_t last_received_protocol_version;
+    uint8_t last_protocol_status;
 } car_vision_rx_t;
 
 void car_vision_rx_init(car_vision_rx_t *rx);

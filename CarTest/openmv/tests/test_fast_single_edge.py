@@ -1,6 +1,8 @@
 """Synthetic host tests for bounded single-edge inference and width cache."""
 
 from array import array
+import hashlib
+import importlib.util
 import io
 from pathlib import Path
 import sys
@@ -15,6 +17,21 @@ import config  # noqa: E402
 import fast_single_edge  # noqa: E402
 from fast_single_edge import FastSingleEdgeTracker  # noqa: E402
 from fast_topology import FastTopologyGuard  # noqa: E402
+
+_BASELINE_PATH = (
+    PACKAGE_DIR / "tests" / "fixtures" /
+    "single_edge_observe_baseline_20261023" /
+    "openmv_fast_single_edge.py")
+_BASELINE_SHA256 = "B2C52BA0DD6D67CCAE7FCF428DB9FFF1B15DCAD9F65530DD2145EB05480D2577"
+if hashlib.sha256(_BASELINE_PATH.read_bytes()).hexdigest().upper() != \
+        _BASELINE_SHA256:
+    raise RuntimeError("saved single-edge baseline hash changed")
+_BASELINE_SPEC = importlib.util.spec_from_file_location(
+    "fast_single_edge_observe_baseline", str(_BASELINE_PATH))
+if _BASELINE_SPEC is None or _BASELINE_SPEC.loader is None:
+    raise RuntimeError("saved single-edge baseline is unavailable")
+_BASELINE_SINGLE_EDGE = importlib.util.module_from_spec(_BASELINE_SPEC)
+_BASELINE_SPEC.loader.exec_module(_BASELINE_SINGLE_EDGE)
 
 
 WIDTH = 80
@@ -118,6 +135,35 @@ def _bilateral_candidate(left=LEFT, right=RIGHT):
     }
 
 
+def _bilateral_candidate_rows(entries):
+    rows = array("i")
+    for y, left, right in entries:
+        rows.extend((y, left, right, 7))
+    return {
+        "valid": True,
+        "selected_row_ints": rows,
+        "selected_row_count": len(entries),
+        "selected_row_stride": 4,
+    }
+
+
+def _bilateral_cache_state(tracker):
+    arrays = (
+        "_cache_valid", "_cache_width", "_cache_left2", "_cache_right2",
+        "_anchor_left2", "_anchor_right2", "_accepted_chain_valid",
+        "_accepted_center2",
+    )
+    scalars = (
+        "_cache_row_count", "_observed_count", "_observed_stride",
+        "_island_check", "_last_single_side", "_pending_switch_side",
+        "_pending_switch_count", "_pending_switch_frame", "_frame_open",
+        "_switch_overlap_rows", "_switch_max_center_delta2",
+    )
+    return (tuple((name, tuple(getattr(tracker, name))) for name in arrays),
+            tuple((name, getattr(tracker, name)) for name in scalars),
+            tracker._observed_rows)
+
+
 def _warm_tracker(tracker, dark=25, bright=220):
     mask = _mask("both", dark=dark, bright=bright)
     accepted = tracker.observe_bilateral(
@@ -205,6 +251,73 @@ def _switch_tracker():
 class FastSingleEdgeTests(unittest.TestCase):
     def setUp(self):
         self.tracker = FastSingleEdgeTracker(config)
+
+    def test_bilateral_observation_matches_saved_cache_states(self):
+        optimized = FastSingleEdgeTracker(config)
+        baseline = _BASELINE_SINGLE_EDGE.FastSingleEdgeTracker(config)
+        sparse_rows = range(FLOOR, HEIGHT, 2)
+        scenarios = (
+            (_bilateral_candidate(LEFT, RIGHT),
+             _mask("both", left=LEFT, right=RIGHT), True, True),
+            (_bilateral_candidate(LEFT, RIGHT),
+             _mask("both", left=LEFT, right=RIGHT), True, True),
+            (_bilateral_candidate(29, 50),
+             _mask("both", left=29, right=50), True, True),
+            (_bilateral_candidate_rows(
+                [(y, LEFT, RIGHT) for y in sparse_rows]),
+             _mask("both"), True, True),
+            (_bilateral_candidate_rows(
+                [(30, LEFT, RIGHT), (30, LEFT, RIGHT)]),
+             _mask("both"), True, True),
+            (_bilateral_candidate(), _mask("both", bright=30), True, True),
+            (_bilateral_candidate(), _mask("both"), False, True),
+            (_bilateral_candidate(), _mask("both"), True, False),
+        )
+        for index, (candidate, mask, control_fresh, reference_valid) in enumerate(
+                scenarios):
+            with self.subTest(scenario=index):
+                actual = optimized.observe_bilateral(
+                    candidate, mask["luma"], mask["edge_mask"],
+                    mask["road_mask"], mask["known_region"],
+                    control_fresh, reference_valid)
+                expected = baseline.observe_bilateral(
+                    candidate, mask["luma"], mask["edge_mask"],
+                    mask["road_mask"], mask["known_region"],
+                    control_fresh, reference_valid)
+                self.assertEqual(actual, expected)
+                self.assertEqual(_bilateral_cache_state(optimized),
+                                 _bilateral_cache_state(baseline))
+
+    def test_bilateral_exact_state_falls_through_for_external_anchor_change(self):
+        optimized = FastSingleEdgeTracker(config)
+        baseline = _BASELINE_SINGLE_EDGE.FastSingleEdgeTracker(config)
+        mask = _mask("both")
+        candidate = _bilateral_candidate()
+        for tracker in (optimized, baseline):
+            tracker.observe_bilateral(
+                candidate, mask["luma"], mask["edge_mask"],
+                mask["road_mask"], mask["known_region"], True, True)
+
+        y = FLOOR + 2
+        optimized._anchor_left2[y] += 2
+        baseline._anchor_left2[y] += 2
+        self.assertNotEqual(optimized._anchor_left2[y],
+                            optimized._cache_left2[y])
+        actual = optimized.observe_bilateral(
+            candidate, mask["luma"], mask["edge_mask"], mask["road_mask"],
+            mask["known_region"], True, True)
+        expected = baseline.observe_bilateral(
+            candidate, mask["luma"], mask["edge_mask"], mask["road_mask"],
+            mask["known_region"], True, True)
+        self.assertEqual(actual, expected)
+        self.assertEqual(_bilateral_cache_state(optimized),
+                         _bilateral_cache_state(baseline))
+
+    def test_accepted_chain_clear_uses_host_safe_byte_fallback(self):
+        self.assertEqual(self.tracker._accepted_chain_word_clear, 0)
+        self.tracker._accepted_chain_valid[:] = bytes([1]) * HEIGHT
+        fast_single_edge._clear_accepted_chain_viper(self.tracker)
+        self.assertEqual(self.tracker._accepted_chain_valid, bytearray(HEIGHT))
 
     def test_first_single_without_dual_width_cache_is_invalid(self):
         result = self.tracker.detect(_mask("left"), True)

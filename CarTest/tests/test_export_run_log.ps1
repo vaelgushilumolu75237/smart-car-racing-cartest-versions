@@ -200,6 +200,8 @@ $environmentNames = @(
     'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_PATH',
     'RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS', 'RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_PATH',
     'RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS', 'RUNTIME_LOG_FAKE_SPEED_PI_TRACE_PATH',
+    'RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_ADDRESS', 'RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_PATH',
+    'RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_ADDRESS', 'RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_PATH',
     'RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_ADDRESS', 'RUNTIME_LOG_FAKE_STATUS_SCALAR_PATH',
     'RUNTIME_LOG_FAKE_STATUS_SCALAR_SIZE', 'RUNTIME_LOG_FAKE_PROBES',
@@ -253,6 +255,10 @@ function Invoke-FakeExport {
         'active' { [string]$statusFixtureInfo.speed_pi_trace_active_path }
         default { [string]$statusFixtureInfo.speed_pi_trace_frozen_path }
     }
+    $env:RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_ADDRESS = [string]$statusFixtureInfo.ackermann_snapshot_address
+    $env:RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_PATH = [string]$statusFixtureInfo.ackermann_snapshot_path
+    $env:RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_ADDRESS = [string]$statusFixtureInfo.ackermann_generation_address
+    $env:RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_PATH = [string]$statusFixtureInfo.ackermann_generation_path
     $env:RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH = switch ($Mode) {
         'idle' { $idleHeaderPath }
         'active' { $activeHeaderPath }
@@ -311,6 +317,13 @@ if ($statusPlan.receive_diagnostic_snapshot.available) {
 if ($statusPlan.speed_pi_trace_snapshot.available) {
     $statusReadAddresses += [string]$statusPlan.speed_pi_trace_snapshot.address
     $statusReadSizes += 64
+}
+if ($statusPlan.ackermann_snapshot.available) {
+    $statusReadAddresses += @(
+        [string]$statusPlan.ackermann_snapshot.generation_read.address,
+        [string]$statusPlan.ackermann_snapshot.address,
+        [string]$statusPlan.ackermann_snapshot.generation_read.address)
+    $statusReadSizes += @(4, 64, 4)
 }
 $statusReadAddresses += [string]$statusPlan.header_read.address
 $statusReadSizes += 64
@@ -392,6 +405,22 @@ try {
         -not $successMetadata.status_snapshot) {
         throw 'Default export did not produce a validated CSV with stable post-export diagnostics and matching Flash descriptor.'
     }
+    if ($statusPlan.ackermann_snapshot.available -and
+        (-not (Test-Path -LiteralPath $successMetadata.ackermann_snapshot_csv -PathType Leaf) -or
+         -not (Test-Path -LiteralPath $successMetadata.ackermann_snapshot_metadata -PathType Leaf) -or
+         $successMetadata.ackermann_snapshot_status -ne 'verified' -or
+         $successMetadata.ackermann_snapshot_kind -notmatch 'single coordination snapshot; not a run timeline')) {
+        throw 'Frozen ACK1 snapshot was not separately exported or was mislabeled as a run timeline.'
+    }
+    if ($statusPlan.ackermann_snapshot.available) {
+        $ackMetadata = Get-Content -LiteralPath $successMetadata.ackermann_snapshot_metadata -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($ackMetadata.snapshot_kind -ne 'ACK1/v1/64B' -or
+            $ackMetadata.row_count -ne 1 -or
+            $ackMetadata.decoded.generation -ne 2 -or
+            $ackMetadata.decoded.curve_phase -ne 0) {
+            throw 'ACK1 CSV sidecar does not contain exactly one validated coordination snapshot row.'
+        }
+    }
     if ($statusPlan.speed_pi_diagnostic_snapshot.available -and
         (-not (Test-Path -LiteralPath $successMetadata.speed_pi_diagnostic_json -PathType Leaf) -or
          $successMetadata.speed_pi_diagnostic_preflight.start_token -ne 1 -or
@@ -460,8 +489,24 @@ try {
         if ($stateMetadata.run_state_class -ne $stateCase.ExpectedClass -or
             $stateSnapshot.status_class -ne $stateCase.ExpectedClass -or
             (Test-Path -LiteralPath (Join-Path $stateRun.FullName 'run.csv')) -or
+            (Test-Path -LiteralPath (Join-Path $stateRun.FullName 'ackermann-snapshot.csv')) -or
             $stateMetadata.csv) {
             throw "Stable $($stateCase.Name) status was reported as a successful CSV export."
+        }
+    }
+
+    if ($statusPlan.ackermann_snapshot.available) {
+        $ackFailure = Invoke-FakeExport -Name 'ackermann-crc-error' -Mode 'ackermann-crc-error'
+        if ($ackFailure.ExitCode -ne 3) {
+            throw "Bad ACK1 CRC should retain the separately validated run CSV but mark diagnostics inconsistent: $($ackFailure.Output)"
+        }
+        $ackFailureRun = Get-ExportRunDirectory $ackFailure.CaseRoot
+        $ackFailureMetadata = Get-Content -LiteralPath (Join-Path $ackFailureRun.FullName 'run-metadata.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($ackFailureMetadata.error_class -ne 'ackermann_snapshot_invalid' -or
+            $ackFailureMetadata.status -ne 'decoded_csv_diagnostic_inconsistent' -or
+            -not (Test-Path -LiteralPath $ackFailureMetadata.csv -PathType Leaf) -or
+            (Test-Path -LiteralPath (Join-Path $ackFailureRun.FullName 'ackermann-snapshot.csv'))) {
+            throw 'Bad ACK1 CRC was misclassified, exported as a valid snapshot, or erased a separately validated run CSV.'
         }
     }
 
@@ -525,6 +570,13 @@ try {
         $statusAttemptAddresses += [string]$statusPlan.speed_pi_trace_snapshot.address
         $statusAttemptSizes += 64
     }
+    if ($statusPlan.ackermann_snapshot.available) {
+        $statusAttemptAddresses += @(
+            [string]$statusPlan.ackermann_snapshot.generation_read.address,
+            [string]$statusPlan.ackermann_snapshot.address,
+            [string]$statusPlan.ackermann_snapshot.generation_read.address)
+        $statusAttemptSizes += @(4, 64, 4)
+    }
     $statusAttemptAddresses += [string]$statusPlan.header_read.address
     $statusAttemptSizes += 64
     for ($retry = 0; $retry -lt 3; ++$retry) {
@@ -579,7 +631,7 @@ try {
         throw 'DryRun did not show default 1000/shared, probe enumeration, or first Flash descriptor read.'
     }
 
-    Write-Output ("PASS {0}-read HOTPLUG export sequence, CRC/token-validated frozen speed PI sidecar, CRC-validated runtime diagnostic fixture, IDLE/ACTIVE and corrupt-PI no-CSV failures, postflight failure exit 3 with CSV retention, fallback, Flash-first identity, probe ambiguity, and DryRun" -f $successAddresses.Count)
+    Write-Output ("PASS {0}-read HOTPLUG export sequence, separately validated single-row ACK1 snapshot and bad-CRC classification, CRC/token-validated frozen speed PI sidecar, CRC-validated runtime diagnostic fixture, IDLE/ACTIVE no-CSV behavior, corrupt-PI no-CSV failures, postflight failure exit 3 with CSV retention, fallback, Flash-first identity, probe ambiguity, and DryRun" -f $successAddresses.Count)
     Write-Output "Evidence: $OutputRoot"
 }
 finally {

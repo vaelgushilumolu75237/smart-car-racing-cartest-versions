@@ -126,7 +126,7 @@ class _FakeSensor:
 class _FakeImage:
     @staticmethod
     def width():
-        return 160
+        return 320
 
     @staticmethod
     def height():
@@ -221,10 +221,10 @@ def _dual_path_result(left=24, right=48, quality=1):
 
 def _decode_observation(frame):
     frame = bytes(frame)
-    if len(frame) != 12 or frame[:2] != b"\xA5\x5A":
+    if len(frame) != 16 or frame[:4] != b"\xA5\x5A\x02\x08":
         raise AssertionError("invalid observation frame")
-    expected = main.vision_protocol.crc16_ccitt_false(frame[2:10])
-    actual = frame[10] | frame[11] << 8
+    expected = main.vision_protocol.crc16_ccitt_false(frame[2:14])
+    actual = frame[14] | frame[15] << 8
     if actual != expected:
         raise AssertionError("observation CRC mismatch")
     raw = frame[8] | frame[9] << 8

@@ -10,6 +10,7 @@
         "CARTEST_ENABLE_FOLLOW_SPEED_PI": "OFF",
         "CARTEST_ENABLE_FOLLOW_TURN": "OFF",
         "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "OFF",
+        "CARTEST_ENABLE_ACKERMANN_COORDINATION": "ON",
         "CARTEST_VISION_HOLD_MS": "3000",
         "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
@@ -133,13 +134,22 @@
     },
     {
       "name": "DebugFollowIncrementalPI",
-      "displayName": "DebugFollowIncrementalPI - 65/35; incremental encoder PI; 1000 cap; hold 2000/200 ms; RAM log ON",
+      "displayName": "DebugFollowIncrementalPI - Ackermann from applied PWM; vision slowdown; incremental encoder PI; servo 160us/20ms",
       "inherits": "DebugFollowTurn65",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
         "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "ON",
         "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "DebugFollowIncrementalPIBaseline",
+      "displayName": "DebugFollowIncrementalPIBaseline - legacy 65/35 incremental encoder PI; coordination OFF; servo 120us/20ms",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_ACKERMANN_COORDINATION": "OFF"
       }
     }
   ],
@@ -154,6 +164,7 @@
     { "name": "DebugFollowTurn", "configurePreset": "DebugFollowTurn" },
     { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" },
     { "name": "DebugFollowTurn65", "configurePreset": "DebugFollowTurn65" },
-    { "name": "DebugFollowIncrementalPI", "configurePreset": "DebugFollowIncrementalPI" }
+    { "name": "DebugFollowIncrementalPI", "configurePreset": "DebugFollowIncrementalPI" },
+    { "name": "DebugFollowIncrementalPIBaseline", "configurePreset": "DebugFollowIncrementalPIBaseline" }
   ]
 }

@@ -196,6 +196,32 @@ def main():
             trace_full[offset:offset + len(sample)] = sample
         trace_full_path = out / "speed-pi-trace-frozen.bin"
         trace_full_path.write_bytes(trace_full)
+
+    ackermann_plan = plan["ackermann_snapshot"]
+    ackermann_snapshot_path = None
+    ackermann_generation_path = None
+    if ackermann_plan["available"]:
+        ackermann = bytearray(reader.ACKERMANN_SNAPSHOT_SIZE)
+        ackermann[:4] = reader.ACKERMANN_SNAPSHOT_MAGIC
+        ackermann[4] = reader.ACKERMANN_SNAPSHOT_VERSION
+        ackermann[5] = reader.ACKERMANN_SNAPSHOT_SIZE
+        struct.pack_into("<H", ackermann, 6, (1 << 0) | (1 << 5))
+        struct.pack_into("<I", ackermann, 8, 2)
+        struct.pack_into("<I", ackermann, 12, 1500)
+        struct.pack_into("<H", ackermann, 16, 30)
+        ackermann[18] = 0
+        struct.pack_into("<H", ackermann, 20, 0)
+        struct.pack_into("<hHhH", ackermann, 24, 0, 32768, 0, 1530)
+        struct.pack_into("<5i", ackermann, 32, 1200, 1100, 1100, 1000, 1000)
+        struct.pack_into("<2H", ackermann, 52, 500, 500)
+        ackermann[56] = 10
+        ackermann[57] = 0
+        struct.pack_into("<I", ackermann, reader.ACKERMANN_SNAPSHOT_CRC_OFFSET,
+                         zlib.crc32(ackermann[:reader.ACKERMANN_SNAPSHOT_CRC_OFFSET]) & 0xFFFFFFFF)
+        ackermann_snapshot_path = out / "ackermann-snapshot-frozen.bin"
+        ackermann_snapshot_path.write_bytes(ackermann)
+        ackermann_generation_path = out / "ackermann-generation.bin"
+        ackermann_generation_path.write_bytes(struct.pack("<I", 2))
     print(json.dumps({
         "build_id": layout.build_id.hex(),
         "log_version": plan["log_version"],
@@ -217,6 +243,11 @@ def main():
         "speed_pi_trace_active_path": str(trace_active_path) if trace_active_path else None,
         "speed_pi_trace_frozen_header_path": str(trace_frozen_path) if trace_frozen_path else None,
         "speed_pi_trace_frozen_path": str(trace_full_path) if trace_full_path else None,
+        "ackermann_snapshot_available": bool(ackermann_plan["available"]),
+        "ackermann_snapshot_address": ackermann_plan["address"],
+        "ackermann_generation_address": ackermann_plan["generation_read"]["address"] if ackermann_plan["available"] else None,
+        "ackermann_snapshot_path": str(ackermann_snapshot_path) if ackermann_snapshot_path else None,
+        "ackermann_generation_path": str(ackermann_generation_path) if ackermann_generation_path else None,
     }, sort_keys=True))
 
 

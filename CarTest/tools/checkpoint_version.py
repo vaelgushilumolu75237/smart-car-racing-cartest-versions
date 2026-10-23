@@ -38,8 +38,9 @@ UPHILL_FROZEN_PROFILE_SHA256 = {
     "B": "f50336905ea5a072f687a2a0edaa74412f115ed5e21f40ced85c0dd378e0866c",
     "C": "3c7da3c26054764bec0949753212272d37857c015d5f351d13b4a0b085755d4f",
 }
-# The public checkpoint carries only these explicit A/B/C delivery artifacts
-# and their summaries. Do not copy the broader deliverables tree or build logs.
+# The public checkpoint carries only these explicit H743 profile artifacts,
+# their summaries, and named pair/evidence documents. Do not copy the broader
+# deliverables tree or build logs.
 UPHILL_PROFILE_DELIVERIES = {
     "B": {
         "profile": "DebugFollowTurn65",
@@ -70,6 +71,41 @@ SPEEDPD_ARTIFACT_MANIFEST = "deliverables/H743_SpeedPD_20261020/artifact-manifes
 SPEEDPD_BUILD_SUMMARY = "deliverables/H743_SpeedPD_20261020/build-summary.json"
 OPENMV_SPEEDPD_ROOT = "deliverables/OpenMV_Bottom80_Steering_20261021"
 OPENMV_SPEEDPD_PACKAGES = ("no_pd", "pd", "pd_preview")
+ACKERMANN_DELIVERY_ROOT = "deliverables/H743_Ackermann60_20261022"
+ACKERMANN_PROFILE_DELIVERIES = {
+    "coordinated": {
+        "profile": "DebugFollowIncrementalPI",
+        "directory": "C_Coordinated",
+        "elf": f"{ACKERMANN_DELIVERY_ROOT}/C_Coordinated/CarTest.elf",
+        "manifest": f"{ACKERMANN_DELIVERY_ROOT}/C_Coordinated/manifest.json",
+        "coordination_enabled": True,
+        "servo_slew_step_us": 160,
+    },
+    "baseline": {
+        "profile": "DebugFollowIncrementalPIBaseline",
+        "directory": "C_Baseline",
+        "elf": f"{ACKERMANN_DELIVERY_ROOT}/C_Baseline/CarTest.elf",
+        "manifest": f"{ACKERMANN_DELIVERY_ROOT}/C_Baseline/manifest.json",
+        "coordination_enabled": False,
+        "servo_slew_step_us": 120,
+    },
+}
+ACKERMANN_ARTIFACT_MANIFEST = f"{ACKERMANN_DELIVERY_ROOT}/artifact-manifest.json"
+ACKERMANN_BUILD_SUMMARY = f"{ACKERMANN_DELIVERY_ROOT}/build-summary.json"
+ACKERMANN_PAIRED_DELIVERY_DOC = f"{ACKERMANN_DELIVERY_ROOT}/PAIRED_DELIVERY.md"
+ACKERMANN_PAIRED_RUN_STEPS = f"{ACKERMANN_DELIVERY_ROOT}/validation/PAIRED_RUN_STEPS.md"
+ACKERMANN_TOOLING_EVIDENCE = (
+    f"{ACKERMANN_DELIVERY_ROOT}/validation/protocol-tooling/TEST_EVIDENCE.md")
+OPENMV_ACKERMANN_ROOT = "deliverables/OpenMV_Ackermann320_20261022"
+OPENMV_ACKERMANN_PACKAGES = ("geometry_perf_only", "coordinated")
+OPENMV_ACKERMANN_RUNTIME_FILES = frozenset({
+    "adaptive_detector.py", "boundary_evidence.py", "config.py",
+    "contour_route.py", "contour_trace.py", "fast_boundary.py", "fast_gray.py",
+    "fast_path.py", "fast_single_edge.py", "fast_topology.py",
+    "grayscale_adapter.py", "line_detector.py", "main.py", "reverse_control.py",
+    "road_detector.py", "source_selector.py", "surface_detector.py",
+    "thresholding.py", "vision_protocol.py",
+})
 PUBLIC_DELIVERY_FILES = (
     "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
     "deliverables/H743_Uphill_20261019/A_Baseline/manifest.json",
@@ -85,6 +121,15 @@ PUBLIC_DELIVERY_FILES = (
     SPEEDPD_PROFILE_DELIVERIES["C"]["manifest"],
     SPEEDPD_ARTIFACT_MANIFEST,
     SPEEDPD_BUILD_SUMMARY,
+    ACKERMANN_PROFILE_DELIVERIES["coordinated"]["elf"],
+    ACKERMANN_PROFILE_DELIVERIES["coordinated"]["manifest"],
+    ACKERMANN_PROFILE_DELIVERIES["baseline"]["elf"],
+    ACKERMANN_PROFILE_DELIVERIES["baseline"]["manifest"],
+    ACKERMANN_ARTIFACT_MANIFEST,
+    ACKERMANN_BUILD_SUMMARY,
+    ACKERMANN_PAIRED_DELIVERY_DOC,
+    ACKERMANN_PAIRED_RUN_STEPS,
+    ACKERMANN_TOOLING_EVIDENCE,
 )
 
 
@@ -230,7 +275,11 @@ def verify_uphill_deliveries(source: Path):
 
 
 def verify_speedpd_deliveries(source: Path):
-    """Require new B/C snapshots to match the current builds, leaving uphill frozen."""
+    """Check the frozen SpeedPD pair against its own manifests and summary.
+
+    The profile names are reused by later builds, so the current build output
+    at ``build/<profile>`` is not authoritative for this historical delivery.
+    """
     try:
         artifact_manifest = json.loads(
             (source / SPEEDPD_ARTIFACT_MANIFEST).read_text(encoding="utf-8-sig"))
@@ -239,43 +288,269 @@ def verify_speedpd_deliveries(source: Path):
     except (OSError, json.JSONDecodeError) as error:
         raise RuntimeError("SpeedPD artifact manifest or build summary is missing or invalid.") from error
 
+    if (artifact_manifest.get("schema_version") != 1 or
+            artifact_manifest.get("package") != "H743_SpeedPD_20261020" or
+            normalize_relative_path(artifact_manifest.get("build_summary")) !=
+            SPEEDPD_BUILD_SUMMARY):
+        raise RuntimeError("SpeedPD artifact manifest metadata is inconsistent.")
     artifacts = artifact_manifest.get("artifacts", {})
+    summary_artifacts = build_summary.get("artifacts", {})
+    variant_manifests = artifact_manifest.get("per_variant_manifests", {})
     if build_summary.get("source_inputs_stable") is not True:
         raise RuntimeError("SpeedPD build summary does not certify stable source inputs.")
+    if (build_summary.get("schema_version") != 1 or
+            build_summary.get("package") != "H743_SpeedPD_20261020" or
+            not isinstance(build_summary.get("source_sha256"), dict)):
+        raise RuntimeError("SpeedPD build summary metadata is inconsistent.")
     build_rows = index_build_rows(build_summary)
     for variant, spec in SPEEDPD_PROFILE_DELIVERIES.items():
         delivery_elf = source / spec["elf"]
         delivery_manifest_path = source / spec["manifest"]
-        build_elf = source / "build" / spec["profile"] / "CarTest.elf"
         for path, label in ((delivery_elf, "delivery ELF"),
-                            (delivery_manifest_path, "delivery manifest"),
-                            (build_elf, "profile build ELF")):
+                            (delivery_manifest_path, "delivery manifest")):
             if not path.is_file() or path.is_symlink():
                 raise RuntimeError(f"SpeedPD {variant} {label} is missing or linked: {path}")
 
         delivery_bytes = delivery_elf.read_bytes()
-        if delivery_bytes != build_elf.read_bytes():
-            raise RuntimeError(f"SpeedPD {variant} delivery ELF differs from {spec['profile']}.")
         elf_sha256 = hashlib.sha256(delivery_bytes).hexdigest()
+        elf_size = len(delivery_bytes)
         try:
             variant_manifest = json.loads(
                 delivery_manifest_path.read_text(encoding="utf-8-sig"))
         except json.JSONDecodeError as error:
             raise RuntimeError(f"SpeedPD {variant} manifest is invalid.") from error
         if (variant_manifest.get("profile") != spec["profile"] or
-                variant_manifest.get("sha256") != elf_sha256):
+                variant_manifest.get("sha256") != elf_sha256 or
+                variant_manifest.get("size_bytes") != elf_size or
+                variant_manifest.get("build_id") is None or
+                normalize_relative_path(variant_manifest.get("delivery_path")) !=
+                spec["elf"] or
+                normalize_relative_path(variant_manifest.get("export_elf")) !=
+                spec["elf"] or
+                variant_manifest.get("source_sha256") !=
+                build_summary["source_sha256"]):
             raise RuntimeError(f"SpeedPD {variant} manifest does not match its ELF/profile.")
 
         artifact = artifacts.get(variant, {})
         if (normalize_relative_path(artifact.get("delivery_path")) != spec["elf"] or
                 artifact.get("sha256") != elf_sha256 or
-                normalize_relative_path(artifact.get("export_elf")) != spec["elf"]):
+                normalize_relative_path(artifact.get("export_elf")) != spec["elf"] or
+                artifact.get("profile") != spec["profile"] or
+                artifact.get("build_id") != variant_manifest.get("build_id")):
             raise RuntimeError(f"SpeedPD artifact manifest does not match {variant}.")
+        summary_artifact = summary_artifacts.get(variant, {})
+        if (normalize_relative_path(summary_artifact.get("delivery_path")) !=
+                spec["elf"] or
+                normalize_relative_path(summary_artifact.get("export_elf")) !=
+                spec["elf"] or
+                summary_artifact.get("sha256") != elf_sha256 or
+                summary_artifact.get("profile") != spec["profile"] or
+                summary_artifact.get("build_id") != variant_manifest.get("build_id")):
+            raise RuntimeError(f"SpeedPD build summary artifact does not match {variant}.")
+        if normalize_relative_path(variant_manifests.get(variant)) != spec["manifest"]:
+            raise RuntimeError(f"SpeedPD artifact manifest does not name {variant} manifest.")
+
         build_row = build_rows.get(spec["profile"], {})
         if (build_row.get("exit_code") != 0 or
                 build_row.get("sha256") != elf_sha256 or
-                normalize_relative_path(build_row.get("elf")) != f"build/{spec['profile']}/CarTest.elf"):
-            raise RuntimeError(f"SpeedPD build summary does not match {variant} ELF.")
+                build_row.get("size_bytes") != elf_size or
+                build_row.get("profile") != spec["profile"] or
+                build_row.get("build_id") != variant_manifest.get("build_id") or
+                normalize_relative_path(build_row.get("elf")) !=
+                f"build/{spec['profile']}/CarTest.elf"):
+            raise RuntimeError(f"Frozen SpeedPD build summary does not match {variant} ELF.")
+
+
+def verify_ackermann_deliveries(source: Path, expected_presets: set[str]):
+    """Check the exact coordinated/baseline ELF pair and bounded build evidence."""
+    try:
+        artifact_manifest = json.loads(
+            (source / ACKERMANN_ARTIFACT_MANIFEST).read_text(encoding="utf-8-sig"))
+        build_summary = json.loads(
+            (source / ACKERMANN_BUILD_SUMMARY).read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("Ackermann artifact manifest or build summary is missing or invalid.") from error
+
+    if (artifact_manifest.get("schema_version") != 1 or
+            not artifact_manifest.get("generated_utc") or
+            not artifact_manifest.get("package_id")):
+        raise RuntimeError("Ackermann artifact manifest metadata is incomplete.")
+    if (build_summary.get("schema_version") not in (None, 1) or
+            build_summary.get("package_id", artifact_manifest["package_id"]) !=
+            artifact_manifest["package_id"]):
+        raise RuntimeError("Ackermann build summary package identity does not match its artifact manifest.")
+    if build_summary.get("source_inputs_stable") is False:
+        raise RuntimeError("Ackermann build summary reports that source inputs changed during build.")
+
+    build_rows = index_build_rows(build_summary)
+    if set(build_rows) != expected_presets:
+        raise RuntimeError("Ackermann build summary must contain exactly the 12 declared build presets.")
+    for preset, row in build_rows.items():
+        row_path = normalize_relative_path(row.get("elf_path", row.get("elf")))
+        row_bytes = row.get("elf_bytes", row.get("bytes"))
+        row_sha = row.get("elf_sha256", row.get("sha256"))
+        if (row.get("exit_code") != 0 or not row.get("log") or
+                not row_path or row_bytes is None or not row_sha):
+            raise RuntimeError(f"Ackermann build evidence is incomplete or failed for {preset}.")
+        expected_path = f"build/{preset}/CarTest.elf"
+        if row_path != expected_path:
+            raise RuntimeError(f"Ackermann build summary names an unexpected ELF path for {preset}.")
+        build_elf = source / expected_path
+        log_value = normalize_relative_path(row.get("log"))
+        if not build_elf.is_file() or build_elf.is_symlink():
+            raise RuntimeError(f"Ackermann preset ELF is missing or linked: {expected_path}")
+        build_bytes = build_elf.read_bytes()
+        if row_bytes != len(build_bytes) or row_sha != hashlib.sha256(build_bytes).hexdigest():
+            raise RuntimeError(f"Ackermann build summary hash/size does not match {preset} ELF.")
+        if (not log_value or Path(log_value).is_absolute() or ".." in Path(log_value).parts):
+            raise RuntimeError(f"Ackermann build log path is unsafe for {preset}.")
+        log_path = source / ACKERMANN_DELIVERY_ROOT / log_value
+        if not log_path.is_file() or log_path.is_symlink():
+            raise RuntimeError(f"Ackermann build log is missing or linked for {preset}.")
+        exitcode_value = normalize_relative_path(row.get("exitcode_file"))
+        if (not exitcode_value or Path(exitcode_value).is_absolute() or
+                ".." in Path(exitcode_value).parts):
+            raise RuntimeError(f"Ackermann build exit-code path is unsafe for {preset}.")
+        exitcode_path = source / ACKERMANN_DELIVERY_ROOT / exitcode_value
+        if (not exitcode_path.is_file() or exitcode_path.is_symlink() or
+                exitcode_path.read_text(encoding="utf-8-sig").strip() != "0"):
+            raise RuntimeError(f"Ackermann build exit-code evidence is missing or failed for {preset}.")
+
+    artifact_rows = artifact_manifest.get("artifacts")
+    if isinstance(artifact_rows, dict):
+        artifact_rows = list(artifact_rows.values())
+    if not isinstance(artifact_rows, list) or len(artifact_rows) != 2:
+        raise RuntimeError("Ackermann artifact manifest must contain exactly two ELF artifact rows.")
+    artifacts_by_path = {}
+    for row in artifact_rows:
+        if not isinstance(row, dict):
+            raise RuntimeError("Ackermann artifact manifest contains a malformed artifact row.")
+        relative = normalize_relative_path(row.get("delivery_path", row.get("relative_path", row.get("path"))))
+        if relative in artifacts_by_path:
+            raise RuntimeError("Ackermann artifact manifest contains duplicate delivery paths.")
+        artifacts_by_path[relative] = row
+
+    for variant, spec in ACKERMANN_PROFILE_DELIVERIES.items():
+        delivery_elf = source / spec["elf"]
+        manifest_path = source / spec["manifest"]
+        build_elf = source / "build" / spec["profile"] / "CarTest.elf"
+        for path, label in ((delivery_elf, "delivery ELF"),
+                            (manifest_path, "profile manifest"),
+                            (build_elf, "preset ELF")):
+            if not path.is_file() or path.is_symlink():
+                raise RuntimeError(f"Ackermann {variant} {label} is missing or linked: {path}")
+        elf_bytes = delivery_elf.read_bytes()
+        if elf_bytes != build_elf.read_bytes():
+            raise RuntimeError(f"Ackermann {variant} delivery ELF differs from its named preset build.")
+        elf_sha = hashlib.sha256(elf_bytes).hexdigest()
+        try:
+            profile_manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"Ackermann {variant} profile manifest is invalid.") from error
+        if (profile_manifest.get("schema_version") != 1 or
+                profile_manifest.get("profile") not in (spec["profile"], spec["directory"]) or
+                profile_manifest.get("preset", spec["profile"]) != spec["profile"] or
+                profile_manifest.get("coordination_enabled") is not spec["coordination_enabled"] or
+                profile_manifest.get("servo_slew_step_us") != spec["servo_slew_step_us"] or
+                profile_manifest.get("elf") != "CarTest.elf" or
+                profile_manifest.get("bytes") != len(elf_bytes) or
+                profile_manifest.get("sha256") != elf_sha or
+                normalize_relative_path(profile_manifest.get("build_log")) !=
+                f"../build-logs/{spec['profile']}.log"):
+            raise RuntimeError(f"Ackermann {variant} profile manifest does not match its ELF/contract.")
+        profile_build_log = manifest_path.parent / profile_manifest["build_log"]
+        ackermann_root = (source / ACKERMANN_DELIVERY_ROOT).resolve()
+        resolved_build_log = profile_build_log.resolve()
+        if (ackermann_root not in resolved_build_log.parents or
+                not resolved_build_log.is_file() or profile_build_log.is_symlink()):
+            raise RuntimeError(f"Ackermann {variant} profile build log is missing, linked, or escapes its package.")
+
+    for required_delivery_doc in (
+            ACKERMANN_PAIRED_DELIVERY_DOC, ACKERMANN_PAIRED_RUN_STEPS,
+            ACKERMANN_TOOLING_EVIDENCE):
+        path = source / required_delivery_doc
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError(f"Required Ackermann package documentation/evidence is missing or linked: {required_delivery_doc}")
+
+        artifact_path = f"{spec['directory']}/CarTest.elf"
+        artifact = artifacts_by_path.get(artifact_path)
+        if (not artifact or artifact.get("preset") != spec["profile"] or
+                artifact.get("coordination_enabled") is not spec["coordination_enabled"] or
+                artifact.get("bytes") != len(elf_bytes) or artifact.get("sha256") != elf_sha):
+            raise RuntimeError(f"Ackermann artifact manifest does not match {variant} ELF/coordination.")
+        row = build_rows[spec["profile"]]
+        row_path = normalize_relative_path(row.get("elf_path", row.get("elf")))
+        row_bytes = row.get("elf_bytes", row.get("bytes"))
+        row_sha = row.get("elf_sha256", row.get("sha256"))
+        expected_build_path = f"build/{spec['profile']}/CarTest.elf"
+        if row_path != expected_build_path or row_bytes != len(elf_bytes) or row_sha != elf_sha:
+            raise RuntimeError(f"Ackermann build summary does not match {variant} ELF.")
+
+
+def verify_openmv_ackermann_packages(source: Path) -> list[str]:
+    """Return only the declared production runtime files for the paired camera packages."""
+    allowlisted: list[str] = []
+    shared_runtime_names: set[str] | None = None
+    for profile in OPENMV_ACKERMANN_PACKAGES:
+        relative_root = f"{OPENMV_ACKERMANN_ROOT}/{profile}"
+        package_root = source / relative_root
+        manifest_path = package_root / "PACKAGE_MANIFEST.json"
+        readme_path = package_root / "README.md"
+        for path, label in ((manifest_path, "manifest"), (readme_path, "README")):
+            if not path.is_file() or path.is_symlink():
+                raise RuntimeError(f"OpenMV Ackermann {profile} {label} is missing or linked.")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"OpenMV Ackermann {profile} manifest is invalid.") from error
+        runtime_files = manifest.get("runtime_files")
+        protocol = manifest.get("protocol")
+        curve_trace = manifest.get("curve_trace")
+        if (manifest.get("schema_version") != 1 or
+                manifest.get("control_profile") != profile or
+                manifest.get("config_profile_selector") != profile or
+                not manifest.get("package_id") or not manifest.get("build_id") or
+                manifest.get("runtime_file_count") != len(OPENMV_ACKERMANN_RUNTIME_FILES) or
+                not isinstance(runtime_files, list) or
+                len(runtime_files) != len(OPENMV_ACKERMANN_RUNTIME_FILES) or
+                not isinstance(protocol, dict) or
+                protocol.get("version") != 2 or
+                protocol.get("frame_size_bytes") != 16 or
+                protocol.get("curve_phase_offset") != 10 or
+                protocol.get("reserved_zero_offset") != 11 or
+                protocol.get("slowdown_request_permille_offset") != 12 or
+                protocol.get("crc_offset") != 14 or
+                not isinstance(curve_trace, dict) or
+                curve_trace.get("field") != "curve_trace_v2_hex" or
+                curve_trace.get("record_size_bytes") != 16 or
+                curve_trace.get("camera_diag_record_size_bytes") != 32 or
+                curve_trace.get("control_ext_v2_record_size_bytes") != 32):
+            raise RuntimeError(f"OpenMV Ackermann {profile} manifest metadata is incomplete.")
+        runtime_names: set[str] = set()
+        for entry in runtime_files:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if (not isinstance(name, str) or Path(name).name != name or
+                    not name.endswith(".py") or name in runtime_names or
+                    name not in OPENMV_ACKERMANN_RUNTIME_FILES):
+                raise RuntimeError(f"OpenMV Ackermann {profile} runtime list is unsafe, duplicated, or not allowlisted.")
+            runtime_names.add(name)
+            runtime_path = package_root / name
+            if not runtime_path.is_file() or runtime_path.is_symlink():
+                raise RuntimeError(f"OpenMV Ackermann {profile} runtime file is missing or linked: {name}")
+            content = runtime_path.read_bytes()
+            if (entry.get("size_bytes") != len(content) or
+                    entry.get("sha256") != hashlib.sha256(content).hexdigest() or
+                    entry.get("mpy_cross_exit_code") != 0):
+                raise RuntimeError(f"OpenMV Ackermann {profile} runtime/compiler evidence mismatch: {name}")
+            allowlisted.append(f"{relative_root}/{name}")
+        if runtime_names != OPENMV_ACKERMANN_RUNTIME_FILES:
+            raise RuntimeError(f"OpenMV Ackermann {profile} runtime set does not match the production allowlist.")
+        if shared_runtime_names is None:
+            shared_runtime_names = runtime_names
+        elif runtime_names != shared_runtime_names:
+            raise RuntimeError("OpenMV Ackermann profiles do not share the same runtime module set.")
+        allowlisted.extend((f"{relative_root}/PACKAGE_MANIFEST.json", f"{relative_root}/README.md"))
+    return allowlisted
 
 
 def verify_openmv_speedpd_packages(source: Path) -> list[str]:
@@ -355,7 +630,9 @@ def main():
             raise RuntimeError(f"Build the declared profile before checkpointing: {profile}")
     verify_uphill_deliveries(source)
     verify_speedpd_deliveries(source)
+    verify_ackermann_deliveries(source, set(profile_names))
     openmv_speedpd_files = verify_openmv_speedpd_packages(source)
+    openmv_ackermann_files = verify_openmv_ackermann_packages(source)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -390,6 +667,8 @@ def main():
     for name in PUBLIC_DELIVERY_FILES:
         copy_allowlisted_file(source, target, name)
     for name in openmv_speedpd_files:
+        copy_allowlisted_file(source, target, name)
+    for name in openmv_ackermann_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"

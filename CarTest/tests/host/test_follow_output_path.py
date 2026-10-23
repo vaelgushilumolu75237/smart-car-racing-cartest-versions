@@ -51,6 +51,7 @@ PRELUDE = r'''#include <stdint.h>
 #include "follow_incremental_pi.h"
 #include "follow_speed_pi.h"
 #include "speed_observer.h"
+#include "ackermann_control.h"
 
 #ifndef CARTEST_HARDWARE_ACCEPTED
 #define CARTEST_HARDWARE_ACCEPTED 1
@@ -138,6 +139,8 @@ typedef struct {
     uint8_t manual_run_request;
     uint8_t vision_valid;
     uint8_t vision_slope_hint;
+    uint8_t vision_curve_phase;
+    uint16_t vision_slowdown_request_permille;
     uint8_t fault_latched;
     uint8_t isr_stop_request;
     uint8_t isr_release_seen;
@@ -235,6 +238,9 @@ static car_follow_output_state_t follow_output_state;
 static car_follow_speed_pi_state_t follow_speed_pi_state;
 static car_follow_incremental_pi_state_t follow_incremental_pi_state;
 static car_speed_observer_result_t speed_observer_result;
+static car_ackermann_control_state_t ackermann_control_state;
+static car_ackermann_control_output_t ackermann_control_output;
+static uint8_t ackermann_control_session_ready;
 static car_servo_safety_io_t servo_safety_io;
 static tim_regs_t tim1_regs, tim3_regs;
 static usart_regs_t usart1_regs;
@@ -365,7 +371,9 @@ static uint8_t car_servo_safety_request_selected_with_slew(
     {
         const uint16_t target = source == CAR_SERVO_SOURCE_FOLLOW
                                     ? follow_target : debug_target;
-        if (safety->compare_us == 0u) safety->compare_us = target;
+        /* Production starts TIM1 at the legal center before following the
+           requested target, then publishes that applied compare to main. */
+        if (safety->compare_us == 0u) safety->compare_us = 1530u;
         else if (target > safety->compare_us) {
             uint16_t delta = (uint16_t)(target - safety->compare_us);
             safety->compare_us = (uint16_t)(safety->compare_us +
@@ -435,6 +443,9 @@ static void reset_mock(uint32_t caller)
     memset(&follow_output_state, 0, sizeof(follow_output_state));
     car_follow_speed_pi_reset(&follow_speed_pi_state);
     car_follow_incremental_pi_reset(&follow_incremental_pi_state);
+    car_ackermann_control_reset(&ackermann_control_state);
+    memset(&ackermann_control_output, 0, sizeof(ackermann_control_output));
+    ackermann_control_session_ready = 0u;
     memset(&speed_observer_result, 0, sizeof(speed_observer_result));
     memset(&tim1_regs, 0, sizeof(tim1_regs));
     memset(&tim3_regs, 0, sizeof(tim3_regs));
@@ -499,6 +510,11 @@ static void start_existing_servo(uint16_t pulse)
 static void case_first_frame_wait(uint32_t caller)
 {
     reset_mock(caller); ++cases_run;
+    pe7_high = 0u; /* active-low PE7 Follow start already accepted */
+    expect_u32("first_frame_servo_request", "start begins with servo off",
+               0u, servo_output_active);
+    expect_u32("first_frame_servo_request", "initial software pulse is zero",
+               0u, applied_servo_pulse_us);
     servo_apply(); expect_primask("first_frame_servo_request", caller);
     expect_u32("first_frame_servo_request", "startup servo step remains 10us",
                CAR_SERVO_SAFETY_SLEW_STEP_US, servo_request_slew_step_us);
@@ -509,6 +525,8 @@ static void case_first_frame_wait(uint32_t caller)
                servo_output_active);
     expect_u32("first_frame_servo_request", "frame_ready_initial", 0u,
                servo_safety.frame_ready);
+    expect_u32("first_frame_servo_request", "first TIM1 compare is legal center",
+               app_config.servo_center_us, applied_servo_pulse_us);
     motor_apply(); expect_primask("first_frame_wait", caller);
     expect_u32("first_frame_wait", "motor_stop_calls", 0u,
                motor_stop_calls);
@@ -523,6 +541,17 @@ static void case_first_frame_wait(uint32_t caller)
     expect_u32("first_frame_wait", "left_pwm", 0u, TIM3->CCR2);
     expect_u32("first_frame_wait", "right_pwm", 0u, TIM3->CCR3);
     expect_u32("first_frame_wait", "ccr4_zero", 0u, TIM3->CCR4);
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+    expect_u32("first_frame_wait", "zero initial pulse is modeled as straight",
+               0u, (uint32_t)(uint16_t)ackermann_control_output.model_angle_cdeg);
+    expect_u32("first_frame_wait", "center fallback keeps exact Q15 unity",
+               CAR_ACKERMANN_RATIO_ONE_Q15,
+               ackermann_control_output.ratio_q15);
+    expect_u32("first_frame_wait", "startup did not latch configuration fault",
+               CAR_FAULT_NONE, car_control_state.fault);
+    expect_u32("first_frame_wait", "startup did not stop hardware",
+               0u, motor_stop_calls + servo_stop_calls);
+#endif
 
     /* Mock the completed 20 ms update edge; production gate reads frame_ready. */
     servo_safety.frame_ready = 1u;
@@ -551,6 +580,87 @@ static void case_first_frame_wait(uint32_t caller)
                TIM_CCER_CC2E | TIM_CCER_CC3E, TIM3->CCER);
     expect_u32("ramp_commit", "no_motor_stop", 0u, motor_stop_calls);
 }
+
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+static void case_ackermann_timeout_recovery(uint32_t caller)
+{
+    reset_mock(caller); ++cases_run;
+    car_control_state.follow_output_duty_permille = 500u;
+    car_control_state.vision_curve_phase = CAR_ACKERMANN_PHASE_TURN;
+    car_control_state.vision_slowdown_request_permille = 1000u;
+    follow_output_state.startup_qualified = 1u;
+    follow_output_state.have_ramp_time = 1u;
+    follow_output_state.last_ramp_ms = mock_now_ms - 10u;
+    follow_output_state.command_left_permille = 500u;
+    follow_output_state.command_right_permille = 500u;
+    speed_observer_result.valid = 1u;
+    speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    speed_observer_result.sample_ms = mock_now_ms;
+    speed_observer_result.elapsed_ms = 10u;
+    speed_observer_result.left_millirps = 4300;
+    speed_observer_result.right_millirps = 4200;
+    start_existing_servo(app_config.servo_center_us);
+    start_existing_motor_outputs(500u, 500u);
+
+    prepare_follow_motor_targets(mock_now_ms);
+    mock_now_ms += CAR_ACKERMANN_REQUEST_RAMP_DOWN_MS;
+    speed_observer_result.sample_ms = mock_now_ms;
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("ackermann_timeout", "turn slowdown reaches 4000 milli-RPS",
+               CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS,
+               (uint32_t)ackermann_control_output.fastest_target_millirps);
+
+    car_control_state.mode = CAR_MODE_FOLLOW_VISION_HOLD;
+    car_control_state.vision_hold_active = 1u;
+    car_control_state.vision_valid = 0u;
+    car_control_state.vision_hold_started_ms = mock_now_ms;
+    car_control_state.vision_hold_entries = 1u;
+    car_control_state.vision_last_valid_ms = mock_now_ms - 100u;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms;
+    car_control_state.vision_hold_motor_left_permille = 500u;
+    car_control_state.vision_hold_motor_right_permille = 500u;
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("ackermann_timeout", "hold does not run Ackermann or PI update",
+               CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS,
+               (uint32_t)ackermann_control_output.fastest_target_millirps);
+    expect_u32("ackermann_timeout", "hold preserves startup qualification",
+               1u, follow_output_state.startup_qualified);
+
+    /* Model the existing 3-fresh-frame recovery as a completed controller
+       transition: use a fresh straight observation and retain actual PWM as
+       the incremental PI/output ramp seed. */
+    car_control_state.mode = CAR_MODE_FOLLOW_RUNNING;
+    car_control_state.vision_hold_active = 0u;
+    car_control_state.vision_valid = 1u;
+    car_control_state.vision_curve_phase = CAR_ACKERMANN_PHASE_STRAIGHT;
+    car_control_state.vision_slowdown_request_permille = 0u;
+    car_control_state.vision_last_valid_ms = mock_now_ms;
+    car_control_state.vision_last_frame_alive_ms = mock_now_ms;
+    applied_motor_follow_left_permille = 410u;
+    applied_motor_follow_right_permille = 390u;
+    follow_output_state.command_left_permille = 410u;
+    follow_output_state.command_right_permille = 390u;
+    follow_output_state.last_ramp_ms = mock_now_ms - 10u;
+    speed_observer_result.sample_ms = mock_now_ms;
+    speed_observer_result.status = CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    speed_observer_result.left_millirps = 4300;
+    speed_observer_result.right_millirps = 4200;
+    prepare_follow_motor_targets(mock_now_ms);
+    expect_u32("ackermann_timeout", "straight recovery starts 800 ms release ramp",
+               1u, ackermann_control_state.ramp_active);
+    expect_u32("ackermann_timeout", "recovery ramp begins at prior safe target",
+               CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS,
+               ackermann_control_state.ramp_start_millirps);
+    expect_u32("ackermann_timeout", "PI recovery accumulator rebases to actual left PWM",
+               410u * 65536u,
+               (uint32_t)follow_incremental_pi_state.left.accumulator_q16);
+    expect_u32("ackermann_timeout", "PI recovery accumulator rebases to actual right PWM",
+               390u * 65536u,
+               (uint32_t)follow_incremental_pi_state.right.accumulator_q16);
+    expect_u32("ackermann_timeout", "recovery does not jump the motor command",
+               410u, follow_output_state.command_left_permille);
+}
+#endif
 
 static void case_profile_differential_commit(uint32_t caller,
                                              uint16_t outer_differential,
@@ -1265,16 +1375,22 @@ int main(void)
         case_hold_deadline_2000ms(caller);
     }
 #endif
-#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED && \
+    !CARTEST_ACKERMANN_COORDINATION_ENABLED
     case_incremental_real_control_chain(0u);
+#endif
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+    case_ackermann_timeout_recovery(0u);
 #endif
 #if CARTEST_HARDWARE_ACCEPTED
     for (caller = 0u; caller <= 1u; ++caller) {
         if (caller == 0u) case_zero_output_behavior();
         case_first_frame_wait(caller);
+#if !CARTEST_ACKERMANN_COORDINATION_ENABLED
         case_profile_differential_commit(
             caller, (uint16_t)CARTEST_FOLLOW_DIFF_PERMILLE,
             (uint16_t)CARTEST_FOLLOW_INNER_DIFF_PERMILLE);
+#endif
         case_slope_hint_ignored_by_main(caller);
         case_active_hold_frozen(caller);
         case_active_hold_decelerates_applied_commands(caller);
@@ -1435,10 +1551,12 @@ def compiler_command(compiler: str, args: list[str], cwd: Path) -> subprocess.Co
 def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler: str,
                     evidence: Path, pi_enabled: bool = False,
                     incremental_enabled: bool = False, hold_ms: int = 2000,
-                    hold_ramp_ms: int = 200) -> tuple[int, int, str, str]:
+                    hold_ramp_ms: int = 200,
+                    coordination_enabled: bool = False) -> tuple[int, int, str, str]:
     label = ("hardware-accepted" if macro_value else "hardware-locked") + \
         f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
         ("-incremental-pi" if incremental_enabled else "") + \
+        ("-ackermann" if coordination_enabled else "") + \
         (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 2000 or
          hold_ramp_ms != 200 else "")
     with tempfile.TemporaryDirectory(prefix="CarTestFollowOutput-") as temp_name:
@@ -1456,13 +1574,15 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                         "/DCARTEST_FOLLOW_DIFF_PERMILLE=" + str(diff_permille),
                         f"/DCARTEST_FOLLOW_SPEED_PI_ENABLED={int(pi_enabled)}",
                         f"/DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED={int(incremental_enabled)}",
+                        f"/DCARTEST_ACKERMANN_COORDINATION_ENABLED={int(coordination_enabled)}",
                         f"/DCARTEST_VISION_HOLD_RAMP_MS={hold_ramp_ms}",
                         f"/DCARTEST_HARDWARE_ACCEPTED={macro_value}",
                         "/Fe:" + str(exe_path), str(c_path),
                         str(PROJECT_ROOT / "App" / "follow_output.c"),
                         str(PROJECT_ROOT / "App" / "speed_pi.c"),
                         str(PROJECT_ROOT / "App" / "follow_speed_pi.c"),
-                        str(PROJECT_ROOT / "App" / "follow_incremental_pi.c")]
+                        str(PROJECT_ROOT / "App" / "follow_incremental_pi.c"),
+                        str(PROJECT_ROOT / "App" / "ackermann_control.c")]
         turn_profile = diff_permille in (150, 200)
         if turn_profile:
             compile_args.extend([
@@ -1471,7 +1591,8 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                 "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
                 "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
-                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=" +
+                ("160" if coordination_enabled else "120"),
                 "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1",
             ])
         else:
@@ -1481,7 +1602,8 @@ def compile_and_run(macro_value: int, diff_permille: int, c_text: str, compiler:
                 "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
                 "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
                 "/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40",
-                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=120",
+                "/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=" +
+                ("160" if coordination_enabled else "120"),
                 "/DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=0",
             ])
         built = compiler_command(compiler, compile_args, temp)
@@ -1612,29 +1734,33 @@ def main() -> int:
     if version_result.returncode != 0 or version_match is None:
         failures.append("MSVC version evidence command failed or returned no banner")
     variants = []
-    for macro, diff_permille, pi_enabled, incremental_enabled, hold_ms, hold_ramp_ms in (
-        (1, 0, False, False, 2000, 200),
-        (1, 50, False, False, 2000, 200),
-        (1, 100, False, False, 2000, 200),
-        (1, 200, False, False, 2000, 200),
-        (0, 0, False, False, 2000, 200),
-        (1, 200, True, False, 2000, 200),
-        (1, 150, False, False, 2000, 200),
-        (1, 150, True, True, 2000, 200),
+    for macro, diff_permille, pi_enabled, incremental_enabled, hold_ms, hold_ramp_ms, coordination_enabled in (
+        (1, 0, False, False, 2000, 200, False),
+        (1, 50, False, False, 2000, 200, False),
+        (1, 100, False, False, 2000, 200, False),
+        (1, 200, False, False, 2000, 200, False),
+        (0, 0, False, False, 2000, 200, False),
+        (1, 200, True, False, 2000, 200, False),
+        (1, 150, False, False, 2000, 200, False),
+        (1, 150, True, True, 2000, 200, False),
+        (1, 150, True, True, 2000, 200, True),
     ):
         compile_rc, run_rc, _, run_log = compile_and_run(
             macro, diff_permille, c_text, args.compiler, evidence_dir,
             pi_enabled=pi_enabled, incremental_enabled=incremental_enabled,
-            hold_ms=hold_ms, hold_ramp_ms=hold_ramp_ms)
+            hold_ms=hold_ms, hold_ramp_ms=hold_ramp_ms,
+            coordination_enabled=coordination_enabled)
         label = ("hardware-accepted" if macro else "hardware-locked") + \
             f"-diff{diff_permille}" + ("-speed-pi" if pi_enabled else "") + \
             ("-incremental-pi" if incremental_enabled else "") + \
+            ("-ackermann" if coordination_enabled else "") + \
             (f"-hold{hold_ms}-ramp{hold_ramp_ms}" if hold_ms != 2000 or
              hold_ramp_ms != 200 else "")
         variants.append({
             "name": label, "hardware_accepted": macro,
             "follow_speed_pi_enabled": pi_enabled,
             "follow_incremental_pi_enabled": incremental_enabled,
+            "ackermann_coordination_enabled": coordination_enabled,
             "diff_permille": diff_permille,
             "vision_hold_ms": hold_ms,
             "vision_hold_ramp_ms": hold_ramp_ms,

@@ -212,6 +212,21 @@ SECTIONS
   ASSERT(SIZEOF(.runtime_diag) == 64,
          "runtime diagnostic ABI must reserve exactly 64 bytes")
 
+  /* Independent Ackermann-control record. This is never part of the fixed
+     64-byte runtime-log ABI or the separate CPU diagnostic snapshot. */
+  .ackermann_snapshot (NOLOAD) : ALIGN(32)
+  {
+    __ackermann_snapshot_start = .;
+    KEEP(*(.ackermann_snapshot))
+    . = ALIGN(32);
+    __ackermann_snapshot_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.ackermann_snapshot) & 31) == 0,
+         "Ackermann snapshot section is not 32-byte aligned")
+  ASSERT(SIZEOF(.ackermann_snapshot) == 64,
+         "Ackermann snapshot ABI must reserve exactly 64 bytes")
+
   .receive_diag (NOLOAD) : ALIGN(32)
   {
     __receive_diag_start = .;

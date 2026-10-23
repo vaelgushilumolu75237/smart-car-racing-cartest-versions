@@ -33,6 +33,30 @@ static void note_protocol_error(car_vision_rx_t *rx,
     (void)control;
 }
 
+static void note_parser_status(car_vision_rx_t *rx,
+                               car_control_t *control,
+                               vp_status status,
+                               uint8_t received_version,
+                               uint8_t discarded_byte,
+                               uint32_t now_ms)
+{
+    if (rx == 0 || status == VP_STATUS_NONE || status == VP_STATUS_FRAME) {
+        return;
+    }
+    rx->last_protocol_status = (uint8_t)status;
+    rx->last_received_protocol_version = received_version;
+    if (status == VP_STATUS_VERSION_MISMATCH) {
+        ++rx->protocol_version_mismatch_count;
+    } else if (status == VP_STATUS_BAD_CRC) {
+        ++rx->protocol_crc_error_count;
+    } else if (status == VP_STATUS_BAD_FIELDS) {
+        ++rx->protocol_field_error_count;
+    } else {
+        ++rx->protocol_format_error_count;
+    }
+    note_protocol_error(rx, control, discarded_byte, now_ms);
+}
+
 static void dispatch_new_rx_faults(car_vision_rx_t *rx,
                                    car_control_t *control)
 {
@@ -125,7 +149,9 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
     uint16_t tail;
     uint8_t byte;
     uint8_t parser_length_before;
+    uint8_t discard_until_sync = 0u;
     uint32_t arrival_ms;
+    vp_status parser_status;
     vp_frame frame;
 
     if (rx == 0 || control == 0 || config == 0) {
@@ -159,6 +185,14 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
         publish_barrier();
         rx->tail = (uint16_t)((tail + 1u) & CAR_VISION_RX_RING_MASK);
 
+        if (discard_until_sync != 0u) {
+            if (byte != VP_SYNC_BYTE_0) {
+                ++rx->discarded_byte_count;
+                continue;
+            }
+            discard_until_sync = 0u;
+        }
+
         if (rx->partial_active != 0u &&
             (uint32_t)(arrival_ms - rx->partial_last_byte_ms) >=
                 CAR_VISION_PARTIAL_TIMEOUT_MS) {
@@ -172,11 +206,20 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
         }
         parser_length_before = rx->parser.length;
 
-        if ((parser_length_before == 0u && byte != VP_SYNC_BYTE_0) ||
-            (parser_length_before == 1u && byte != VP_SYNC_BYTE_1)) {
-            note_protocol_error(rx, control, 1u, now_ms);
+        if (parser_length_before == 0u && byte != VP_SYNC_BYTE_0) {
+            note_parser_status(rx, control, VP_STATUS_BAD_HEADER, 0u,
+                               1u, now_ms);
             dispatch_new_rx_faults(rx, control);
-            return;
+            discard_until_sync = 1u;
+            continue;
+        }
+        if (parser_length_before == 1u && byte != VP_SYNC_BYTE_1 &&
+            byte != VP_SYNC_BYTE_0) {
+            note_parser_status(rx, control, VP_STATUS_BAD_HEADER, 0u,
+                               1u, now_ms);
+            dispatch_new_rx_faults(rx, control);
+            discard_until_sync = 1u;
+            continue;
         }
 
         if (vp_parser_feed(&rx->parser, byte, &frame) != 0u) {
@@ -188,15 +231,19 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
             car_receive_diag_note_frame(
                 frame.sequence, (frame.flags & VP_FLAG_VALID) != 0u,
                 arrival_ms);
-            car_control_on_vision_frame_at_with_flags(
+            car_control_on_vision_frame_at_with_flags_and_curve(
                 control, config, frame.sequence, frame.flags,
-                frame.confidence, frame.lateral_error, arrival_ms,
-                now_ms, pe7_raw_high);
+                frame.confidence, frame.lateral_error, frame.curve_phase,
+                frame.slowdown_request_permille, arrival_ms, now_ms,
+                pe7_raw_high);
             dispatch_new_rx_faults(rx, control);
-        } else if (parser_length_before == (VP_FRAME_SIZE - 1u)) {
-            note_protocol_error(rx, control, 0u, now_ms);
+        } else if ((parser_status = vp_parser_last_status(&rx->parser)) !=
+                   VP_STATUS_NONE) {
+            note_parser_status(rx, control, parser_status,
+                               vp_parser_last_version(&rx->parser),
+                               0u, now_ms);
             dispatch_new_rx_faults(rx, control);
-            return;
+            discard_until_sync = 1u;
         }
 
         if (rx->parser.length != 0u) {

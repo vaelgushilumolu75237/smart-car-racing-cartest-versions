@@ -76,6 +76,8 @@ struct WireVector {
     uint8_t confidence = 0;
     int16_t error = 0;
     uint8_t slope_hint = 0;
+    uint8_t curve_phase = VP_CURVE_PHASE_STRAIGHT;
+    uint16_t slowdown_request_permille = 0u;
     std::array<uint8_t, VP_FRAME_SIZE> bytes{};
 };
 
@@ -229,7 +231,7 @@ bool parse_csv_vectors(const char *path)
             continue;
         }
         std::stringstream row(line);
-        std::array<std::string, 7> fields{};
+        std::array<std::string, 9> fields{};
         for (std::string &field : fields) {
             if (!std::getline(row, field, ',')) {
                 std::printf("FAIL malformed CSV row: %s\n", line.c_str());
@@ -244,20 +246,30 @@ bool parse_csv_vectors(const char *path)
             vector.confidence = static_cast<uint8_t>(std::stoul(fields[3]));
             vector.error = static_cast<int16_t>(std::stoi(fields[4]));
             vector.slope_hint = static_cast<uint8_t>(std::stoul(fields[5]));
+            vector.curve_phase = static_cast<uint8_t>(std::stoul(fields[6]));
+            vector.slowdown_request_permille = static_cast<uint16_t>(
+                std::stoul(fields[7]));
             if (vector.slope_hint > 1u ||
-                (vector.valid == 0u && vector.slope_hint != 0u)) {
-                std::printf("FAIL invalid slope hint in vector: %s\n",
+                vector.curve_phase > VP_CURVE_PHASE_MAX ||
+                vector.slowdown_request_permille >
+                    VP_MAX_SLOWDOWN_REQUEST_PERMILLE ||
+                (vector.valid == 0u &&
+                 (vector.confidence != 0u || vector.error != 0 ||
+                  vector.slope_hint != 0u ||
+                  vector.curve_phase != VP_CURVE_PHASE_STRAIGHT ||
+                  vector.slowdown_request_permille != 0u))) {
+                std::printf("FAIL invalid V2 fields in vector: %s\n",
                             vector.name.c_str());
                 return false;
             }
-            if (fields[6].size() != VP_FRAME_SIZE * 2u) {
+            if (fields[8].size() != VP_FRAME_SIZE * 2u) {
                 std::printf("FAIL wrong hex byte count in vector: %s\n",
                             vector.name.c_str());
                 return false;
             }
             for (size_t i = 0; i < VP_FRAME_SIZE; ++i) {
                 vector.bytes[i] = static_cast<uint8_t>(
-                    std::stoul(fields[6].substr(i * 2u, 2u), nullptr, 16));
+                    std::stoul(fields[8].substr(i * 2u, 2u), nullptr, 16));
             }
             g_vectors.push_back(vector);
         } catch (const std::exception &exception) {
@@ -266,8 +278,8 @@ bool parse_csv_vectors(const char *path)
             return false;
         }
     }
-    if (!input.eof() || g_vectors.size() != 10u) {
-        std::printf("FAIL shared vector file must contain exactly ten rows; found %zu\n",
+    if (!input.eof() || g_vectors.size() != 13u) {
+        std::printf("FAIL shared V2 vector file must contain exactly thirteen rows; found %zu\n",
                     g_vectors.size());
         return false;
     }
@@ -476,7 +488,9 @@ vp_frame make_wire_frame(uint16_t sequence,
                          bool valid = true,
                          uint8_t confidence = 80u,
                          int16_t error = 0,
-                         bool slope_hint = false)
+                         bool slope_hint = false,
+                         uint8_t curve_phase = VP_CURVE_PHASE_STRAIGHT,
+                         uint16_t slowdown_request_permille = 0u)
 {
     vp_frame frame{};
     frame.sequence = sequence;
@@ -484,6 +498,8 @@ vp_frame make_wire_frame(uint16_t sequence,
                   (slope_hint ? VP_FLAG_SLOPE_HINT : 0u);
     frame.confidence = confidence;
     frame.lateral_error = error;
+    frame.curve_phase = curve_phase;
+    frame.slowdown_request_permille = slowdown_request_permille;
     return frame;
 }
 
@@ -594,6 +610,13 @@ bool pack_frame(const vp_frame &frame,
     return vp_pack(&frame, bytes->data()) != 0u;
 }
 
+void refresh_wire_crc(std::array<uint8_t, VP_FRAME_SIZE> *bytes)
+{
+    const uint16_t crc = vp_crc16_ccitt_false(bytes->data() + 2u, 12u);
+    (*bytes)[14] = static_cast<uint8_t>(crc & 0xFFu);
+    (*bytes)[15] = static_cast<uint8_t>(crc >> 8u);
+}
+
 void enqueue_frame(car_vision_rx_t *rx,
                    const vp_frame &frame,
                    uint32_t arrival_ms,
@@ -684,7 +707,7 @@ void start_bench_with_fresh_frame_at(car_control_t *control,
 
 void test_shared_protocol_vectors()
 {
-    CHECK_EQ("ten shared vectors loaded", g_vectors.size(), 10u);
+    CHECK_EQ("thirteen shared V2 vectors loaded", g_vectors.size(), 13u);
     for (const WireVector &vector : g_vectors) {
         vp_frame frame{};
         frame.sequence = vector.sequence;
@@ -692,6 +715,9 @@ void test_shared_protocol_vectors()
                       (vector.slope_hint != 0u ? VP_FLAG_SLOPE_HINT : 0u);
         frame.confidence = vector.confidence;
         frame.lateral_error = vector.error;
+        frame.curve_phase = vector.curve_phase;
+        frame.slowdown_request_permille =
+            vector.slowdown_request_permille;
 
         std::array<uint8_t, VP_FRAME_SIZE> packed{};
         CHECK(vp_pack(&frame, packed.data()) != 0u, vector.name.c_str());
@@ -707,6 +733,11 @@ void test_shared_protocol_vectors()
                      (vector.slope_hint != 0u ? VP_FLAG_SLOPE_HINT : 0u));
         CHECK_EQ("shared vector confidence", decoded.confidence, vector.confidence);
         CHECK_EQ("shared vector lateral error", decoded.lateral_error, vector.error);
+        CHECK_EQ("shared vector curve phase", decoded.curve_phase,
+                 vector.curve_phase);
+        CHECK_EQ("shared vector slowdown request",
+                 decoded.slowdown_request_permille,
+                 vector.slowdown_request_permille);
     }
 }
 
@@ -1788,15 +1819,52 @@ void test_protocol_validation_and_crc()
     frame = make_wire_frame(2u, false, 1u, 0);
     CHECK_EQ("invalid frame must zero confidence rejected", vp_pack(&frame, output), 0u);
 
-    CHECK_EQ("all-zero invalid vector remains protocol-valid",
-             vp_unpack(g_vectors[5].bytes.data(), &frame), 1u);
-    std::array<uint8_t, VP_FRAME_SIZE> corrupt = g_vectors[9].bytes;
-    corrupt[10] ^= 0x01u;
-    CHECK_EQ("CRC-corrupted slope hint frame rejected",
-             vp_unpack(corrupt.data(), &frame), 0u);
+    CHECK_EQ("invalid sequence 65535 vector remains protocol-valid",
+             vp_unpack(g_vectors[8].bytes.data(), &frame), 1u);
+    CHECK_EQ("invalid sequence is preserved for transport liveness",
+             frame.sequence, 65535u);
+    CHECK_EQ("invalid sequence wrap to zero remains protocol-valid",
+             vp_unpack(g_vectors[9].bytes.data(), &frame), 1u);
+    CHECK_EQ("wrapped invalid sequence is preserved", frame.sequence, 0u);
+
+    vp_frame invalid = make_wire_frame(65535u, false, 0u, 0);
+    CHECK_EQ("invalid frame with transport sequence packs",
+             vp_pack(&invalid, output), 1u);
+    CHECK_EQ("invalid frame with transport sequence unpacks",
+             vp_unpack(output, &frame), 1u);
+    CHECK_EQ("invalid frame keeps its transport sequence", frame.sequence,
+             65535u);
+
+    std::array<uint8_t, VP_FRAME_SIZE> corrupt = g_vectors[3].bytes;
+    corrupt[14] ^= 0x01u;
+    CHECK_EQ("CRC-corrupted V2 frame rejected",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_BAD_CRC);
     corrupt = g_vectors[0].bytes;
-    corrupt[2] = static_cast<uint8_t>(VP_VERSION + 1u);
-    CHECK_EQ("unsupported protocol version rejected", vp_unpack(corrupt.data(), &frame), 0u);
+    corrupt[2] = VP_VERSION_V1;
+    CHECK_EQ("V1 frame is explicitly diagnosed as a version mismatch",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_VERSION_MISMATCH);
+
+    corrupt = g_vectors[0].bytes;
+    corrupt[11] = 1u;
+    refresh_wire_crc(&corrupt);
+    CHECK_EQ("nonzero reserved byte is rejected",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_BAD_HEADER);
+    corrupt = g_vectors[0].bytes;
+    corrupt[10] = 4u;
+    refresh_wire_crc(&corrupt);
+    CHECK_EQ("reserved curve phase is rejected",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_BAD_FIELDS);
+    corrupt = g_vectors[0].bytes;
+    corrupt[12] = 0xE9u;
+    corrupt[13] = 0x03u;  // 1001 permille
+    refresh_wire_crc(&corrupt);
+    CHECK_EQ("slowdown above 1000 permille is rejected",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_BAD_FIELDS);
+    corrupt = g_vectors[8].bytes;
+    corrupt[7] = 1u;
+    refresh_wire_crc(&corrupt);
+    CHECK_EQ("invalid observation with nonzero confidence is rejected",
+             vp_unpack_ex(corrupt.data(), &frame), VP_STATUS_BAD_FIELDS);
 }
 
 void test_parser_split_concatenation_and_resync()
@@ -1823,7 +1891,8 @@ void test_parser_split_concatenation_and_resync()
             produced += vp_parser_feed(&parser, byte, &decoded);
         }
     }
-    CHECK_EQ("nine adjacent frames all parsed", produced, g_vectors.size());
+    CHECK_EQ("all adjacent valid and invalid V2 frames parse",
+             produced, g_vectors.size());
     CHECK_EQ("parser ends between frames", parser.length, 0u);
 
     vp_parser_init(&parser);
@@ -1841,10 +1910,12 @@ void test_parser_split_concatenation_and_resync()
     vp_parser_init(&parser);
     produced = 0u;
     std::array<uint8_t, VP_FRAME_SIZE> bad = g_vectors[0].bytes;
-    bad[11] ^= 0x80u;
+    bad[14] ^= 0x80u;
     for (uint8_t byte : bad) {
         produced += vp_parser_feed(&parser, byte, &decoded);
     }
+    CHECK_EQ("bad frame CRC has explicit parser classification",
+             vp_parser_last_status(&parser), VP_STATUS_BAD_CRC);
     for (uint8_t byte : g_vectors[2].bytes) {
         produced += vp_parser_feed(&parser, byte, &decoded);
     }
@@ -1853,11 +1924,30 @@ void test_parser_split_concatenation_and_resync()
 
     vp_parser_init(&parser);
     produced = 0u;
-    for (uint8_t byte : g_vectors[8].bytes) {
+    for (uint8_t byte : g_vectors[10].bytes) {
         produced += vp_parser_feed(&parser, byte, &decoded);
     }
     CHECK_EQ("sync bytes embedded in sequence do not break parsing", produced, 1u);
     CHECK_EQ("embedded sync sequence decoded", decoded.sequence, 0x5AA5u);
+
+    vp_parser_init(&parser);
+    const uint8_t v1_prefix[] = {VP_SYNC_BYTE_0, VP_SYNC_BYTE_1,
+                                 VP_VERSION_V1};
+    for (uint8_t byte : v1_prefix) {
+        (void)vp_parser_feed(&parser, byte, &decoded);
+    }
+    CHECK_EQ("stream parser diagnoses V1 as soon as version byte arrives",
+             vp_parser_last_status(&parser), VP_STATUS_VERSION_MISMATCH);
+    CHECK_EQ("stream parser preserves mismatched version for diagnosis",
+             vp_parser_last_version(&parser), VP_VERSION_V1);
+    CHECK_EQ("V1 prefix does not remain as a partial V2 frame", parser.length,
+             0u);
+    produced = 0u;
+    for (uint8_t byte : g_vectors[0].bytes) {
+        produced += vp_parser_feed(&parser, byte, &decoded);
+    }
+    CHECK_EQ("valid V2 frame recovers immediately after V1 mismatch",
+             produced, 1u);
 }
 
 void test_default_boot_and_switch_do_not_drive()
@@ -3346,11 +3436,8 @@ void test_raw_rx_is_diagnostic_and_flush_preserves_new_uart_error()
 
     std::array<uint8_t, VP_FRAME_SIZE> bad_format{};
     CHECK(pack_frame(make_wire_frame(22u, true, 90u, -250), &bad_format),
-          "pack format rejection fixture");
-    bad_format[2] = static_cast<uint8_t>(VP_VERSION + 1u);
-    const uint16_t bad_format_crc = vp_crc16_ccitt_false(bad_format.data() + 2, 8u);
-    bad_format[10] = static_cast<uint8_t>(bad_format_crc & 0xFFu);
-    bad_format[11] = static_cast<uint8_t>(bad_format_crc >> 8u);
+          "pack version rejection fixture");
+    bad_format[2] = VP_VERSION_V1;
     car_control_t bad_format_control{};
     car_vision_rx_t bad_format_rx{};
     car_control_init(&bad_format_control, &config, 0u, 1u, 0u);
@@ -3648,23 +3735,24 @@ void test_uart_fifo_service_batches_errors_and_follow_recovery()
     CHECK_EQ("two-byte batch keeps first byte", two.accepted[0], 0x11u);
     CHECK_EQ("two-byte batch keeps second byte", two.accepted[1], 0x12u);
 
-    UartFifoMock twelve{};
+    UartFifoMock frame_batch{};
     const vp_frame expected_frame = make_wire_frame(73u, true, 91u, -327);
     std::array<uint8_t, VP_FRAME_SIZE> expected_wire{};
-    CHECK_EQ("valid V1 frame packs for FIFO ordering test",
+    CHECK_EQ("valid V2 frame packs for FIFO ordering test",
              vp_pack(&expected_frame, expected_wire.data()), 1u);
-    twelve.fifo.assign(expected_wire.begin(), expected_wire.end());
-    CHECK_EQ("twelve queued RX bytes are drained in one service call",
-             drain(&twelve).bytes_drained, 12u);
-    CHECK_EQ("twelve-byte batch preserves every byte", twelve.accepted.size(), 12u);
+    frame_batch.fifo.assign(expected_wire.begin(), expected_wire.end());
+    CHECK_EQ("sixteen queued RX bytes are drained in one service call",
+             drain(&frame_batch).bytes_drained, VP_FRAME_SIZE);
+    CHECK_EQ("sixteen-byte batch preserves every byte",
+             frame_batch.accepted.size(), VP_FRAME_SIZE);
     vp_frame decoded_frame{};
-    CHECK_EQ("drained bytes match packed V1 wire order",
-             twelve.accepted.size() == expected_wire.size() &&
-                 std::equal(twelve.accepted.begin(), twelve.accepted.end(),
+    CHECK_EQ("drained bytes match packed V2 wire order",
+             frame_batch.accepted.size() == expected_wire.size() &&
+                 std::equal(frame_batch.accepted.begin(), frame_batch.accepted.end(),
                             expected_wire.begin()),
              1u);
-    CHECK_EQ("drained twelve-byte FIFO payload passes CRC unpack",
-             vp_unpack(twelve.accepted.data(), &decoded_frame), 1u);
+    CHECK_EQ("drained sixteen-byte FIFO payload passes CRC unpack",
+             vp_unpack(frame_batch.accepted.data(), &decoded_frame), 1u);
     CHECK_EQ("FIFO parser input retains frame sequence", decoded_frame.sequence,
              expected_frame.sequence);
     CHECK_EQ("FIFO parser input retains signed error", decoded_frame.lateral_error,
@@ -6892,7 +6980,7 @@ int main(int argc, char **argv)
         return emit_runtime_log_fixture(argv[2]) ? 0 : 1;
     }
 
-    if (!parse_csv_vectors("tests/data/vision-protocol-v1.csv")) {
+    if (!parse_csv_vectors("tests/data/vision-protocol-v2.csv")) {
         return 2;
     }
     if (!parse_reverse_vectors("openmv/tests/data/reverse-control-v1.csv")) {

@@ -21,6 +21,47 @@ def _sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _verify_compiled_outputs(entries):
+    validation_root = PROJECT_DIR / "test-data" / \
+        "speedpd-20261020-validation" / "camera" / "mpy-cross-armv7emsp"
+    compiled_paths = []
+    for item in entries:
+        compiled_relative = Path(item["compiled_validation_path"])
+        relative_text = compiled_relative.as_posix()
+        self_prefix = (
+            "test-data/speedpd-20261020-validation/camera/"
+            "mpy-cross-armv7emsp/")
+        if not relative_text.startswith(self_prefix):
+            raise AssertionError(
+                "compiled validation path is outside the named evidence tree: "
+                + relative_text)
+        if (compiled_relative.suffix != ".mpy" or
+                len(item["compiled_sha256"]) != 64 or
+                item["compiled_size_bytes"] <= 0):
+            raise AssertionError("invalid compiled-output metadata: " +
+                                 item["name"])
+        compiled_paths.append(PROJECT_DIR / compiled_relative)
+
+    present = [path.is_file() for path in compiled_paths]
+    if not any(present):
+        if validation_root.exists():
+            raise AssertionError(
+                "compiled validation tree exists but its .mpy outputs are missing")
+        return
+    if not all(present):
+        missing = [str(path) for path, exists in zip(compiled_paths, present)
+                   if not exists]
+        raise AssertionError("incomplete compiled validation outputs: " +
+                             ", ".join(missing))
+    for item, compiled in zip(entries, compiled_paths):
+        if compiled.stat().st_size != item["compiled_size_bytes"]:
+            raise AssertionError("compiled output size mismatch: " +
+                                 item["name"])
+        if _sha256(compiled) != item["compiled_sha256"]:
+            raise AssertionError("compiled output hash mismatch: " +
+                                 item["name"])
+
+
 class ProfilePackageTests(unittest.TestCase):
     def test_all_three_manifests_cover_complete_profile_matched_sources(self):
         source_names = sorted(path.name for path in OPENMV_DIR.glob("*.py"))
@@ -61,12 +102,7 @@ class ProfilePackageTests(unittest.TestCase):
                 self.assertEqual(source.stat().st_size, item["size_bytes"])
                 self.assertEqual(_sha256(source), item["sha256"])
                 self.assertEqual(item["mpy_cross_exit_code"], 0)
-                compiled = PROJECT_DIR / Path(
-                    item["compiled_validation_path"])
-                self.assertTrue(compiled.is_file(), item["name"])
-                self.assertEqual(compiled.stat().st_size,
-                                 item["compiled_size_bytes"])
-                self.assertEqual(_sha256(compiled), item["compiled_sha256"])
+            _verify_compiled_outputs(manifest["runtime_files"])
 
     def test_profile_identity_is_unique_and_other_runtime_sources_are_shared(self):
         manifests = {}

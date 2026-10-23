@@ -307,7 +307,7 @@ function Write-FailedStatus {
             $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
         }
     }
-    foreach ($pattern in @('runtime-log-header-*.bin', 'runtime-diagnostic-*.bin', 'speed-pi-diagnostic-*.bin')) {
+    foreach ($pattern in @('runtime-log-header-*.bin', 'runtime-diagnostic-*.bin', 'speed-pi-diagnostic-*.bin', 'ackermann-snapshot-*.bin', 'ackermann-generation-*.bin')) {
         foreach ($file in @(Get-ChildItem -LiteralPath $script:RunDirectory -Filter $pattern -File -ErrorAction SilentlyContinue)) {
             $rawFiles += [ordered]@{ path = $file.FullName; bytes = $file.Length }
         }
@@ -361,6 +361,9 @@ try {
         $speedPiDiagnosticDestination = '<diagnostic-directory>\speed-pi-diagnostic.bin'
         $receiveDiagnosticDestination = '<diagnostic-directory>\receive-diagnostic.bin'
         $speedPiTraceHeaderDestination = '<diagnostic-directory>\speed-pi-trace-header.bin'
+        $ackermannSnapshotDestination = '<diagnostic-directory>\ackermann-snapshot.bin'
+        $ackermannGenerationBeforeDestination = '<diagnostic-directory>\ackermann-generation-before.bin'
+        $ackermannGenerationAfterDestination = '<diagnostic-directory>\ackermann-generation-after.bin'
         $plannedReads = New-Object System.Collections.Generic.List[object]
         $plannedReads.Add([ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) })
         $plannedReads.Add([ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) })
@@ -376,6 +379,11 @@ try {
         }
         if ($plan.speed_pi_trace_snapshot.available) {
             $plannedReads.Add([ordered]@{ purpose = '64-byte generation/CRC-protected speed PI trace header'; arguments = @(Get-ReadArguments -Address $plan.speed_pi_trace_snapshot.address -Size 64 -Destination $speedPiTraceHeaderDestination) })
+        }
+        if ($plan.ackermann_snapshot.available) {
+            $plannedReads.Add([ordered]@{ purpose = '4-byte ACK1 generation guard before the coordination snapshot'; arguments = @(Get-ReadArguments -Address $plan.ackermann_snapshot.generation_read.address -Size 4 -Destination $ackermannGenerationBeforeDestination) })
+            $plannedReads.Add([ordered]@{ purpose = '64-byte CRC32-protected ACK1 coordination snapshot'; arguments = @(Get-ReadArguments -Address $plan.ackermann_snapshot.address -Size 64 -Destination $ackermannSnapshotDestination) })
+            $plannedReads.Add([ordered]@{ purpose = '4-byte ACK1 generation guard after the coordination snapshot'; arguments = @(Get-ReadArguments -Address $plan.ackermann_snapshot.generation_read.address -Size 4 -Destination $ackermannGenerationAfterDestination) })
         }
         $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header after diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerAfterDestination) })
         $result = [ordered]@{
@@ -426,6 +434,7 @@ try {
     $speedPiDiagnosticAvailable = [bool]$script:Plan.speed_pi_diagnostic_snapshot.available
     $receiveDiagnosticAvailable = [bool]$script:Plan.receive_diagnostic_snapshot.available
     $speedPiTraceAvailable = [bool]$script:Plan.speed_pi_trace_snapshot.available
+    $ackermannSnapshotAvailable = [bool]$script:Plan.ackermann_snapshot.available
     $decoded = $null
     $decodeFailure = $null
     for ($attempt = 1; $attempt -le 3; ++$attempt) {
@@ -436,6 +445,9 @@ try {
         $speedPiDiagnosticPath = Join-Path $script:RunDirectory ("speed-pi-diagnostic-{0}.bin" -f $suffix)
         $receiveDiagnosticPath = Join-Path $script:RunDirectory ("receive-diagnostic-{0}.bin" -f $suffix)
         $speedPiTraceHeaderPath = Join-Path $script:RunDirectory ("speed-pi-trace-header-{0}.bin" -f $suffix)
+        $ackermannSnapshotPath = Join-Path $script:RunDirectory ("ackermann-snapshot-{0}.bin" -f $suffix)
+        $ackermannGenerationBeforePath = Join-Path $script:RunDirectory ("ackermann-generation-before-{0}.bin" -f $suffix)
+        $ackermannGenerationAfterPath = Join-Path $script:RunDirectory ("ackermann-generation-after-{0}.bin" -f $suffix)
         Invoke-StatusRead -Tag ("header-before-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerBeforePath
         if ($diagnosticAvailable) {
@@ -453,6 +465,14 @@ try {
         if ($speedPiTraceAvailable) {
             Invoke-StatusRead -Tag ("speed-pi-trace-header-{0}" -f $suffix) `
                 -Address $script:Plan.speed_pi_trace_snapshot.address -Size 64 -Destination $speedPiTraceHeaderPath
+        }
+        if ($ackermannSnapshotAvailable) {
+            Invoke-StatusRead -Tag ("ackermann-generation-before-{0}" -f $suffix) `
+                -Address $script:Plan.ackermann_snapshot.generation_read.address -Size 4 -Destination $ackermannGenerationBeforePath
+            Invoke-StatusRead -Tag ("ackermann-snapshot-{0}" -f $suffix) `
+                -Address $script:Plan.ackermann_snapshot.address -Size 64 -Destination $ackermannSnapshotPath
+            Invoke-StatusRead -Tag ("ackermann-generation-after-{0}" -f $suffix) `
+                -Address $script:Plan.ackermann_snapshot.generation_read.address -Size 4 -Destination $ackermannGenerationAfterPath
         }
         Invoke-StatusRead -Tag ("header-after-{0}" -f $suffix) `
             -Address $script:Plan.header_read.address -Size 64 -Destination $headerAfterPath
@@ -473,6 +493,11 @@ try {
         }
         if ($speedPiTraceAvailable) {
             $decodeArguments += @('--speed-pi-trace-header', $speedPiTraceHeaderPath)
+        }
+        if ($ackermannSnapshotAvailable) {
+            $decodeArguments += @('--ackermann-snapshot', $ackermannSnapshotPath,
+                '--ackermann-generation-before', $ackermannGenerationBeforePath,
+                '--ackermann-generation-after', $ackermannGenerationAfterPath)
         }
         $script:Stage = "decode-snapshot-attempt-$suffix"
         try {
@@ -526,7 +551,10 @@ try {
     $diagState = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.cpu_header_state_name } else { 'unavailable-legacy-ELF' }
     $diagCount = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.cpu_header_count } else { $null }
     $startToken = if ($decoded.runtime_diagnostic_snapshot) { $decoded.runtime_diagnostic_snapshot.start_token } else { $null }
-    Write-Output ("Status: {0}; logVersion={1}; CPU logger={2}, header={3}, enabled={4}, CPU count={5}, header count={6}, start events={7}, start token={8}; heartbeat_ms={9}; mode={10}, fault={11}, iwdgReset={12}; holdSnapshot={13}; activeProgress={14}" -f $decoded.status_class, $version, $diagState, $state, $enabled, $diagCount, $count, $starts, $startToken, $heartbeat, $mode, $fault, $resetFlag, $snapshot, $decoded.observing_active_progress)
+    $ack = $decoded.ackermann_snapshot
+    $ackStatus = if ($ack) { $ack.status } else { 'unavailable-legacy-ELF' }
+    $ackError = if ($ack -and $ack.error_class) { $ack.error_class } else { 'none' }
+    Write-Output ("Status: {0}; logVersion={1}; CPU logger={2}, header={3}, enabled={4}, CPU count={5}, header count={6}, start events={7}, start token={8}; heartbeat_ms={9}; mode={10}, fault={11}, iwdgReset={12}; holdSnapshot={13}; activeProgress={14}; ACK1={15}/{16}" -f $decoded.status_class, $version, $diagState, $state, $enabled, $diagCount, $count, $starts, $startToken, $heartbeat, $mode, $fault, $resetFlag, $snapshot, $decoded.observing_active_progress, $ackStatus, $ackError)
     Write-Output ("Target probe={0}; requested SWD={1} kHz; requested SWD rate reported by probe={2} kHz; shared={3}; CSV created={4}" -f $script:SelectedProbeSN, $ConnectionFrequencyKhz, $script:ActualFrequencyKhz, [bool]$script:SharedConnectionValue, $decoded.csv_created)
     if ($decoded.status_class -in @('neverstarted', 'legacy_idle')) { Write-Output 'IDLE: no run records are available; this status tool does not create a CSV.' }
     if ($decoded.status_class -in @('active', 'legacy_active')) { Write-Output 'ACTIVE: the logger is still recording; wait for the vehicle stop path to freeze the log before export.' }
@@ -546,6 +574,10 @@ try {
     if ($decoded.speed_pi_trace_header) {
         $trace = $decoded.speed_pi_trace_header
         Write-Output ("PI trace: state={0}; type={1}; token={2}; count={3}; total={4}; lost={5}; build-id={6}" -f $trace.state_name, $trace.pi_type_name, $trace.start_token, $trace.count, $trace.total_samples, $trace.lost_samples, $trace.build_id)
+    }
+    if ($decoded.ackermann_snapshot) {
+        $ack = $decoded.ackermann_snapshot
+        Write-Output ("ACK1 snapshot: status={0}; valid={1}; exportable={2}; generation={3}; phase={4}; slowdown_request_permille={5}; frozen={6}; session_active={7}" -f $ack.status, $ack.valid, $ack.exportable, $ack.generation, $ack.curve_phase_name, $ack.slowdown_request_permille, $ack.frozen, $ack.session_active)
     }
     foreach ($warning in @($decoded.warnings)) { Write-Output ("Warning: {0}" -f $warning) }
     Write-Output ("Diagnostic JSON: {0}" -f (Join-Path $script:RunDirectory 'run-status.json'))

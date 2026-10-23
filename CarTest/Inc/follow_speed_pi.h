@@ -55,6 +55,11 @@ typedef struct {
     uint16_t nominal_right_permille;
     uint16_t applied_left_permille;
     uint16_t applied_right_permille;
+    /* Optional wheel-speed target pair. When false, retain the legacy target
+       derived from the nominal duty pair. */
+    uint8_t target_override_valid;
+    int32_t target_left_millirps;
+    int32_t target_right_millirps;
 } car_follow_speed_pi_input_t;
 
 typedef struct {

@@ -11,10 +11,12 @@ record payload is read here.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import struct
 import sys
+import tempfile
 import zlib
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Tuple
@@ -126,6 +128,22 @@ RECEIVE_DIAGNOSTIC_KNOWN_FLAGS = (
 )
 D2_SRAM_START = 0x30000000
 D2_SRAM_END = 0x30020000
+ACKERMANN_SNAPSHOT_SYMBOL = "g_ackermann_snapshot"
+ACKERMANN_SNAPSHOT_MAGIC = b"ACK1"
+ACKERMANN_SNAPSHOT_VERSION = 1
+ACKERMANN_SNAPSHOT_SIZE = 64
+ACKERMANN_SNAPSHOT_CRC_OFFSET = 60
+ACKERMANN_SNAPSHOT_KNOWN_FLAGS = 0x003F
+ACKERMANN_PHASE_NAMES = {
+    0: "straight", 1: "candidate", 2: "turn", 3: "exit",
+}
+ACKERMANN_RUN_STATE_NAMES = {
+    0: "boot_safe", 1: "wait_switch_release", 2: "wait_local_ack",
+    3: "wait_new_frame", 4: "wait_start_release", 5: "wait_start_edge",
+    6: "bench_running", 7: "bench_complete", 8: "fault_latched",
+    9: "recovery_wait", 10: "follow_running", 11: "debug_steering_running",
+    12: "follow_vision_hold",
+}
 
 
 class StatusReadError(ValueError):
@@ -321,6 +339,18 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
     speed_pi_trace_plan = _optional_ram_snapshot_plan(
         symbols, sections, SPEED_PI_TRACE_SYMBOL, ".speed_pi_trace",
         SPEED_PI_TRACE_SIZE, D2_SRAM_START, D2_SRAM_END)
+    ackermann_snapshot_plan = _optional_ram_snapshot_plan(
+        symbols, sections, ACKERMANN_SNAPSHOT_SYMBOL,
+        ".ackermann_snapshot", ACKERMANN_SNAPSHOT_SIZE,
+        D1_SRAM_START, D1_SRAM_END)
+    if ackermann_snapshot_plan["available"]:
+        generation_address = ackermann_snapshot_plan["address_u32"] + 8
+        ackermann_snapshot_plan["generation_read"] = {
+            "address": _hex(generation_address),
+            "address_u32": generation_address,
+            "size": 4,
+            "field_offset": 8,
+        }
 
     return {
         "elf_path": str(layout.path),
@@ -356,6 +386,7 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         "speed_pi_diagnostic_snapshot": speed_pi_diagnostic_plan,
         "receive_diagnostic_snapshot": receive_diagnostic_plan,
         "speed_pi_trace_snapshot": speed_pi_trace_plan,
+        "ackermann_snapshot": ackermann_snapshot_plan,
         "record_area_read": False,
     }
 
@@ -889,6 +920,209 @@ def _classify_legacy_headers(header_before: Dict[str, Any],
     return "legacy_inconsistent", warnings + ["Legacy runtime-log headers are inconsistent"]
 
 
+def decode_ackermann_snapshot(raw: bytes,
+                              generation_before: bytes | None = None,
+                              generation_after: bytes | None = None) -> Dict[str, Any]:
+    """Validate and decode one ACK1/v1 seqlock snapshot.
+
+    A stable even generation may be zero after uint32 wrap. Only an all-zero
+    64-byte image denotes an uninitialized section. A caller requiring a
+    frozen export must also compare two separate raw reads byte-for-byte.
+    """
+    if len(raw) != ACKERMANN_SNAPSHOT_SIZE:
+        _fail("ACKERMANN_SNAPSHOT_BAD_SIZE: expected 64 bytes, got {}".format(len(raw)))
+    if not any(raw):
+        return {
+            "available": True, "initialized": False, "valid": False,
+            "exportable": False, "status": "uninitialized",
+            "error_class": "ackermann_snapshot_uninitialized",
+            "issues": ["snapshot RAM is blank; no ACK1 magic or CRC"],
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "raw_hex": raw.hex(),
+        }
+
+    flags = struct.unpack_from("<H", raw, 6)[0]
+    generation = struct.unpack_from("<I", raw, 8)[0]
+    timestamp_ms = struct.unpack_from("<I", raw, 12)[0]
+    vision_sequence = struct.unpack_from("<H", raw, 16)[0]
+    phase = raw[18]
+    slowdown = struct.unpack_from("<H", raw, 20)[0]
+    model_angle = struct.unpack_from("<h", raw, 24)[0]
+    ratio_q15 = struct.unpack_from("<H", raw, 26)[0]
+    applied_delta = struct.unpack_from("<h", raw, 28)[0]
+    servo_pulse = struct.unpack_from("<H", raw, 30)[0]
+    fastest_target, left_target, right_target, left_measured, right_measured = \
+        struct.unpack_from("<5i", raw, 32)
+    left_duty, right_duty = struct.unpack_from("<2H", raw, 52)
+    run_state = raw[56]
+    fault_reason = raw[57]
+    observed_crc = struct.unpack_from("<I", raw, ACKERMANN_SNAPSHOT_CRC_OFFSET)[0]
+    expected_crc = zlib.crc32(raw[:ACKERMANN_SNAPSHOT_CRC_OFFSET]) & 0xFFFFFFFF
+    coord_enabled = bool(flags & (1 << 0))
+    request_active = bool(flags & (1 << 1))
+    in_hold = bool(flags & (1 << 2))
+    fault_locked = bool(flags & (1 << 3))
+    session_active = bool(flags & (1 << 4))
+    frozen = bool(flags & (1 << 5))
+
+    issues: list[str] = []
+    if raw[:4] != ACKERMANN_SNAPSHOT_MAGIC:
+        issues.append("magic is not ACK1")
+    if raw[4] != ACKERMANN_SNAPSHOT_VERSION:
+        issues.append("version is not 1")
+    if raw[5] != ACKERMANN_SNAPSHOT_SIZE:
+        issues.append("size is not 64")
+    if flags & ~ACKERMANN_SNAPSHOT_KNOWN_FLAGS:
+        issues.append("flags contain reserved bits")
+    if raw[19] != 0 or struct.unpack_from("<H", raw, 22)[0] != 0 or \
+            struct.unpack_from("<H", raw, 58)[0] != 0:
+        issues.append("reserved bytes/words are nonzero")
+    if observed_crc != expected_crc:
+        issues.append("CRC-32/ISO-HDLC over bytes 0..59 does not match")
+    if phase > 3:
+        issues.append("curve phase is outside 0..3")
+    if slowdown > 1000:
+        issues.append("slowdown request is outside 0..1000 permille")
+    if left_duty > 1000 or right_duty > 1000:
+        issues.append("motor duty is outside 0..1000 permille")
+    if run_state > 12:
+        issues.append("run_state is outside 0..12")
+    if fault_reason > 15:
+        issues.append("fault_reason is outside 0..15")
+    if generation & 1:
+        issues.append("generation is odd, indicating a write in progress")
+    for label, raw_generation in (("before", generation_before),
+                                  ("after", generation_after)):
+        if raw_generation is not None:
+            if len(raw_generation) != 4:
+                issues.append("{} generation guard read is not 4 bytes".format(label))
+            elif struct.unpack("<I", raw_generation)[0] != generation:
+                issues.append("{} generation guard does not match snapshot generation".format(label))
+    if frozen and session_active:
+        issues.append("frozen snapshot also marks the session active")
+
+    stable = not bool(generation & 1)
+    valid = not issues
+    if not stable or any("generation guard" in issue for issue in issues):
+        status = "unstable"
+        error_class = "ackermann_snapshot_unstable"
+    elif issues:
+        status = "invalid"
+        error_class = "ackermann_snapshot_invalid"
+    elif frozen:
+        status = "frozen"
+        error_class = None
+    elif session_active:
+        status = "active"
+        error_class = "ackermann_snapshot_not_frozen"
+    else:
+        status = "inactive"
+        error_class = "ackermann_snapshot_not_frozen"
+
+    return {
+        "available": True,
+        "initialized": True,
+        "valid": valid,
+        "stable": stable,
+        "exportable": bool(valid and frozen and not session_active),
+        "status": status,
+        "error_class": error_class,
+        "issues": issues,
+        "magic": raw[:4].decode("ascii", errors="replace"),
+        "version": raw[4],
+        "size": raw[5],
+        "flags": flags,
+        "coord_enabled": coord_enabled,
+        "request_active": request_active,
+        "in_hold": in_hold,
+        "fault_locked": fault_locked,
+        "session_active": session_active,
+        "frozen": frozen,
+        "generation": generation,
+        "timestamp_ms": timestamp_ms,
+        "vision_sequence": vision_sequence,
+        "curve_phase": phase,
+        "curve_phase_name": ACKERMANN_PHASE_NAMES.get(phase, "reserved"),
+        "slowdown_request_permille": slowdown,
+        "model_angle_cdeg": model_angle,
+        "ratio_q15": ratio_q15,
+        "applied_pwm_delta_us": applied_delta,
+        "servo_pulse_us": servo_pulse,
+        "fastest_target_mRPS": fastest_target,
+        "left_target_mRPS": left_target,
+        "right_target_mRPS": right_target,
+        "left_measured_mRPS": left_measured,
+        "right_measured_mRPS": right_measured,
+        "left_duty_permille": left_duty,
+        "right_duty_permille": right_duty,
+        "run_state": run_state,
+        "run_state_name": ACKERMANN_RUN_STATE_NAMES.get(run_state, "unknown"),
+        "fault_reason": fault_reason,
+        "fault_reason_name": exporter.FAULT_NAMES.get(fault_reason, "unknown"),
+        "crc32": observed_crc,
+        "crc32_expected": expected_crc,
+        "raw_sha256": hashlib.sha256(raw).hexdigest(),
+        "raw_hex": raw.hex(),
+    }
+
+
+def export_ackermann_snapshot(raw_path: str | Path, out_csv: str | Path,
+                              metadata_path: str | Path | None = None) -> Dict[str, Any]:
+    """Write exactly one CSV data row, and only for a valid frozen snapshot."""
+    raw = Path(raw_path).read_bytes()
+    decoded = decode_ackermann_snapshot(raw)
+    if not decoded["exportable"]:
+        _fail("ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:{}:{}".format(
+            decoded["error_class"] or decoded["status"],
+            "; ".join(decoded["issues"])))
+    columns = (
+        "magic", "version", "size", "flags", "coord_enabled",
+        "request_active", "in_hold", "fault_locked", "session_active",
+        "frozen", "generation", "timestamp_ms", "vision_sequence",
+        "curve_phase", "curve_phase_name", "slowdown_request_permille",
+        "model_angle_cdeg", "ratio_q15", "applied_pwm_delta_us",
+        "servo_pulse_us", "fastest_target_mRPS", "left_target_mRPS",
+        "right_target_mRPS", "left_measured_mRPS", "right_measured_mRPS",
+        "left_duty_permille", "right_duty_permille", "run_state",
+        "run_state_name", "fault_reason", "fault_reason_name", "crc32",
+        "raw_sha256", "raw_hex",
+    )
+    destination = Path(out_csv)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="",
+                                         dir=str(destination.parent),
+                                         prefix=destination.name + ".",
+                                         suffix=".tmp", delete=False) as stream:
+            temp_path = Path(stream.name)
+            writer = csv.DictWriter(stream, fieldnames=columns, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerow(decoded)
+        temp_path.replace(destination)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
+    result = {
+        "schema_version": 1,
+        "snapshot_kind": "ACK1/v1/64B",
+        "status": "verified",
+        "error_class": None,
+        "csv_created": True,
+        "row_count": 1,
+        "csv_path": str(destination.resolve()),
+        "csv_bytes": destination.stat().st_size,
+        "decoded": decoded,
+    }
+    if metadata_path is not None:
+        metadata_destination = Path(metadata_path)
+        metadata_destination.parent.mkdir(parents=True, exist_ok=True)
+        metadata_destination.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
+                                        encoding="utf-8")
+        result["metadata_path"] = str(metadata_destination.resolve())
+    return result
+
+
 def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                     header_path: str | Path,
                     descriptor_path: str | Path | None = None,
@@ -896,7 +1130,10 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                     diagnostic_path: str | Path | None = None,
                     speed_pi_diagnostic_path: str | Path | None = None,
                     receive_diagnostic_path: str | Path | None = None,
-                    speed_pi_trace_header_path: str | Path | None = None) -> Dict[str, Any]:
+                    speed_pi_trace_header_path: str | Path | None = None,
+                    ackermann_snapshot_path: str | Path | None = None,
+                    ackermann_generation_before_path: str | Path | None = None,
+                    ackermann_generation_after_path: str | Path | None = None) -> Dict[str, Any]:
     plan = build_plan(elf_path)
     flash_descriptor = None
     if descriptor_path is not None:
@@ -1053,6 +1290,23 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     elif speed_pi_trace_header_path is not None:
         _fail("A speed PI trace header was supplied for an ELF without g_speed_pi_trace")
 
+    ackermann_snapshot = None
+    ackermann_plan = plan["ackermann_snapshot"]
+    if ackermann_plan["available"]:
+        if ackermann_snapshot_path is None:
+            _fail("Selected ELF contains g_ackermann_snapshot but no snapshot upload was supplied")
+        if (ackermann_generation_before_path is None or
+                ackermann_generation_after_path is None):
+            _fail("Selected ELF contains g_ackermann_snapshot but no before/after generation guard reads were supplied")
+        ackermann_snapshot = decode_ackermann_snapshot(
+            Path(ackermann_snapshot_path).read_bytes(),
+            Path(ackermann_generation_before_path).read_bytes(),
+            Path(ackermann_generation_after_path).read_bytes())
+    elif any(path is not None for path in (
+            ackermann_snapshot_path, ackermann_generation_before_path,
+            ackermann_generation_after_path)):
+        _fail("ACK1 snapshot uploads were supplied for an ELF without g_ackermann_snapshot")
+
     consistency_warnings = [
         "Scalar region, diagnostics, and runtime-log headers use separate SWD uploads; "
         "the runtime headers bracket the CRC-protected snapshots."
@@ -1060,6 +1314,9 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     warnings = list(header["warnings"]) + list(header_after["warnings"]) + consistency_warnings
     warnings.extend(diagnostic_warnings)
     warnings.extend(speed_pi_warnings)
+    if ackermann_snapshot is not None and not ackermann_snapshot["valid"]:
+        warnings.append("ACK1 coordination snapshot is {}: {}".format(
+            ackermann_snapshot["status"], "; ".join(ackermann_snapshot["issues"])))
     if receive_diagnostic is not None:
         warnings.append(
             "Receive diagnostics count parser-accepted frames (including invalid observations); "
@@ -1080,9 +1337,10 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "flash_descriptor": flash_descriptor,
         "observing_active_progress": active_progress,
         "consistency_note": (
-            "The 64-byte runtime, 128-byte speed PI, 96-byte receive, and 64-byte PI trace "
-            "header snapshots are separate generation/CRC-protected SWD reads, bracketed "
-            "by runtime-log headers. Receive windows are independently sampled and carry "
+            "The 64-byte runtime, 128-byte speed PI, 96-byte receive, 64-byte PI trace header, "
+            "and optional ACK1 coordination snapshots are separate generation/CRC-protected "
+            "SWD reads, bracketed by runtime-log headers. ACK1 additionally reads its generation "
+            "before and after the 64-byte snapshot. Receive windows are independently sampled and carry "
             "no PE7 session token. The PI trace header is linked by build ID and start token; "
             "the full chronological ring and per-record CRCs are checked only by the frozen "
             "trace exporter. ACTIVE records may advance during separate SWD calls; stable "
@@ -1105,6 +1363,7 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "speed_pi_diagnostic_snapshot": plan["speed_pi_diagnostic_snapshot"],
             "receive_diagnostic_snapshot": plan["receive_diagnostic_snapshot"],
             "speed_pi_trace_snapshot": plan["speed_pi_trace_snapshot"],
+            "ackermann_snapshot": plan["ackermann_snapshot"],
             "runtime_log_record_area_read": False,
         },
         "scalars": scalars,
@@ -1114,6 +1373,7 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "speed_pi_diagnostic_snapshot": speed_pi_diagnostic,
         "receive_diagnostic_snapshot": receive_diagnostic,
         "speed_pi_trace_header": speed_pi_trace_header,
+        "ackermann_snapshot": ackermann_snapshot,
         "raw_files": {
             "scalar_region": {
                 "path": str(Path(scalar_path).resolve()),
@@ -1150,6 +1410,21 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
                 "bytes": len(Path(speed_pi_trace_header_path).read_bytes()),
                 "sha256": hashlib.sha256(Path(speed_pi_trace_header_path).read_bytes()).hexdigest(),
             }),
+            "ackermann_snapshot": (None if ackermann_snapshot_path is None else {
+                "path": str(Path(ackermann_snapshot_path).resolve()),
+                "bytes": len(Path(ackermann_snapshot_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(ackermann_snapshot_path).read_bytes()).hexdigest(),
+            }),
+            "ackermann_generation_before": (None if ackermann_generation_before_path is None else {
+                "path": str(Path(ackermann_generation_before_path).resolve()),
+                "bytes": len(Path(ackermann_generation_before_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(ackermann_generation_before_path).read_bytes()).hexdigest(),
+            }),
+            "ackermann_generation_after": (None if ackermann_generation_after_path is None else {
+                "path": str(Path(ackermann_generation_after_path).resolve()),
+                "bytes": len(Path(ackermann_generation_after_path).read_bytes()),
+                "sha256": hashlib.sha256(Path(ackermann_generation_after_path).read_bytes()).hexdigest(),
+            }),
         },
     }
 
@@ -1177,8 +1452,19 @@ def build_parser() -> argparse.ArgumentParser:
                                help="optional 96-byte g_receive_diag_snapshot upload")
     decode_parser.add_argument("--speed-pi-trace-header",
                                help="optional 64-byte g_speed_pi_trace header upload")
+    decode_parser.add_argument("--ackermann-snapshot",
+                               help="optional 64-byte g_ackermann_snapshot upload")
+    decode_parser.add_argument("--ackermann-generation-before",
+                               help="optional 4-byte generation read immediately before the snapshot")
+    decode_parser.add_argument("--ackermann-generation-after",
+                               help="optional 4-byte generation read immediately after the snapshot")
     decode_parser.add_argument("--descriptor",
                                help="optional uploaded 64-byte Flash descriptor to verify the target ELF")
+    ackermann_export_parser = subparsers.add_parser(
+        "export-ackermann", help="export one validated FROZEN ACK1 snapshot row")
+    ackermann_export_parser.add_argument("--raw", required=True)
+    ackermann_export_parser.add_argument("--out-csv", required=True)
+    ackermann_export_parser.add_argument("--metadata")
     return parser
 
 
@@ -1187,6 +1473,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "plan":
             _emit_json(build_plan(args.elf))
+        elif args.command == "export-ackermann":
+            _emit_json(export_ackermann_snapshot(args.raw, args.out_csv,
+                                                 args.metadata))
         else:
             _emit_json(decode_snapshot(args.elf, args.scalars, args.header,
                                        descriptor_path=args.descriptor,
@@ -1194,7 +1483,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                                        diagnostic_path=args.runtime_diagnostic,
                                        speed_pi_diagnostic_path=args.speed_pi_diagnostic,
                                        receive_diagnostic_path=args.receive_diagnostic,
-                                       speed_pi_trace_header_path=args.speed_pi_trace_header))
+                                       speed_pi_trace_header_path=args.speed_pi_trace_header,
+                                       ackermann_snapshot_path=args.ackermann_snapshot,
+                                       ackermann_generation_before_path=args.ackermann_generation_before,
+                                       ackermann_generation_after_path=args.ackermann_generation_after))
         return 0
     except (StatusReadError, exporter.ExportError, OSError, struct.error) as exc:
         print("run-status-reader: {}".format(exc), file=sys.stderr)

@@ -30,7 +30,8 @@ $fixtureInfo = ($fixtureBuilderOutput -join [Environment]::NewLine) | ConvertFro
 $attemptReadCount = 2 + [int][bool]$fixtureInfo.diagnostic_available +
     [int][bool]$fixtureInfo.speed_pi_diagnostic_available +
     [int][bool]$fixtureInfo.receive_diagnostic_available +
-    [int][bool]$fixtureInfo.speed_pi_trace_available
+    [int][bool]$fixtureInfo.speed_pi_trace_available +
+    3 * [int][bool]$fixtureInfo.ackermann_snapshot_available
 $normalReadCount = 2 + $attemptReadCount
 $normalFrequencies = @(); for ($i = 0; $i -lt $normalReadCount; ++$i) { $normalFrequencies += '1000' }
 $fallbackFrequencies = @('1000'); for ($i = 0; $i -lt $normalReadCount; ++$i) { $fallbackFrequencies += '400' }
@@ -45,6 +46,8 @@ $environmentNames = @(
     'RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_SPEED_PI_DIAGNOSTIC_FIXTURE',
     'RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS', 'RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_FIXTURE',
     'RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS', 'RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE',
+    'RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_ADDRESS', 'RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_FIXTURE',
+    'RUN_STATUS_FAKE_ACKERMANN_GENERATION_ADDRESS', 'RUN_STATUS_FAKE_ACKERMANN_GENERATION_FIXTURE',
     'RUN_STATUS_FAKE_SCALAR_ADDRESS', 'RUN_STATUS_FAKE_SCALAR_SIZE',
     'RUN_STATUS_FAKE_SCALAR_FIXTURE', 'RUN_STATUS_FAKE_HEADER_ADDRESS',
     'RUN_STATUS_FAKE_HEADER_FIXTURE', 'RUN_STATUS_FAKE_MODE',
@@ -81,6 +84,10 @@ function Invoke-StatusCase {
     $env:RUN_STATUS_FAKE_RECEIVE_DIAGNOSTIC_FIXTURE = [string]$fixtureInfo.receive_diagnostic_path
     $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS = [string]$fixtureInfo.speed_pi_trace_address
     $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE = [string]$fixtureInfo.speed_pi_trace_idle_path
+    $env:RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_ADDRESS = [string]$fixtureInfo.ackermann_snapshot_address
+    $env:RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_FIXTURE = [string]$fixtureInfo.ackermann_snapshot_path
+    $env:RUN_STATUS_FAKE_ACKERMANN_GENERATION_ADDRESS = [string]$fixtureInfo.ackermann_generation_address
+    $env:RUN_STATUS_FAKE_ACKERMANN_GENERATION_FIXTURE = [string]$fixtureInfo.ackermann_generation_path
     $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = [string]$fixtureInfo.scalar_address
     $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$fixtureInfo.scalar_size
     $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $scalarFixture
@@ -162,6 +169,15 @@ function Assert-ReadSequence {
             $expectedSizes.Add(64)
             $readIndex++
         }
+        if ($fixtureInfo.ackermann_snapshot_available) {
+            $expectedAddresses.Add([string]$fixtureInfo.ackermann_generation_address)
+            $expectedSizes.Add(4)
+            $expectedAddresses.Add([string]$fixtureInfo.ackermann_snapshot_address)
+            $expectedSizes.Add(64)
+            $expectedAddresses.Add([string]$fixtureInfo.ackermann_generation_address)
+            $expectedSizes.Add(4)
+            $readIndex += 3
+        }
         $expectedAddresses.Add($headerAddress)
         $expectedSizes.Add(64)
         $readIndex++
@@ -208,6 +224,16 @@ try {
         $status.speed_pi_trace_header.state_name -ne 'idle') {
         throw 'IDLE status did not report an IDLE PI trace header.'
     }
+    if ($fixtureInfo.ackermann_snapshot_available -and
+        ($status.ackermann_snapshot.status -ne 'frozen' -or
+         $status.ackermann_snapshot.generation -ne 2 -or
+         $status.reads.ackermann_snapshot.generation_read.size -ne 4)) {
+        throw 'ACK1 snapshot/guard reads were not decoded as a stable frozen coordination snapshot.'
+    }
+    if ($fixtureInfo.ackermann_snapshot_available -and
+        $success.Output -notmatch 'ACK1=frozen/none') {
+        throw 'Status wrapper output did not expose the ACK1 frozen/error classification.'
+    }
 
     $badCrcHeader = Join-Path $fixtureRoot 'runtime-log-header-idle-bad-crc.bin'
     $diagnosticIdle = Join-Path $fixtureRoot 'runtime-diagnostic.bin'
@@ -217,6 +243,10 @@ try {
     }
     if ($fixtureInfo.receive_diagnostic_available) { $retrySequence += $fixtureInfo.receive_diagnostic_path }
     if ($fixtureInfo.speed_pi_trace_available) { $retrySequence += $fixtureInfo.speed_pi_trace_idle_path }
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $retrySequence += @($fixtureInfo.ackermann_generation_path,
+            $fixtureInfo.ackermann_snapshot_path, $fixtureInfo.ackermann_generation_path)
+    }
     $retrySequence += $badCrcHeader
     $retrySequence += @($headerFixture, $diagnosticIdle)
     if ($fixtureInfo.speed_pi_diagnostic_available) {
@@ -224,6 +254,10 @@ try {
     }
     if ($fixtureInfo.receive_diagnostic_available) { $retrySequence += $fixtureInfo.receive_diagnostic_path }
     if ($fixtureInfo.speed_pi_trace_available) { $retrySequence += $fixtureInfo.speed_pi_trace_idle_path }
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $retrySequence += @($fixtureInfo.ackermann_generation_path,
+            $fixtureInfo.ackermann_snapshot_path, $fixtureInfo.ackermann_generation_path)
+    }
     $retrySequence += $headerFixture
     $crcRetry = Invoke-StatusCase -Name 'retry-invalid-header-crc-then-idle' `
         -Mode success -UploadFixtureSequence $retrySequence
@@ -246,12 +280,20 @@ try {
     }
     if ($fixtureInfo.receive_diagnostic_available) { $inconsistentSequence += $fixtureInfo.receive_diagnostic_path }
     if ($fixtureInfo.speed_pi_trace_available) { $inconsistentSequence += $fixtureInfo.speed_pi_trace_frozen_header_path }
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $inconsistentSequence += @($fixtureInfo.ackermann_generation_path,
+            $fixtureInfo.ackermann_snapshot_path, $fixtureInfo.ackermann_generation_path)
+    }
     $inconsistentSequence += @($frozenHeader, $frozenHeader, $diagnosticFrozen)
     if ($fixtureInfo.speed_pi_diagnostic_available) {
         $inconsistentSequence += Join-Path $fixtureRoot 'speed-pi-diagnostic-frozen.bin'
     }
     if ($fixtureInfo.receive_diagnostic_available) { $inconsistentSequence += $fixtureInfo.receive_diagnostic_path }
     if ($fixtureInfo.speed_pi_trace_available) { $inconsistentSequence += $fixtureInfo.speed_pi_trace_frozen_header_path }
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $inconsistentSequence += @($fixtureInfo.ackermann_generation_path,
+            $fixtureInfo.ackermann_snapshot_path, $fixtureInfo.ackermann_generation_path)
+    }
     $inconsistentSequence += $frozenHeader
     $inconsistentRetry = Invoke-StatusCase -Name 'retry-transition-then-stable-frozen' `
         -Mode success -UploadFixtureSequence $inconsistentSequence
@@ -303,7 +345,8 @@ try {
         $dryJson.reads.Count -ne (4 + [int][bool]$fixtureInfo.diagnostic_available +
             [int][bool]$fixtureInfo.speed_pi_diagnostic_available +
             [int][bool]$fixtureInfo.receive_diagnostic_available +
-            [int][bool]$fixtureInfo.speed_pi_trace_available) -or
+            [int][bool]$fixtureInfo.speed_pi_trace_available +
+            3 * [int][bool]$fixtureInfo.ackermann_snapshot_available) -or
         (Test-Path -LiteralPath $dry.ArgsLog)) {
         throw 'Status DryRun must list Flash/scalar/header/diagnostic/header reads without running the CLI.'
     }
@@ -342,12 +385,32 @@ try {
         }
         $dryReadIndex++
     }
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $ackRead = @($dryJson.reads[$dryReadIndex].arguments)
+        if ($ackRead[7] -ne [string]$fixtureInfo.ackermann_generation_address -or
+            $ackRead[8] -ne '4') {
+            throw 'Status DryRun omitted the leading 4-byte ACK1 generation guard.'
+        }
+        $dryReadIndex++
+        $ackRead = @($dryJson.reads[$dryReadIndex].arguments)
+        if ($ackRead[7] -ne [string]$fixtureInfo.ackermann_snapshot_address -or
+            $ackRead[8] -ne '64') {
+            throw 'Status DryRun omitted the 64-byte ACK1 coordination snapshot.'
+        }
+        $dryReadIndex++
+        $ackRead = @($dryJson.reads[$dryReadIndex].arguments)
+        if ($ackRead[7] -ne [string]$fixtureInfo.ackermann_generation_address -or
+            $ackRead[8] -ne '4') {
+            throw 'Status DryRun omitted the trailing 4-byte ACK1 generation guard.'
+        }
+        $dryReadIndex++
+    }
     if (@($dryJson.reads[$dryReadIndex].arguments)[7] -ne [string]$fixtureInfo.header_address -or
         @($dryJson.reads[$dryReadIndex].arguments)[8] -ne '64') {
         throw 'Status DryRun did not finish the header bracket after its diagnostic snapshots.'
     }
 
-    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, CRC-fail-then-pass and inconsistent-then-pass retries, stable FROZEN, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
+    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, ACK1 before/snapshot/after generation reads and CRC decode, CRC-fail-then-pass and inconsistent-then-pass retries, stable FROZEN, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
     Write-Output "Evidence: $OutputRoot"
 }
 finally {

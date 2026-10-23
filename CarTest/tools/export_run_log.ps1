@@ -47,6 +47,14 @@ $script:SpeedPiTraceCsvPath = $null
 $script:SpeedPiTraceMetadataPath = $null
 $script:SpeedPiTraceExportStatus = 'not_available'
 $script:ReceiveDiagnosticPreflightRaw = $null
+$script:AckermannSnapshotPreflight = $null
+$script:AckermannSnapshotPostExport = $null
+$script:AckermannSnapshotPreflightRaw = $null
+$script:AckermannSnapshotPostExportRaw = $null
+$script:AckermannSnapshotCsvPath = $null
+$script:AckermannSnapshotMetadataPath = $null
+$script:AckermannSnapshotExportStatus = 'not_available'
+$script:AckermannSnapshotCsvValidated = $false
 $script:RunStateClass = $null
 $script:ExportDiagnosticStatus = 'not_started'
 $script:DiagnosticFailure = $null
@@ -177,6 +185,8 @@ function Get-ConnectionFrequencies {
 function Resolve-ToolErrorClass {
     param([string]$Message, [string]$Stage)
     if ($script:ErrorClass) { return $script:ErrorClass }
+    if ($Message -match 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:([A-Za-z0-9_]+)') { return $Matches[1] }
+    if ($Message -match 'ACKERMANN_SNAPSHOT_UNSTABLE') { return 'ackermann_snapshot_unstable' }
     if ($Stage -match 'descriptor' -and $Message -match 'descriptor mismatch') { return 'elf_mismatch' }
     if ($Message -match 'DEV_CONNECT_ERR|Unable to get core ID|No STM32 target found|Cannot connect to target|cannot connect to target') { return 'core_inaccessible' }
     if ($Stage -match 'decode|validate|python|header' -or $Message -match 'CRC|schema|header|descriptor') { return 'decode' }
@@ -406,6 +416,113 @@ function Test-SpeedPiDiagnosticStable {
     return $null
 }
 
+function Save-AckermannSnapshotArtifact {
+    param([Parameter(Mandatory = $true)][string]$StatusPath,
+          [Parameter(Mandatory = $true)][ValidateSet('preflight', 'post-export')][string]$Tag)
+    $status = Get-Content -LiteralPath $StatusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $snapshotProperty = $status.PSObject.Properties['ackermann_snapshot']
+    if (-not $snapshotProperty -or $null -eq $snapshotProperty.Value) { return $null }
+    $snapshot = $snapshotProperty.Value
+    $rawFiles = $status.raw_files
+    $rawEntry = if ($rawFiles) { $rawFiles.ackermann_snapshot } else { $null }
+    if (-not $rawEntry -or -not $rawEntry.path -or
+        -not (Test-Path -LiteralPath $rawEntry.path -PathType Leaf)) {
+        throw "${Tag} status contains a decoded ACK1 snapshot without its retained raw binary."
+    }
+    $destination = Join-Path $script:RunDirectory ("ackermann-snapshot-{0}.bin" -f $Tag)
+    Copy-Item -LiteralPath $rawEntry.path -Destination $destination -Force
+    if ((Get-Item -LiteralPath $destination).Length -ne 64) {
+        throw "${Tag} ACK1 coordination snapshot is not exactly 64 bytes."
+    }
+    $copiedHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($rawEntry.sha256 -and $copiedHash -ne [string]$rawEntry.sha256) {
+        throw "${Tag} ACK1 snapshot differs from the status reader's validated upload."
+    }
+    foreach ($guardName in @('ackermann_generation_before', 'ackermann_generation_after')) {
+        $guardEntry = if ($rawFiles) { $rawFiles.$guardName } else { $null }
+        if (-not $guardEntry -or -not $guardEntry.path -or
+            -not (Test-Path -LiteralPath $guardEntry.path -PathType Leaf)) {
+            throw "${Tag} status is missing retained ACK1 generation guard '$guardName'."
+        }
+        $guardDestination = Join-Path $script:RunDirectory ("{0}-{1}.bin" -f $guardName.Replace('_', '-'), $Tag)
+        Copy-Item -LiteralPath $guardEntry.path -Destination $guardDestination -Force
+        if ((Get-Item -LiteralPath $guardDestination).Length -ne 4) {
+            throw "${Tag} ACK1 generation guard '$guardName' is not exactly 4 bytes."
+        }
+    }
+    if ($Tag -eq 'preflight') {
+        $script:AckermannSnapshotPreflight = $snapshot
+        $script:AckermannSnapshotPreflightRaw = $destination
+        $script:AckermannSnapshotExportStatus = [string]$snapshot.status
+    } else {
+        $script:AckermannSnapshotPostExport = $snapshot
+        $script:AckermannSnapshotPostExportRaw = $destination
+    }
+    return $destination
+}
+
+function Test-AckermannSnapshotStable {
+    if ($null -eq $script:AckermannSnapshotPreflight -and
+        $null -eq $script:AckermannSnapshotPostExport) { return $null }
+    if ($null -eq $script:AckermannSnapshotPreflight -or
+        $null -eq $script:AckermannSnapshotPostExport) {
+        return 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_unstable: missing one side of the export bracket.'
+    }
+    foreach ($snapshot in @($script:AckermannSnapshotPreflight,
+                            $script:AckermannSnapshotPostExport)) {
+        if (-not $snapshot.valid) {
+            $class = if ($snapshot.error_class) { [string]$snapshot.error_class } else { 'ackermann_snapshot_invalid' }
+            return "ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:${class}: $(@($snapshot.issues) -join '; ')"
+        }
+        if (-not $snapshot.frozen -or $snapshot.session_active) {
+            return 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_not_frozen: ACK1 must be FROZEN with session_active=0.'
+        }
+    }
+    foreach ($path in @($script:AckermannSnapshotPreflightRaw,
+                        $script:AckermannSnapshotPostExportRaw)) {
+        if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_unstable: raw ACK1 snapshot is missing.'
+        }
+    }
+    $preHash = (Get-FileHash -LiteralPath $script:AckermannSnapshotPreflightRaw -Algorithm SHA256).Hash
+    $postHash = (Get-FileHash -LiteralPath $script:AckermannSnapshotPostExportRaw -Algorithm SHA256).Hash
+    if ($preHash -ne $postHash -or
+        [uint32]$script:AckermannSnapshotPreflight.generation -ne
+        [uint32]$script:AckermannSnapshotPostExport.generation) {
+        return 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_unstable: frozen ACK1 bytes or generation changed during export.'
+    }
+    return $null
+}
+
+function Export-AckermannSnapshot {
+    if ($null -eq $script:AckermannSnapshotPreflight) {
+        $script:AckermannSnapshotExportStatus = 'not_available'
+        return $null
+    }
+    $script:AckermannSnapshotCsvPath = Join-Path $script:RunDirectory 'ackermann-snapshot.csv'
+    $script:AckermannSnapshotMetadataPath = Join-Path $script:RunDirectory 'ackermann-snapshot.json'
+    $reader = Join-Path $PSScriptRoot 'run_status_reader.py'
+    try {
+        $metadata = Invoke-PythonJson -Arguments @(
+            $reader, 'export-ackermann', '--raw', $script:AckermannSnapshotPreflightRaw,
+            '--out-csv', $script:AckermannSnapshotCsvPath,
+            '--metadata', $script:AckermannSnapshotMetadataPath
+        ) -LogPath (Join-Path $script:RunDirectory 'python-ackermann-snapshot-export.log')
+        if (-not (Test-Path -LiteralPath $script:AckermannSnapshotCsvPath -PathType Leaf) -or
+            (Get-Item -LiteralPath $script:AckermannSnapshotCsvPath).Length -le 0 -or
+            -not (Test-Path -LiteralPath $script:AckermannSnapshotMetadataPath -PathType Leaf) -or
+            [int]$metadata.row_count -ne 1) {
+            throw 'ACK1 snapshot exporter did not produce exactly one nonempty validated row.'
+        }
+        $script:AckermannSnapshotExportStatus = 'verified'
+        $script:AckermannSnapshotCsvValidated = $true
+        return $script:AckermannSnapshotMetadataPath
+    } catch {
+        $script:AckermannSnapshotExportStatus = 'failed'
+        throw
+    }
+}
+
 function Save-SpeedPiTraceHeaderArtifact {
     param([Parameter(Mandatory = $true)][string]$StatusPath,
           [Parameter(Mandatory = $true)][ValidateSet('preflight', 'post-export')][string]$Tag)
@@ -619,7 +736,7 @@ function Get-RunMetadata {
     param([string]$Status, [string]$ErrorMessage, [object]$Layout, [object]$Header)
     $rawFiles = @()
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
-        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin', 'status-preflight.json', 'status-post-export.json', 'speed-pi-diagnostic-preflight.bin', 'speed-pi-diagnostic-post-export.bin', 'speed-pi-diagnostic.json', 'speed-pi-trace-header-preflight.bin', 'speed-pi-trace-header-post-export.bin', 'speed-pi-trace.bin', 'speed-pi-trace.csv', 'speed-pi-trace.json')) {
+        foreach ($name in @('flash-rom-descriptor.bin', 'header-initial.bin', 'runtime-log.bin', 'header-final.bin', 'status-preflight.json', 'status-post-export.json', 'speed-pi-diagnostic-preflight.bin', 'speed-pi-diagnostic-post-export.bin', 'speed-pi-diagnostic.json', 'speed-pi-trace-header-preflight.bin', 'speed-pi-trace-header-post-export.bin', 'speed-pi-trace.bin', 'speed-pi-trace.csv', 'speed-pi-trace.json', 'ackermann-snapshot-preflight.bin', 'ackermann-snapshot-post-export.bin', 'ackermann-generation-before-preflight.bin', 'ackermann-generation-after-preflight.bin', 'ackermann-generation-before-post-export.bin', 'ackermann-generation-after-post-export.bin', 'ackermann-snapshot.csv', 'ackermann-snapshot.json')) {
             $path = Join-Path $script:RunDirectory $name
             if (Test-Path -LiteralPath $path -PathType Leaf) {
                 $rawFiles += [ordered]@{ path = $path; bytes = (Get-Item -LiteralPath $path).Length }
@@ -677,6 +794,20 @@ function Get-RunMetadata {
         speed_pi_trace_raw = if ($script:SpeedPiTraceRawPath -and (Test-Path -LiteralPath $script:SpeedPiTraceRawPath -PathType Leaf)) { $script:SpeedPiTraceRawPath } else { $null }
         speed_pi_trace_csv = if ($script:SpeedPiTraceExportStatus -eq 'verified') { $script:SpeedPiTraceCsvPath } else { $null }
         speed_pi_trace_metadata = if ($script:SpeedPiTraceExportStatus -eq 'verified') { $script:SpeedPiTraceMetadataPath } else { $null }
+        ackermann_snapshot_kind = 'ACK1/v1/64B single coordination snapshot; not a run timeline'
+        ackermann_snapshot_status = $script:AckermannSnapshotExportStatus
+        ackermann_snapshot_preflight = $script:AckermannSnapshotPreflight
+        ackermann_snapshot_post_export = $script:AckermannSnapshotPostExport
+        ackermann_snapshot_csv = if ($script:AckermannSnapshotCsvValidated -and
+            $script:AckermannSnapshotCsvPath -and
+            (Test-Path -LiteralPath $script:AckermannSnapshotCsvPath -PathType Leaf)) {
+            $script:AckermannSnapshotCsvPath
+        } else { $null }
+        ackermann_snapshot_metadata = if ($script:AckermannSnapshotCsvValidated -and
+            $script:AckermannSnapshotMetadataPath -and
+            (Test-Path -LiteralPath $script:AckermannSnapshotMetadataPath -PathType Leaf)) {
+            $script:AckermannSnapshotMetadataPath
+        } else { $null }
         run_state_class = $script:RunStateClass
         export_diagnostic_status = $script:ExportDiagnosticStatus
         diagnostic_failure = $script:DiagnosticFailure
@@ -747,6 +878,15 @@ try {
         $speedPiTraceFullRead = if ($statusPlan.speed_pi_trace_snapshot.available) {
             New-HotPlugArguments -Address $statusPlan.speed_pi_trace_snapshot.address -Size ([long]$statusPlan.speed_pi_trace_snapshot.size) -Destination '<run-directory>\speed-pi-trace.bin'
         } else { $null }
+        $ackermannSnapshotRead = if ($statusPlan.ackermann_snapshot.available) {
+            New-HotPlugArguments -Address $statusPlan.ackermann_snapshot.address -Size 64 -Destination '<run-directory>\status-read\ackermann-snapshot.bin'
+        } else { $null }
+        $ackermannGenerationBeforeRead = if ($statusPlan.ackermann_snapshot.available) {
+            New-HotPlugArguments -Address $statusPlan.ackermann_snapshot.generation_read.address -Size 4 -Destination '<run-directory>\status-read\ackermann-generation-before.bin'
+        } else { $null }
+        $ackermannGenerationAfterRead = if ($statusPlan.ackermann_snapshot.available) {
+            New-HotPlugArguments -Address $statusPlan.ackermann_snapshot.generation_read.address -Size 4 -Destination '<run-directory>\status-read\ackermann-generation-after.bin'
+        } else { $null }
         $descriptorRead = New-HotPlugArguments -Address $layout.descriptor_address `
             -Size 64 -Destination '<run-directory>\flash-rom-descriptor.bin'
         $plan = [ordered]@{
@@ -779,6 +919,10 @@ try {
                 receive_diagnostic_snapshot = $statusPlan.receive_diagnostic_snapshot
                 speed_pi_trace_header_read = $speedPiTraceHeaderRead
                 speed_pi_trace_full_read = $speedPiTraceFullRead
+                ackermann_snapshot = $statusPlan.ackermann_snapshot
+                ackermann_generation_before_read = $ackermannGenerationBeforeRead
+                ackermann_snapshot_read = $ackermannSnapshotRead
+                ackermann_generation_after_read = $ackermannGenerationAfterRead
                 record_area_read = $false
             }
             output_directory = $script:RunDirectory
@@ -815,6 +959,7 @@ try {
     $preflightStatus = Get-Content -LiteralPath $script:StatusPreflightPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $null = Save-SpeedPiDiagnosticArtifact -StatusPath $script:StatusPreflightPath -Tag 'preflight'
     $null = Save-SpeedPiTraceHeaderArtifact -StatusPath $script:StatusPreflightPath -Tag 'preflight'
+    $null = Save-AckermannSnapshotArtifact -StatusPath $script:StatusPreflightPath -Tag 'preflight'
     if ($script:SpeedPiTracePreflight -and
         $script:SpeedPiTracePreflight.state_name -eq 'idle') {
         $script:SpeedPiTraceExportStatus = 'idle-no-trace'
@@ -828,6 +973,11 @@ try {
     if ($script:RunStateClass -in @('neverstarted', 'legacy_idle', 'active', 'legacy_active')) {
         $script:Stage = "preflight-$($script:RunStateClass)-no-run-export"
         $initialHeader = $preflightHeader
+        if ($script:AckermannSnapshotPreflight) {
+            $script:AckermannSnapshotExportStatus = if ($script:RunStateClass -in @('neverstarted', 'legacy_idle')) {
+                'not_exported_no_run'
+            } else { 'not_exported_active' }
+        }
         $message = if ($script:RunStateClass -in @('neverstarted', 'legacy_idle')) {
             'Runtime log is IDLE; no run records are available and no run.csv was created.'
         } else {
@@ -960,6 +1110,7 @@ try {
         $postStatus = Get-Content -LiteralPath $script:StatusPostExportPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $null = Save-SpeedPiDiagnosticArtifact -StatusPath $script:StatusPostExportPath -Tag 'post-export'
         $null = Save-SpeedPiTraceHeaderArtifact -StatusPath $script:StatusPostExportPath -Tag 'post-export'
+        $null = Save-AckermannSnapshotArtifact -StatusPath $script:StatusPostExportPath -Tag 'post-export'
         $postMismatch = Test-StatusMatchesHeader -Status $postStatus `
             -ExpectedHeader $finalHeader -Tag 'Post-export'
         if (-not $postMismatch) {
@@ -968,13 +1119,21 @@ try {
         if (-not $postMismatch) {
             $postMismatch = Test-SpeedPiTraceStable
         }
+        if (-not $postMismatch) {
+            $postMismatch = Test-AckermannSnapshotStable
+        }
         if ($postMismatch) {
             $script:DiagnosticFailure = $postMismatch
             $script:ExportDiagnosticStatus = 'inconsistent'
+            if ($postMismatch -match 'ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:([A-Za-z0-9_]+)') {
+                $script:ErrorClass = $Matches[1]
+                $script:AckermannSnapshotExportStatus = 'not_exportable'
+            }
         } else {
             $script:ExportDiagnosticStatus = 'verified'
             try {
                 $null = Export-SpeedPiTrace
+                $null = Export-AckermannSnapshot
             } catch {
                 $script:DiagnosticFailure = $_.Exception.Message
                 $script:ExportDiagnosticStatus = 'inconsistent'
@@ -999,6 +1158,12 @@ try {
     $metadata['speed_pi_trace_status'] = $script:SpeedPiTraceExportStatus
     $metadata['speed_pi_trace_csv'] = if ($script:SpeedPiTraceExportStatus -eq 'verified') { $script:SpeedPiTraceCsvPath } else { $null }
     $metadata['speed_pi_trace_metadata'] = if ($script:SpeedPiTraceExportStatus -eq 'verified') { $script:SpeedPiTraceMetadataPath } else { $null }
+    $metadata['ackermann_snapshot_kind'] = 'ACK1/v1/64B single coordination snapshot; not a run timeline'
+    $metadata['ackermann_snapshot_status'] = $script:AckermannSnapshotExportStatus
+    $metadata['ackermann_snapshot_preflight'] = $script:AckermannSnapshotPreflight
+    $metadata['ackermann_snapshot_post_export'] = $script:AckermannSnapshotPostExport
+    $metadata['ackermann_snapshot_csv'] = if ($script:AckermannSnapshotCsvValidated) { $script:AckermannSnapshotCsvPath } else { $null }
+    $metadata['ackermann_snapshot_metadata'] = if ($script:AckermannSnapshotCsvValidated) { $script:AckermannSnapshotMetadataPath } else { $null }
     $metadata['raw_sha256'] = (Get-FileHash -LiteralPath $rawPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $metadata | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-metadata.json') -Encoding UTF8
     foreach ($warning in @($script:DiagnosticFailure)) {
@@ -1018,6 +1183,13 @@ catch {
     }
     if (-not $script:RunCsvValidated -and $script:DecodeMetadataPath -and (Test-Path -LiteralPath $script:DecodeMetadataPath -PathType Leaf)) {
         Remove-Item -LiteralPath $script:DecodeMetadataPath -Force
+    }
+    if (-not $script:AckermannSnapshotCsvValidated) {
+        foreach ($path in @($script:AckermannSnapshotCsvPath, $script:AckermannSnapshotMetadataPath)) {
+            if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+                Remove-Item -LiteralPath $path -Force
+            }
+        }
     }
     if ($script:RunDirectory -and (Test-Path -LiteralPath $script:RunDirectory -PathType Container)) {
         try {

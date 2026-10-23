@@ -10,6 +10,11 @@ width. All pixel scans and cache updates use fixed-size buffers.
 from array import array
 
 try:
+    import uctypes as _uctypes
+except ImportError:  # Host tests only; OpenMV provides the real module.
+    _uctypes = None
+
+try:
     import micropython
     COMPILER_BACKEND = "micropython-viper"
     _IS_MICROPYTHON = True
@@ -204,19 +209,20 @@ def _step_supported_viper(self, hit: int, direction: int) -> int:
     if hit < 0 or hit >= total or known[hit] == 0:
         return 0
     dark = int(luma[hit])
-    values = ptr32(self._sample_work)
-    count = 0
-    for index in range(3):
-        sample = hit + direction * (index + 1)
-        if sample < 0 or sample >= total:
-            return 0
-        if known[sample] == 0 or road[sample] == 0:
-            return 0
-        values[index] = int(luma[sample])
-        count += 1
-    value0 = int(values[0])
-    value1 = int(values[1])
-    value2 = int(values[2])
+    sample0 = hit + direction
+    sample1 = sample0 + direction
+    sample2 = sample1 + direction
+    if (sample0 < 0 or sample0 >= total or
+            sample1 < 0 or sample1 >= total or
+            sample2 < 0 or sample2 >= total):
+        return 0
+    if (known[sample0] == 0 or known[sample1] == 0 or
+            known[sample2] == 0 or road[sample0] == 0 or
+            road[sample1] == 0 or road[sample2] == 0):
+        return 0
+    value0 = int(luma[sample0])
+    value1 = int(luma[sample1])
+    value2 = int(luma[sample2])
     if value0 > value1:
         temp = value0
         value0 = value1
@@ -312,6 +318,21 @@ def _label_dark_components_viper(self) -> int:
 
 
 @micropython.viper
+def _clear_accepted_chain_viper(self) -> int:
+    """Clear per-row identity flags with aligned words when safely available."""
+    height = int(self.height)
+    if int(self._accepted_chain_word_clear) != 0:
+        accepted_words = ptr32(self._accepted_chain_valid)
+        for word in range(height >> 2):
+            accepted_words[word] = 0
+    else:
+        accepted_chain = ptr8(self._accepted_chain_valid)
+        for y in range(height):
+            accepted_chain[y] = 0
+    return 0
+
+
+@micropython.viper
 def _observe_bilateral_viper(self) -> int:
     """Cache only current rows with measured, validated left and right steps."""
     rows = ptr32(self._observed_rows)
@@ -332,8 +353,11 @@ def _observe_bilateral_viper(self) -> int:
     stride = int(self._observed_stride)
     minimum_width = int(self.min_width)
     maximum_width = int(self.max_width)
+    minimum_step_scaled = int(self.minimum_step_scaled)
+    minimum_fraction_scaled = int(self.minimum_fraction_scaled)
     total = width * height
     accepted = 0
+    new_cache_rows = 0
 
     for row_index in range(count):
         base = row_index * stride
@@ -355,25 +379,76 @@ def _observe_bilateral_viper(self) -> int:
                 edge[left_hit] == 0 or edge[right_hit] == 0 or
                 road[left_hit] != 0 or road[right_hit] != 0):
             continue
-        left_ok = 1
-        right_ok = 1
-        for sample in range(3):
-            left_sample = row + left + sample
-            right_sample = row + right - sample
-            if (left_sample >= width * (y + 1) or
-                    right_sample < row or known[left_sample] == 0 or
-                    known[right_sample] == 0 or road[left_sample] == 0 or
-                    road[right_sample] == 0):
-                left_ok = 0
-                right_ok = 0
-        if (left_ok == 0 or right_ok == 0 or
-                int(_step_supported_viper(self, left_hit, 1)) == 0 or
-                int(_step_supported_viper(self, right_hit, -1)) == 0):
+
+        left_sample0 = left_hit + 1
+        left_sample1 = left_sample0 + 1
+        left_sample2 = left_sample1 + 1
+        right_sample0 = right_hit - 1
+        right_sample1 = right_sample0 - 1
+        right_sample2 = right_sample1 - 1
+        if (left_sample0 < 0 or left_sample0 >= total or
+                left_sample1 < 0 or left_sample1 >= total or
+                left_sample2 < 0 or left_sample2 >= total or
+                right_sample0 < 0 or right_sample0 >= total or
+                right_sample1 < 0 or right_sample1 >= total or
+                right_sample2 < 0 or right_sample2 >= total):
+            continue
+        if (known[left_sample0] == 0 or known[left_sample1] == 0 or
+                known[left_sample2] == 0 or known[right_sample0] == 0 or
+                known[right_sample1] == 0 or known[right_sample2] == 0 or
+                road[left_sample0] == 0 or road[left_sample1] == 0 or
+                road[left_sample2] == 0 or road[right_sample0] == 0 or
+                road[right_sample1] == 0 or road[right_sample2] == 0):
+            continue
+
+        left_value0 = int(luma[left_sample0])
+        left_value1 = int(luma[left_sample1])
+        left_value2 = int(luma[left_sample2])
+        if left_value0 > left_value1:
+            temp = left_value0
+            left_value0 = left_value1
+            left_value1 = temp
+        if left_value1 > left_value2:
+            temp = left_value1
+            left_value1 = left_value2
+            left_value2 = temp
+        if left_value0 > left_value1:
+            temp = left_value0
+            left_value0 = left_value1
+            left_value1 = temp
+        left_white2 = left_value1 * 2
+        left_step2 = left_white2 - int(luma[left_hit]) * 2
+        if (left_step2 * 4 < minimum_step_scaled * 2 or
+                left_step2 * 1000000 <
+                left_white2 * minimum_fraction_scaled):
+            continue
+
+        right_value0 = int(luma[right_sample0])
+        right_value1 = int(luma[right_sample1])
+        right_value2 = int(luma[right_sample2])
+        if right_value0 > right_value1:
+            temp = right_value0
+            right_value0 = right_value1
+            right_value1 = temp
+        if right_value1 > right_value2:
+            temp = right_value1
+            right_value1 = right_value2
+            right_value2 = temp
+        if right_value0 > right_value1:
+            temp = right_value0
+            right_value0 = right_value1
+            right_value1 = temp
+        right_white2 = right_value1 * 2
+        right_step2 = right_white2 - int(luma[right_hit]) * 2
+        if (right_step2 * 4 < minimum_step_scaled * 2 or
+                right_step2 * 1000000 <
+                right_white2 * minimum_fraction_scaled):
             continue
 
         left2 = left * 2 - 1
         right2 = right * 2 + 1
         if cache_valid[y] == 0:
+            new_cache_rows += 1
             cache_width[y] = run_width
             cache_left2[y] = left2
             cache_right2[y] = right2
@@ -381,6 +456,15 @@ def _observe_bilateral_viper(self) -> int:
             anchor_right2[y] = right2
             cache_valid[y] = 1
         else:
+            if (cache_width[y] == run_width and
+                    cache_left2[y] == left2 and
+                    cache_right2[y] == right2 and
+                    anchor_left2[y] == left2 and
+                    anchor_right2[y] == right2):
+                # All measured values and identity anchors already match, so
+                # the zero-delta smoother would leave every cache word intact.
+                accepted += 1
+                continue
             delta = run_width - int(cache_width[y])
             if delta > 4:
                 delta = 4
@@ -414,7 +498,9 @@ def _observe_bilateral_viper(self) -> int:
             anchor_left2[y] = cache_left2[y]
             anchor_right2[y] = cache_right2[y]
         accepted += 1
-    return accepted
+    # Six low bits hold the number of newly cached rows (0..60); higher bits
+    # preserve the accepted-row count returned by the original kernel.
+    return (accepted << 6) | new_cache_rows
 
 
 @micropython.viper
@@ -741,6 +827,16 @@ class FastSingleEdgeTracker:
         self._side_reject_rows = array("i", [0, 0])
         self._side_reject_span = array("i", [0, 0])
         self._accepted_chain_valid = bytearray(self.height)
+        self._accepted_chain_word_clear = 0
+        if (_IS_MICROPYTHON and _uctypes is not None and
+                (self.height & 3) == 0):
+            try:
+                if (_uctypes.addressof(self._accepted_chain_valid) & 3) == 0:
+                    self._accepted_chain_word_clear = 1
+            except Exception:
+                # Keep the original byte-clear path if address inspection is
+                # unavailable or raises on a different MicroPython port.
+                pass
         self._accepted_center2 = array("i", [0] * self.height)
         self._pending_switch_side = -1
         self._pending_switch_count = 0
@@ -786,7 +882,6 @@ class FastSingleEdgeTracker:
         self._frozen_frame_pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = -1
         self._diagnostic_counts = array("i", [0] * len(_DIAG_NAMES))
         self._selected_row_ints = array("i", [0] * (self.height * ROW_STRIDE))
-        self._sample_work = array("i", [0, 0, 0])
         # Preallocated topology scratch is used only when an island is
         # observed; no per-frame pixel arrays are allocated in detect().
         self._component_class = bytearray(self.width * self.height)
@@ -919,8 +1014,7 @@ class FastSingleEdgeTracker:
             self._pending_switch_side = -1
             self._pending_switch_count = 0
             self._pending_switch_frame = -1
-            for y in range(self.height):
-                self._accepted_chain_valid[y] = 0
+            _clear_accepted_chain_viper(self)
             return 0
         if self._route_mode_id != _ROUTE_CACHED_WIDTH:
             return 0
@@ -955,23 +1049,15 @@ class FastSingleEdgeTracker:
         self._current_known = known_region
         self._island_check = 0
         before = self._cache_row_count
-        accepted = _observe_bilateral_viper(self)
-        if _IS_MICROPYTHON:
-            self._cache_row_count = 0
-            for y in range(self.floor_y, self.height):
-                if self._cache_valid[y]:
-                    self._cache_row_count += 1
-        else:
-            self._cache_row_count = 0
-            for y in range(self.floor_y, self.height):
-                if self._cache_valid[y]:
-                    self._cache_row_count += 1
+        observed_counts = int(_observe_bilateral_viper(self))
+        accepted = observed_counts >> 6
+        new_cache_rows = observed_counts & 63
+        self._cache_row_count += new_cache_rows
         self._last_single_side = -1
         self._pending_switch_side = -1
         self._pending_switch_count = 0
         self._pending_switch_frame = -1
-        for y in range(self.height):
-            self._accepted_chain_valid[y] = 0
+        _clear_accepted_chain_viper(self)
         return accepted if accepted else max(0, self._cache_row_count - before)
 
     @micropython.native

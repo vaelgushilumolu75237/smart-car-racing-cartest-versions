@@ -129,10 +129,27 @@ def encode_control_extension(sequence, capture_ms, send_ms, sent_control,
     return record.hex()
 
 
-def write_camera_trace(path, cameras, extensions=None):
+def encode_curve_trace(sequence, valid, error, phase=0, slowdown=0,
+                       *, version=2, reserved=0):
+    raw = bytearray(16)
+    raw[:4] = bytes((0xA5, 0x5A, version, 8))
+    raw[4:6] = int(sequence).to_bytes(2, "little")
+    raw[6] = 1 if valid else 0
+    raw[7] = 80 if valid else 0
+    raw[8:10] = int(error).to_bytes(2, "little", signed=True)
+    raw[10] = phase
+    raw[11] = reserved
+    raw[12:14] = int(slowdown).to_bytes(2, "little")
+    raw[14:16] = analyzer._crc16_ccitt_false(raw[2:14]).to_bytes(2, "little")
+    return raw.hex()
+
+
+def write_camera_trace(path, cameras, extensions=None, curve_traces=None):
     fields = list(analyzer.CAMERA_FIELDS)
     if extensions is not None:
         fields.append(analyzer.CONTROL_EXTENSION_V2_COLUMN)
+    if curve_traces is not None:
+        fields.append(analyzer.CURVE_TRACE_V2_COLUMN)
     with path.open("w", encoding="utf-8", newline="") as stream:
         stream.write("# ticks_period_ms=256 count={} record_errors=0\n".format(
             len(cameras)))
@@ -142,6 +159,8 @@ def write_camera_trace(path, cameras, extensions=None):
             row = {name: camera[name] for name in analyzer.CAMERA_FIELDS}
             if extensions is not None:
                 row[analyzer.CONTROL_EXTENSION_V2_COLUMN] = extensions[index]
+            if curve_traces is not None:
+                row[analyzer.CURVE_TRACE_V2_COLUMN] = curve_traces[index]
             writer.writerow(row)
 
 
@@ -199,6 +218,73 @@ class AnalyzeSteeringChainTests(unittest.TestCase):
         _decoded, crc_issues, _present = analyzer._decode_control_extension_v2(
             corrupt.hex(), base)
         self.assertIn("extension CRC16/CCITT-FALSE mismatch", crc_issues)
+
+    def test_curve_trace_v2_decodes_raw_uart_frame_and_binds_row(self):
+        base = {"sequence": 7, "valid": True, "sent_error_norm": -35}
+        wire = encode_curve_trace(7, True, -35, phase=2, slowdown=725)
+        decoded, issues, present = analyzer._decode_curve_trace_v2(wire, base)
+        self.assertTrue(present)
+        self.assertEqual(issues, [])
+        self.assertEqual(decoded["curve_phase"], 2)
+        self.assertEqual(decoded["slowdown_request_permille"], 725)
+        self.assertEqual(decoded["lateral_error"], -35)
+        self.assertEqual(decoded["sequence"], 7)
+
+        damaged = bytearray.fromhex(wire)
+        damaged[14] ^= 1
+        _decoded, issues, present = analyzer._decode_curve_trace_v2(
+            damaged.hex(), base)
+        self.assertTrue(present)
+        self.assertIn("frame CRC16/CCITT-FALSE mismatch", " ".join(issues))
+
+    def test_invalid_curve_trace_keeps_nonzero_transport_sequence(self):
+        base = {"sequence": 65535, "valid": False, "sent_error_norm": 0}
+        wire = encode_curve_trace(65535, False, 0)
+        decoded, issues, present = analyzer._decode_curve_trace_v2(wire, base)
+        self.assertTrue(present)
+        self.assertEqual(issues, [])
+        self.assertFalse(decoded["frame_valid"])
+        self.assertEqual(decoded["sequence"], 65535)
+
+    def test_curve_trace_integration_preserves_fields_and_classifies_partial(self):
+        _meta, cameras, status, h743 = self._valid_inputs()
+        traces = [
+            encode_curve_trace(65535, True, 20, phase=1, slowdown=250),
+            encode_curve_trace(0, True, -50, phase=2, slowdown=700),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "camera.csv"
+            write_camera_trace(trace, cameras, curve_traces=traces)
+            camera_meta, loaded = analyzer.load_camera_trace(trace)
+            report, matches = analyzer.analyze(camera_meta, loaded, status, h743)
+        trace_report = report["camera_trace"]["curve_trace_v2"]
+        self.assertEqual(trace_report["status"], "valid")
+        self.assertEqual(trace_report["valid_records"], 2)
+        self.assertEqual(matches[0]["curve_trace_v2_curve_phase"], 1)
+        self.assertEqual(matches[1]["curve_trace_v2_slowdown_request_permille"], 700)
+
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "camera.csv"
+            write_camera_trace(trace, cameras, curve_traces=[traces[0], ""])
+            camera_meta, loaded = analyzer.load_camera_trace(trace)
+            report, _ = analyzer.analyze(camera_meta, loaded, status, h743)
+        self.assertEqual(report["camera_trace"]["curve_trace_v2"]["status"],
+                         "partial")
+        self.assertEqual(report["status"], "incomplete_camera_trace")
+
+    def test_curve_trace_base_binding_error_is_classified_incomplete(self):
+        _meta, cameras, status, h743 = self._valid_inputs()
+        traces = [encode_curve_trace(1, True, 20),
+                  encode_curve_trace(0, True, -50)]
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "camera.csv"
+            write_camera_trace(trace, cameras, curve_traces=traces)
+            camera_meta, loaded = analyzer.load_camera_trace(trace)
+            report, matches = analyzer.analyze(camera_meta, loaded, status, h743)
+        self.assertEqual(report["status"], "incomplete_camera_trace")
+        self.assertFalse(matches[0]["curve_trace_v2_valid"])
+        self.assertIn("sequence does not match base row",
+                      matches[0]["curve_trace_v2_issues"])
 
     def test_control_extension_v2_fields_flow_to_matched_rows(self):
         meta, cameras, status, h743 = self._valid_inputs()

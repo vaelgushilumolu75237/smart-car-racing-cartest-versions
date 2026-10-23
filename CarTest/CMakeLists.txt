@@ -30,6 +30,7 @@ option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_TURN "Compile the enhanced Follow turn-response profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_SPEED_PI "Compile the independent FollowTurn encoder speed PI trial" OFF)
 option(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI "Compile the incremental encoder speed PI trial" OFF)
+option(CARTEST_ENABLE_ACKERMANN_COORDINATION "Coordinate Follow incremental PI targets with applied steering geometry and vision slowdown requests" ON)
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
@@ -63,6 +64,11 @@ if(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI AND
     NOT CARTEST_ENABLE_FOLLOW_TURN OR NOT CARTEST_HARDWARE_ACCEPTED))
   message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI requires FollowTurn, encoder speed PI, and explicit hardware-output acceptance.")
 endif()
+set(_cartest_enable_ackermann_coordination OFF)
+if(CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI AND
+   CARTEST_ENABLE_ACKERMANN_COORDINATION)
+  set(_cartest_enable_ackermann_coordination ON)
+endif()
 if(CARTEST_ENABLE_FOLLOW_TURN)
   if(NOT CARTEST_ENABLE_FOLLOW)
     message(FATAL_ERROR "CARTEST_ENABLE_FOLLOW_TURN requires CARTEST_ENABLE_FOLLOW=ON.")
@@ -88,6 +94,9 @@ else()
     set(_cartest_follow_output_ramp_step_permille "10")
     set(_cartest_follow_servo_slew_step_us "40")
   endif()
+endif()
+if(_cartest_enable_ackermann_coordination)
+  set(_cartest_follow_servo_slew_step_us "160")
 endif()
 set(_cartest_follow_startup_ramp_step_permille "10")
 set(_cartest_follow_hard_limit_permille "1000")
@@ -138,6 +147,7 @@ set(_cartest_build_id_material
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
   "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
+  "ackermann_coordination_profile=${_cartest_enable_ackermann_coordination}\n"
   "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=1000;tracking_ms=200\n"
   "vision_hold_ms=${CARTEST_VISION_HOLD_MS};vision_hold_ramp_ms=${CARTEST_VISION_HOLD_RAMP_MS}\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
@@ -201,6 +211,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_speed_pi.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_incremental_pi.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/ackermann_control.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/ackermann_snapshot.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_trace.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/receive_diag.c"
@@ -240,6 +252,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_TURN_PROFILE_COMPILED=$<BOOL:${CARTEST_ENABLE_FOLLOW_TURN}>
   CARTEST_FOLLOW_SPEED_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_SPEED_PI}>
   CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}>
+  CARTEST_ACKERMANN_COORDINATION_ENABLED=$<BOOL:${_cartest_enable_ackermann_coordination}>
   CARTEST_VISION_HOLD_MS=${CARTEST_VISION_HOLD_MS}
   CARTEST_VISION_HOLD_RAMP_MS=${CARTEST_VISION_HOLD_RAMP_MS}
   CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS=2400

@@ -129,7 +129,7 @@ class BendPreviewTests(unittest.TestCase):
         applied = _preview_step(preview, info, 60, 30, 200, 100)
         self.assertTrue(preview.confirmed)
         self.assertEqual(preview.stable_count, 3)
-        self.assertEqual(info["preview_gain_milli"], 88)
+        self.assertEqual(info["preview_gain_milli"], 113)
         self.assertGreater(applied, 0)
         self.assertEqual(info["preview_state"], 2)
 
@@ -142,11 +142,11 @@ class BendPreviewTests(unittest.TestCase):
         self.assertFalse(preview.confirmed)
         _preview_step(preview, info, 90, 30, 1000, 250)
         self.assertTrue(preview.confirmed)
-        self.assertEqual(info["preview_gain_milli"], 350)
-        self.assertLessEqual(preview.applied, 100)
+        self.assertEqual(info["preview_gain_milli"], 450)
+        self.assertLessEqual(preview.applied, 120)
         for tick in range(120, 420, 30):
             _preview_step(preview, info, tick, 30, 1000, 250)
-        self.assertEqual(preview.applied, 100)
+        self.assertEqual(preview.applied, 120)
         before = preview.applied
         after = _preview_step(
             preview, info, 450, 30, 1000, 250, geometry=False)
@@ -195,8 +195,11 @@ class BendPreviewTests(unittest.TestCase):
         self.assertIsNone(no_near_reference["reference_row_y"])
         self.assertIsNone(no_near_reference["reference_error"])
 
-        low_edge = dict(aggregate(self.w, [(36, 43), (45, 42)]))
-        high_edge = dict(aggregate(self.w, [(35, 42), (44, 44)]))
+        common_rows = [(y, 40) for y in range(20, 26)]
+        low_edge = dict(aggregate(
+            self.w, common_rows + [(36, 43), (45, 42)]))
+        high_edge = dict(aggregate(
+            self.w, common_rows + [(35, 42), (44, 44)]))
         self.assertEqual(low_edge["reference_row_y"], 36)
         self.assertEqual(high_edge["reference_row_y"], 44)
         self.assertEqual(low_edge["steering_error"],
@@ -213,7 +216,11 @@ class BendPreviewTests(unittest.TestCase):
 
     def test_single_edge_cached_rows_can_supply_reference_diagnostic(self):
         rows = array("i", [
-            36, 80, 40, 0, 3,
+            20, 80, 40, 0, 3,
+            22, 80, 40, 0, 3,
+            24, 80, 40, 0, 3,
+            28, 80, 40, 0, 3,
+            30, 80, 40, 0, 3,
             40, 84, 40, 0, 3,
             44, 86, 40, 0, 3,
         ])
@@ -221,7 +228,7 @@ class BendPreviewTests(unittest.TestCase):
             "valid": True,
             "source": "single_left",
             "result": {"selected_row_ints": rows,
-                       "selected_row_count": 3,
+                       "selected_row_count": 7,
                        "selected_row_stride": 5},
         }
         result = self.w.aggregate(selection, {}, config)
@@ -281,17 +288,18 @@ class BendPreviewTests(unittest.TestCase):
                             for line in mirrored_text))
         self.assertTrue(any("CMD+311" in line for line in mirrored_text))
 
-    def test_equal_position_but_opposite_heading_changes_control(self):
+    def test_mirrored_position_and_heading_remain_symmetric(self):
         right = [(y, 46 if y < 33 else 38 if y < 46 else 36)
                  for y in range(20, 59)]
-        left = [(y, 80 - x) for y, x in right]
+        left = [(y, 79 - x) for y, x in right]
         a = dict(aggregate(self.w, right))
         b = dict(aggregate(self.w, left))
-        self.assertEqual(a["raw_error"], b["raw_error"])
+        self.assertEqual(a["raw_error"], -b["raw_error"])
         self.assertEqual(a["steering_error"], a["position_error"])
         self.assertEqual(b["steering_error"], b["position_error"])
-        self.assertEqual(a["preview_candidate"], 400)
-        self.assertEqual(b["preview_candidate"], -400)
+        self.assertGreater(a["preview_candidate"], 0)
+        self.assertEqual(a["preview_candidate"],
+                         -b["preview_candidate"])
         self.assertEqual(a["heading_contribution"], 0)
         self.assertEqual(b["heading_contribution"], 0)
 
@@ -323,8 +331,10 @@ class BendPreviewTests(unittest.TestCase):
         points = [(8, 20), (9, 20), (10, 20)] + [
             (y, 50) for y in (18, 24, 40, 58)]
         result = aggregate(self.w, points)
-        self.assertEqual((result["far_weight"], result["near_weight"]), (.2, .8))
-        self.assertEqual(result["center_x"], 44.0)
+        self.assertEqual(result["reason"], "DEGRADED_CORE_SUPPORT")
+        self.assertEqual(result["weight_mode"], "DEGRADED_CORE_SUPPORT")
+        self.assertEqual(result["reference_row_y"], 24)
+        self.assertEqual(result["center_x"], 50.0)
         self.assertEqual(result["heading_contribution"], 0)
 
     def test_span_or_endpoint_support_missing_does_not_create_heading(self):
@@ -465,10 +475,13 @@ class BendPreviewTests(unittest.TestCase):
         self.assertIsNone(result["reference_error"])
 
     def test_upper_only_path_cannot_replace_near_route_or_seed_cache(self):
-        raw = bytearray(160 * 120)
+        raw = bytearray(320 * 120)
         for y in range(120):
-            for x in range(160):
-                raw[y * 160 + x] = 220 if 16 <= y < 36 and 48 <= x < 96 else 25
+            grid_y = y // 2
+            for x in range(320):
+                grid_x = x // 4
+                raw[y * 320 + x] = (220 if 16 <= grid_y < 36 and
+                                    48 <= grid_x < 60 else 25)
         masks = fast_gray.FastGrayMasks(config).build(_BufferImage(raw))
         path = fast_path.FastPathDetector(config).detect(masks)
         self.assertFalse(path["valid"], path)

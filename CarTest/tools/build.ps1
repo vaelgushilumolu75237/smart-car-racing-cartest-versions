@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI", "DebugFollowTurn65", "DebugFollowIncrementalPI")]
+    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI", "DebugFollowTurn65", "DebugFollowIncrementalPI", "DebugFollowIncrementalPIBaseline")]
     [string] $Preset,
     [switch] $Fresh
 )
@@ -277,6 +277,7 @@ try {
         'DebugFollowSpeedPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
         'DebugFollowTurn65' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
         'DebugFollowIncrementalPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowIncrementalPIBaseline' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
     }
     $configuredCache = Join-Path $buildDirectory 'CMakeCache.txt'
     foreach ($flagName in $expectedProfileFlags[$Preset].Keys) {
@@ -285,10 +286,15 @@ try {
             throw "Configured profile flag mismatch for $Preset`: $flagName=$actualFlag"
         }
     }
-    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI', 'DebugFollowTurn65', 'DebugFollowIncrementalPI')) { 'ON' } else { 'OFF' }
+    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI', 'DebugFollowTurn65', 'DebugFollowIncrementalPI', 'DebugFollowIncrementalPIBaseline')) { 'ON' } else { 'OFF' }
     $actualTurnProfile = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_FOLLOW_TURN'
     if ($actualTurnProfile -ne $expectedTurnProfile) {
         throw "Configured Follow turn profile mismatch for $Preset`: CARTEST_ENABLE_FOLLOW_TURN=$actualTurnProfile"
+    }
+    $expectedAckermannOption = if ($Preset -eq 'DebugFollowIncrementalPIBaseline') { 'OFF' } else { 'ON' }
+    $actualAckermannOption = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_ACKERMANN_COORDINATION'
+    if ($actualAckermannOption -ne $expectedAckermannOption) {
+        throw "Configured Ackermann coordination mismatch for $Preset`: CARTEST_ENABLE_ACKERMANN_COORDINATION=$actualAckermannOption"
     }
     $compileCommandsPath = Join-Path $buildDirectory 'compile_commands.json'
     if (-not (Test-Path -LiteralPath $compileCommandsPath -PathType Leaf)) {
@@ -305,7 +311,8 @@ try {
     $expectedDiff = $expectedProfileFlags[$Preset].CARTEST_FOLLOW_DIFF_PERMILLE
     $expectedFollowProfile = $expectedProfileFlags[$Preset].CARTEST_ENABLE_FOLLOW -eq 'ON'
     $expectedTurnStep = if ($expectedFollowProfile) { '40' } else { '10' }
-    $expectedServoStep = if ($expectedFollowProfile) { '120' } else { '40' }
+    $expectedServoStep = if ($Preset -eq 'DebugFollowIncrementalPI') { '160' } elseif ($expectedFollowProfile) { '120' } else { '40' }
+    $expectedAckermannBit = if ($Preset -eq 'DebugFollowIncrementalPI') { '1' } else { '0' }
     $expectedNormalLimit = if ($expectedFollowProfile) { '1000' } else { '600' }
     $expectedDefines = @{
         CARTEST_FOLLOW_DIFF_PERMILLE = $expectedDiff
@@ -313,6 +320,7 @@ try {
         CARTEST_FOLLOW_TURN_PROFILE_COMPILED = $expectedTurnBit
         CARTEST_FOLLOW_SPEED_PI_ENABLED = $expectedSpeedPiBit
         CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED = $expectedIncrementalPiBit
+        CARTEST_ACKERMANN_COORDINATION_ENABLED = $expectedAckermannBit
         CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE = '10'
         CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE = $expectedTurnStep
         CARTEST_FOLLOW_SERVO_SLEW_STEP_US = $expectedServoStep

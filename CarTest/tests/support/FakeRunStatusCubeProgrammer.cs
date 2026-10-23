@@ -110,6 +110,18 @@ internal static class FakeRunStatusCubeProgrammer
             expectedSizeText = "64";
             fixture = Env("RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE");
         }
+        else if (address == Env("RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_ADDRESS"))
+        {
+            expectedAddress = Env("RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_ADDRESS");
+            expectedSizeText = "64";
+            fixture = Env("RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_FIXTURE");
+        }
+        else if (address == Env("RUN_STATUS_FAKE_ACKERMANN_GENERATION_ADDRESS"))
+        {
+            expectedAddress = Env("RUN_STATUS_FAKE_ACKERMANN_GENERATION_ADDRESS");
+            expectedSizeText = "4";
+            fixture = Env("RUN_STATUS_FAKE_ACKERMANN_GENERATION_FIXTURE");
+        }
         else if (address == Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS"))
         {
             expectedAddress = Env("RUN_STATUS_FAKE_DIAGNOSTIC_ADDRESS");

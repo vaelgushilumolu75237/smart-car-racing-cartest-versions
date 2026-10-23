@@ -156,6 +156,8 @@ typedef struct {
     uint8_t vision_valid;
     /* Trusted only after the normal sequence, age, and recovery gates. */
     uint8_t vision_slope_hint;
+    uint8_t vision_curve_phase;
+    uint16_t vision_slowdown_request_permille;
     uint8_t vision_timeout;
     uint8_t vision_confidence;
     int16_t vision_error_norm;  /* Normalized image half-width / 1000. */
@@ -189,6 +191,8 @@ typedef struct {
     /* Latest CRC/format-valid UART observation, independent of trust. */
     uint8_t latest_rx_valid;
     uint8_t latest_rx_slope_hint;
+    uint8_t latest_rx_curve_phase;
+    uint16_t latest_rx_slowdown_request_permille;
     uint8_t latest_rx_confidence;
     int16_t latest_rx_error_norm;
     uint16_t latest_rx_sequence;
@@ -332,6 +336,20 @@ void car_control_on_vision_frame_at_with_flags(
     uint8_t flags,
     uint8_t confidence,
     int16_t error_norm,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high);
+
+/* V2 parser path also supplies the strictly validated Ackermann request. */
+void car_control_on_vision_frame_at_with_flags_and_curve(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
     uint32_t arrival_ms,
     uint32_t now_ms,
     uint8_t pe7_raw_high);

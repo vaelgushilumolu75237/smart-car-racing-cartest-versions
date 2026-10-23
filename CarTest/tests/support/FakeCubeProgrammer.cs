@@ -98,6 +98,8 @@ internal static class FakeCubeProgrammer
         bool speedPiDiagnosticRead = address == Env("RUNTIME_LOG_FAKE_SPEED_PI_DIAGNOSTIC_ADDRESS");
         bool receiveDiagnosticRead = address == Env("RUNTIME_LOG_FAKE_RECEIVE_DIAGNOSTIC_ADDRESS");
         bool speedPiTraceRead = address == Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS");
+        bool ackermannSnapshotRead = address == Env("RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_ADDRESS");
+        bool ackermannGenerationRead = address == Env("RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_ADDRESS");
         if (mode == "connect-error" ||
             (mode == "connect-error-1000" && args[3] == "freq=1000") ||
             (mode == "status-only-error" && scalarRead))
@@ -153,6 +155,16 @@ internal static class FakeCubeProgrammer
         {
             fixturePath = Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_PATH");
             expectedAddress = Env("RUNTIME_LOG_FAKE_SPEED_PI_TRACE_ADDRESS");
+        }
+        else if (ackermannSnapshotRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_ACKERMANN_SNAPSHOT_ADDRESS");
+        }
+        else if (ackermannGenerationRead)
+        {
+            fixturePath = Env("RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_PATH");
+            expectedAddress = Env("RUNTIME_LOG_FAKE_ACKERMANN_GENERATION_ADDRESS");
         }
         else if (!String.IsNullOrEmpty(Env("RUNTIME_LOG_FAKE_HEADER_OVERRIDE_PATH")) &&
                  address == expectedAddress && args[uploadIndex + 2] == "64")
@@ -222,6 +234,11 @@ internal static class FakeCubeProgrammer
                 content.Length > 64 + 44)
             {
                 content[64 + 20] ^= 0x01;
+            }
+            if (mode == "ackermann-crc-error" && ackermannSnapshotRead &&
+                content.Length == 64)
+            {
+                content[60] ^= 0x01;
             }
             Directory.CreateDirectory(Path.GetDirectoryName(args[uploadIndex + 3]));
             File.WriteAllBytes(args[uploadIndex + 3], content);

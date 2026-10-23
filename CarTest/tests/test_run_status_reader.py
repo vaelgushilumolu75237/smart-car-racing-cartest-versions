@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import csv
 import dataclasses
 import hashlib
 import struct
@@ -91,6 +92,24 @@ def make_runtime_diagnostic(state, count=0, session_id=0, start_events=0,
     return bytes(raw)
 
 
+def make_ackermann_snapshot(*, flags=(1 << 0) | (1 << 5), generation=0,
+                            sequence=65535, phase=2, slowdown=725,
+                            run_state=10, fault_reason=0):
+    raw = bytearray(reader.ACKERMANN_SNAPSHOT_SIZE)
+    raw[:4] = reader.ACKERMANN_SNAPSHOT_MAGIC
+    raw[4] = reader.ACKERMANN_SNAPSHOT_VERSION
+    raw[5] = reader.ACKERMANN_SNAPSHOT_SIZE
+    struct.pack_into("<HIIH", raw, 6, flags, generation, 0xFFFFFFFE, sequence)
+    raw[18] = phase
+    struct.pack_into("<H", raw, 20, slowdown)
+    struct.pack_into("<hHhH", raw, 24, -1234, 24576, -120, 1530)
+    struct.pack_into("<5i", raw, 32, 3200, 2400, 2300, 2200, 2100)
+    struct.pack_into("<2HBB", raw, 52, 500, 520, run_state, fault_reason)
+    struct.pack_into("<I", raw, reader.ACKERMANN_SNAPSHOT_CRC_OFFSET,
+                     zlib.crc32(raw[:reader.ACKERMANN_SNAPSHOT_CRC_OFFSET]) & 0xFFFFFFFF)
+    return bytes(raw)
+
+
 def make_receive_diagnostic(window_start=100, duration=1000,
                             accepted_total=20, accepted_window=10,
                             invalid_total=2, invalid_window=1,
@@ -135,6 +154,26 @@ def synthetic_speed_pi_diagnostic_plan(elf):
         "size": reader.SPEED_PI_DIAGNOSTIC_SIZE,
         "section": ".speed_pi_diag",
         "section_alignment": 32,
+    }
+    return plan
+
+
+def synthetic_ackermann_plan(elf):
+    plan = copy.deepcopy(reader.build_plan(elf))
+    plan["ackermann_snapshot"] = {
+        "available": True,
+        "symbol": reader.ACKERMANN_SNAPSHOT_SYMBOL,
+        "address": "0x2407D000",
+        "address_u32": 0x2407D000,
+        "size": reader.ACKERMANN_SNAPSHOT_SIZE,
+        "section": ".ackermann_snapshot",
+        "section_alignment": 32,
+        "generation_read": {
+            "address": "0x2407D008",
+            "address_u32": 0x2407D008,
+            "size": 4,
+            "field_offset": 8,
+        },
     }
     return plan
 
@@ -189,7 +228,118 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertFalse(plan["record_area_read"])
         self.assertFalse(plan["runtime_diagnostic_snapshot"]["available"])
         self.assertFalse(plan["speed_pi_diagnostic_snapshot"]["available"])
+        self.assertFalse(plan["ackermann_snapshot"]["available"])
         self.assertEqual(hashlib.sha256(ELF.read_bytes()).hexdigest(), before)
+
+    def test_ackermann_decoder_checks_ack1_crc_ranges_generation_and_guard_reads(self):
+        raw = make_ackermann_snapshot(generation=0)
+        decoded = reader.decode_ackermann_snapshot(raw, bytes(4), bytes(4))
+        self.assertTrue(decoded["valid"])
+        self.assertTrue(decoded["stable"])
+        self.assertTrue(decoded["exportable"])
+        self.assertEqual(decoded["generation"], 0)
+        self.assertEqual(decoded["vision_sequence"], 65535)
+        self.assertEqual(decoded["curve_phase_name"], "turn")
+        self.assertEqual(decoded["slowdown_request_permille"], 725)
+        self.assertEqual(decoded["model_angle_cdeg"], -1234)
+        self.assertEqual(decoded["run_state_name"], "follow_running")
+
+        blank = reader.decode_ackermann_snapshot(bytes(64))
+        self.assertEqual(blank["status"], "uninitialized")
+        self.assertFalse(blank["exportable"])
+        self.assertEqual(blank["error_class"],
+                         "ackermann_snapshot_uninitialized")
+
+        odd = reader.decode_ackermann_snapshot(
+            make_ackermann_snapshot(generation=3))
+        self.assertEqual(odd["status"], "unstable")
+        self.assertEqual(odd["error_class"], "ackermann_snapshot_unstable")
+
+        guard_mismatch = reader.decode_ackermann_snapshot(
+            raw, struct.pack("<I", 2), bytes(4))
+        self.assertEqual(guard_mismatch["status"], "unstable")
+        self.assertIn("before generation guard", " ".join(guard_mismatch["issues"]))
+
+        bad_crc = bytearray(raw)
+        bad_crc[32] ^= 1
+        invalid = reader.decode_ackermann_snapshot(bytes(bad_crc))
+        self.assertEqual(invalid["status"], "invalid")
+        self.assertIn("CRC-32", " ".join(invalid["issues"]))
+
+        reserved = bytearray(raw)
+        reserved[19] = 1
+        struct.pack_into("<I", reserved, 60, zlib.crc32(reserved[:60]) & 0xFFFFFFFF)
+        invalid = reader.decode_ackermann_snapshot(bytes(reserved))
+        self.assertEqual(invalid["status"], "invalid")
+        self.assertIn("reserved", " ".join(invalid["issues"]))
+
+        out_of_range = reader.decode_ackermann_snapshot(
+            make_ackermann_snapshot(phase=4))
+        self.assertEqual(out_of_range["status"], "invalid")
+        self.assertIn("curve phase", " ".join(out_of_range["issues"]))
+
+    def test_ackermann_export_writes_one_nonempty_row_only_when_frozen(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw_path = root / "ack.bin"
+            csv_path = root / "ackermann-snapshot.csv"
+            metadata_path = root / "ackermann-snapshot.json"
+            raw_path.write_bytes(make_ackermann_snapshot(generation=0))
+            result = reader.export_ackermann_snapshot(raw_path, csv_path,
+                                                      metadata_path)
+            self.assertEqual(result["row_count"], 1)
+            self.assertTrue(result["csv_created"])
+            with csv_path.open("r", encoding="utf-8", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["generation"], "0")
+            self.assertEqual(rows[0]["vision_sequence"], "65535")
+            self.assertEqual(rows[0]["slowdown_request_permille"], "725")
+            self.assertTrue(metadata_path.is_file())
+
+            blank_path = root / "blank.bin"
+            blank_csv = root / "blank.csv"
+            blank_path.write_bytes(bytes(64))
+            with self.assertRaisesRegex(reader.StatusReadError,
+                                        "ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_uninitialized"):
+                reader.export_ackermann_snapshot(blank_path, blank_csv)
+            self.assertFalse(blank_csv.exists())
+
+            active_path = root / "active.bin"
+            active_csv = root / "active.csv"
+            active_path.write_bytes(make_ackermann_snapshot(
+                flags=(1 << 0) | (1 << 4), generation=2))
+            with self.assertRaisesRegex(reader.StatusReadError,
+                                        "ACKERMANN_SNAPSHOT_NOT_EXPORTABLE:ackermann_snapshot_not_frozen"):
+                reader.export_ackermann_snapshot(active_path, active_csv)
+            self.assertFalse(active_csv.exists())
+
+    def test_ackermann_snapshot_is_integrated_into_status_decode(self):
+        plan = synthetic_ackermann_plan(ELF)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scalar = root / "scalars.bin"
+            header = root / "header.bin"
+            descriptor = root / "descriptor.bin"
+            ack = root / "ackermann-snapshot.bin"
+            generation_before = root / "generation-before.bin"
+            generation_after = root / "generation-after.bin"
+            scalar.write_bytes(make_scalar_region(plan))
+            header.write_bytes(make_idle_header(plan))
+            descriptor.write_bytes(exporter.inspect_elf(ELF).descriptor_bytes)
+            ack.write_bytes(make_ackermann_snapshot(generation=0))
+            generation_before.write_bytes(bytes(4))
+            generation_after.write_bytes(bytes(4))
+            with mock.patch.object(reader, "build_plan", return_value=plan):
+                result = reader.decode_snapshot(
+                    ELF, scalar, header, descriptor,
+                    ackermann_snapshot_path=ack,
+                    ackermann_generation_before_path=generation_before,
+                    ackermann_generation_after_path=generation_after)
+        self.assertEqual(result["ackermann_snapshot"]["status"], "frozen")
+        self.assertTrue(result["ackermann_snapshot"]["exportable"])
+        self.assertEqual(result["reads"]["ackermann_snapshot"]["size"], 64)
+        self.assertEqual(result["raw_files"]["ackermann_snapshot"]["bytes"], 64)
 
     def test_old_matching_elf_without_optional_snapshot_symbols_remains_usable(self):
         plan = reader.build_plan(OLD_ELF)

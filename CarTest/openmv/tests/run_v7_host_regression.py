@@ -1,11 +1,15 @@
-"""Run frozen V7 host regressions with CarTest's OpenMV source modules.
+"""Historical frozen V7 checks for the pre-320x120 160x120/2x2 input.
 
 This runner copies tests into a temporary tree so their existing path-based
 imports resolve to the CarTest package. It adapts the old literal BUILD
 expectation and marks the frozen V7 test double as the confidence-diagnostic
-API required by the new bundle. Neither the frozen snapshot nor original
-Sixth_Test tests are modified. Board-only equivalence stays skipped unless a
-real-board manifest is provided, and no camera or serial interface is opened.
+API required by the old bundle. Its image fixtures assume one uniform 2x2
+source-to-grid scale, so it is a historical compatibility check and does not
+validate the current 320x120 center crop or 4x2 min-pool. Use
+`python -m unittest discover -s openmv/tests -p 'test_*.py'` for current host
+regressions. Neither the frozen snapshot nor original Sixth_Test tests are
+modified. Board-only equivalence stays skipped unless a real-board manifest is
+provided, and no camera or serial interface is opened.
 """
 
 import csv
@@ -329,9 +333,9 @@ def main():
             encoding="utf-8", newline="")
         environment = os.environ.copy()
         environment.pop("V7_REQUIRE_BOARD_KERNEL_EQUIVALENCE", None)
-        print("SUITE_CLASS=FROZEN_V7_BEHAVIORAL_COMPATIBILITY")
+        print("SUITE_CLASS=HISTORICAL_160x120_2x2_BEHAVIORAL_COMPATIBILITY")
         print("FIXTURE_SOURCE_HASHES=VERIFIED_UNCHANGED")
-        print("TARGET_RUNTIME_CONFIG=BOTTOM80_POSPD_20261020")
+        print("CURRENT_320x120_4x2_ACCEPTANCE=NOT_COVERED")
         print("TEMPORARY_TEST_COPY_ADAPTATIONS=" +
               json.dumps(adaptations_applied, sort_keys=True))
         completed = subprocess.run(
