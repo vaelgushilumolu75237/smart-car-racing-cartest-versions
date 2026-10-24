@@ -180,6 +180,52 @@ def options_for(mode, output_dir, **overrides):
 
 
 class BenchmarkOpenMVPreviewTests(unittest.TestCase):
+    def test_operation_budgets_do_not_reconfigure_open_serial_timeout(self):
+        class AssignmentCountingSerial:
+            def __init__(self, timeout):
+                self._timeout = timeout
+                self.timeout_assignments = 0
+
+            @property
+            def timeout(self):
+                return self._timeout
+
+            @timeout.setter
+            def timeout(self, value):
+                self.timeout_assignments += 1
+                self._timeout = value
+
+        serial = AssignmentCountingSerial(0.15)
+        camera = SimpleNamespace(
+            timeout=0.15,
+            transport=SimpleNamespace(timeout=0.15),
+            _serial=serial,
+            read_status=lambda: "status",
+            read_stdout=lambda: "stdout",
+        )
+        samples = {"read_status": [], "read_stdout": []}
+
+        bench._bounded_camera_call(
+            camera, "read_status", (), 0.15, 0.15, samples)
+        self.assertEqual(serial.timeout_assignments, 0)
+        self.assertEqual(serial.timeout, 0.15)
+
+        bench._bounded_camera_call(
+            camera, "read_stdout", (), 5.0, 5.0, samples)
+        self.assertEqual(camera.timeout, 5.0)
+        self.assertEqual(camera.transport.timeout, 5.0)
+        self.assertEqual(serial.timeout, 0.15)
+        self.assertEqual(serial.timeout_assignments, 0)
+
+        bench._bounded_camera_call(
+            camera, "read_status", (), 2.0, 2.0, samples)
+        self.assertEqual(camera.timeout, 2.0)
+        self.assertEqual(camera.transport.timeout, 2.0)
+        self.assertEqual(serial.timeout, 0.15)
+        self.assertEqual(serial.timeout_assignments, 0)
+        self.assertEqual(len(samples["read_status"]), 2)
+        self.assertEqual(len(samples["read_stdout"]), 1)
+
     def test_parser_requires_explicit_run_before_any_device_setup(self):
         stderr = io.StringIO()
         arguments = [

@@ -1,7 +1,7 @@
 {
-  "version": "v20261024-usb60-offline-candidate",
-  "status": "software-tested-hardware-pending",
-  "branch": "experimental/usb60-offline-candidate",
-  "files": 619,
+  "version": "v20261024-usb60-static-preview",
+  "status": "static-vision-preview-tested-uart-sink",
+  "branch": "experimental/usb60-static-preview",
+  "files": 599,
   "hardware_actions": "none"
 }

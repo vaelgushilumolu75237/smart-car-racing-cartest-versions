@@ -363,13 +363,19 @@ def _disconnect_quietly(camera):
 
 
 def _set_transport_timeout(camera, timeout_s):
-    """Keep SDK and serial receives no longer than this operation budget."""
+    """Set logical SDK wait budgets without reconfiguring the open serial port.
+
+    pyserial's ``Serial.timeout`` is fixed when ``Camera.connect()`` opens the
+    port. Reassigning it can call SetCommState and toggle CDC line state on
+    Windows. ``call_with_deadline`` still bounds each operation and closes the
+    port on timeout; Camera/Transport timeouts only control their receive loop.
+    """
     for obj, attribute in ((camera, "timeout"),
-                           (getattr(camera, "transport", None), "timeout"),
-                           (getattr(camera, "_serial", None), "timeout")):
+                           (getattr(camera, "transport", None), "timeout")):
         if obj is not None and hasattr(obj, attribute):
             try:
-                setattr(obj, attribute, timeout_s)
+                if getattr(obj, attribute) != timeout_s:
+                    setattr(obj, attribute, timeout_s)
             except Exception:
                 pass
 

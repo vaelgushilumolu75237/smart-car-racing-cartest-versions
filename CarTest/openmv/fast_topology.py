@@ -250,6 +250,7 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
     mask_words = ptr32(self._current_mask)
     visited_words = ptr32(self._visited)
     queue = ptr16(self._queue)
+    queue_capacity = int(self._queue_capacity)
     epoch_buffer = ptr32(self._visit_epoch)
     width = int(self.width)
     height = int(self.height)
@@ -307,10 +308,15 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             while run_right + 1 < width and \
                     mask[row_offset + run_right + 1] != 0:
                 run_right += 1
+            seed_run_right = run_right
             for x in range(run_left, run_right + 1):
                 visited[row_offset + x] = visit_stamp | 1
             queue_count = 1
+            # Keep both ends of each queued run in the existing 16-bit queue.
+            # The grid has at most 2,400 alternating dark runs, so two entries
+            # per run fit exactly in the 4,800-entry scratch array.
             queue[0] = row_offset + run_left
+            queue[1] = row_offset + run_right
             queue_head = 0
             area = 0
             touches_roi = 0
@@ -320,15 +326,14 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             max_y = -1
 
             while queue_head < queue_count:
-                index = int(queue[queue_head])
+                queue_slot = queue_head * 2
+                index = int(queue[queue_slot])
+                run_end_index = int(queue[queue_slot + 1])
                 queue_head += 1
                 y = index // width
                 row_offset = y * width
                 run_left = index - row_offset
-                run_right = run_left
-                while run_right + 1 < width and \
-                        mask[row_offset + run_right + 1] != 0:
-                    run_right += 1
+                run_right = run_end_index - row_offset
                 area += run_right - run_left + 1
                 if run_left < min_x:
                     min_x = run_left
@@ -341,9 +346,6 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                 if (run_left == 0 or run_right == width - 1 or
                         y == floor or y == band_end - 1):
                     touches_roi = 1
-                for x in range(run_left, run_right + 1):
-                    visited[row_offset + x] = visit_stamp | 2
-
                 for direction in range(2):
                     ny = y - 1 if direction == 0 else y + 1
                     if ny < floor or ny >= band_end:
@@ -367,9 +369,12 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                             while next_right + 1 < width and \
                                     mask[neighbor_row + next_right + 1] != 0:
                                 next_right += 1
-                            if queue_count >= total:
+                            if queue_count * 2 + 1 >= queue_capacity:
                                 return -1
-                            queue[queue_count] = neighbor_row + next_left
+                            queue_slot = queue_count * 2
+                            queue[queue_slot] = neighbor_row + next_left
+                            queue[queue_slot + 1] = (
+                                neighbor_row + next_right)
                             queue_count += 1
                             for px in range(next_left, next_right + 1):
                                 visited[neighbor_row + px] = visit_stamp | 1
@@ -382,7 +387,9 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             if (touches_roi != 0 or area < min_area or area > max_area or
                     box_width < min_extent or box_height < min_extent or
                     box_width > max_extent or box_height > max_extent):
-                start_x += 1
+                # Every pixel through this seed run was stamped at enqueue,
+                # so no other 8-connected component can begin inside it.
+                start_x = seed_run_right + 1
                 continue
 
             x0 = min_x - 1
@@ -425,7 +432,7 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                                 (visited[neighbor] >> 2) == epoch):
                             break
                         run_right += 1
-                    if queue_count * 2 + 1 >= total:
+                    if queue_count * 2 + 1 >= queue_capacity:
                         return -1
                     queue[queue_count * 2] = y * width + run_left
                     queue[queue_count * 2 + 1] = y * width + run_right
@@ -467,7 +474,7 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                                         (visited[neighbor] >> 2) == epoch):
                                     break
                                 next_right += 1
-                            if queue_count * 2 + 1 >= total:
+                            if queue_count * 2 + 1 >= queue_capacity:
                                 return -1
                             queue[queue_count * 2] = (
                                 neighbor_row + next_left)
@@ -552,7 +559,7 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                                                 epoch):
                                             break
                                         next_right += 1
-                                    if queue_count * 2 + 1 >= total:
+                                    if queue_count * 2 + 1 >= queue_capacity:
                                         return -1
                                     queue[queue_count * 2] = (
                                         neighbor_row + next_left)
@@ -611,10 +618,13 @@ class FastTopologyGuard:
         total = self.width * self.height
         self._visited = bytearray(total)
         self._visit_epoch = array("i", [0])
-        # Every linear index is below 4800, so an unsigned 16-bit queue is
-        # sufficient and occupies the same 2 bytes per entry as the old byte
-        # packed queue.
-        self._queue = array("H", [0] * total)
+        # The run queue stores two 16-bit endpoints per run. A row can have
+        # ceil(width/2) separated runs, so odd-width grids need more than one
+        # queue slot per pixel. This formula leaves the existing 80x60
+        # allocation at 4,800 entries while covering a 5x5 checkerboard's
+        # 13 runs (26 endpoint entries).
+        self._queue_capacity = 2 * ((self.width + 1) // 2) * self.height
+        self._queue = array("H", [0] * self._queue_capacity)
         self._trusted_rows = bytearray(self.height)
         self._segment_starts = bytearray(self.height)
         self._segment_ends = bytearray(self.height)

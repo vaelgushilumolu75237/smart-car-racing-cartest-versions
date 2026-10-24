@@ -20,6 +20,11 @@ V7_UART_WRITE_RESERVE_US = 22000  # UART 20 ms timeout plus 2 ms guard.
 DEBUG_ENABLED = True
 # Keep grayscale frames unmodified for calibration by setting this False.
 OVERLAY_ENABLED = True
+# Candidate USB preview is independent from H743 control and route logic.
+USB_PREVIEW_ENABLED = True
+USB_PREVIEW_QUALITY = 10
+USB_PREVIEW_OVERLAY_MODE = "compact"
+USB_PREVIEW_BUILD_ID = "OPENMV_USB60_CANDIDATE_20261024"
 OVERLAY_PERIOD_MS = 200  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
@@ -27,7 +32,7 @@ DEBUG_ROW_DETAILS = True
 # The coordinated profile uses PD plus confirmed adaptive preview and the
 # independent speed-request stage. geometry_perf_only retains the same PD and
 # preview behavior with the prior .35/100 preview bounds and no speed request.
-STEERING_CONTROL_PROFILE = "pd_preview"
+STEERING_CONTROL_PROFILE = "coordinated"
 STEERING_CONTROL_PROFILE_BUILD_IDS = (
     ("no_pd", "OPENMV_ACKERMANN320_NO_PD_20261022"),
     ("pd", "OPENMV_ACKERMANN320_PD_20261022"),

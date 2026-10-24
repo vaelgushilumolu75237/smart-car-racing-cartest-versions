@@ -782,7 +782,19 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
              "_aggregate_selected_rows_viper",
              "_crc16_control_extension_viper",
              "_write_control_extension_viper",
-             "_write_camera_diag_record_viper"})
+             "_write_camera_diag_record_viper",
+             # Additive native USB preview support introduced after this
+             # frozen algorithm baseline; exercised by preview/package tests.
+             "_FreshCaptureFPS", "_road_overlay_rows_unexposed",
+             "_road_preview_int32_array_valid",
+             "_road_overlay_packed_array_valid",
+             "_build_usb_preview_compact_text", "_usb_vcp_is_connected",
+             "_NativeUSBPreviewSource", "_is_native_usb_preview_source",
+             "_publish_current_usb_preview_jpeg",
+             "_draw_road_overlay_packed",
+             "_native_preview_control_api_available",
+             "_open_usb_vcp_safely",
+             "_road_preview_integer_geometry_viper"})
         self.assertEqual(baseline_defs.keys() - current_defs.keys(), set())
         # Geometry/V2 work intentionally adjusts camera setup, pixel mapping,
         # runtime API checks, and per-window summaries in addition to the
@@ -790,7 +802,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
         # unrelated definitions remain frozen against the prior runtime.
         changed_defs = {
             "_FastRowWeightWorkspace", "_FreshObservationFilter",
-            "_V7OverlayState", "_draw_gray_result",
+            "_V7OverlayState", "_V7PerfWindow", "_draw_gray_result",
             "_draw_sparse_surface_contour", "_draw_sparse_road_contour",
             "_service_reverse_control", "_selected_reference",
             "_validate_selected_fast_boundary", "_rounded_local",
@@ -847,7 +859,10 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
             "STEERING_OUTPUT_LIMIT", "STEERING_ROW_WEIGHT_Q",
             "STEERING_ROW_WEIGHT_Q_SCALE", "SURFACE_PIXEL_SCALE_X",
-            "SURFACE_PIXEL_SCALE_Y",
+            # Current V2 USB preview configuration, additive to the baseline.
+            "SURFACE_PIXEL_SCALE_Y", "USB_PREVIEW_ENABLED",
+            "USB_PREVIEW_OVERLAY_MODE", "USB_PREVIEW_QUALITY",
+            "USB_PREVIEW_BUILD_ID",
         }
         changed_assignments = {
             "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",

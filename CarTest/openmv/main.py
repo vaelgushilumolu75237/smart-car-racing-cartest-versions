@@ -38,6 +38,54 @@ except ImportError:
 import config
 import vision_protocol
 
+class _FreshCaptureFPS:
+    """Count successful capture intervals in wrap-safe 1 s windows."""
+    WINDOW_MS = 1000
+    RESET_GAP_MS = 2000
+
+    def __init__(self):
+        self._window_start_ms = None
+        self._last_capture_ms = None
+        self._window_intervals = 0
+        self._fps_value = 0.0
+
+    def record_success(self, now_ms):
+        """Record one successful snapshot return timestamp."""
+        if self._last_capture_ms is None:
+            self._window_start_ms = now_ms
+            self._last_capture_ms = now_ms
+            self._window_intervals = 0
+            self._fps_value = 0.0
+            return
+
+        gap_ms = time.ticks_diff(now_ms, self._last_capture_ms)
+        elapsed_ms = time.ticks_diff(now_ms, self._window_start_ms)
+        if (gap_ms < 0 or elapsed_ms < 0 or
+                gap_ms >= self.RESET_GAP_MS):
+            self._window_start_ms = now_ms
+            self._last_capture_ms = now_ms
+            self._window_intervals = 0
+            self._fps_value = 0.0
+            return
+
+        self._window_intervals += 1
+        if elapsed_ms >= self.WINDOW_MS:
+            self._fps_value = (self._window_intervals * 1000.0 /
+                               elapsed_ms)
+            self._window_start_ms = now_ms
+            self._window_intervals = 0
+        self._last_capture_ms = now_ms
+
+    def fps(self, now_ms):
+        """Return the current window rate without changing counter state."""
+        if self._last_capture_ms is None:
+            return 0.0
+        age_ms = time.ticks_diff(now_ms, self._last_capture_ms)
+        if age_ms < 0 or age_ms >= self.RESET_GAP_MS:
+            return 0.0
+        return self._fps_value
+
+
 
 @micropython.viper
 def _weighted_row_sums_viper(center_x2_object, row_y_object,
@@ -64,6 +112,182 @@ def _weighted_row_sums_viper(center_x2_object, row_y_object,
     output[0] = weighted_x2
     output[1] = total_weight
     output[2] = core_weight
+    return 1
+
+
+@micropython.native
+def _road_preview_int32_array_valid(values):
+    """Validate one private integer-array producer buffer for the Viper path."""
+    if not isinstance(values, array):
+        return False
+    try:
+        view = memoryview(values)
+        itemsize = getattr(view, "itemsize", None)
+    except (TypeError, AttributeError):
+        return False
+    if itemsize is None:
+        # OpenMV v5 omits memoryview width/format. Check the physical width once
+        # for each workspace-owned array identity, before entering the kernel.
+        try:
+            raw_bytes = bytes(view)
+            valid_size = len(raw_bytes) == len(values) * 4
+            del raw_bytes
+        except (TypeError, ValueError, MemoryError):
+            return False
+        if not valid_size:
+            return False
+    elif itemsize != 4:
+        return False
+    view_format = getattr(view, "format", None)
+    if (view_format is not None and
+            view_format not in ("i", "l", "@i", "@l", "=i", "=l")):
+        return False
+    typecode = getattr(values, "typecode", None)
+    if typecode is not None and typecode != "i":
+        return False
+    try:
+        if len(values) == 0 or not isinstance(values[0], int):
+            return False
+    except (IndexError, TypeError):
+        return False
+    # The workspace creates these private arrays with array("i"). Ports that
+    # omit typecode and view metadata rely on that producer contract plus the
+    # physical-width and integer-sample checks above.
+    return True
+
+
+@micropython.viper
+def _road_preview_integer_geometry_viper(
+        valid_rows_object, centers_object, row_y_object,
+        selected_start_y: int, selected_end_y: int, endpoint_rows: int,
+        scratch_object, middle_y_object, distances_object,
+        output_object) -> int:
+    """Collect exact endpoint and middle medians from bounded row arrays."""
+    if (selected_start_y < 0 or selected_start_y >= 60 or
+            selected_end_y < selected_start_y or selected_end_y >= 60 or
+            endpoint_rows != 5):
+        return -1
+
+    valid_rows = ptr8(valid_rows_object)
+    centers = ptr32(centers_object)
+    row_y = ptr32(row_y_object)
+    scratch = ptr32(scratch_object)
+    middle_y = ptr32(middle_y_object)
+    distances = ptr32(distances_object)
+    output = ptr32(output_object)
+
+    collected = 0
+    far_y = -1
+    far_band_end = -1
+    slot = selected_start_y
+    while slot <= selected_end_y:
+        if valid_rows[slot] != 0:
+            scratch[collected] = centers[slot]
+            collected += 1
+            if collected == 3:
+                far_y = row_y[slot]
+            if collected == 5:
+                far_band_end = slot
+                break
+        slot += 1
+    if collected != 5:
+        return 0
+
+    index = 1
+    while index < 5:
+        value = scratch[index]
+        insert_at = index
+        while insert_at > 0 and scratch[insert_at - 1] > value:
+            scratch[insert_at] = scratch[insert_at - 1]
+            insert_at -= 1
+        scratch[insert_at] = value
+        index += 1
+    far_center_x2 = scratch[2]
+
+    collected = 0
+    near_y = -1
+    near_band_start = -1
+    slot = selected_end_y
+    while slot >= selected_start_y:
+        if valid_rows[slot] != 0:
+            scratch[collected] = centers[slot]
+            collected += 1
+            if collected == 3:
+                near_y = row_y[slot]
+            if collected == 5:
+                near_band_start = slot
+                break
+        slot -= 1
+    if collected != 5:
+        return 0
+
+    index = 1
+    while index < 5:
+        value = scratch[index]
+        insert_at = index
+        while insert_at > 0 and scratch[insert_at - 1] > value:
+            scratch[insert_at] = scratch[insert_at - 1]
+            insert_at -= 1
+        scratch[insert_at] = value
+        index += 1
+    near_center_x2 = scratch[2]
+
+    middle_count = 0
+    target_y2 = near_y + far_y
+    slot = far_band_end + 1
+    while slot < near_band_start:
+        if valid_rows[slot] != 0:
+            distance = slot * 2 - target_y2
+            if distance < 0:
+                distance = -distance
+            insert_at = middle_count
+            if insert_at >= 5:
+                insert_at = 4
+                if distance >= distances[insert_at]:
+                    slot += 1
+                    continue
+            else:
+                middle_count += 1
+            while insert_at > 0 and distances[insert_at - 1] > distance:
+                distances[insert_at] = distances[insert_at - 1]
+                middle_y[insert_at] = middle_y[insert_at - 1]
+                scratch[insert_at] = scratch[insert_at - 1]
+                insert_at -= 1
+            distances[insert_at] = distance
+            middle_y[insert_at] = slot
+            scratch[insert_at] = centers[slot]
+        slot += 1
+    if middle_count != 5:
+        return 0
+
+    index = 1
+    while index < 5:
+        value = scratch[index]
+        insert_at = index
+        while insert_at > 0 and scratch[insert_at - 1] > value:
+            scratch[insert_at] = scratch[insert_at - 1]
+            insert_at -= 1
+        scratch[insert_at] = value
+        index += 1
+    middle_center_x2 = scratch[2]
+
+    index = 1
+    while index < 5:
+        value = middle_y[index]
+        insert_at = index
+        while insert_at > 0 and middle_y[insert_at - 1] > value:
+            middle_y[insert_at] = middle_y[insert_at - 1]
+            insert_at -= 1
+        middle_y[insert_at] = value
+        index += 1
+    middle_row = middle_y[2]
+
+    output[0] = far_center_x2
+    output[1] = far_y
+    output[2] = near_center_x2
+    output[3] = near_y
+    output[4] = middle_center_x2
+    output[5] = middle_row
     return 1
 
 
@@ -1847,6 +2071,14 @@ class _FastRowWeightWorkspace:
         self._preview_median_x2 = array("i", [0] * 5)
         self._preview_middle_y = array("i", [0] * 5)
         self._preview_middle_distance = array("i", [0] * 5)
+        self._preview_geometry = array("i", [0] * 6)
+        self._preview_geometry_centers_owner = None
+        self._preview_geometry_row_y_owner = None
+        self._preview_geometry_scratch_owner = None
+        self._preview_geometry_middle_y_owner = None
+        self._preview_geometry_distances_owner = None
+        self._preview_geometry_output_owner = None
+        self._preview_geometry_arrays_valid = False
         self.info = {
             "valid": False, "reason": "NOT_RUN", "source": "NONE",
             "center_x": None, "raw_error": 0,
@@ -2013,97 +2245,152 @@ class _FastRowWeightWorkspace:
                 selected_rows < endpoint_rows * 3):
             return
 
+        geometry_status = -1
+        valid_rows = self._preview_valid_rows
+        centers = self._preview_center_x2
+        row_y = self._preview_y
         scratch = self._preview_median_x2
-        collected = 0
-        far_y = -1
-        for slot in range(selected_start_y, selected_end_y + 1):
-            if not valid_rows[slot]:
-                continue
-            scratch[collected] = centers[slot]
-            collected += 1
-            if collected == endpoint_rows // 2 + 1:
-                far_y = self._preview_y[slot]
-            if collected == endpoint_rows:
-                far_band_end = slot
-                break
-        if collected != endpoint_rows:
-            return
-        for index in range(1, endpoint_rows):
-            value = scratch[index]
-            insert_at = index
-            while insert_at > 0 and scratch[insert_at - 1] > value:
-                scratch[insert_at] = scratch[insert_at - 1]
-                insert_at -= 1
-            scratch[insert_at] = value
-        far_center_x2 = scratch[endpoint_rows // 2]
-
-        collected = 0
-        near_y = -1
-        for slot in range(selected_end_y, selected_start_y - 1, -1):
-            if not valid_rows[slot]:
-                continue
-            scratch[collected] = centers[slot]
-            collected += 1
-            if collected == endpoint_rows // 2 + 1:
-                near_y = self._preview_y[slot]
-            if collected == endpoint_rows:
-                near_band_start = slot
-                break
-        if collected != endpoint_rows:
-            return
-        for index in range(1, endpoint_rows):
-            value = scratch[index]
-            insert_at = index
-            while insert_at > 0 and scratch[insert_at - 1] > value:
-                scratch[insert_at] = scratch[insert_at - 1]
-                insert_at -= 1
-            scratch[insert_at] = value
-        near_center_x2 = scratch[endpoint_rows // 2]
-
-        # A straight lane can be diagonal under camera yaw/perspective. Only
-        # boost its heading when the forward part bends away from the local
-        # near-to-middle tangent. Use three disjoint measured row windows.
         middle_y = self._preview_middle_y
         distances = self._preview_middle_distance
-        middle_count = 0
-        target_y2 = near_y + far_y
-        for slot in range(far_band_end + 1, near_band_start):
-            if not valid_rows[slot]:
-                continue
-            distance = abs(slot * 2 - target_y2)
-            insert_at = middle_count
-            if insert_at >= endpoint_rows:
-                insert_at = endpoint_rows - 1
-                if distance >= distances[insert_at]:
-                    continue
-            else:
-                middle_count += 1
-            while insert_at > 0 and distances[insert_at - 1] > distance:
-                distances[insert_at] = distances[insert_at - 1]
-                middle_y[insert_at] = middle_y[insert_at - 1]
-                scratch[insert_at] = scratch[insert_at - 1]
-                insert_at -= 1
-            distances[insert_at] = distance
-            middle_y[insert_at] = slot
-            scratch[insert_at] = centers[slot]
-        if middle_count != endpoint_rows:
+        output = self._preview_geometry
+        if (type(selected_start_y) is int and
+                type(selected_end_y) is int and
+                0 <= selected_start_y <= selected_end_y < 60 and
+                type(valid_rows) is bytearray and len(valid_rows) == 60 and
+                isinstance(centers, array) and len(centers) == 60 and
+                isinstance(row_y, array) and len(row_y) == 60 and
+                isinstance(scratch, array) and len(scratch) >= endpoint_rows and
+                isinstance(middle_y, array) and len(middle_y) >= endpoint_rows and
+                isinstance(distances, array) and len(distances) >= endpoint_rows and
+                isinstance(output, array) and len(output) >= 6):
+            owners_match = (
+                centers is self._preview_geometry_centers_owner and
+                row_y is self._preview_geometry_row_y_owner and
+                scratch is self._preview_geometry_scratch_owner and
+                middle_y is self._preview_geometry_middle_y_owner and
+                distances is self._preview_geometry_distances_owner and
+                output is self._preview_geometry_output_owner)
+            if not owners_match:
+                self._preview_geometry_centers_owner = centers
+                self._preview_geometry_row_y_owner = row_y
+                self._preview_geometry_scratch_owner = scratch
+                self._preview_geometry_middle_y_owner = middle_y
+                self._preview_geometry_distances_owner = distances
+                self._preview_geometry_output_owner = output
+                self._preview_geometry_arrays_valid = (
+                    _road_preview_int32_array_valid(centers) and
+                    _road_preview_int32_array_valid(row_y) and
+                    _road_preview_int32_array_valid(scratch) and
+                    _road_preview_int32_array_valid(middle_y) and
+                    _road_preview_int32_array_valid(distances) and
+                    _road_preview_int32_array_valid(output))
+            if self._preview_geometry_arrays_valid:
+                geometry_status = _road_preview_integer_geometry_viper(
+                    valid_rows, centers, row_y, selected_start_y,
+                    selected_end_y, endpoint_rows, scratch, middle_y,
+                    distances, output)
+
+        if geometry_status == 0:
             return
-        for index in range(1, endpoint_rows):
-            value = scratch[index]
-            insert_at = index
-            while insert_at > 0 and scratch[insert_at - 1] > value:
-                scratch[insert_at] = scratch[insert_at - 1]
-                insert_at -= 1
-            scratch[insert_at] = value
-        middle_center_x2 = scratch[endpoint_rows // 2]
-        for index in range(1, endpoint_rows):
-            value = middle_y[index]
-            insert_at = index
-            while insert_at > 0 and middle_y[insert_at - 1] > value:
-                middle_y[insert_at] = middle_y[insert_at - 1]
-                insert_at -= 1
-            middle_y[insert_at] = value
-        middle_row = middle_y[endpoint_rows // 2]
+        if geometry_status == 1:
+            far_center_x2 = output[0]
+            far_y = output[1]
+            near_center_x2 = output[2]
+            near_y = output[3]
+            middle_center_x2 = output[4]
+            middle_row = output[5]
+        else:
+            scratch = self._preview_median_x2
+            collected = 0
+            far_y = -1
+            for slot in range(selected_start_y, selected_end_y + 1):
+                if not valid_rows[slot]:
+                    continue
+                scratch[collected] = centers[slot]
+                collected += 1
+                if collected == endpoint_rows // 2 + 1:
+                    far_y = self._preview_y[slot]
+                if collected == endpoint_rows:
+                    far_band_end = slot
+                    break
+            if collected != endpoint_rows:
+                return
+            for index in range(1, endpoint_rows):
+                value = scratch[index]
+                insert_at = index
+                while insert_at > 0 and scratch[insert_at - 1] > value:
+                    scratch[insert_at] = scratch[insert_at - 1]
+                    insert_at -= 1
+                scratch[insert_at] = value
+            far_center_x2 = scratch[endpoint_rows // 2]
+    
+            collected = 0
+            near_y = -1
+            for slot in range(selected_end_y, selected_start_y - 1, -1):
+                if not valid_rows[slot]:
+                    continue
+                scratch[collected] = centers[slot]
+                collected += 1
+                if collected == endpoint_rows // 2 + 1:
+                    near_y = self._preview_y[slot]
+                if collected == endpoint_rows:
+                    near_band_start = slot
+                    break
+            if collected != endpoint_rows:
+                return
+            for index in range(1, endpoint_rows):
+                value = scratch[index]
+                insert_at = index
+                while insert_at > 0 and scratch[insert_at - 1] > value:
+                    scratch[insert_at] = scratch[insert_at - 1]
+                    insert_at -= 1
+                scratch[insert_at] = value
+            near_center_x2 = scratch[endpoint_rows // 2]
+    
+            # A straight lane can be diagonal under camera yaw/perspective. Only
+            # boost its heading when the forward part bends away from the local
+            # near-to-middle tangent. Use three disjoint measured row windows.
+            middle_y = self._preview_middle_y
+            distances = self._preview_middle_distance
+            middle_count = 0
+            target_y2 = near_y + far_y
+            for slot in range(far_band_end + 1, near_band_start):
+                if not valid_rows[slot]:
+                    continue
+                distance = abs(slot * 2 - target_y2)
+                insert_at = middle_count
+                if insert_at >= endpoint_rows:
+                    insert_at = endpoint_rows - 1
+                    if distance >= distances[insert_at]:
+                        continue
+                else:
+                    middle_count += 1
+                while insert_at > 0 and distances[insert_at - 1] > distance:
+                    distances[insert_at] = distances[insert_at - 1]
+                    middle_y[insert_at] = middle_y[insert_at - 1]
+                    scratch[insert_at] = scratch[insert_at - 1]
+                    insert_at -= 1
+                distances[insert_at] = distance
+                middle_y[insert_at] = slot
+                scratch[insert_at] = centers[slot]
+            if middle_count != endpoint_rows:
+                return
+            for index in range(1, endpoint_rows):
+                value = scratch[index]
+                insert_at = index
+                while insert_at > 0 and scratch[insert_at - 1] > value:
+                    scratch[insert_at] = scratch[insert_at - 1]
+                    insert_at -= 1
+                scratch[insert_at] = value
+            middle_center_x2 = scratch[endpoint_rows // 2]
+            for index in range(1, endpoint_rows):
+                value = middle_y[index]
+                insert_at = index
+                while insert_at > 0 and middle_y[insert_at - 1] > value:
+                    middle_y[insert_at] = middle_y[insert_at - 1]
+                    insert_at -= 1
+                middle_y[insert_at] = value
+            middle_row = middle_y[endpoint_rows // 2]
         local_span = near_y - middle_row
         if local_span <= 0:
             return
@@ -2968,6 +3255,19 @@ def _validate_fast_config():
     if (not isinstance(overlay_period, int) or isinstance(overlay_period, bool)
             or overlay_period < 1 or overlay_period > 200):
         raise ValueError("V7 OVERLAY_PERIOD_MS must be in 1..200 ms")
+    usb_preview_enabled = getattr(config, "USB_PREVIEW_ENABLED", None)
+    if not isinstance(usb_preview_enabled, bool):
+        raise ValueError("USB_PREVIEW_ENABLED must be bool")
+    usb_preview_quality = getattr(config, "USB_PREVIEW_QUALITY", None)
+    if (not isinstance(usb_preview_quality, int) or
+            isinstance(usb_preview_quality, bool) or
+            usb_preview_quality < 1 or usb_preview_quality > 100):
+        raise ValueError("USB_PREVIEW_QUALITY must be an integer in 1..100")
+    if getattr(config, "USB_PREVIEW_OVERLAY_MODE", None) not in (
+            "compact", "full"):
+        raise ValueError("USB_PREVIEW_OVERLAY_MODE must be compact or full")
+    if getattr(config, "USB_PREVIEW_BUILD_ID", None) !=             "OPENMV_USB60_CANDIDATE_20261024":
+        raise RuntimeError("USB preview candidate config/build mismatch")
     if getattr(config, "SURFACE_MODE", None) != "gray_unified":
         raise ValueError("V7 requires the single gray_unified camera path")
     if (config.FRAME_SIZE_NAME != "QVGA" or
@@ -3881,6 +4181,162 @@ def _v7_overlay_status(overlay_state, selection, valid):
 
 
 @micropython.native
+def _road_overlay_packed_array_valid(packed):
+    """Validate the reusable FastPathDetector int32 producer buffer once."""
+    if not isinstance(packed, array):
+        return False
+    cache = _ROAD_OVERLAY_PACKED_CACHE
+    if packed is cache[0] and len(packed) == cache[1]:
+        return cache[2]
+    cache[0] = packed
+    cache[1] = -1
+    cache[2] = False
+    try:
+        packed_length = len(packed)
+        view = memoryview(packed)
+        itemsize = getattr(view, "itemsize", None)
+    except (TypeError, AttributeError):
+        return False
+    cache[1] = packed_length
+    if itemsize is None:
+        # OpenMV v5 omits view width/format. Check physical width once per
+        # reusable producer array, then retain the result by object identity.
+        try:
+            raw_bytes = bytes(view)
+            valid_size = len(raw_bytes) == packed_length * 4
+            del raw_bytes
+        except (TypeError, ValueError, MemoryError):
+            return False
+        if not valid_size:
+            return False
+    elif itemsize != 4:
+        return False
+    view_format = getattr(view, "format", None)
+    if (view_format is not None and
+            view_format not in ("i", "l", "@i", "@l", "=i", "=l")):
+        return False
+    typecode = getattr(packed, "typecode", None)
+    if typecode is not None and typecode != "i":
+        return False
+    try:
+        if packed_length == 0 or not isinstance(packed[0], int):
+            return False
+    except (IndexError, TypeError):
+        return False
+    # When OpenMV omits typecode and memoryview metadata, the exact _RowView
+    # producer identity below guarantees FastPathDetector's array("i") source;
+    # the physical-width and integer-sample checks above reject H/f buffers.
+    cache[2] = True
+    return True
+
+
+@micropython.native
+def _road_overlay_rows_unexposed(exposed, count):
+    """Allow packed drawing only when aliases used by this overlay are fresh."""
+    if (type(exposed) is not bytearray or count < 0 or
+            count > len(exposed)):
+        return False
+    if count >= 2:
+        if _PREVIEW_MAX_BOUNDARY_SEGMENTS <= 1:
+            if exposed[0] or exposed[count - 1]:
+                return False
+        else:
+            step = (count + 2) // 3
+            previous_index = 0
+            index = step
+            while index < count:
+                if exposed[previous_index] or exposed[index]:
+                    return False
+                previous_index = index
+                index += step
+            if previous_index != count - 1:
+                if exposed[previous_index] or exposed[count - 1]:
+                    return False
+    sample_count = _preview_row_sample_count(count)
+    for sample_index in range(sample_count):
+        index = _preview_row_sample_index(
+            count, sample_index, sample_count)
+        if exposed[index]:
+            return False
+    return True
+
+
+@micropython.native
+def _draw_road_overlay_packed(img, packed, count):
+    """Draw the same sparse road edges and sampled centerline from int rows."""
+    if count >= 2:
+        if _PREVIEW_MAX_BOUNDARY_SEGMENTS <= 1:
+            previous_index = 0
+            index = count - 1
+            before_offset = previous_index * 4
+            current_offset = index * 4
+            left0 = _surface_pixel((packed[before_offset + 1] - 1,
+                                    packed[before_offset]))
+            left1 = _surface_pixel((packed[current_offset + 1] - 1,
+                                    packed[current_offset]))
+            right0 = _surface_pixel((packed[before_offset + 2] + 1,
+                                     packed[before_offset]))
+            right1 = _surface_pixel((packed[current_offset + 2] + 1,
+                                     packed[current_offset]))
+            img.draw_line((left0[0], left0[1], left1[0], left1[1]),
+                          color=96)
+            img.draw_line((right0[0], right0[1], right1[0], right1[1]),
+                          color=96)
+        else:
+            step = (count + 2) // 3
+            previous_index = 0
+            index = step
+            while index < count:
+                before_offset = previous_index * 4
+                current_offset = index * 4
+                left0 = _surface_pixel((packed[before_offset + 1] - 1,
+                                        packed[before_offset]))
+                left1 = _surface_pixel((packed[current_offset + 1] - 1,
+                                        packed[current_offset]))
+                right0 = _surface_pixel((packed[before_offset + 2] + 1,
+                                         packed[before_offset]))
+                right1 = _surface_pixel((packed[current_offset + 2] + 1,
+                                         packed[current_offset]))
+                img.draw_line((left0[0], left0[1], left1[0], left1[1]),
+                              color=96)
+                img.draw_line((right0[0], right0[1], right1[0], right1[1]),
+                              color=96)
+                previous_index = index
+                index += step
+            if previous_index != count - 1:
+                before_offset = previous_index * 4
+                current_offset = (count - 1) * 4
+                left0 = _surface_pixel((packed[before_offset + 1] - 1,
+                                        packed[before_offset]))
+                left1 = _surface_pixel((packed[current_offset + 1] - 1,
+                                        packed[current_offset]))
+                right0 = _surface_pixel((packed[before_offset + 2] + 1,
+                                         packed[before_offset]))
+                right1 = _surface_pixel((packed[current_offset + 2] + 1,
+                                         packed[current_offset]))
+                img.draw_line((left0[0], left0[1], left1[0], left1[1]),
+                              color=96)
+                img.draw_line((right0[0], right0[1], right1[0], right1[1]),
+                              color=96)
+
+    previous_center = None
+    sample_count = _preview_row_sample_count(count)
+    for sample_index in range(sample_count):
+        index = _preview_row_sample_index(
+            count, sample_index, sample_count)
+        offset = index * 4
+        center_x = (packed[offset + 1] + packed[offset + 2]) * 0.5
+        center_pixel = _surface_pixel((center_x, packed[offset]))
+        if previous_center is not None:
+            img.draw_line((previous_center[0], previous_center[1],
+                           center_pixel[0], center_pixel[1]), color=255)
+        previous_center = center_pixel
+
+
+_ROAD_OVERLAY_PACKED_CACHE = [None, -1, False]
+
+
+@micropython.native
 def _draw_gray_result(img, selection, surface_result, road_result,
                       reference, valid, raw_ctrl, filtered_error,
                       processing_ms, fps, text_cache=None,
@@ -3902,24 +4358,53 @@ def _draw_gray_result(img, selection, surface_result, road_result,
                     img, road_result, contour_trace_info)
             else:
                 selected_rows = road_result.get("selected_rows") or ()
-                _draw_sparse_road_contour(img, selected_rows)
-                previous_center = None
+                packed = road_result.get("selected_row_ints")
+                packed_count = road_result.get("selected_row_count", -1)
+                packed_stride = road_result.get("selected_row_stride", 0)
                 row_count = len(selected_rows)
-                sample_count = _preview_row_sample_count(row_count)
-                for sample_index in range(sample_count):
-                    index = _preview_row_sample_index(
-                        row_count, sample_index, sample_count)
-                    row = selected_rows[index]
-                    center_x = row.get("center")
-                    if center_x is None:
-                        center_x = (float(row["left"]) +
-                                    float(row["right"])) * 0.5
-                    center_pixel = _surface_pixel((center_x, row["y"]))
-                    if previous_center is not None:
-                        img.draw_line((previous_center[0], previous_center[1],
-                                       center_pixel[0], center_pixel[1]),
-                                      color=255)
-                    previous_center = center_pixel
+                packed_valid = (
+                    isinstance(packed, array) and
+                    packed_stride == 4 and
+                    isinstance(packed_count, int) and
+                    not isinstance(packed_count, bool) and
+                    0 <= packed_count <= 60 and
+                    len(packed) >= packed_count * 4)
+                if packed_valid:
+                    packed_valid = _road_overlay_packed_array_valid(packed)
+                row_view_type = getattr(fast_path, "_RowView", None)
+                packed_view = (
+                    packed_valid and row_view_type is not None and
+                    type(selected_rows) is row_view_type and
+                    getattr(selected_rows, "packed", None) is packed and
+                    getattr(selected_rows, "active_count", None) ==
+                    packed_count and row_count == packed_count)
+                exposed = getattr(selected_rows, "exposed", None)
+                if (packed_view and isinstance(exposed, bytearray) and
+                        len(exposed) >= packed_count and
+                        _road_overlay_rows_unexposed(
+                            exposed, packed_count)):
+                    _draw_road_overlay_packed(
+                        img, packed, packed_count)
+                else:
+                    selected_rows = road_result.get("selected_rows") or ()
+                    _draw_sparse_road_contour(img, selected_rows)
+                    previous_center = None
+                    row_count = len(selected_rows)
+                    sample_count = _preview_row_sample_count(row_count)
+                    for sample_index in range(sample_count):
+                        index = _preview_row_sample_index(
+                            row_count, sample_index, sample_count)
+                        row = selected_rows[index]
+                        center_x = row.get("center")
+                        if center_x is None:
+                            center_x = (float(row["left"]) +
+                                        float(row["right"])) * 0.5
+                        center_pixel = _surface_pixel((center_x, row["y"]))
+                        if previous_center is not None:
+                            img.draw_line((previous_center[0], previous_center[1],
+                                           center_pixel[0], center_pixel[1]),
+                                          color=255)
+                        previous_center = center_pixel
         elif source in ("ring_left", "ring_right"):
             candidate = selection.get("ring_candidate") or {}
             _draw_sparse_road_contour(
@@ -4092,6 +4577,156 @@ def _noop_preview_flush():
     return None
 
 
+def _native_preview_control_api_available():
+    """Require both patched module markers before passing preview=False."""
+    try:
+        import csi
+    except Exception:
+        return False
+    return (getattr(sensor, "PREVIEW_CONTROL_API", None) == 1 and
+            getattr(csi, "PREVIEW_CONTROL_API", None) == 1)
+
+
+def _open_usb_vcp_safely():
+    """Return a USB CDC handle when this firmware exposes one."""
+    constructor = getattr(pyb, "USB_VCP", None)
+    if not callable(constructor):
+        return None
+    try:
+        return constructor()
+    except Exception:
+        return None
+
+
+def _usb_vcp_is_connected(usb_vcp):
+    """Treat missing or failing USB CDC status as disconnected."""
+    if usb_vcp is None:
+        return False
+    try:
+        connected = getattr(usb_vcp, "isconnected", None)
+        return bool(connected()) if callable(connected) else False
+    except Exception:
+        return False
+
+
+def _publish_current_usb_preview_jpeg(img, usb_vcp, quality):
+    """Publish only the current 320x120 frame as a copied full-size JPEG."""
+    started = time.ticks_us()
+    jpeg = None
+    published = False
+    failed = False
+    try:
+        if not _usb_vcp_is_connected(usb_vcp):
+            return time.ticks_diff(time.ticks_us(), started), False, False
+        if (img is None or img.width() != config.IMAGE_WIDTH or
+                img.height() != config.IMAGE_HEIGHT):
+            return time.ticks_diff(time.ticks_us(), started), False, True
+        jpeg = img.to_jpeg(x_scale=1.0, y_scale=1.0,
+                           quality=quality, copy=True)
+        if jpeg is None:
+            return time.ticks_diff(time.ticks_us(), started), False, True
+        # A cable disconnect during encoding must not flush the old image.
+        if not _usb_vcp_is_connected(usb_vcp):
+            return time.ticks_diff(time.ticks_us(), started), False, False
+        jpeg.flush()
+        published = True
+    except Exception:
+        failed = True
+    finally:
+        jpeg = None
+    return (time.ticks_diff(time.ticks_us(), started), published, failed)
+
+
+class _NativeUSBPreviewSource:
+    """Capture and publish through one per-frame USB preview state object."""
+    USB_PREVIEW_SOURCE_API = 1
+
+    def __init__(self, sensor_module, usb_vcp, enabled=True, quality=10):
+        if (getattr(sensor_module, "PREVIEW_CONTROL_API", None) != 1 or
+                not _native_preview_control_api_available()):
+            raise RuntimeError("native preview source requires API markers")
+        self._sensor = sensor_module
+        self._usb_vcp = usb_vcp
+        self.enabled = bool(enabled)
+        self.quality = quality
+        self.frame_preview_active = False
+        self.latest_image = None
+        self.last_state = "NATIVE_HEADLESS"
+        self.publish_failures = 0
+
+    def configure(self, enabled, quality):
+        if not isinstance(enabled, bool):
+            raise ValueError("USB preview enabled state must be bool")
+        if (not isinstance(quality, int) or isinstance(quality, bool) or
+                quality < 1 or quality > 100):
+            raise ValueError("USB preview quality must be in 1..100")
+        self.enabled = enabled
+        self.quality = quality
+
+    def snapshot(self):
+        self.clear()
+        img = self._sensor.snapshot(preview=False)
+        self.latest_image = img
+        self.frame_preview_active = bool(
+            self.enabled and _usb_vcp_is_connected(self._usb_vcp))
+        if not self.enabled:
+            self.last_state = "NATIVE_DISABLED"
+        elif self.frame_preview_active:
+            self.last_state = "NATIVE_ACTIVE"
+        else:
+            self.last_state = "NATIVE_HEADLESS"
+        return img
+
+    def flush(self):
+        img = self.latest_image
+        try:
+            if not self.enabled:
+                self.last_state = "NATIVE_DISABLED"
+                return
+            # The connection decision is latched by snapshot(). A host that
+            # connects mid-frame waits for the next capture so an unannotated
+            # cached image can never be published on reconnect.
+            if not self.frame_preview_active:
+                self.last_state = "NATIVE_HEADLESS"
+                return
+            if not _usb_vcp_is_connected(self._usb_vcp):
+                self.last_state = "NATIVE_HEADLESS"
+                return
+            _, published, failed = _publish_current_usb_preview_jpeg(
+                img, self._usb_vcp, self.quality)
+            if published:
+                self.last_state = "NATIVE_ACTIVE"
+            elif failed:
+                self.publish_failures += 1
+                self.last_state = "NATIVE_ERROR"
+            else:
+                self.last_state = "NATIVE_HEADLESS"
+        finally:
+            self.clear()
+
+    def clear(self):
+        self.latest_image = None
+        self.frame_preview_active = False
+
+
+def _is_native_usb_preview_source(frame_source):
+    return (getattr(frame_source, "USB_PREVIEW_SOURCE_API", None) == 1 and
+            _native_preview_control_api_available() and
+            callable(getattr(frame_source, "snapshot", None)) and
+            callable(getattr(frame_source, "flush", None)) and
+            callable(getattr(frame_source, "configure", None)) and
+            callable(getattr(frame_source, "clear", None)) and
+            hasattr(frame_source, "publish_failures"))
+
+
+def _build_usb_preview_compact_text(selection,
+                                     surface_result, road_result, reference,
+                                     valid, control_command, filtered_error,
+                                     processing_ms, fps, weight_info=None):
+    """Keep the measured compact detail overlay to one cached FPS string."""
+    return ("FPS %.1f" % fps,)
+
+
 @micropython.native
 def _render_v7_preview_frame(img, selection, surface_result, road_result,
                              reference, valid, control_command, filtered_error,
@@ -4111,14 +4746,21 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
         draw_start_us = time.ticks_us()
         current_status = _v7_overlay_status(
             overlay_state, selection, valid)
+        compact_usb = bool(getattr(overlay_state, "compact_usb", False))
         if (overlay_state.text_cache is None or
                 overlay_state.last_text_ms is None or
                 time.ticks_diff(now_ms, overlay_state.last_text_ms) >=
                 config.OVERLAY_PERIOD_MS):
-            overlay_state.text_cache = _build_gray_overlay_text_cache(
-                selection, surface_result, road_result, reference, valid,
-                control_command, filtered_error, processing_ms, fps,
-                weight_info)
+            if compact_usb:
+                overlay_state.text_cache = _build_usb_preview_compact_text(
+                    selection, surface_result, road_result, reference, valid,
+                    control_command, filtered_error, processing_ms, fps,
+                    weight_info)
+            else:
+                overlay_state.text_cache = _build_gray_overlay_text_cache(
+                    selection, surface_result, road_result, reference, valid,
+                    control_command, filtered_error, processing_ms, fps,
+                    weight_info)
             if (overlay_state.detail_image is not None and
                     overlay_state.detail_mask is not None):
                 overlay_state.detail_image.clear()
@@ -4254,6 +4896,7 @@ class _V7PerfWindow:
         self.write_errors = 0
         self.last_sequence = -1
 
+    @micropython.native
     def clear(self):
         for stage in _V7_PERF_STAGES:
             bins = self.bins[stage]
@@ -4271,6 +4914,7 @@ class _V7PerfWindow:
         self.write_errors = 0
         self.last_sequence = -1
 
+    @micropython.native
     def record(self, stage, elapsed_us):
         value = int(elapsed_us)
         if value < 0:
@@ -4284,6 +4928,7 @@ class _V7PerfWindow:
             self.maxima[stage] = value
         self.counts[stage] += 1
 
+    @micropython.native
     def _stage_summary(self, stage):
         count = self.counts[stage]
         if not count:
@@ -4605,6 +5250,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     """
     _validate_fast_config()
     fixture_mode = frame_source is not None or uart_sink is not None
+    native_preview_api = False
+    usb_vcp = None
+    preview_source = None
     if fixture_mode:
         if frame_source is None or uart_sink is None:
             raise ValueError("fixture mode requires frame_source and uart_sink")
@@ -4619,9 +5267,37 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         preview_flush = getattr(frame_source, "flush", None)
         if not callable(preview_flush):
             preview_flush = _noop_preview_flush
+    if fixture_mode:
+        sensor_id = None
+        native_preview_api = _is_native_usb_preview_source(frame_source)
+        if native_preview_api:
+            preview_source = frame_source
+            preview_source.configure(config.USB_PREVIEW_ENABLED,
+                                     config.USB_PREVIEW_QUALITY)
+            usb_vcp = preview_source._usb_vcp
+            preview_flush = preview_source.flush
+        else:
+            preview_flush = getattr(frame_source, "flush", None)
+            if not callable(preview_flush):
+                preview_flush = _noop_preview_flush
     else:
         sensor_id = _configure_gray_sensor(sensor, fast=True)
-        preview_flush = sensor.flush
+        native_preview_api = _native_preview_control_api_available()
+        if native_preview_api:
+            # This object latches USB state at snapshot and publishes only
+            # that same frame after processing, UART and overlay drawing.
+            usb_vcp = (_open_usb_vcp_safely()
+                       if config.USB_PREVIEW_ENABLED else None)
+            preview_source = _NativeUSBPreviewSource(
+                sensor, usb_vcp, config.USB_PREVIEW_ENABLED,
+                config.USB_PREVIEW_QUALITY)
+            preview_flush = preview_source.flush
+        else:
+            # Older firmware keeps the original capture/flush behavior.
+            preview_flush = sensor.flush
+    compact_usb_overlay = bool(
+        native_preview_api and config.USB_PREVIEW_ENABLED and
+        config.USB_PREVIEW_OVERLAY_MODE == "compact")
     gray_builder = fast_gray.FastGrayMasks(config)
     path_detector = fast_path.FastPathDetector(config)
     boundary_validator = fast_boundary.FastBoundaryEvidence(config)
@@ -4694,6 +5370,23 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
               getattr(fast_single_edge, "COMPILER_BACKEND", "UNKNOWN"),
               1 if _NATIVE_ACCELERATION_ENABLED else 0))
 
+    if fixture_mode and not native_preview_api:
+        preview_state = "RAM_FIXTURE"
+    elif not native_preview_api:
+        preview_state = "LEGACY_FALLBACK"
+    elif not config.USB_PREVIEW_ENABLED:
+        preview_state = "NATIVE_DISABLED"
+    elif _usb_vcp_is_connected(usb_vcp):
+        preview_state = "NATIVE_ACTIVE"
+    else:
+        preview_state = "NATIVE_HEADLESS"
+    last_usb_preview_state = preview_state
+    last_preview_error_ms = None
+    print("USB_PREVIEW_CANDIDATE build=%s quality=Q%d mode=%s overlay=%s "
+          "rate=unverified" % (
+              config.USB_PREVIEW_BUILD_ID, config.USB_PREVIEW_QUALITY,
+              preview_state, config.USB_PREVIEW_OVERLAY_MODE))
+
     if fixture_mode:
         uart = uart_sink
     else:
@@ -4702,7 +5395,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                         stop=config.UART_STOP_BITS,
                         timeout=config.UART_TIMEOUT_MS,
                         timeout_char=config.UART_CHAR_TIMEOUT_MS)
-    clock = time.clock()
     observation_filter = _FreshObservationFilter(
         config.OBSERVATION_FILTER_ALPHA,
         config.OBSERVATION_FILTER_MAX_GAP_MS,
@@ -4730,10 +5422,11 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             image_type = getattr(image_module, "Image", None)
             grayscale_format = getattr(image_module, "GRAYSCALE", None)
             if callable(image_type) and grayscale_format is not None:
-                overlay_detail_image = image_type(
-                    _OVERLAY_DETAIL_IMAGE_WIDTH, 40, grayscale_format)
-                overlay_detail_mask = image_type(
-                    _OVERLAY_DETAIL_IMAGE_WIDTH, 40, grayscale_format)
+                if not compact_usb_overlay:
+                    overlay_detail_image = image_type(
+                        _OVERLAY_DETAIL_IMAGE_WIDTH, 40, grayscale_format)
+                    overlay_detail_mask = image_type(
+                        _OVERLAY_DETAIL_IMAGE_WIDTH, 40, grayscale_format)
                 try:
                     overlay_status_image = image_type(
                         _OVERLAY_STATUS_IMAGE_WIDTH,
@@ -4756,6 +5449,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     overlay_state = _V7OverlayState(
         last_debug_ms, overlay_detail_image, overlay_detail_mask,
         overlay_status_image, overlay_status_mask)
+    overlay_state.compact_usb = compact_usb_overlay
     previous_source = None
     previous_reference_kind = None
     previous_reference_y = None
@@ -4768,6 +5462,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         "scene": "UNKNOWN", "sections": (), "target": None,
     }
     frame_count = 0
+    capture_fps_counter = _FreshCaptureFPS()
+    capture_fps_value = 0.0
     bench_start_us = time.ticks_us()
     duration_us = None if duration_s is None else int(duration_s) * 1000000
     current_window = 0
@@ -4786,12 +5482,13 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             perf.record("total_cycle", time.ticks_diff(
                 cycle_start_us, pending_cycle_start_us))
             pending_cycle_start_us = None
-        clock.tick()
 
         capture_start_us = time.ticks_us()
         try:
             if fixture_mode:
                 img = frame_source.snapshot()
+            elif native_preview_api:
+                img = preview_source.snapshot()
             else:
                 img = sensor.snapshot()
         except Exception:
@@ -4816,6 +5513,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         single_edge_tracker.begin_frame()
         capture_us = time.ticks_diff(capture_end_us, capture_start_us)
         capture_end_ms = time.ticks_ms()
+        capture_fps_counter.record_success(capture_end_ms)
+        capture_fps_value = capture_fps_counter.fps(capture_end_ms)
         capture_interrupted = False
         capture_dt_ms = None
         if last_capture_end_ms is not None:
@@ -5496,16 +6195,73 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             selection.get("result") is road_result and
             contour_candidate is road_result)
 
-        _render_v7_preview_frame(
-            img, selection, no_surface_result, road_result, reference,
-            valid, final_control if valid else 0, filtered_error,
-            capture_to_send_us // 1000, clock.fps(), overlay_state,
-            time.ticks_ms(), weight_info=weight_info,
-            contour_trace_info=(contour_trace_info
-                                if contour_selected else None),
-            contour_used=contour_selected, flush_func=preview_flush)
-        overlay_us = overlay_state.draw_us
-        preview_flush_us = overlay_state.flush_us
+        if not native_preview_api:
+            _render_v7_preview_frame(
+                img, selection, no_surface_result, road_result, reference,
+                valid, final_control if valid else 0, filtered_error,
+                capture_to_send_us // 1000, capture_fps_value, overlay_state,
+                time.ticks_ms(), weight_info=weight_info,
+                contour_trace_info=(contour_trace_info
+                                    if contour_selected else None),
+                contour_used=contour_selected, flush_func=preview_flush)
+            overlay_us = overlay_state.draw_us
+            preview_flush_us = overlay_state.flush_us
+            current_usb_preview_state = (
+                "RAM_FIXTURE" if fixture_mode else "LEGACY_FALLBACK")
+        elif not config.USB_PREVIEW_ENABLED:
+            # Keep capture, detection, tracing and UART; suppress the optional
+            # preview-side render and JPEG work.
+            overlay_state.draw_us = 0
+            overlay_state.flush_us = 0
+            overlay_us = 0
+            preview_flush_us = 0
+            current_usb_preview_state = "NATIVE_DISABLED"
+            preview_source.last_state = current_usb_preview_state
+            preview_source.clear()
+        else:
+            # Use the USB state latched by snapshot() for rendering. A cable
+            # that connects mid-frame waits for the next captured image.
+            usb_connected = _usb_vcp_is_connected(usb_vcp)
+            frame_preview_active = bool(
+                preview_source.frame_preview_active and usb_connected)
+            if frame_preview_active:
+                _render_v7_preview_frame(
+                    img, selection, no_surface_result, road_result,
+                    reference, valid, final_control if valid else 0,
+                    filtered_error, capture_to_send_us // 1000,
+                    capture_fps_value, overlay_state, time.ticks_ms(),
+                    weight_info=weight_info,
+                    contour_trace_info=(contour_trace_info
+                                        if contour_selected else None),
+                    contour_used=contour_selected,
+                    flush_func=preview_source.flush)
+                overlay_us = overlay_state.draw_us
+                preview_flush_us = overlay_state.flush_us
+                current_usb_preview_state = preview_source.last_state
+            else:
+                # Clear the captured image without rendering or encoding it.
+                overlay_state.draw_us = 0
+                overlay_state.flush_us = 0
+                overlay_us = 0
+                preview_flush_us = 0
+                current_usb_preview_state = "NATIVE_HEADLESS"
+                preview_source.last_state = current_usb_preview_state
+                preview_source.clear()
+        if current_usb_preview_state != last_usb_preview_state:
+            print("USB_PREVIEW_STATE build=%s quality=Q%d mode=%s" % (
+                config.USB_PREVIEW_BUILD_ID, config.USB_PREVIEW_QUALITY,
+                current_usb_preview_state))
+            last_usb_preview_state = current_usb_preview_state
+        if (native_preview_api and
+                current_usb_preview_state == "NATIVE_ERROR"):
+            preview_error_now_ms = time.ticks_ms()
+            if (last_preview_error_ms is None or
+                    time.ticks_diff(preview_error_now_ms,
+                                    last_preview_error_ms) >= 1000):
+                print("USB_PREVIEW_ERROR build=%s failures=%d" % (
+                    config.USB_PREVIEW_BUILD_ID,
+                    preview_source.publish_failures))
+                last_preview_error_ms = preview_error_now_ms
 
         debug_us = 0
         debug_now_ms = time.ticks_ms()
@@ -5639,7 +6395,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                       capture_to_send_us // 1000, trusted_blocks,
                       str(threshold_min), str(threshold_max), last_tx_result,
                       tx_error_count, detector_error_count,
-                      latest_detector_error, clock.fps()))
+                      latest_detector_error, capture_fps_value))
             print("V7CTRL seq=%d profile=%s p=%+d d_component=%+d pd=%+d tx_cmd=%+d "
                   "preview=%s:%+d candidate=%+d gain=%d dt=%d reset=%d" % (
                       sequence_sent, control_profile,

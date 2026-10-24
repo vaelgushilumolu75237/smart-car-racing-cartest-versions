@@ -161,6 +161,14 @@ _RESULT_REASON_NAMES = (
     "OK_SINGLE_EDGE_LEFT", "OK_SINGLE_EDGE_RIGHT",
 )
 
+# Preserve first-match tuple semantics while avoiding a Python-level scan
+# on every no-detect frame. Non-string reasons retain the old loop.
+_RESULT_REASON_CODE_BY_NAME = {}
+for _reason_index in range(1, len(_RESULT_REASON_NAMES)):
+    _reason_name = _RESULT_REASON_NAMES[_reason_index]
+    if _reason_name not in _RESULT_REASON_CODE_BY_NAME:
+        _RESULT_REASON_CODE_BY_NAME[_reason_name] = _reason_index
+
 PAIR_DIAGNOSTIC_REASON_NAMES = _PAIR_REASON_NAMES
 PAIR_DIAGNOSTIC_SELECTION_NAMES = _PAIR_SELECT_NAMES
 PAIR_DIAGNOSTIC_RECORD_SIZE = _PAIR_DIAG_SIZE
@@ -968,6 +976,7 @@ class FastSingleEdgeTracker:
         self.last_clear_reason = reason
         self._invalidate_result(reason)
 
+    @micropython.native
     def _invalidate_result(self, reason):
         result = self._result
         result["valid"] = False
@@ -1286,6 +1295,7 @@ class FastSingleEdgeTracker:
                   int(pair_diagnostic[_PAIR_DIAG_JUMP_BREAKS]),
                   int(pair_diagnostic[_PAIR_DIAG_GAP_BREAKS])))
 
+    @micropython.native
     def _capture_frame_snapshot(self, detected, fallback_reason=None):
         side = -1
         first_y = -1
@@ -1350,11 +1360,14 @@ class FastSingleEdgeTracker:
             candidate_flags |= _CANDIDATE_SELECTED
         if result.get("valid"):
             candidate_flags |= _CANDIDATE_PUBLISHED
-        reason_code = 0
-        for index in range(1, len(_RESULT_REASON_NAMES)):
-            if _RESULT_REASON_NAMES[index] == reason:
-                reason_code = index
-                break
+        if type(reason) is str:
+            reason_code = _RESULT_REASON_CODE_BY_NAME.get(reason, 0)
+        else:
+            reason_code = 0
+            for index in range(1, len(_RESULT_REASON_NAMES)):
+                if _RESULT_REASON_NAMES[index] == reason:
+                    reason_code = index
+                    break
         diagnostic = self._pair_diagnostic
         diagnostic[_PAIR_DIAG_CANDIDATE_FLAGS] = candidate_flags
         diagnostic[_PAIR_DIAG_RESULT_REASON] = reason_code
@@ -1481,6 +1494,7 @@ class FastSingleEdgeTracker:
             self._frame_start_counts[index] = self._diagnostic_counts[index]
         return self._frame_serial
 
+    @micropython.native
     def skip_frame(self, reason="DETECT_NOT_CALLED"):
         """End a captured frame with no detector call and break switch streaks."""
         if not self._frame_open:

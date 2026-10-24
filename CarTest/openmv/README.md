@@ -1,17 +1,26 @@
-# CarTest OpenMV camera
+# OpenMV 静态视觉预览验证
 
-The production source defaults to profile `pd`, build ID `BOTTOM80_POSPD_20261020`. Three complete upload packages are in `../deliverables/OpenMV_Bottom80_Steering_20261021/`. The first camera trial should use `no_pd` to establish the same perception and weighted-position baseline before enabling derivative control. Upload one package at a time: copy its 20 top-level `.py` files together and restart the OpenMV interpreter. Do not mix profiles or upload host `.mpy` files or tests.
+## 运行包
 
-| Package | Control behavior | Trial order |
-| --- | --- | --- |
-| `no_pd` | Existing position EMA output only | First |
-| `pd` | Position-only P+D after the EMA | Second |
-| `pd_preview` | PD plus bounded confirmed geometry preview | Optional last |
+`PACKAGE_MANIFEST.json` 的 `runtime_files` 列表定义了 19 个运行模块。上传时按清单选择这 19 个 `.py` 文件；`tests/`、文档和 `fast_ring_slope.py` 不属于运行清单。`fast_ring_slope.py` 保留给既有主机测试导入，不是当前版本的运行依赖。
 
-All profiles preserve the same image and route processing. Full-image y=24 divides the 80% near and 20% far groups. The far group must contain at least three supported rows spanning at least two grid rows; otherwise the near rows normalize to the full position. No near rows means an invalid position. The existing EMA is retained. PD uses only that filtered position, a 60 ms low-pass derivative, 30 ms derivative time, D limit 100, maximum capture interval 100 ms, and combined output limit 1000. Invalid frames, long capture gaps, source/identity changes and changes to the actual selected weighted reference row reset the controller. Repeated captures do not advance its history.
+入口为 `main.py`。程序使用 V2 UART 16 字节帧，并要求 OpenMV 固件提供预览控制 API 1（`sensor.PREVIEW_CONTROL_API == 1` 和 `csi.PREVIEW_CONTROL_API == 1`）。固件镜像不包含在本源码包内。清单保留了已验证的 API 1 固件参考哈希；不代表新 UART FIFO API 已构建或安装。
 
-Preview remains off in `no_pd` and `pd`. In `pd_preview`, a geometry-qualified candidate of at least 80 magnitude must keep the same sign for three distinct captures over at least 60 ms, with same-sign filtered position of at least 50. Gain rises linearly to 0.35 at position magnitude 250, with applied contribution capped at 100 and slew limited to 500 per second. Existing geometry conflict, invalidity, identity and reference resets remain in force.
+## 主机验证
 
-The 12-byte observation UART V1 frame is unchanged. The camera diagnostic dump has a separate 32-byte control-extension v2 record with its own sequence, capture/send camera-clock timestamps, actual sent command and CRC-16/CCITT-FALSE. Camera times are relative to the OpenMV clock and must not be subtracted from STM32 arrival times as if they shared an epoch.
+- `python -m unittest discover -s openmv/tests -p 'test_*.py'`：242 项运行，239 项通过，3 项跳过，0 项失败。
+- OpenMV USB 预览工具主机测试：44 项通过。
+- 19 个运行模块均通过 `mpy-cross -march=armv7emsp` 编译。
 
-`PACKAGE_MANIFEST.json` identifies the default `pd` package. Each upload folder has its own manifest, build ID and file hashes. All 60 profile modules were cross-compiled with bundled mpy-cross 1.25.0 for the ARMv7EM-SP target. The reported board runtime is MicroPython 1.28.0-49; no matching mpy-cross compiler was available in the IDE archive, so 1.28 compiler acceptance remains unverified. The production OpenMV host suite passes 183 tests. The frozen V7 suite ran 79 tests: 78 passed and one board-only case was skipped. These are host and compiler checks only. `test-data/speedpd-20261020-validation/camera/host-performance-comparison.json` reports the full-clear versus touched-row aggregation comparison and controller-only profile timing on synthetic CPython inputs. It does not benchmark the sensor/Viper frame loop or predict camera frame rate. No image-processing resolution reduction or safety-gate removal was made for speed. Production OpenMV 45 fps and vehicle behavior remain unverified; no camera upload or motor run was performed.
+## 静态预览与板端测量
+
+- 320×120 分辨率已配置并由预览图像尺寸观察确认。19 个模块从隔离相机文件系统加载；小型性能 runner 由 RAM 注入。
+- IDE 收到 3693 个完整 JPEG payload；3693 个 payload 大小均匹配，0 个读取错误。5 个完整读取窗口分别为 60.4380、60.3276、60.2762、60.3608、60.289 次/秒。这是完整 payload 读取速率，未逐帧解码 JPEG 或独立记录每帧尺寸；固件解锁会清空缓冲区。
+- 主机 SDK 独立解码 marker 序号，得到 60.4–60.5 个新序号/秒。此结果与 IDE 的 payload 读取测量分开记录。
+- IDE GUI 的 FPS 显示为向下取整的整数，不作为精确帧率证据。
+- CDC 关闭的 60 秒 headless 测试包含 6 个 10 秒窗口，路由计数为 796、796、797、795、797、795，共 4777 条有效路由；USB 状态始终为 `NATIVE_HEADLESS`，没有 JPEG marker 写入。它不测 USB 预览吞吐量。
+- 另有 20 秒 `pyb.udelay(1389)` 每帧延迟近似实验，得到 55.6–55.7 次/秒。它模拟 16 字节 115200 波特率写入时间，不是实际 UART I/O 测量。
+
+## 配对与验收范围
+
+当前 H743 `C Incremental PI 20261020` 核心保持不变，未烧录或复位 H743，也未启动电机。当前相机测试使用无操作 UART sink，不证明 H743 实际接收。真实 UART 写入和完整闭环仍需单独验证；`full_control_60fps_accepted` 保持 `false`，未声明全链路 60 FPS、道路或整车验收通过。

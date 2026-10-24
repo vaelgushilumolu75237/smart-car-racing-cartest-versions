@@ -472,6 +472,108 @@ def _mask_viper(self) -> int:
 
 
 @micropython.viper
+def _mask_viper_full_width_tiled(self) -> int:
+    """Classify four pixels at a time into complete output mask words.
+
+    This fast path is valid only when configured blocks fully tile the ROI
+    across the whole image width and every block is trusted for this frame.
+    It overwrites every output word, including the unknown rows above the ROI,
+    so it does not depend on a preceding plane clear.
+    """
+    if int(self._mask_full_width_tiled_ready) == 0:
+        return -1
+
+    luma = ptr8(self.luma)
+    road_words = ptr32(self.road_mask)
+    edge_words = ptr32(self.edge_mask)
+    known_words = ptr32(self.known_region)
+    rectangles = ptr32(self._rectangles)
+    thresholds = ptr32(self._threshold_values)
+    trusted = ptr32(self._trusted_values)
+    row_counts = ptr8(self.row_counts)
+    road_row_counts = ptr8(self.road_row_counts)
+    totals = ptr32(self._pixel_totals)
+    width = int(self.width)
+    height = int(self.height)
+    floor = int(self.floor)
+    block_count = int(self._block_count)
+
+    # The check must complete before any output is changed. Partial trust
+    # falls through to the general kernel, which clears unknown regions.
+    for block in range(block_count):
+        if trusted[block] == 0:
+            return -1
+
+    words_per_row = width >> 2
+    for y in range(floor):
+        row_word = y * words_per_row
+        for group in range(words_per_row):
+            index = row_word + group
+            road_words[index] = 0
+            edge_words[index] = 0
+            known_words[index] = 0
+        row_counts[y] = 0
+        road_row_counts[y] = 0
+
+    road_total = 0
+    edge_total = 0
+    for block in range(block_count):
+        rect_base = block * 4
+        y0 = rectangles[rect_base + 1]
+        y1 = rectangles[rect_base + 3]
+        threshold = thresholds[block]
+        for y in range(y0, y1):
+            row = y * width
+            row_word = y * words_per_row
+            row_road_count = 0
+            row_edge_count = 0
+            for group in range(words_per_row):
+                index = row + (group << 2)
+                lane0 = luma[index]
+                lane1 = luma[index + 1]
+                lane2 = luma[index + 2]
+                lane3 = luma[index + 3]
+                road_word = 0
+                edge_word = 0
+                if lane0 > threshold:
+                    road_word = road_word | 255
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 1
+                    row_edge_count += 1
+                if lane1 > threshold:
+                    road_word = road_word | 65280
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 256
+                    row_edge_count += 1
+                if lane2 > threshold:
+                    road_word = road_word | 16711680
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 65536
+                    row_edge_count += 1
+                if lane3 > threshold:
+                    road_word = road_word | -16777216
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 16777216
+                    row_edge_count += 1
+                output_word = row_word + group
+                road_words[output_word] = road_word
+                edge_words[output_word] = edge_word
+                known_words[output_word] = 16843009
+            row_counts[y] = row_edge_count
+            road_row_counts[y] = row_road_count
+            road_total += row_road_count
+            edge_total += row_edge_count
+
+    totals[0] = road_total
+    totals[1] = edge_total
+    return 0
+
+
+@micropython.viper
 def _mask_viper_local_counts(self) -> int:
     """Clear aligned planes by word and update row/totals once per row."""
     luma = ptr8(self.luma)
@@ -1005,6 +1107,23 @@ class FastGrayMasks:
                         min(ay1, by1) > max(ay0, by0)):
                     raise ValueError("GRAY_THRESHOLD_BLOCKS must not overlap")
 
+        # The isolated word-mask candidate can skip the full-plane clear only
+        # when full-width blocks tile every row of the configured ROI. This is
+        # a structural optimization guard; the frame-local trust check remains
+        # in the kernel before it writes any output.
+        self._mask_full_width_tiled_ready = False
+        expected_y = self.floor
+        full_width_tiled = True
+        for rect in self.blocks:
+            x0, y0, x1, y1 = rect
+            if (x0 != 0 or x1 != self.width or y0 != expected_y or
+                    y1 <= y0):
+                full_width_tiled = False
+                break
+            expected_y = y1
+        self._mask_full_width_tiled_ready = (
+            full_width_tiled and expected_y == self.height)
+
         self.debug = bool(debug)
         self._block_count = len(self.blocks)
         self._rectangles = array("I")
@@ -1393,6 +1512,9 @@ class FastGrayMasks:
     def _write_masks(self):
         if _IS_MICROPYTHON:
             if self._mask_local_counts_ready:
+                if self._mask_full_width_tiled_ready:
+                    if _mask_viper_full_width_tiled(self) == 0:
+                        return
                 _mask_viper_local_counts(self)
             else:
                 _mask_viper(self)
