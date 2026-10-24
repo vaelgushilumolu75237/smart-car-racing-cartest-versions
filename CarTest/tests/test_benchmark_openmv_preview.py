@@ -128,6 +128,25 @@ class FakeCamera:
                 "data": data}
 
 
+class ExitAtSdkCallFakeCamera(FakeCamera):
+    def __init__(self, exit_at, exit_exception, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.exit_at = exit_at
+        self.exit_exception = exit_exception
+
+    def connect(self):
+        if self.exit_at == "connect":
+            self.calls.append(("connect",))
+            raise self.exit_exception
+        return super().connect()
+
+    def exec(self, source):
+        if self.exit_at == "exec":
+            self.calls.append(("exec", len(source)))
+            raise self.exit_exception
+        return super().exec(source)
+
+
 def options_for(mode, output_dir, **overrides):
     values = {
         "port": "COM_TEST",
@@ -407,32 +426,197 @@ class BenchmarkOpenMVPreviewTests(unittest.TestCase):
             paint_marker_grayscale_for_test(gray, sequence)
             return bytes(channel for value in gray for channel in (value,) * 3)
 
-        sequence_by_read = {1: 41, 2: 41, 3: 43, 4: 42}
+        corrupt = bytearray(frame_for(45))
+        # Flip the sampled first sequence bit while leaving the CRC byte alone.
+        cell_x = 32 + 8 * 8
+        for y in range(106, 110):
+            for x in range(cell_x + 2, cell_x + 6):
+                offset = (y * 320 + x) * 3
+                corrupt[offset:offset + 3] = bytes((255, 255, 255))
+        corrupt = bytes(corrupt)
+        valid_frames = {sequence: frame_for(sequence)
+                        for sequence in (41, 42, 43)}
+        frame_by_read = {
+            1: valid_frames[41],
+            2: valid_frames[41],
+            3: valid_frames[43],
+            4: valid_frames[42],
+            5: corrupt,
+        }
         with tempfile.TemporaryDirectory() as tmp:
             instance = None
 
             def factory(*args, **kwargs):
                 nonlocal instance
                 instance = FakeCamera(*args, **kwargs)
-                instance.frame_data_factory = lambda read: frame_for(
-                    sequence_by_read.get(read, 43))
+                instance.frame_data_factory = lambda read: frame_by_read.get(
+                    read, valid_frames[43])
                 return instance
 
             report = bench.run_benchmark(
-                options_for("jpeg", Path(tmp), duration=0.025,
+                options_for("jpeg", Path(tmp), duration=0.3,
                             marker_sequences=True), camera_factory=factory)
             observation = report["host_observation"]
             markers = observation["host_marker_sequence_observation"]
+            windows = observation["host_marker_sequence_windows"]
             self.assertGreaterEqual(observation["host_sdk_frame_reads"], 4)
             self.assertEqual(markers["new_sequence_reads"], 2)
             self.assertGreaterEqual(markers["repeated_sequence_reads"], 1)
             self.assertEqual(markers["sequence_gap_events"], 1)
             self.assertEqual(markers["missing_sequence_values"], 1)
             self.assertEqual(markers["out_of_order_sequence_reads"], 1)
+            self.assertGreaterEqual(markers["crc_failures"], 1)
             self.assertFalse(markers["camera_fps_claimed_by_host"])
             self.assertFalse(observation["camera_fps_claimed_by_host"])
             self.assertEqual(markers["fresh_frame_metric_basis"].split(";")[0],
                              "valid forward marker sequence transitions")
+            self.assertEqual(windows["status"],
+                             "incomplete_observation_window")
+            self.assertFalse(windows["measurement_success"])
+            self.assertEqual(windows["new_sequence_arrivals"], 2)
+            self.assertEqual(windows["windows"][0]["fresh_count"], 2)
+            self.assertFalse(windows["windows"][0]["complete"])
+            arrival_path = (Path(report["report_dir"]) /
+                            report["artifacts"]["marker_sequence_arrivals"])
+            arrivals = [json.loads(line) for line in
+                        arrival_path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([item["sequence"] for item in arrivals], [41, 43])
+            self.assertTrue(all("host_monotonic_ns" in item
+                                for item in arrivals))
+            self.assertLess(arrivals[0]["host_monotonic_s"],
+                            arrivals[1]["host_monotonic_s"])
+
+    def test_marker_windows_require_last_valid_arrival_to_reach_window_end(self):
+        arrivals = [
+            {"sequence": 20, "host_monotonic_s": 100.0,
+             "run_elapsed_s": 2.0},
+            {"sequence": 21, "host_monotonic_s": 109.999,
+             "run_elapsed_s": 12.0},
+            {"sequence": 23, "host_monotonic_s": 110.0,
+             "run_elapsed_s": 13.0},
+            {"sequence": 24, "host_monotonic_s": 125.0,
+             "run_elapsed_s": 30.0},
+        ]
+        windows = bench.summarize_marker_arrival_windows(arrivals)
+        self.assertEqual(windows["status"], "complete_windows_available")
+        self.assertTrue(windows["measurement_success"])
+        self.assertEqual(windows["t0_host_monotonic_s"], 100.0)
+        self.assertEqual(windows["t0_run_elapsed_s"], 2.0)
+        self.assertEqual(windows["last_marker_elapsed_from_t0_s"], 25.0)
+        self.assertEqual(len(windows["windows"]), 3)
+        self.assertEqual([item["fresh_count"] for item in windows["windows"]],
+                         [2, 1, 1])
+        self.assertEqual([item["complete"] for item in windows["windows"]],
+                         [True, True, False])
+        self.assertEqual(windows["windows"][0]["rate_hz"], 0.2)
+        self.assertIsNone(windows["windows"][2]["rate_hz"])
+
+    def test_no_marker_arrivals_are_not_valid_measurement_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = bench.run_benchmark(
+                options_for("off", Path(tmp), duration=0.01,
+                            marker_sequences=True),
+                camera_factory=FakeCamera)
+        windows = report["host_observation"][
+            "host_marker_sequence_windows"]
+        self.assertEqual(report["status"], "completed")
+        self.assertEqual(windows["status"], "no_valid_marker_arrivals")
+        self.assertFalse(windows["measurement_success"])
+        self.assertEqual(windows["windows"], [])
+        self.assertFalse(report["terminal_marker_is_success_evidence"])
+
+    def test_board_traceback_plus_terminal_marker_is_execution_error_and_nonzero(self):
+        class TracebackFakeCamera(FakeCamera):
+            def read_stdout(self):
+                chunk = super().read_stdout()
+                if self.executed and self.stdout_reads == 2:
+                    chunk = (chunk or "") + (
+                        "Traceback (most recent call last):\r\n"
+                        "  File \"<stdin>\", line 49, in <module>\r\n"
+                        "TypeError: '_V7SummaryQueue' object is not callable\r\n"
+                        "RAM_USB_PREVIEW_PROBE_FINISHED\r\n")
+                    self.stdout_chunks[-1] = chunk
+                    return chunk
+                return chunk
+
+        with tempfile.TemporaryDirectory() as tmp:
+            stdout = io.StringIO()
+            args = [
+                "--port", "COM_TEST", "--ram-source", str(RAM_SOURCE),
+                "--run", "--mode", "jpeg", "--duration", "1",
+                "--output-dir", tmp,
+            ]
+            with contextlib.redirect_stdout(stdout):
+                exit_code = bench.main(
+                    args, camera_factory=TracebackFakeCamera)
+            printed = stdout.getvalue()
+            report_dir = printed.split("report_dir=", 1)[1].splitlines()[0]
+            saved = json.loads(
+                (Path(report_dir) / "report.json").read_text(
+                    encoding="utf-8"))
+            raw = (Path(report_dir) / "raw_stdout.txt").read_text(
+                encoding="utf-8")
+        self.assertEqual(exit_code, 1)
+        self.assertIn("status=execution_error", printed)
+        self.assertEqual(saved["status"], "execution_error")
+        self.assertEqual(saved["observation_end_reason"],
+                         "board_execution_error")
+        self.assertTrue(saved["script_terminal_marker_seen"])
+        self.assertFalse(saved["terminal_marker_is_success_evidence"])
+        self.assertEqual(saved["board_execution_error_count"], 1)
+        self.assertIn("TypeError: '_V7SummaryQueue' object is not callable",
+                      saved["board_execution_errors"][0]["raw_excerpt"])
+        self.assertIn("Traceback (most recent call last):", raw)
+
+    def test_sdk_system_exit_from_connect_or_exec_is_persisted_and_nonzero(self):
+        for exit_at in ("connect", "exec", "keyboard_interrupt"):
+            with self.subTest(exit_at=exit_at), \
+                    tempfile.TemporaryDirectory() as tmp:
+                output = io.StringIO()
+
+                def factory(*args, **kwargs):
+                    if exit_at == "keyboard_interrupt":
+                        return ExitAtSdkCallFakeCamera(
+                            "connect", KeyboardInterrupt(), *args, **kwargs)
+                    return ExitAtSdkCallFakeCamera(
+                        exit_at, SystemExit(0), *args, **kwargs)
+
+                args = [
+                    "--port", "COM_TEST", "--ram-source", str(RAM_SOURCE),
+                    "--run", "--mode", "jpeg", "--duration", "1",
+                    "--output-dir", tmp,
+                ]
+                with contextlib.redirect_stdout(output):
+                    exit_code = bench.main(args, camera_factory=factory)
+
+                printed = output.getvalue()
+                self.assertIn("status=", printed)
+                report_dir = printed.split("report_dir=", 1)[1].splitlines()[0]
+                report_path = Path(report_dir) / "report.json"
+                raw_path = Path(report_dir) / "raw_stdout.txt"
+                self.assertTrue(report_path.is_file())
+                self.assertTrue(raw_path.is_file())
+                saved = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual(exit_code, 1)
+                if exit_at == "keyboard_interrupt":
+                    self.assertEqual(saved["status"], "interrupted")
+                    self.assertEqual(saved["error"], "KeyboardInterrupt")
+                else:
+                    self.assertEqual(saved["status"], "error")
+                    self.assertIn("SystemExit(code=0)", saved["error"])
+                    self.assertIn("OpenMV SDK %s" % exit_at, saved["error"])
+
+    def test_explicit_board_error_marker_is_detected(self):
+        errors = bench.parse_board_execution_errors(
+            "V7_BUILD=fixture\r\nV7_ERROR status=failed code=7\r\n")
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0]["kind"], "explicit_error")
+        self.assertIn("V7_ERROR", errors[0]["raw_excerpt"])
+
+    def test_reference_error_diagnostic_is_not_an_execution_error(self):
+        errors = bench.parse_board_execution_errors(
+            "V7DBG frame=566 reference_error=+139 cache_rows=52\r\n")
+        self.assertEqual(errors, [])
 
     def test_synthetic_probe_status_and_origin_are_explicit_in_json(self):
         from tools import build_openmv_synthetic_marker_probe as synthetic_builder

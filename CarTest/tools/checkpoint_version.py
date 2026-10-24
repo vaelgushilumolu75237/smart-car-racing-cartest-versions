@@ -25,6 +25,12 @@ ROOT_FILES = ("CMakeLists.txt", "CMakePresets.json", "CarTest.code-workspace",
               "project-description.json", "stm32h743xi_flash.ld", "README.md", "AGENTS.md",
               "README-恢复说明.md", "origin-manifest.json", "SHA256SUMS.txt")
 SKIP_DIRS = {"__pycache__", ".git", "logs", "tmp", "node_modules"}
+PUBLIC_COPY_EXCLUDED_SUBTREES = {
+    # Experiment harnesses can refer to private logs; only this exact subtree
+    # is kept out of public source checkpoints. Other directories named
+    # "experiments" remain eligible for normal source copying.
+    "tools": ("experiments",),
+}
 SKIP_SUFFIXES = {".pyc", ".obj", ".o", ".exe", ".dll", ".png", ".jpg",
                  ".jpeg", ".mp4", ".avi", ".bin", ".log"}
 # Only these synthetic/source fixtures are public; never copy the vehicle-data
@@ -107,6 +113,25 @@ OPENMV_ACKERMANN_RUNTIME_FILES = frozenset({
     "road_detector.py", "source_selector.py", "surface_detector.py",
     "thresholding.py", "vision_protocol.py",
 })
+OPENMV_USB60_CANDIDATE_ROOT = "deliverables/OpenMV_USB60_Candidate_20261024"
+OPENMV_USB60_CANDIDATE_PACKAGE_ID = "OPENMV_USB60_CANDIDATE_20261024"
+OPENMV_USB60_CANDIDATE_RUNTIME_FILES = OPENMV_ACKERMANN_RUNTIME_FILES
+OPENMV_USB60_CANDIDATE_DOCUMENTS = ("README.md", "CROSS_COMPILE_SUMMARY.json")
+OPENMV_USB60_CANDIDATE_MANIFEST = "PACKAGE_MANIFEST.json"
+OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256 = (
+    "49b9169425c39f5b7a453769ed41e8119063e7a5b0532260b8018f679dc6945d")
+OPENMV_USB60_BASELINE_H743_ELFS = {
+    ACKERMANN_PROFILE_DELIVERIES["coordinated"]["elf"]:
+        "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70",
+    ACKERMANN_PROFILE_DELIVERIES["baseline"]["elf"]:
+        "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655",
+}
+OPENMV_USB60_HW_VALIDATION_FALSE_FIELDS = frozenset({
+    "camera_uploaded", "camera_board_execution_verified",
+    "usb_preview_hardware_tested", "full_pipeline_60fps_verified",
+    "h743_flashed_or_reset", "motor_started", "vehicle_tested",
+})
+OPENMV_USB60_CHECKPOINT_STATUS = "software-tested-hardware-pending"
 OPENMV_NATIVE_PREVIEW_ROOT = "deliverables/OpenMV_NativePreview_20261024"
 OPENMV_NATIVE_PREVIEW_REQUIRED_FILES = tuple(
     f"{OPENMV_NATIVE_PREVIEW_ROOT}/{name}" for name in (
@@ -216,9 +241,13 @@ def safe_remove(path: Path):
         shutil.rmtree(resolved)
 
 
-def copy_tree(source: Path, destination: Path):
+def copy_tree(source: Path, destination: Path, *, excluded_subtrees=()):
+    excluded = tuple(Path(item) for item in excluded_subtrees)
     for item in sorted(source.rglob("*")):
         relative = item.relative_to(source)
+        if any(relative == subtree or subtree in relative.parents
+               for subtree in excluded):
+            continue
         if any(part in SKIP_DIRS for part in relative.parts):
             continue
         if item.is_symlink():
@@ -752,12 +781,264 @@ def verify_openmv_speedpd_packages(source: Path) -> list[str]:
     return allowlisted
 
 
+def verify_openmv_usb60_candidate_delivery(source: Path) -> list[str]:
+    """Validate the explicitly selected, not-yet-hardware-accepted USB60 package."""
+    package_root = source
+    for part in Path(OPENMV_USB60_CANDIDATE_ROOT).parts:
+        package_root = package_root / part
+        if package_root.is_symlink():
+            raise RuntimeError("OpenMV USB60 candidate package path contains a symlink.")
+    if not package_root.is_dir():
+        raise RuntimeError("OpenMV USB60 candidate package directory is missing or linked.")
+
+    expected_names = (set(OPENMV_USB60_CANDIDATE_RUNTIME_FILES) |
+                      set(OPENMV_USB60_CANDIDATE_DOCUMENTS) |
+                      {OPENMV_USB60_CANDIDATE_MANIFEST})
+    actual_names: set[str] = set()
+    for item in package_root.rglob("*"):
+        relative = item.relative_to(package_root)
+        if item.is_symlink():
+            raise RuntimeError(f"OpenMV USB60 candidate contains a symlink: {relative}")
+        if item.is_dir():
+            raise RuntimeError(f"OpenMV USB60 candidate contains an unexpected directory: {relative}")
+        if not item.is_file() or relative.parent != Path("."):
+            raise RuntimeError(f"OpenMV USB60 candidate contains an unsafe path: {relative}")
+        if relative.name in actual_names:
+            raise RuntimeError(f"OpenMV USB60 candidate contains a duplicate filename: {relative.name}")
+        actual_names.add(relative.name)
+    if actual_names != expected_names:
+        missing = sorted(expected_names - actual_names)
+        extra = sorted(actual_names - expected_names)
+        raise RuntimeError(
+            f"OpenMV USB60 candidate file allowlist mismatch: missing={missing}, extra={extra}")
+
+    manifest_path = package_root / OPENMV_USB60_CANDIDATE_MANIFEST
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV USB60 candidate package manifest is invalid.") from error
+    if (not isinstance(manifest, dict) or
+            manifest.get("schema_version") != 1 or
+            manifest.get("package_id") != OPENMV_USB60_CANDIDATE_PACKAGE_ID or
+            manifest.get("runtime_file_count") != len(OPENMV_USB60_CANDIDATE_RUNTIME_FILES) or
+            manifest.get("release_status") != OPENMV_USB60_CHECKPOINT_STATUS or
+            manifest.get("production_openmv_unchanged") is not True or
+            manifest.get("baseline_coordinated_manifest_sha256") !=
+            OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256):
+        raise RuntimeError("OpenMV USB60 candidate package metadata is incomplete or claims hardware acceptance.")
+
+    limits = manifest.get("limits")
+    if (not isinstance(limits, list) or
+            "No 60 FPS acceptance is claimed." not in limits):
+        raise RuntimeError("OpenMV USB60 candidate must state that 60 FPS acceptance is pending.")
+
+    baseline = manifest.get("baseline")
+    baseline_h743_entries = baseline.get("h743_elfs") if isinstance(baseline, dict) else None
+    if not isinstance(baseline_h743_entries, list) or len(baseline_h743_entries) != 2:
+        raise RuntimeError("OpenMV USB60 candidate paired H743 baseline references are incomplete.")
+    declared_h743_hashes: dict[str, str] = {}
+    for entry in baseline_h743_entries:
+        relative_name = normalize_relative_path(
+            entry.get("path") if isinstance(entry, dict) else None)
+        digest = entry.get("sha256") if isinstance(entry, dict) else None
+        if (relative_name not in OPENMV_USB60_BASELINE_H743_ELFS or
+                relative_name in declared_h743_hashes or
+                digest != OPENMV_USB60_BASELINE_H743_ELFS[relative_name]):
+            raise RuntimeError("OpenMV USB60 candidate H743 baseline reference is unsafe or changed.")
+        declared_h743_hashes[relative_name] = digest
+    if set(declared_h743_hashes) != set(OPENMV_USB60_BASELINE_H743_ELFS):
+        raise RuntimeError("OpenMV USB60 candidate paired H743 baseline references are incomplete.")
+    top_level_h743_entries = manifest.get("baseline_h743_elfs")
+    if not isinstance(top_level_h743_entries, list) or len(top_level_h743_entries) != 2:
+        raise RuntimeError("OpenMV USB60 candidate top-level H743 baseline references are incomplete.")
+    top_level_h743_hashes: dict[str, str] = {}
+    for entry in top_level_h743_entries:
+        relative_name = normalize_relative_path(
+            entry.get("path") if isinstance(entry, dict) else None)
+        digest = entry.get("sha256") if isinstance(entry, dict) else None
+        if (relative_name not in OPENMV_USB60_BASELINE_H743_ELFS or
+                relative_name in top_level_h743_hashes or
+                digest != OPENMV_USB60_BASELINE_H743_ELFS[relative_name]):
+            raise RuntimeError("OpenMV USB60 candidate top-level H743 baseline reference is unsafe or changed.")
+        top_level_h743_hashes[relative_name] = digest
+    if top_level_h743_hashes != declared_h743_hashes:
+        raise RuntimeError("OpenMV USB60 candidate H743 baseline references disagree.")
+
+    hardware_validation = manifest.get("hardware_validation")
+    if (not isinstance(hardware_validation, dict) or
+            not OPENMV_USB60_HW_VALIDATION_FALSE_FIELDS.issubset(hardware_validation) or
+            any(value is not False for value in hardware_validation.values())):
+        raise RuntimeError("OpenMV USB60 candidate hardware-validation state must remain entirely pending.")
+
+    runtime_files = manifest.get("runtime_files")
+    if (not isinstance(runtime_files, list) or
+            len(runtime_files) != len(OPENMV_USB60_CANDIDATE_RUNTIME_FILES)):
+        raise RuntimeError("OpenMV USB60 candidate runtime manifest is incomplete.")
+    runtime_hashes: dict[str, str] = {}
+    for entry in runtime_files:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if (not isinstance(name, str) or "/" in name or "\\" in name or
+                Path(name).name != name or name not in OPENMV_USB60_CANDIDATE_RUNTIME_FILES or
+                name in runtime_hashes):
+            raise RuntimeError("OpenMV USB60 candidate runtime list contains an unsafe or duplicate path.")
+        runtime_path = package_root / name
+        content = runtime_path.read_bytes()
+        actual_sha = hashlib.sha256(content).hexdigest()
+        if (entry.get("size_bytes") != len(content) or
+                entry.get("sha256") != actual_sha):
+            raise RuntimeError(f"OpenMV USB60 candidate runtime hash/size mismatch: {name}")
+        runtime_hashes[name] = actual_sha
+    if set(runtime_hashes) != OPENMV_USB60_CANDIDATE_RUNTIME_FILES:
+        raise RuntimeError("OpenMV USB60 candidate runtime list does not match the fixed 19-module allowlist.")
+
+    cross_compile = manifest.get("cross_compile")
+    if (not isinstance(cross_compile, dict) or
+            cross_compile.get("target") != "armv7emsp" or
+            cross_compile.get("module_count") != len(OPENMV_USB60_CANDIDATE_RUNTIME_FILES) or
+            cross_compile.get("all_exit_codes_zero") is not True or
+            not isinstance(cross_compile.get("compiler_path"), str) or
+            not cross_compile.get("compiler_path") or
+            not isinstance(cross_compile.get("compiler_version"), str) or
+            not cross_compile.get("compiler_version")):
+        raise RuntimeError("OpenMV USB60 candidate mpy-cross metadata is incomplete or failed.")
+    compiled_modules = cross_compile.get("modules")
+    if (not isinstance(compiled_modules, list) or
+            len(compiled_modules) != len(OPENMV_USB60_CANDIDATE_RUNTIME_FILES)):
+        raise RuntimeError("OpenMV USB60 candidate mpy-cross module list is incomplete.")
+    compiled_names: set[str] = set()
+    for entry in compiled_modules:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        compiled_sha = entry.get("compiled_sha256") if isinstance(entry, dict) else None
+        if (not isinstance(name, str) or "/" in name or "\\" in name or
+                Path(name).name != name or name not in runtime_hashes or
+                name in compiled_names or type(entry.get("exit_code")) is not int or
+                entry.get("exit_code") != 0 or
+                entry.get("source_sha256") != runtime_hashes.get(name) or
+                type(entry.get("compiled_size_bytes")) is not int or
+                entry.get("compiled_size_bytes") <= 0 or
+                not isinstance(compiled_sha, str) or
+                not re.fullmatch(r"[0-9a-f]{64}", compiled_sha)):
+            raise RuntimeError("OpenMV USB60 candidate mpy-cross evidence does not match its runtime source.")
+        compiled_names.add(name)
+    if compiled_names != OPENMV_USB60_CANDIDATE_RUNTIME_FILES:
+        raise RuntimeError("OpenMV USB60 candidate mpy-cross list does not match the 19 runtime modules.")
+
+    documents = manifest.get("documents")
+    if not isinstance(documents, dict) or set(documents) != set(OPENMV_USB60_CANDIDATE_DOCUMENTS):
+        raise RuntimeError("OpenMV USB60 candidate README/compile-summary hashes are missing.")
+    for name in OPENMV_USB60_CANDIDATE_DOCUMENTS:
+        document = package_root / name
+        content = document.read_bytes()
+        entry = documents[name]
+        if (not isinstance(entry, dict) or entry.get("size_bytes") != len(content) or
+                entry.get("sha256") != hashlib.sha256(content).hexdigest()):
+            raise RuntimeError(f"OpenMV USB60 candidate document hash/size mismatch: {name}")
+    try:
+        compile_summary = json.loads(
+            (package_root / "CROSS_COMPILE_SUMMARY.json").read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV USB60 candidate cross-compile summary is invalid JSON.") from error
+    if not isinstance(compile_summary, dict):
+        raise RuntimeError("OpenMV USB60 candidate cross-compile summary must be an object.")
+    summary_cross_compile = compile_summary.get("cross_compile")
+    if (not isinstance(summary_cross_compile, dict) or
+            summary_cross_compile.get("target") != cross_compile.get("target") or
+            summary_cross_compile.get("module_count") != cross_compile.get("module_count") or
+            summary_cross_compile.get("all_exit_codes_zero") is not True or
+            summary_cross_compile.get("compiler_path") != cross_compile.get("compiler_path") or
+            summary_cross_compile.get("compiler_version") != cross_compile.get("compiler_version")):
+        raise RuntimeError("OpenMV USB60 candidate cross-compile summary does not match its manifest.")
+    summary_modules = summary_cross_compile.get("modules")
+    if not isinstance(summary_modules, list) or len(summary_modules) != len(compiled_modules):
+        raise RuntimeError("OpenMV USB60 candidate cross-compile summary module rows are incomplete.")
+    summary_modules_by_name = {}
+    for entry in summary_modules:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if (not isinstance(name, str) or name not in OPENMV_USB60_CANDIDATE_RUNTIME_FILES or
+                name in summary_modules_by_name):
+            raise RuntimeError("OpenMV USB60 candidate cross-compile summary has unsafe/duplicate module rows.")
+        summary_modules_by_name[name] = entry
+    for entry in compiled_modules:
+        summary_entry = summary_modules_by_name.get(entry["name"])
+        if (summary_entry is None or
+                summary_entry.get("source_sha256") != entry["source_sha256"] or
+                summary_entry.get("compiled_sha256") != entry["compiled_sha256"] or
+                summary_entry.get("compiled_size_bytes") != entry["compiled_size_bytes"] or
+                type(summary_entry.get("exit_code")) is not int or
+                summary_entry.get("exit_code") != entry["exit_code"]):
+            raise RuntimeError("OpenMV USB60 candidate compile summary module differs from its manifest.")
+
+    baseline_manifest_relative = (
+        f"{OPENMV_ACKERMANN_ROOT}/coordinated/PACKAGE_MANIFEST.json")
+    baseline_manifest_path = source
+    for part in Path(baseline_manifest_relative).parts:
+        baseline_manifest_path = baseline_manifest_path / part
+        if baseline_manifest_path.is_symlink():
+            raise RuntimeError("OpenMV USB60 candidate baseline coordinated manifest is linked.")
+    if not baseline_manifest_path.is_file():
+        raise RuntimeError("OpenMV USB60 candidate baseline coordinated manifest is missing or linked.")
+    if hashlib.sha256(baseline_manifest_path.read_bytes()).hexdigest() != \
+            OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256:
+        raise RuntimeError("OpenMV USB60 candidate baseline coordinated manifest hash changed.")
+    try:
+        baseline_manifest = json.loads(baseline_manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV USB60 candidate baseline coordinated manifest is invalid.") from error
+    if (not isinstance(baseline, dict) or
+            baseline.get("package") != f"{OPENMV_ACKERMANN_ROOT}/coordinated" or
+            baseline.get("package_manifest_sha256") !=
+            OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256):
+        raise RuntimeError("OpenMV USB60 candidate baseline package reference changed.")
+    expected_baseline_runtime = {
+        entry.get("name"): (entry.get("size_bytes"), entry.get("sha256"))
+        for entry in baseline_manifest.get("runtime_files", [])
+        if isinstance(entry, dict)
+    }
+    declared_baseline_runtime = {
+        entry.get("name"): (entry.get("size_bytes"), entry.get("sha256"))
+        for entry in baseline.get("runtime_files", [])
+        if isinstance(entry, dict)
+    }
+    if (set(expected_baseline_runtime) != OPENMV_USB60_CANDIDATE_RUNTIME_FILES or
+            declared_baseline_runtime != expected_baseline_runtime):
+        raise RuntimeError("OpenMV USB60 candidate baseline runtime manifest does not match the pinned package.")
+    for relative_name, expected_sha in OPENMV_USB60_BASELINE_H743_ELFS.items():
+        baseline_elf = source
+        for part in Path(relative_name).parts:
+            baseline_elf = baseline_elf / part
+            if baseline_elf.is_symlink():
+                raise RuntimeError(f"OpenMV USB60 paired H743 baseline ELF is linked: {relative_name}")
+        if not baseline_elf.is_file():
+            raise RuntimeError(f"OpenMV USB60 paired H743 baseline ELF is missing or linked: {relative_name}")
+        if hashlib.sha256(baseline_elf.read_bytes()).hexdigest() != expected_sha:
+            raise RuntimeError(f"OpenMV USB60 paired H743 baseline ELF hash changed: {relative_name}")
+
+    return [
+        *(f"{OPENMV_USB60_CANDIDATE_ROOT}/{name}"
+          for name in sorted(OPENMV_USB60_CANDIDATE_RUNTIME_FILES)),
+        *(f"{OPENMV_USB60_CANDIDATE_ROOT}/{name}"
+          for name in OPENMV_USB60_CANDIDATE_DOCUMENTS),
+        f"{OPENMV_USB60_CANDIDATE_ROOT}/{OPENMV_USB60_CANDIDATE_MANIFEST}",
+    ]
+
+
+def select_openmv_usb60_candidate(source: Path, status: str) -> list[str]:
+    if status != OPENMV_USB60_CHECKPOINT_STATUS:
+        raise ValueError(
+            "The USB60 candidate may only be checkpointed with status "
+            f"{OPENMV_USB60_CHECKPOINT_STATUS!r}.")
+    return verify_openmv_usb60_candidate_delivery(source)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=PROJECT)
     parser.add_argument("--version", required=True)
     parser.add_argument("--branch", required=True)
     parser.add_argument("--status", required=True)
+    parser.add_argument(
+        "--include-openmv-usb60-candidate", action="store_true",
+        help="Validate and include the explicit hardware-pending OpenMV USB60 candidate package.")
     parser.add_argument("--publish", action="store_true")
     args = parser.parse_args()
     for value in (args.version, args.branch):
@@ -780,6 +1061,9 @@ def main():
     openmv_speedpd_files = verify_openmv_speedpd_packages(source)
     openmv_ackermann_files = verify_openmv_ackermann_packages(source)
     openmv_native_preview_files = verify_openmv_native_preview_delivery(source)
+    openmv_usb60_candidate_files = []
+    if args.include_openmv_usb60_candidate:
+        openmv_usb60_candidate_files = select_openmv_usb60_candidate(source, args.status)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -800,7 +1084,11 @@ def main():
     target.mkdir()
     for directory in DIRS:
         if (source / directory).is_dir():
-            copy_tree(source / directory, target / directory)
+            copy_tree(
+                source / directory,
+                target / directory,
+                excluded_subtrees=PUBLIC_COPY_EXCLUDED_SUBTREES.get(directory, ()),
+            )
     for name in ROOT_FILES:
         if (source / name).is_file():
             shutil.copy2(source / name, target / name)
@@ -818,6 +1106,8 @@ def main():
     for name in openmv_ackermann_files:
         copy_allowlisted_file(source, target, name)
     for name in openmv_native_preview_files:
+        copy_allowlisted_file(source, target, name)
+    for name in openmv_usb60_candidate_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"

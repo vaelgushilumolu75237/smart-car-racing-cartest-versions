@@ -379,11 +379,20 @@ def _bounded_camera_call(camera, method_name, args, hard_timeout_s,
     hard_timeout_s = max(0.001, float(hard_timeout_s))
     _set_transport_timeout(camera, min(hard_timeout_s, transport_timeout_s))
     method = getattr(camera, method_name)
-    result, elapsed_s = call_with_deadline(
-        lambda: method(*args), hard_timeout_s,
-        on_timeout=lambda: _disconnect_quietly(camera),
-        late_cleanup=lambda: _disconnect_quietly(camera),
-        operation=method_name)
+    try:
+        result, elapsed_s = call_with_deadline(
+            lambda: method(*args), hard_timeout_s,
+            on_timeout=lambda: _disconnect_quietly(camera),
+            late_cleanup=lambda: _disconnect_quietly(camera),
+            operation=method_name)
+    except SystemExit as exc:
+        # Some OpenMV SDK command paths catch a transport exception and call
+        # sys.exit(0). Treat that as a failed bounded SDK operation so the
+        # benchmark can persist its report and return nonzero. KeyboardInterrupt
+        # remains distinct and continues to the run-level interrupt handler.
+        raise BenchmarkError(
+            "OpenMV SDK %s raised SystemExit(code=%r)" %
+            (method_name, exc.code)) from exc
     call_samples[method_name].append(elapsed_s * 1000.0)
     return result
 
@@ -485,10 +494,118 @@ def _synthetic_marker_counts(stdout_text):
     return None
 
 
+def parse_board_execution_errors(stdout_text):
+    """Find board tracebacks and explicit ERROR/FATAL lines in raw stdout."""
+    lines = stdout_text.splitlines()
+    errors = []
+    traceback_end_re = re.compile(
+        r"^(?:[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Interrupt|Exit))"
+        r"(?::|\s*$)")
+    # Only classify explicit status tokens at line start. In particular,
+    # fields such as ``reference_error=+139`` are valid V7 diagnostics and
+    # must not turn a successful run into an execution failure.
+    explicit_error_re = re.compile(
+        r"(?i)^\s*(?:V7_)?(?:ERROR|FATAL)(?=$|[\s:=,\]\)])")
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.strip() == "Traceback (most recent call last):":
+            excerpt = [line]
+            cursor = index + 1
+            while cursor < len(lines) and len(excerpt) < 12:
+                excerpt.append(lines[cursor])
+                if traceback_end_re.match(lines[cursor].strip()):
+                    break
+                if (lines[cursor].startswith("V7_") or
+                        lines[cursor].startswith("RAM_")):
+                    excerpt.pop()
+                    break
+                cursor += 1
+            errors.append({
+                "kind": "traceback",
+                "raw_excerpt": "\n".join(excerpt),
+                "line_number": index + 1,
+            })
+            index = max(index + 1, cursor + 1)
+            continue
+        if explicit_error_re.search(line):
+            errors.append({
+                "kind": "explicit_error",
+                "raw_excerpt": line,
+                "line_number": index + 1,
+            })
+        index += 1
+    return errors
+
+
+def summarize_marker_arrival_windows(arrivals, window_s=10.0):
+    """Bin valid forward marker arrivals from first-marker host time t0.
+
+    A bin is complete only when the last valid forward marker in the entire
+    observation reaches or passes that bin's end. Partial bins retain an
+    observed rate for diagnosis, but expose no full-window rate.
+    """
+    if not arrivals:
+        return {
+            "status": "no_valid_marker_arrivals",
+            "measurement_success": False,
+            "window_s": float(window_s),
+            "t0_host_monotonic_s": None,
+            "t0_run_elapsed_s": None,
+            "last_marker_elapsed_from_t0_s": None,
+            "new_sequence_arrivals": 0,
+            "complete_window_count": 0,
+            "windows": [],
+        }
+
+    window_s = float(window_s)
+    t0_host = float(arrivals[0]["host_monotonic_s"])
+    t0_elapsed = float(arrivals[0]["run_elapsed_s"])
+    relative = [max(0.0, float(item["host_monotonic_s"]) - t0_host)
+                for item in arrivals]
+    last_relative = relative[-1]
+    bin_count = int(math.floor(last_relative / window_s)) + 1
+    windows = []
+    for index in range(bin_count):
+        start = index * window_s
+        end = start + window_s
+        fresh_count = sum(1 for value in relative
+                          if start <= value < end)
+        complete = last_relative >= end
+        observed_span = max(0.0, min(last_relative, end) - start)
+        observed_rate = (round(fresh_count / observed_span, 3)
+                         if observed_span > 0 else None)
+        windows.append({
+            "index": index,
+            "start_s_from_t0": round(start, 6),
+            "end_s_from_t0": round(end, 6),
+            "fresh_count": fresh_count,
+            "rate_hz": round(fresh_count / window_s, 3)
+                       if complete else None,
+            "partial_observed_rate_hz": (None if complete else
+                                          observed_rate),
+            "complete": complete,
+            "last_marker_s_from_t0": round(last_relative, 6),
+        })
+    complete_count = sum(1 for item in windows if item["complete"])
+    return {
+        "status": "complete_windows_available" if complete_count else
+                  "incomplete_observation_window",
+        "measurement_success": complete_count > 0,
+        "window_s": window_s,
+        "t0_host_monotonic_s": round(t0_host, 6),
+        "t0_run_elapsed_s": round(t0_elapsed, 6),
+        "last_marker_elapsed_from_t0_s": round(last_relative, 6),
+        "new_sequence_arrivals": len(arrivals),
+        "complete_window_count": complete_count,
+        "windows": windows,
+    }
+
+
 def _host_report(mode, poll_ms, poll_starts, loop_work_ms, sleep_ms,
                  calls, frame_reads, frame_hashes, frame_metadata,
                  hash_elapsed_ms, observation_elapsed_s,
-                 marker_observation=None):
+                 marker_observation=None, marker_windows=None):
     intervals = [max(0.0, (right - left) * 1000.0)
                  for left, right in zip(poll_starts, poll_starts[1:])]
     unique_hashes = sorted(frame_hashes)
@@ -512,6 +629,7 @@ def _host_report(mode, poll_ms, poll_starts, loop_work_ms, sleep_ms,
             0, frame_reads - len(unique_hashes)),
         "host_unique_content_sha256": unique_hashes,
         "host_marker_sequence_observation": marker_observation,
+        "host_marker_sequence_windows": marker_windows,
         "host_frame_returns": [
             {"width": width, "height": height, "format": pixformat,
              "depth": depth, "raw_size_bytes": raw_size,
@@ -586,6 +704,7 @@ def run_benchmark(options, camera_factory=None):
     frame_metadata = defaultdict(int)
     frame_reads = 0
     hash_elapsed_ms = []
+    marker_arrivals = []
     marker_tracker = (PreviewMarkerTracker()
                       if getattr(options, "marker_sequences", False) else None)
     sleep_total_ms = 0.0
@@ -809,6 +928,7 @@ def run_benchmark(options, camera_factory=None):
                     else:
                         frame = None
                     if isinstance(frame, dict):
+                        frame_returned_at = start_clock()
                         data = frame.get("data")
                         frame_metadata[(
                             frame.get("width"), frame.get("height"),
@@ -823,9 +943,23 @@ def run_benchmark(options, camera_factory=None):
                                 (start_clock() - hash_started) * 1000.0)
                             frame_reads += 1
                             if marker_tracker is not None:
-                                marker_tracker.observe_rgb888(
+                                previous_new_count = (
+                                    marker_tracker.new_sequence_reads)
+                                decoded = marker_tracker.observe_rgb888(
                                     data, frame.get("width"),
                                     frame.get("height"))
+                                if (marker_tracker.new_sequence_reads >
+                                        previous_new_count):
+                                    marker_arrivals.append({
+                                        "sequence": decoded["sequence"],
+                                        "host_monotonic_s":
+                                            frame_returned_at,
+                                        "host_monotonic_ns": int(
+                                            frame_returned_at * 1_000_000_000),
+                                        "run_elapsed_s": round(max(
+                                            0.0, frame_returned_at -
+                                            run_started), 6),
+                                    })
 
             work_end = start_clock()
             loop_work_ms.append(max(0.0, (work_end - poll_start) * 1000.0))
@@ -893,6 +1027,17 @@ def run_benchmark(options, camera_factory=None):
 
     stdout_text = "".join(stdout_chunks)
     perf_windows = parse_v7_perf_windows(stdout_text)
+    board_execution_errors = parse_board_execution_errors(stdout_text)
+    if board_execution_errors:
+        excerpts = [item["raw_excerpt"]
+                    for item in board_execution_errors[:3]]
+        board_error = "board reported execution error: %s" % " | ".join(
+            excerpts)
+        status = "execution_error"
+        if error is None:
+            error = board_error
+        elif board_error not in error:
+            error = "%s; %s" % (error, board_error)
     synthetic_done = any(
         line.strip() == "V7_SYNTHETIC_MARKER_DONE status=ok"
         for line in stdout_text.splitlines())
@@ -900,12 +1045,18 @@ def run_benchmark(options, camera_factory=None):
     if synthetic_probe and status == "completed" and not synthetic_done:
         status = "error"
         error = error or "synthetic marker probe did not report completion"
+    marker_windows = (summarize_marker_arrival_windows(marker_arrivals)
+                      if marker_tracker is not None else None)
     report["host_transport_stats"] = transport_stats
+    report["board_execution_error_count"] = len(board_execution_errors)
+    report["board_execution_errors"] = board_execution_errors
+    report["terminal_marker_is_success_evidence"] = False
     report["script_terminal_marker_seen"] = script_terminal_marker_seen
     report["script_terminal_marker"] = script_terminal_marker
     report["requested_duration_satisfied"] = (
         observation_elapsed_s >= options.duration)
     report["observation_end_reason"] = (
+        "board_execution_error" if board_execution_errors else
         "script_terminal_marker" if script_terminal_marker_seen else
         "requested_duration_elapsed" if status == "completed" else
         "stopped_before_requested_duration")
@@ -917,7 +1068,8 @@ def run_benchmark(options, camera_factory=None):
     report["error"] = error
     report["v7_build"] = build or _build_marker(stdout_text)
     report["synthetic_marker_probe_completed"] = (
-        synthetic_done if synthetic_probe else None)
+        synthetic_done and not board_execution_errors
+        if synthetic_probe else None)
     report["synthetic_marker_board_counts"] = (
         synthetic_counts if synthetic_probe else None)
     report["board_perf_window_count"] = len(perf_windows["windows"])
@@ -926,7 +1078,8 @@ def run_benchmark(options, camera_factory=None):
         options.mode, options.poll_ms, poll_starts, loop_work_ms,
         sleep_total_ms, calls, frame_reads, frame_hashes, frame_metadata,
         hash_elapsed_ms, observation_elapsed_s,
-        marker_tracker.report() if marker_tracker is not None else None)
+        marker_tracker.report() if marker_tracker is not None else None,
+        marker_windows)
     report["host_observation"]["frame_origin"] = (
         "synthetic_grayscale_image" if synthetic_probe else "ram_fixture_stream")
     report["host_observation"]["live_sensor_capture"] = not synthetic_probe
@@ -944,6 +1097,9 @@ def run_benchmark(options, camera_factory=None):
         "board_v7_perf_windows": "board_v7_perf_windows.json",
         "report": "report.json",
     }
+    if marker_tracker is not None:
+        report["artifacts"]["marker_sequence_arrivals"] = (
+            "marker_sequence_arrivals.jsonl")
     report["report_dir"] = str(report_dir)
 
     # Write captured text byte-for-byte as returned by the SDK's UTF-8 decoder.
@@ -953,6 +1109,11 @@ def run_benchmark(options, camera_factory=None):
     (report_dir / "board_v7_perf_windows.json").write_text(
         json.dumps(perf_windows, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8")
+    if marker_tracker is not None:
+        with (report_dir / "marker_sequence_arrivals.jsonl").open(
+                "w", encoding="utf-8", newline="") as arrival_file:
+            for arrival in marker_arrivals:
+                arrival_file.write(json.dumps(arrival, sort_keys=True) + "\n")
     (report_dir / "report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8")

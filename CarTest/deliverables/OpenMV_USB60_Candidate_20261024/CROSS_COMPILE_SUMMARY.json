@@ -1,0 +1,309 @@
+{
+  "baseline": {
+    "h743_elfs": [
+      {
+        "path": "deliverables/H743_Ackermann60_20261022/C_Coordinated/CarTest.elf",
+        "sha256": "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70"
+      },
+      {
+        "path": "deliverables/H743_Ackermann60_20261022/C_Baseline/CarTest.elf",
+        "sha256": "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655"
+      }
+    ],
+    "package": "deliverables/OpenMV_Ackermann320_20261022/coordinated",
+    "package_manifest_sha256": "49b9169425c39f5b7a453769ed41e8119063e7a5b0532260b8018f679dc6945d",
+    "runtime_files": [
+      {
+        "name": "adaptive_detector.py",
+        "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+        "size_bytes": 44071
+      },
+      {
+        "name": "boundary_evidence.py",
+        "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+        "size_bytes": 18818
+      },
+      {
+        "name": "config.py",
+        "sha256": "1933586878ceb4de7ce97a7b088332f822eb12206c73f180feced3142c725a16",
+        "size_bytes": 18044
+      },
+      {
+        "name": "contour_route.py",
+        "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+        "size_bytes": 24945
+      },
+      {
+        "name": "contour_trace.py",
+        "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+        "size_bytes": 38987
+      },
+      {
+        "name": "fast_boundary.py",
+        "sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
+        "size_bytes": 54416
+      },
+      {
+        "name": "fast_gray.py",
+        "sha256": "3baae466f229b00734f225506b6ea000c0b37b3736643ee94c6a5f70eb0b7f40",
+        "size_bytes": 51644
+      },
+      {
+        "name": "fast_path.py",
+        "sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
+        "size_bytes": 43868
+      },
+      {
+        "name": "fast_single_edge.py",
+        "sha256": "acf45003eb91843e4fcc4c1eea42754de1bd5f716855441753f191313deab991",
+        "size_bytes": 88076
+      },
+      {
+        "name": "fast_topology.py",
+        "sha256": "c2a9ac9639501fae10c4e70cb09e84212537bdee662c9e114ba313bca3dbf446",
+        "size_bytes": 48452
+      },
+      {
+        "name": "grayscale_adapter.py",
+        "sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+        "size_bytes": 7784
+      },
+      {
+        "name": "line_detector.py",
+        "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+        "size_bytes": 11979
+      },
+      {
+        "name": "main.py",
+        "sha256": "7c170901c88e935868d73b7ed7df7dc301d962721d22687e444c5c3f7d7b87eb",
+        "size_bytes": 250484
+      },
+      {
+        "name": "reverse_control.py",
+        "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
+        "size_bytes": 7657
+      },
+      {
+        "name": "road_detector.py",
+        "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+        "size_bytes": 26649
+      },
+      {
+        "name": "source_selector.py",
+        "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+        "size_bytes": 8802
+      },
+      {
+        "name": "surface_detector.py",
+        "sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+        "size_bytes": 42699
+      },
+      {
+        "name": "thresholding.py",
+        "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+        "size_bytes": 12363
+      },
+      {
+        "name": "vision_protocol.py",
+        "sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
+        "size_bytes": 5172
+      }
+    ]
+  },
+  "build_result": "PASS",
+  "candidate": "OPENMV_USB60_CANDIDATE_20261024",
+  "candidate_sources": {
+    "component_sha256": {
+      "fast_gray": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+      "fast_single_edge": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+      "fast_topology": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8"
+    },
+    "fps_ram_source": {
+      "embedded_main_sha256_before_usb_integration": "ea08f4becf92ace52612ee9af41628e8b98c45baa41ee5edf83433eb24f038ff",
+      "path": "logs/usb-preview-20261024/full-cycle-fps/full-cycle-fps-q10-ram-source.py",
+      "sha256": "6e8ba8d574e9e5616976b26dfb1d71e44be7d1824ce661c09acc4cb7aefd5542"
+    }
+  },
+  "cross_compile": {
+    "all_exit_codes_zero": true,
+    "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
+    "compiler_sha256": "cced6a90ad63e31e0ef319cc52a33d582005e828aeef16abca01b15ba63b4b94",
+    "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+    "module_count": 19,
+    "modules": [
+      {
+        "compiled_sha256": "1746d2e8a8bf3ec2b9afc83565d26f201b4300882ba3342eb985c010d5f1f8cd",
+        "compiled_size_bytes": 13897,
+        "exit_code": 0,
+        "name": "adaptive_detector.py",
+        "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+        "source_size_bytes": 44071
+      },
+      {
+        "compiled_sha256": "c3ba3f004fb96c5ac595fab5ae1a2628edca1241e6623e3cd1ae90c2e74b36d3",
+        "compiled_size_bytes": 5655,
+        "exit_code": 0,
+        "name": "boundary_evidence.py",
+        "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+        "source_size_bytes": 18818
+      },
+      {
+        "compiled_sha256": "9ae9db8901fcaa1f71d4a0e52ff04ead731b2a50ce83260c5f01ac26595ee529",
+        "compiled_size_bytes": 10879,
+        "exit_code": 0,
+        "name": "config.py",
+        "source_sha256": "ca141699c13b5b13fe8093cbed812d47bb6e6f076f9e0c45eacc22c826a2548c",
+        "source_size_bytes": 18264
+      },
+      {
+        "compiled_sha256": "d55e9fe91412e72728f07930a25b1def277190faa776c5e78c0ea2a2591df6b4",
+        "compiled_size_bytes": 8348,
+        "exit_code": 0,
+        "name": "contour_route.py",
+        "source_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+        "source_size_bytes": 24945
+      },
+      {
+        "compiled_sha256": "0a3f6e6d59e03a660eb29921a26af9b11c75ae7e5b3d9022d28f642a1325edcf",
+        "compiled_size_bytes": 10508,
+        "exit_code": 0,
+        "name": "contour_trace.py",
+        "source_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+        "source_size_bytes": 38987
+      },
+      {
+        "compiled_sha256": "3e2ea85c7318b7c7827183538c03e353d8684159272679983827ac5b975b5e2f",
+        "compiled_size_bytes": 28591,
+        "exit_code": 0,
+        "name": "fast_boundary.py",
+        "source_sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
+        "source_size_bytes": 54416
+      },
+      {
+        "compiled_sha256": "a68cdeb8832be436343ca1eaa001dfa3106ac6081b27d92d7592d4ec149f03c3",
+        "compiled_size_bytes": 23051,
+        "exit_code": 0,
+        "name": "fast_gray.py",
+        "source_sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+        "source_size_bytes": 56266
+      },
+      {
+        "compiled_sha256": "6b1b6c584e934e50a3a0dce27ab1d014b03baf7fc20496d8b3d6c132f434abbe",
+        "compiled_size_bytes": 24073,
+        "exit_code": 0,
+        "name": "fast_path.py",
+        "source_sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
+        "source_size_bytes": 43868
+      },
+      {
+        "compiled_sha256": "38dc65303153bdc1b59be903d49b70a3501919de6f997687fea4ec7f1de9d6ce",
+        "compiled_size_bytes": 50338,
+        "exit_code": 0,
+        "name": "fast_single_edge.py",
+        "source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+        "source_size_bytes": 88694
+      },
+      {
+        "compiled_sha256": "d745f37441fa2cefadff71ca608e2b9989202a203ae9dedd22721cdd374d4dbb",
+        "compiled_size_bytes": 16409,
+        "exit_code": 0,
+        "name": "fast_topology.py",
+        "source_sha256": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
+        "source_size_bytes": 49292
+      },
+      {
+        "compiled_sha256": "256ea9fde37d78e1ee86355b0f5e21048399c7f25b848675def05e8438dd70bb",
+        "compiled_size_bytes": 2231,
+        "exit_code": 0,
+        "name": "grayscale_adapter.py",
+        "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+        "source_size_bytes": 7784
+      },
+      {
+        "compiled_sha256": "4398ce167d043b82d2fe75c906c5498839199eb3073d0d9a5d44dd453cbc981f",
+        "compiled_size_bytes": 4047,
+        "exit_code": 0,
+        "name": "line_detector.py",
+        "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+        "source_size_bytes": 11979
+      },
+      {
+        "compiled_sha256": "3a3b628450d183d6e9333373c10d1bfbadfa51626e5057aacb82f6603d1b7ae5",
+        "compiled_size_bytes": 124339,
+        "exit_code": 0,
+        "name": "main.py",
+        "source_sha256": "9fc925898d15231fd0176443a955d4ade4dbe55c50e14887ac8d4c57c265f972",
+        "source_size_bytes": 282596
+      },
+      {
+        "compiled_sha256": "333af1360fd2f7a6421c5f6fa102e2f9fae24df70c0d9595f947ba530b8b879d",
+        "compiled_size_bytes": 2495,
+        "exit_code": 0,
+        "name": "reverse_control.py",
+        "source_sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
+        "source_size_bytes": 7657
+      },
+      {
+        "compiled_sha256": "444a82d3c6a1ba9d044c56423ca5ab19e99e876dc3596661f09e477e44d99cb9",
+        "compiled_size_bytes": 8340,
+        "exit_code": 0,
+        "name": "road_detector.py",
+        "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+        "source_size_bytes": 26649
+      },
+      {
+        "compiled_sha256": "34a6a43fb3d69ea91a3a17a0f64bdda0a11df94a84ee596a06a296600ee723b0",
+        "compiled_size_bytes": 2740,
+        "exit_code": 0,
+        "name": "source_selector.py",
+        "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+        "source_size_bytes": 8802
+      },
+      {
+        "compiled_sha256": "0ef2c4c40b8a16c0b177f38a64026170f62d673eb38f51688c043d50fc1aed76",
+        "compiled_size_bytes": 11919,
+        "exit_code": 0,
+        "name": "surface_detector.py",
+        "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+        "source_size_bytes": 42699
+      },
+      {
+        "compiled_sha256": "c26ee89585cf69e0566d42aa28dfb0230c1b4239f6130735a0fb4540a77d18fb",
+        "compiled_size_bytes": 3590,
+        "exit_code": 0,
+        "name": "thresholding.py",
+        "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+        "source_size_bytes": 12363
+      },
+      {
+        "compiled_sha256": "4b7d0c5a1958b348a2fa95e924b09a464d5f41bf2fd7bd34561dde18fc07686c",
+        "compiled_size_bytes": 1946,
+        "exit_code": 0,
+        "name": "vision_protocol.py",
+        "source_sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
+        "source_size_bytes": 5172
+      }
+    ],
+    "target": "armv7emsp"
+  },
+  "hardware_validation": false,
+  "host_tests": {
+    "exit_code": 0,
+    "result": "PASS",
+    "suites": {
+      "fresh_capture_fps": {
+        "exit_code": 0,
+        "tests_run": 5
+      },
+      "usb_preview_state": {
+        "exit_code": 0,
+        "tests_run": 6
+      }
+    },
+    "test_files": [
+      "logs/usb-preview-20261024/usb60-candidate-package/test_usb_preview_state.py",
+      "tests/test_openmv_usb60_fps.py"
+    ],
+    "tests_run": 11
+  }
+}

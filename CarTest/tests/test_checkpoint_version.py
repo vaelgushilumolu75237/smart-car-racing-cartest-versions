@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -20,6 +21,41 @@ def write_json(path: Path, value):
 
 
 class CheckpointAllowlistTests(unittest.TestCase):
+    def test_public_copy_excludes_only_tools_experiments_subtree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            destination = root / "destination"
+            (source / "tools" / "experiments").mkdir(parents=True)
+            (source / "tools" / "nested" / "experiments").mkdir(parents=True)
+            (source / "openmv" / "experiments").mkdir(parents=True)
+            (source / "tools" / "experiments" / "private.py").write_text(
+                "private\n", encoding="utf-8")
+            (source / "tools" / "nested" / "experiments" / "keep.py").write_text(
+                "keep nested\n", encoding="utf-8")
+            (source / "openmv" / "experiments" / "keep.py").write_text(
+                "keep openmv\n", encoding="utf-8")
+
+            for directory in ("tools", "openmv"):
+                checkpoint.copy_tree(
+                    source / directory,
+                    destination / directory,
+                    excluded_subtrees=checkpoint.PUBLIC_COPY_EXCLUDED_SUBTREES.get(
+                        directory, ()),
+                )
+
+            self.assertFalse((destination / "tools" / "experiments").exists())
+            self.assertEqual(
+                (destination / "tools" / "nested" / "experiments" / "keep.py").read_text(
+                    encoding="utf-8"),
+                "keep nested\n",
+            )
+            self.assertEqual(
+                (destination / "openmv" / "experiments" / "keep.py").read_text(
+                    encoding="utf-8"),
+                "keep openmv\n",
+            )
+
     def make_native_preview_fixture(self, source: Path):
         for relative_name in checkpoint.OPENMV_NATIVE_PREVIEW_REQUIRED_FILES:
             source_path = PROJECT / relative_name
@@ -29,6 +65,203 @@ class CheckpointAllowlistTests(unittest.TestCase):
         patch_path = source / checkpoint.OPENMV_NATIVE_PREVIEW_PATCH
         patch_path.parent.mkdir(parents=True, exist_ok=True)
         patch_path.write_bytes((PROJECT / checkpoint.OPENMV_NATIVE_PREVIEW_PATCH).read_bytes())
+
+    def make_usb60_fixture(self, source: Path):
+        for relative_name in (
+                f"{checkpoint.OPENMV_ACKERMANN_ROOT}/coordinated/PACKAGE_MANIFEST.json",
+                *checkpoint.OPENMV_USB60_BASELINE_H743_ELFS):
+            source_path = PROJECT / relative_name
+            destination = source / relative_name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source_path.read_bytes())
+
+        package = source / checkpoint.OPENMV_USB60_CANDIDATE_ROOT
+        package.mkdir(parents=True)
+        runtime_entries = []
+        compile_modules = []
+        for name in sorted(checkpoint.OPENMV_USB60_CANDIDATE_RUNTIME_FILES):
+            content = ("synthetic candidate module: " + name + "\n").encode()
+            (package / name).write_bytes(content)
+            source_sha = hashlib.sha256(content).hexdigest()
+            compiled = ("synthetic compiled module: " + name).encode()
+            compiled_sha = hashlib.sha256(compiled).hexdigest()
+            runtime_entries.append({
+                "name": name, "size_bytes": len(content), "sha256": source_sha,
+            })
+            compile_modules.append({
+                "name": name, "source_sha256": source_sha,
+                "compiled_sha256": compiled_sha,
+                "compiled_size_bytes": len(compiled), "exit_code": 0,
+            })
+        readme = b"Synthetic hardware-pending package.\n"
+        cross_compile = {
+            "target": "armv7emsp", "module_count": 19,
+            "all_exit_codes_zero": True, "modules": compile_modules,
+            "compiler_path": "mpy-cross fixture",
+            "compiler_version": "MicroPython fixture",
+        }
+        summary = json.dumps({
+            "schema_version": 1, "cross_compile": cross_compile,
+        }, sort_keys=True).encode() + b"\n"
+        (package / "README.md").write_bytes(readme)
+        (package / "CROSS_COMPILE_SUMMARY.json").write_bytes(summary)
+        documents = {
+            "README.md": {
+                "size_bytes": len(readme), "sha256": hashlib.sha256(readme).hexdigest(),
+            },
+            "CROSS_COMPILE_SUMMARY.json": {
+                "size_bytes": len(summary), "sha256": hashlib.sha256(summary).hexdigest(),
+            },
+        }
+        baseline_manifest = json.loads((
+            source / checkpoint.OPENMV_ACKERMANN_ROOT / "coordinated" /
+            "PACKAGE_MANIFEST.json").read_text(encoding="utf-8-sig"))
+        manifest = {
+            "schema_version": 1,
+            "package_id": checkpoint.OPENMV_USB60_CANDIDATE_PACKAGE_ID,
+            "release_status": checkpoint.OPENMV_USB60_CHECKPOINT_STATUS,
+            "runtime_file_count": len(runtime_entries),
+            "runtime_files": runtime_entries,
+            "documents": documents,
+            "baseline_coordinated_manifest_sha256":
+                checkpoint.OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256,
+            "baseline": {
+                "package": f"{checkpoint.OPENMV_ACKERMANN_ROOT}/coordinated",
+                "package_manifest_sha256":
+                    checkpoint.OPENMV_USB60_BASELINE_COORDINATED_MANIFEST_SHA256,
+                "runtime_files": [
+                    {key: entry[key] for key in ("name", "size_bytes", "sha256")}
+                    for entry in baseline_manifest["runtime_files"]
+                ],
+                "h743_elfs": [
+                    {"path": path, "sha256": digest}
+                    for path, digest in checkpoint.OPENMV_USB60_BASELINE_H743_ELFS.items()
+                ],
+            },
+            "baseline_h743_elfs": [
+                {"path": path, "sha256": digest}
+                for path, digest in checkpoint.OPENMV_USB60_BASELINE_H743_ELFS.items()
+            ],
+            "limits": ["No 60 FPS acceptance is claimed."],
+            "production_openmv_unchanged": True,
+            "full_pipeline_60fps_verified": False,
+            "hardware_validation": {
+                name: False
+                for name in checkpoint.OPENMV_USB60_HW_VALIDATION_FALSE_FIELDS
+            },
+            "cross_compile": {
+                **cross_compile,
+            },
+        }
+        write_json(package / checkpoint.OPENMV_USB60_CANDIDATE_MANIFEST, manifest)
+        return package
+
+    def test_usb60_candidate_is_exactly_allowlisted_and_hash_verified(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            self.make_usb60_fixture(source)
+            package = source / checkpoint.OPENMV_USB60_CANDIDATE_ROOT
+            manifest_path = package / checkpoint.OPENMV_USB60_CANDIDATE_MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["hardware_validation"]["physical_uart_throughput_verified"] = False
+            write_json(manifest_path, manifest)
+
+            with self.assertRaisesRegex(ValueError, "only be checkpointed"):
+                checkpoint.select_openmv_usb60_candidate(source, "experimental-software-tested")
+            allowlist = checkpoint.select_openmv_usb60_candidate(
+                source, checkpoint.OPENMV_USB60_CHECKPOINT_STATUS)
+
+            self.assertEqual(len(allowlist), 19 + 3)
+            self.assertEqual(
+                {Path(name).name for name in allowlist},
+                checkpoint.OPENMV_USB60_CANDIDATE_RUNTIME_FILES | {
+                    "README.md", "CROSS_COMPILE_SUMMARY.json", "PACKAGE_MANIFEST.json",
+                },
+            )
+            self.assertTrue(all(name.startswith(
+                checkpoint.OPENMV_USB60_CANDIDATE_ROOT + "/") for name in allowlist))
+
+    def test_usb60_candidate_rejects_changed_h743_baseline_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            manifest_path = package / checkpoint.OPENMV_USB60_CANDIDATE_MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["baseline"]["h743_elfs"][0]["sha256"] = "0" * 64
+            write_json(manifest_path, manifest)
+            with self.assertRaisesRegex(RuntimeError, "H743 baseline reference"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+    def test_usb60_candidate_rejects_hardware_validation_claim(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            manifest_path = package / checkpoint.OPENMV_USB60_CANDIDATE_MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["hardware_validation"]["full_pipeline_60fps_verified"] = True
+            write_json(manifest_path, manifest)
+            with self.assertRaisesRegex(RuntimeError, "hardware-validation state"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+    def test_usb60_candidate_rejects_extra_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            (package / "serial-console.log").write_text("private\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "file allowlist mismatch"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+    def test_usb60_candidate_rejects_traversal_runtime_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            manifest_path = package / checkpoint.OPENMV_USB60_CANDIDATE_MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["runtime_files"][0]["name"] = "../outside.py"
+            write_json(manifest_path, manifest)
+            with self.assertRaisesRegex(RuntimeError, "unsafe or duplicate path"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+    def test_usb60_candidate_rejects_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            link = package / "linked.txt"
+            original_rglob = Path.rglob
+            original_is_symlink = Path.is_symlink
+
+            def rglob_with_link(path, pattern):
+                entries = list(original_rglob(path, pattern))
+                if path == package:
+                    entries.append(link)
+                return entries
+
+            def mark_link(path):
+                if path == link:
+                    return True
+                return original_is_symlink(path)
+
+            with patch.object(Path, "rglob", rglob_with_link), \
+                    patch.object(Path, "is_symlink", mark_link):
+                with self.assertRaisesRegex(RuntimeError, "contains a symlink"):
+                    checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+    def test_usb60_candidate_rejects_tampered_runtime_and_document(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            module = package / sorted(checkpoint.OPENMV_USB60_CANDIDATE_RUNTIME_FILES)[0]
+            module.write_bytes(module.read_bytes() + b"tampered\n")
+            with self.assertRaisesRegex(RuntimeError, "runtime hash/size mismatch"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
+
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            package = self.make_usb60_fixture(source)
+            summary = package / "CROSS_COMPILE_SUMMARY.json"
+            summary.write_bytes(summary.read_bytes() + b" ")
+            with self.assertRaisesRegex(RuntimeError, "document hash/size mismatch"):
+                checkpoint.verify_openmv_usb60_candidate_delivery(source)
 
     def test_openmv_native_preview_candidate_is_validated_and_explicitly_allowlisted(self):
         with tempfile.TemporaryDirectory() as temp:
