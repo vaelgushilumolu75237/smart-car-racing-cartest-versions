@@ -5242,6 +5242,47 @@ def _main_compare():
                           processing_ms, fps)
 
 
+class _VisionUARTWriter:
+    """Select a single-call FIFO writer only when the UART advertises API 1."""
+
+    FIFO_QUEUED = "FIFO_QUEUED"
+    SYNCHRONOUS_FALLBACK = "SYNCHRONOUS_FALLBACK"
+
+    def __init__(self, uart):
+        self._uart = uart
+        self._fifo_write = None
+        self._fifo_txdone = None
+        api_version = getattr(uart, "WRITE_FIFO_API", None)
+        if api_version is None:
+            api_version = getattr(type(uart), "WRITE_FIFO_API", None)
+        api_v1 = type(api_version) is int and api_version == 1
+        fifo_write = getattr(uart, "write_fifo", None)
+        fifo_txdone = getattr(uart, "fifo_txdone", None)
+        if api_v1 and callable(fifo_write) and callable(fifo_txdone):
+            self._fifo_write = fifo_write
+            self._fifo_txdone = fifo_txdone
+            self.mode = self.FIFO_QUEUED
+        else:
+            self.mode = self.SYNCHRONOUS_FALLBACK
+
+    def write(self, data):
+        if self.mode == self.FIFO_QUEUED:
+            return self._fifo_write(data)
+        return self._uart.write(data)
+
+    def any(self, *args, **kwargs):
+        return self._uart.any(*args, **kwargs)
+
+    def readinto(self, *args, **kwargs):
+        return self._uart.readinto(*args, **kwargs)
+
+    def fifo_txdone(self):
+        """Probe FIFO completion only outside the frame hot path."""
+        if self.mode != self.FIFO_QUEUED:
+            return None
+        return self._fifo_txdone()
+
+
 def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     """Process every frame through the V2 path, with optional RAM fixtures.
 
@@ -5389,12 +5430,17 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
 
     if fixture_mode:
         uart = uart_sink
+        uart_tx_mode = "SINK"
     else:
-        uart = pyb.UART(config.UART_ID, config.UART_BAUDRATE,
-                        bits=config.UART_BITS, parity=None,
-                        stop=config.UART_STOP_BITS,
-                        timeout=config.UART_TIMEOUT_MS,
-                        timeout_char=config.UART_CHAR_TIMEOUT_MS)
+        hardware_uart = pyb.UART(
+            config.UART_ID, config.UART_BAUDRATE,
+            bits=config.UART_BITS, parity=None,
+            stop=config.UART_STOP_BITS,
+            timeout=config.UART_TIMEOUT_MS,
+            timeout_char=config.UART_CHAR_TIMEOUT_MS)
+        uart = _VisionUARTWriter(hardware_uart)
+        uart_tx_mode = uart.mode
+    print("UART_TX_MODE=%s" % uart_tx_mode)
     observation_filter = _FreshObservationFilter(
         config.OBSERVATION_FILTER_ALPHA,
         config.OBSERVATION_FILTER_MAX_GAP_MS,
@@ -6063,7 +6109,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             written = uart.write(packet)
             if written == len(packet):
                 full_write = True
-                last_tx_result = "FULL_16"
+                last_tx_result = ("QUEUED_16" if
+                                  uart_tx_mode == "FIFO_QUEUED" else
+                                  "FULL_16")
             else:
                 write_error = "SHORT_WRITE:%s/16" % str(written)
                 last_tx_result = write_error

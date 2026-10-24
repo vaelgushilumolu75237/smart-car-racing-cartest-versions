@@ -67,6 +67,8 @@ function Invoke-StatusCase {
         [string]$ActualFrequency = '950',
         [switch]$DryRun,
         [string]$DescriptorPath = $descriptorFixture,
+        [string]$AckermannSnapshotPath = [string]$fixtureInfo.ackermann_snapshot_path,
+        [string]$AckermannGenerationPath = [string]$fixtureInfo.ackermann_generation_path,
         [string[]]$UploadFixtureSequence = @()
     )
     $caseRoot = Join-Path $OutputRoot $Name
@@ -85,9 +87,9 @@ function Invoke-StatusCase {
     $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_ADDRESS = [string]$fixtureInfo.speed_pi_trace_address
     $env:RUN_STATUS_FAKE_SPEED_PI_TRACE_FIXTURE = [string]$fixtureInfo.speed_pi_trace_idle_path
     $env:RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_ADDRESS = [string]$fixtureInfo.ackermann_snapshot_address
-    $env:RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_FIXTURE = [string]$fixtureInfo.ackermann_snapshot_path
+    $env:RUN_STATUS_FAKE_ACKERMANN_SNAPSHOT_FIXTURE = $AckermannSnapshotPath
     $env:RUN_STATUS_FAKE_ACKERMANN_GENERATION_ADDRESS = [string]$fixtureInfo.ackermann_generation_address
-    $env:RUN_STATUS_FAKE_ACKERMANN_GENERATION_FIXTURE = [string]$fixtureInfo.ackermann_generation_path
+    $env:RUN_STATUS_FAKE_ACKERMANN_GENERATION_FIXTURE = $AckermannGenerationPath
     $env:RUN_STATUS_FAKE_SCALAR_ADDRESS = [string]$fixtureInfo.scalar_address
     $env:RUN_STATUS_FAKE_SCALAR_SIZE = [string]$fixtureInfo.scalar_size
     $env:RUN_STATUS_FAKE_SCALAR_FIXTURE = $scalarFixture
@@ -233,6 +235,38 @@ try {
     if ($fixtureInfo.ackermann_snapshot_available -and
         $success.Output -notmatch 'ACK1=frozen/none') {
         throw 'Status wrapper output did not expose the ACK1 frozen/error classification.'
+    }
+    if ($fixtureInfo.ackermann_snapshot_available -and
+        $success.Output -notmatch 'ACK1 snapshot: status=frozen; valid=True; exportable=True; generation=2; phase=[^;]+; slowdown_request_permille=0; frozen=True; session_active=False') {
+        throw 'Status wrapper did not print the validated frozen ACK1 fields.'
+    }
+
+    if ($fixtureInfo.ackermann_snapshot_available) {
+        $uninitializedAckPath = Join-Path $fixtureRoot 'ackermann-snapshot-uninitialized.bin'
+        $zeroGenerationPath = Join-Path $fixtureRoot 'ackermann-generation-zero.bin'
+        [IO.File]::WriteAllBytes($uninitializedAckPath, (New-Object byte[] 64))
+        [IO.File]::WriteAllBytes($zeroGenerationPath, (New-Object byte[] 4))
+        $uninitialized = Invoke-StatusCase -Name 'IDLE-status-uninitialized-ACK1' `
+            -Mode success -AckermannSnapshotPath $uninitializedAckPath `
+            -AckermannGenerationPath $zeroGenerationPath
+        if ($uninitialized.ExitCode -ne 0) {
+            throw "Uninitialized ACK1 status read should exit 0: $($uninitialized.Output)"
+        }
+        $uninitializedRun = Get-StatusRunDirectory $uninitialized.CaseRoot
+        $uninitializedStatus = Get-Content -LiteralPath (Join-Path $uninitializedRun.FullName 'run-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $uninitializedAck = $uninitializedStatus.ackermann_snapshot
+        if ($uninitializedStatus.status_class -ne 'neverstarted' -or
+            $uninitializedStatus.csv_created -or
+            $uninitializedAck.status -ne 'uninitialized' -or
+            $uninitializedAck.valid -ne $false -or
+            $uninitializedAck.exportable -ne $false -or
+            $null -ne $uninitializedAck.PSObject.Properties['generation']) {
+            throw 'Uninitialized ACK1 was changed into initialized/valid data or caused CSV export.'
+        }
+        if ($uninitialized.Output -notmatch 'ACK1=uninitialized/ackermann_snapshot_uninitialized' -or
+            $uninitialized.Output -notmatch 'ACK1 snapshot: status=uninitialized; valid=False; exportable=False; generation=N/A; phase=N/A; slowdown_request_permille=N/A; frozen=N/A; session_active=N/A') {
+            throw 'Uninitialized ACK1 output omitted its status or printed absent fields as data.'
+        }
     }
 
     $badCrcHeader = Join-Path $fixtureRoot 'runtime-log-header-idle-bad-crc.bin'
@@ -410,7 +444,7 @@ try {
         throw 'Status DryRun did not finish the header bracket after its diagnostic snapshots.'
     }
 
-    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, ACK1 before/snapshot/after generation reads and CRC decode, CRC-fail-then-pass and inconsistent-then-pass retries, stable FROZEN, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
+    Write-Output 'PASS status child-process shared string true/false, IDLE no-CSV, valid and uninitialized ACK1 output, N/A for absent fields with exit 0, ACK1 generation guards and CRC decode, CRC-fail-then-pass and inconsistent-then-pass retries, stable FROZEN, Flash-first identity, 1000-to-400 fallback, actual frequency, non-atomic warning, and DryRun'
     Write-Output "Evidence: $OutputRoot"
 }
 finally {

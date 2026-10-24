@@ -1,7 +1,7 @@
 {
-  "version": "v20261024-usb60-static-preview-docfix",
-  "status": "static-vision-preview-tested-uart-sink",
-  "branch": "experimental/usb60-static-preview",
-  "files": 599,
+  "version": "v20261025-usb60-fifo-static",
+  "status": "static-straight-fifo-preview-tested",
+  "branch": "experimental/usb60-fifo-static",
+  "files": 612,
   "hardware_actions": "none"
 }

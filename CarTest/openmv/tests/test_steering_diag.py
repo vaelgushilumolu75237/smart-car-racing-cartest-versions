@@ -794,7 +794,10 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
              "_draw_road_overlay_packed",
              "_native_preview_control_api_available",
              "_open_usb_vcp_safely",
-             "_road_preview_integer_geometry_viper"})
+             "_road_preview_integer_geometry_viper",
+             # UART FIFO compatibility wrapper is transport-only; the adapter
+             # behavior is covered by test_uart_fifo_wrapper.py.
+             "_VisionUARTWriter"})
         self.assertEqual(baseline_defs.keys() - current_defs.keys(), set())
         # Geometry/V2 work intentionally adjusts camera setup, pixel mapping,
         # runtime API checks, and per-window summaries in addition to the

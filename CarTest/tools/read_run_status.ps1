@@ -340,6 +340,18 @@ function Write-FailedStatus {
     $failed | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $script:RunDirectory 'run-status.json') -Encoding UTF8
 }
 
+function Get-OptionalAckFieldValue {
+    param(
+        [AllowNull()][object]$Snapshot,
+        [Parameter(Mandatory = $true)][string]$FieldName
+    )
+
+    if ($null -eq $Snapshot) { return 'N/A' }
+    $property = $Snapshot.PSObject.Properties[$FieldName]
+    if ($null -eq $property -or $null -eq $property.Value) { return 'N/A' }
+    return [string]$property.Value
+}
+
 try {
     $elfPath = $null
     $elfPath = (Resolve-Path -LiteralPath $Elf -ErrorAction Stop).Path
@@ -577,7 +589,15 @@ try {
     }
     if ($decoded.ackermann_snapshot) {
         $ack = $decoded.ackermann_snapshot
-        Write-Output ("ACK1 snapshot: status={0}; valid={1}; exportable={2}; generation={3}; phase={4}; slowdown_request_permille={5}; frozen={6}; session_active={7}" -f $ack.status, $ack.valid, $ack.exportable, $ack.generation, $ack.curve_phase_name, $ack.slowdown_request_permille, $ack.frozen, $ack.session_active)
+        $ackStatus = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'status'
+        $ackValid = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'valid'
+        $ackExportable = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'exportable'
+        $ackGeneration = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'generation'
+        $ackPhase = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'curve_phase_name'
+        $ackSlowdown = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'slowdown_request_permille'
+        $ackFrozen = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'frozen'
+        $ackSessionActive = Get-OptionalAckFieldValue -Snapshot $ack -FieldName 'session_active'
+        Write-Output ("ACK1 snapshot: status={0}; valid={1}; exportable={2}; generation={3}; phase={4}; slowdown_request_permille={5}; frozen={6}; session_active={7}" -f $ackStatus, $ackValid, $ackExportable, $ackGeneration, $ackPhase, $ackSlowdown, $ackFrozen, $ackSessionActive)
     }
     foreach ($warning in @($decoded.warnings)) { Write-Output ("Warning: {0}" -f $warning) }
     Write-Output ("Diagnostic JSON: {0}" -f (Join-Path $script:RunDirectory 'run-status.json'))

@@ -167,6 +167,283 @@ OPENMV_NATIVE_PREVIEW_BIN_BYTES = 1_736_532
 OPENMV_NATIVE_PREVIEW_ELF_BYTES = 11_322_036
 OPENMV_NATIVE_PREVIEW_VECTOR_SP = 0x00010000
 OPENMV_NATIVE_PREVIEW_VECTOR_RESET = 0x08040299
+OPENMV_UART_FIFO_FIRMWARE_ROOT = "deliverables/OpenMV_NativePreview_UARTFIFO_20261024"
+OPENMV_UART_FIFO_FIRMWARE_FILES = tuple(
+    f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/{name}" for name in (
+        "firmware.bin", "firmware.elf", "build-summary.txt",
+        "build-summary.txt.sha256", "artifact-manifest.json", "README.md",
+        "EVIDENCE.md",
+    )
+)
+OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES = {
+    "firmware.bin": {
+        "bytes": 1_736_932,
+        "sha256": "0bbf81a534f99365a62187b3116559e313527e0aa1b7d585e618022b11feffc3",
+    },
+    "firmware.elf": {
+        "bytes": 11_330_088,
+        "sha256": "aae890556a1f35fe784ec451c064e4e24d1710ef91cff9f3f051117f1c18cde6",
+    },
+    "build-summary.txt": {
+        "bytes": 556,
+        "sha256": "3f18790bf7666a44326e80319abfda115654befc1618445a044ecc0c55299763",
+    },
+    "build-summary.txt.sha256": {
+        "bytes": 84,
+        "sha256": "80c0b3252a3bcaa24552e9992138d504bd2ddbbbff2b39c07fad232ce4d9c23a",
+    },
+}
+OPENMV_UART_FIFO_FIRMWARE_REVIEW_DOCS_SHA256 = {
+    "README.md": "0e67dd0552e200c1a1518d656d632407bdadd1d17870baee029e9f797c94d2e3",
+    "EVIDENCE.md": "c1e8b3d4ca51e594a926690e018e761a702de758b67e486ed406c3f22ea9f720",
+}
+OPENMV_UART_FIFO_PATCH = (
+    "tools/vendor-patches/openmv-v5.0.0/0002-stm32h7-uart-fifo-write.patch")
+OPENMV_UART_FIFO_PATCH_MANIFEST = (
+    "tools/vendor-patches/openmv-v5.0.0/0002-stm32h7-uart-fifo-write.manifest.json")
+OPENMV_UART_FIFO_PATCH_README = (
+    "tools/vendor-patches/openmv-v5.0.0/0002-stm32h7-uart-fifo-write.README.md")
+OPENMV_UART_FIFO_PATCH_SHA256 = (
+    "8d1649cc9fb74e00b6d1234f6c8a3a62d70b90ebd605053f069b202ec36890fb")
+OPENMV_UART_FIFO_PATCH_MANIFEST_SHA256 = (
+    "b775d9214cea40c2e3cc2beb1f04fae372ed2f57352b25fb64adfba4a1897179")
+OPENMV_UART_FIFO_PATCH_README_SHA256 = (
+    "d4c90a53f51145f4672753466ca0661a0fe0a736c964f97b0f4286deafc3a717")
+OPENMV_UART_FIFO_PATCH_MANIFEST_EXPECTED = {
+    "schema_version": 1,
+    "patch_file": "0002-stm32h7-uart-fifo-write.patch",
+    "patch_sha256": OPENMV_UART_FIFO_PATCH_SHA256,
+    "series_position": 2,
+    "applies_after": {
+        "patch_file": "0001-csi-snapshot-preview-kwarg.patch",
+        "patch_sha256": OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256,
+    },
+    "base": {
+        "repository": "https://github.com/openmv/openmv",
+        "tag": "v5.0.0",
+        "openmv_commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+        "micropython_commit": "d18a77e5d55664045e71a0c839695df07a96a6e1",
+    },
+    "base_files_sha256": {
+        "lib/micropython/extmod/machine_uart.c":
+            "ea18b5142a4f19183dcb7583781f78e5f41ccb44938fcd32c849c61fe43a85a3",
+        "lib/micropython/ports/stm32/machine_uart.c":
+            "48e0522634fed71eeea4a5e94e70ebd39fd4e4e8fff8630e87758f9f7644fea0",
+        "lib/micropython/ports/stm32/uart.c":
+            "dd6de2dc5556ad5d66c48a95232e8c565a4dea32c60d8e348e3273c07d4b157d",
+        "lib/micropython/ports/stm32/uart.h":
+            "9992a97d1ec5e9868d47b7ea9a37af4f44040230f04ddf8d7fe9e4c42dfcfbf0",
+    },
+    "api": {
+        "marker": "UART.WRITE_FIFO_API == 1 on STM32H7 only",
+        "write_fifo_max_bytes": 16,
+        "ordinary_write_unchanged": True,
+    },
+}
+OPENMV_UART_FIFO_FIRMWARE_BUILD_SUMMARY_EXPECTED = {
+    "openmv_tag": "v5.0.0",
+    "openmv_commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+    "openmv_sdk_version": "1.6.0",
+    "micropython_commit": "d18a77e5d55664045e71a0c839695df07a96a6e1",
+    "patch_0001_preview_sha256": OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256,
+    "patch_0002_uart_fifo_sha256": OPENMV_UART_FIFO_PATCH_SHA256,
+    "preview_control_api": "1",
+    "uart_write_fifo_api": "1",
+    "firmware.bin_sha256": OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES["firmware.bin"]["sha256"],
+    "firmware.elf_sha256": OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES["firmware.elf"]["sha256"],
+}
+OPENMV_UART_FIFO_CI_RUN_ID = 40095756045
+OPENMV_UART_FIFO_CI_SOURCE_COMMIT = "a44ba5186711e37cde4a65c19b6b3dd9780e75af"
+OPENMV_UART_FIFO_EXPECTED_ARTIFACT_MANIFEST = {
+    "schema_version": 1,
+    "package_id": "OpenMV_NativePreview_UARTFIFO_20261024",
+    "target": {"board": "OPENMV4P", "mcu": "STM32H743"},
+    "upstream": {
+        "repository": "https://github.com/openmv/openmv",
+        "tag": "v5.0.0",
+        "openmv_commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+        "micropython_commit": "d18a77e5d55664045e71a0c839695df07a96a6e1",
+    },
+    "patches": {
+        "0001-csi-snapshot-preview-kwarg.patch":
+            OPENMV_NATIVE_PREVIEW_EXPECTED_PATCH_SHA256,
+        "0002-stm32h7-uart-fifo-write.patch": OPENMV_UART_FIFO_PATCH_SHA256,
+    },
+    "build": {
+        "provider": "GitHub Actions",
+        "repository": "vaelgushilumolu75237/smart-car-racing-cartest-versions",
+        "run_id": OPENMV_UART_FIFO_CI_RUN_ID,
+        "source_commit": OPENMV_UART_FIFO_CI_SOURCE_COMMIT,
+        "conclusion": "success",
+        "openmv_sdk_version": "1.6.0",
+    },
+    "api_markers": {"preview_control_api": 1, "uart_write_fifo_api": 1},
+    "files_sha256": OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES,
+    "review_documents_sha256": OPENMV_UART_FIFO_FIRMWARE_REVIEW_DOCS_SHA256,
+    "reported_hardware_evidence": {
+        "flash_readback": {
+            "status": "reported_full_image_hash_match",
+            "date": "2026-10-25",
+            "sha256": OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES["firmware.bin"]["sha256"],
+        },
+        "static_uart_fifo_invalid_only": {
+            "status": "static_invalid_only",
+            "preview_wrapper_seconds": 65,
+            "board_window_fps_range": [60.6, 60.7],
+            "host_marker_window_fps_range": [60.2, 60.8],
+            "complete_board_window_count": 6,
+            "complete_host_marker_window_count": 6,
+            "fifo_accepted_frames": 3944,
+            "fifo_accepted_bytes": 63104,
+            "partial_writes": 0,
+            "busy_results": 0,
+            "errors": 0,
+            "tx_complete": True,
+            "h743_read_only_rx_seconds": 1,
+            "invalid_frames": 60,
+            "valid_route_frames": 0,
+            "sequence_baseline": 0,
+            "rejected_sequence": 60,
+            "control_outputs": 0,
+            "tokens": 0,
+            "events": 0,
+        },
+        "newer_ide_test": {
+            "status": "static_payload_read_measured",
+            "duration_seconds": 65,
+            "module_batch_size": 19,
+            "uart_fifo_wrapper": "same_as_static_uart_fifo_run",
+            "wire_mode": "intentionally_invalid_fixed_sequence_zero",
+            "board_performance_windows": {
+                "window_seconds": 10,
+                "complete_window_count": 6,
+                "fps_samples": [60.7, 60.8, 60.7, 60.8, 60.6, 60.8],
+                "fps_range": [60.6, 60.8],
+                "valid_in_all_windows": True,
+                "uart_errors": 0,
+            },
+            "fifo": {
+                "accepted_frames": 3949,
+                "accepted_bytes": 63184,
+                "busy_results": 0,
+                "short_writes": 0,
+                "errors": 0,
+                "tx_complete_before": True,
+                "tx_complete_after": True,
+            },
+            "ide_payload_read": {
+                "complete_window_count": 6,
+                "rate_method": (
+                    "delta_FrameDataSize_records/"
+                    "(current_read_end-previous_read_begin)"),
+                "rate_hz_samples": [
+                    60.5142647373, 60.2316303329, 60.2352603627,
+                    60.1152914784, 60.3861933008, 60.1489975176,
+                ],
+                "rate_hz_range": [60.1152914784, 60.5142647373],
+                "advertised_size_records": 3986,
+                "complete_payload_read_records": 3986,
+                "advertised_and_read_sizes_all_equal": True,
+                "error_lines": 0,
+                "unique_frame_identity_verified": False,
+            },
+            "limitations": [
+                "IDE data establishes complete payload reads only; independent per-frame JPEG decode was not measured.",
+                "IDE marker freshness and physical display refresh were not measured.",
+                "Wire frames remained intentionally invalid with sequence zero; valid route control was not tested.",
+                "The separate SDK marker result is not merged with IDE payload-read measurements.",
+            ],
+        },
+        "separate_sdk_marker_measurement": {
+            "status": "measured_in_separate_run",
+            "complete_window_count": 6,
+            "fps_range": [60.2, 60.8],
+            "supports_independent_decoding_of_new_frames": True,
+            "proves_ide_per_frame_decode_or_physical_refresh": False,
+        },
+        "new_usb_headless_test": {
+            "status": "static_fifo_invalid_only_cdc_closed_measured",
+            "duration_seconds": 65,
+            "capture_scope": "real_sensor",
+            "camera_main_sha256": (
+                "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06"),
+            "same_camera_main_as_ide_payload_read_test": True,
+            "wire_mode": "intentionally_invalid_fixed_sequence_zero",
+            "cdc_close_seconds": 68.0,
+            "report_physical_usb_cable_state": "not_measured",
+            "lead_observed_physical_usb_cable_state": "connected",
+            "physical_usb_cable_removed": False,
+            "headless_report": {
+                "preview_state": "NATIVE_HEADLESS",
+                "cdc_close_confirmed": True,
+                "headless_observed": True,
+                "jpeg_marker_writes": 0,
+                "preview_errors": 0,
+                "buffer_overflow": 0,
+            },
+            "board_performance_windows": {
+                "window_seconds": 10,
+                "complete_window_count": 6,
+                "capture_samples": [794, 794, 792, 794, 792, 793],
+                "valid_samples": [794, 794, 792, 794, 792, 793],
+                "accepted_samples": [794, 794, 792, 794, 792, 793],
+                "fps_samples": [79.4, 79.4, 79.2, 79.4, 79.2, 79.3],
+                "fps_range": [79.2, 79.4],
+                "write_errors": 0,
+                "total_cycle_p95_upper_us_samples": [
+                    13000, 13000, 13000, 13000, 13000, 13000,
+                ],
+                "total_cycle_max_us": 30759,
+            },
+            "fifo": {
+                "attempts": 5156,
+                "accepted_frames": 5156,
+                "accepted_bytes": 82496,
+                "busy_results": 0,
+                "partial_writes": 0,
+                "errors": 0,
+                "tx_complete_before": True,
+                "tx_complete_after": True,
+                "wire_sequence": 0,
+                "wire_valid": False,
+                "computed_route_forwarded": 0,
+            },
+            "separate_read_only_swd_observation": {
+                "duration_seconds": 1,
+                "frames": 79,
+                "invalid_frames": 79,
+                "wire_sequence_value": 0,
+                "rejected_fixed_sequence_frames": 79,
+                "parser_errors": 0,
+                "valid_route_frames": 0,
+                "outputs": 0,
+                "tokens": 0,
+                "events": 0,
+            },
+            "headless_report_delivery": {
+                "complete_report_bytes": 2271,
+                "line_return_succeeded": True,
+                "prior_failed_attempt_records_retained": True,
+            },
+            "limitations": [
+                "CDC was closed for 68 seconds but the physical USB cable remained inserted; this is not a physical disconnect test.",
+                "Wire frames were intentionally invalid with fixed sequence zero; the separate SWD observation rejected invalid frames and did not validate route control.",
+                "This measurement does not establish effective route control, road behavior, or full end-to-end acceptance.",
+                "IDE payload-read and separate SDK marker measurements remain separate from this headless run.",
+            ],
+        },
+    },
+    "pending_acceptance": {
+        "physical_usb_disconnect_test": "pending",
+        "valid_route_control": "pending",
+        "end_to_end_60fps_acceptance": "pending",
+        "road_vehicle_acceptance": "pending",
+    },
+}
+OPENMV_UART_FIFO_BIN_BYTES = 1_736_932
+OPENMV_UART_FIFO_ELF_BYTES = 11_330_088
+OPENMV_UART_FIFO_VECTOR_SP = 0x00010000
+OPENMV_UART_FIFO_VECTOR_RESET = 0x08040299
 PUBLIC_DELIVERY_FILES = (
     "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
     "deliverables/H743_Uphill_20261019/A_Baseline/manifest.json",
@@ -662,6 +939,144 @@ def verify_openmv_native_preview_delivery(source: Path) -> list[str]:
     return allowlisted
 
 
+def _require_uart_fifo_checkpoint_file(source: Path, relative_name: str, label: str) -> Path:
+    path = source
+    for part in Path(relative_name).parts:
+        path = path / part
+        if path.is_symlink():
+            raise RuntimeError(f"OpenMV UART FIFO {label} is linked: {relative_name}")
+    if not path.is_file():
+        raise RuntimeError(f"OpenMV UART FIFO {label} is missing: {relative_name}")
+    return path
+
+
+def _parse_openmv_build_summary(path: Path) -> dict[str, str]:
+    try:
+        lines = path.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise RuntimeError("OpenMV UART FIFO build summary is unreadable.") from error
+    summary: dict[str, str] = {}
+    for line in lines:
+        if not line or "=" not in line:
+            raise RuntimeError("OpenMV UART FIFO build summary has an invalid row.")
+        key, value = line.split("=", 1)
+        if not key or key in summary:
+            raise RuntimeError("OpenMV UART FIFO build summary has duplicate or empty keys.")
+        summary[key] = value
+    return summary
+
+
+def _matches_pinned_json(actual, expected: dict) -> bool:
+    return json.dumps(actual, sort_keys=True, separators=(",", ":")) == json.dumps(
+        expected, sort_keys=True, separators=(",", ":"))
+
+
+def verify_openmv_uart_fifo_image_pair(firmware_bin: bytes, firmware_elf: bytes):
+    """Verify the pinned OPENMV4P ELF entry and binary vector table agree."""
+    if len(firmware_bin) < 8:
+        raise RuntimeError("OpenMV UART FIFO firmware.bin is too short for a vector table.")
+    if (len(firmware_elf) < 52 or firmware_elf[:4] != b"\x7fELF" or
+            firmware_elf[4] != 1 or firmware_elf[5] != 1 or firmware_elf[6] != 1):
+        raise RuntimeError("OpenMV UART FIFO firmware.elf is not a little-endian ELF32 image.")
+    elf_type, elf_machine, elf_version, elf_entry = struct.unpack_from("<HHII", firmware_elf, 16)
+    if (elf_type != 2 or elf_machine != 40 or elf_version != 1 or
+            elf_entry != OPENMV_UART_FIFO_VECTOR_RESET or
+            b"OPENMV4P" not in firmware_elf or b"STM32H743" not in firmware_elf):
+        raise RuntimeError("OpenMV UART FIFO ELF target or entry point does not match OPENMV4P.")
+    vector_sp, vector_reset = struct.unpack_from("<II", firmware_bin, 0)
+    if (vector_sp != OPENMV_UART_FIFO_VECTOR_SP or
+            vector_reset != elf_entry or vector_reset != OPENMV_UART_FIFO_VECTOR_RESET):
+        raise RuntimeError("OpenMV UART FIFO firmware.bin vector table does not match the ELF.")
+
+
+def verify_openmv_uart_fifo_firmware_delivery(source: Path) -> list[str]:
+    """Validate and return only the pinned UART FIFO firmware and review files."""
+    delivery_root = source / OPENMV_UART_FIFO_FIRMWARE_ROOT
+    if delivery_root.is_symlink():
+        raise RuntimeError("OpenMV UART FIFO delivery directory is linked.")
+
+    required_paths = {
+        relative_name: _require_uart_fifo_checkpoint_file(
+            source, relative_name, "allowlisted file")
+        for relative_name in OPENMV_UART_FIFO_FIRMWARE_FILES
+    }
+    manifest_path = required_paths[
+        f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/artifact-manifest.json"]
+    try:
+        artifact_manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV UART FIFO artifact manifest is invalid.") from error
+    if (not isinstance(artifact_manifest, dict) or
+            not _matches_pinned_json(
+                artifact_manifest, OPENMV_UART_FIFO_EXPECTED_ARTIFACT_MANIFEST)):
+        raise RuntimeError(
+            "OpenMV UART FIFO artifact manifest metadata, CI commit, or hash pins do not match.")
+
+    for name, expected in OPENMV_UART_FIFO_FIRMWARE_BUILD_FILES.items():
+        relative_name = f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/{name}"
+        content = required_paths[relative_name].read_bytes()
+        if len(content) != expected["bytes"]:
+            raise RuntimeError(f"OpenMV UART FIFO artifact size mismatch: {name}")
+        if hashlib.sha256(content).hexdigest() != expected["sha256"]:
+            raise RuntimeError(f"OpenMV UART FIFO artifact hash mismatch: {name}")
+
+    summary_path = required_paths[
+        f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/build-summary.txt"]
+    if _parse_openmv_build_summary(summary_path) != OPENMV_UART_FIFO_FIRMWARE_BUILD_SUMMARY_EXPECTED:
+        raise RuntimeError(
+            "OpenMV UART FIFO build summary tag, commit, SDK, patch, API, or image hashes do not match.")
+    summary_sha = hashlib.sha256(summary_path.read_bytes()).hexdigest()
+    checksum_path = required_paths[
+        f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/build-summary.txt.sha256"]
+    try:
+        checksum_fields = checksum_path.read_text(encoding="ascii").strip().split()
+    except (OSError, UnicodeDecodeError) as error:
+        raise RuntimeError("OpenMV UART FIFO build-summary checksum is unreadable.") from error
+    if checksum_fields != [summary_sha, "build-summary.txt"]:
+        raise RuntimeError("OpenMV UART FIFO build-summary checksum does not match the summary file.")
+
+    patch_path = _require_uart_fifo_checkpoint_file(
+        source, OPENMV_UART_FIFO_PATCH, "pinned source patch")
+    patch_sha = hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    if patch_sha != OPENMV_UART_FIFO_PATCH_SHA256:
+        raise RuntimeError("OpenMV UART FIFO live pinned patch hash does not match.")
+    patch_manifest_path = _require_uart_fifo_checkpoint_file(
+        source, OPENMV_UART_FIFO_PATCH_MANIFEST, "patch manifest")
+    if hashlib.sha256(patch_manifest_path.read_bytes()).hexdigest() != OPENMV_UART_FIFO_PATCH_MANIFEST_SHA256:
+        raise RuntimeError("OpenMV UART FIFO patch manifest hash does not match its pin.")
+    try:
+        patch_manifest = json.loads(patch_manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("OpenMV UART FIFO patch manifest is invalid.") from error
+    if (not isinstance(patch_manifest, dict) or
+            not _matches_pinned_json(
+                patch_manifest, OPENMV_UART_FIFO_PATCH_MANIFEST_EXPECTED)):
+        raise RuntimeError("OpenMV UART FIFO patch manifest does not match the pinned OpenMV/MP base.")
+    patch_readme_path = _require_uart_fifo_checkpoint_file(
+        source, OPENMV_UART_FIFO_PATCH_README, "patch README")
+    if hashlib.sha256(patch_readme_path.read_bytes()).hexdigest() != OPENMV_UART_FIFO_PATCH_README_SHA256:
+        raise RuntimeError("OpenMV UART FIFO patch README hash does not match its pin.")
+
+    for name, expected_sha256 in OPENMV_UART_FIFO_FIRMWARE_REVIEW_DOCS_SHA256.items():
+        relative_name = f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/{name}"
+        if hashlib.sha256(required_paths[relative_name].read_bytes()).hexdigest() != expected_sha256:
+            raise RuntimeError(f"OpenMV UART FIFO review document hash mismatch: {name}")
+
+    firmware_bin = required_paths[
+        f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/firmware.bin"].read_bytes()
+    firmware_elf = required_paths[
+        f"{OPENMV_UART_FIFO_FIRMWARE_ROOT}/firmware.elf"].read_bytes()
+    verify_openmv_uart_fifo_image_pair(firmware_bin, firmware_elf)
+    return list(OPENMV_UART_FIFO_FIRMWARE_FILES)
+
+
+def select_openmv_uart_fifo_firmware(source: Path, include: bool) -> list[str]:
+    """Keep the UART FIFO binary delivery opt-in; source/tooling remains separate."""
+    if not include:
+        return []
+    return verify_openmv_uart_fifo_firmware_delivery(source)
+
+
 def verify_openmv_ackermann_packages(source: Path) -> list[str]:
     """Return only the declared production runtime files for the paired camera packages."""
     allowlisted: list[str] = []
@@ -1039,6 +1454,9 @@ def main():
     parser.add_argument(
         "--include-openmv-usb60-candidate", action="store_true",
         help="Validate and include the explicit hardware-pending OpenMV USB60 candidate package.")
+    parser.add_argument(
+        "--include-openmv-uart-fifo-firmware", action="store_true",
+        help="Validate and include the pinned OpenMV UART FIFO firmware delivery.")
     parser.add_argument("--publish", action="store_true")
     args = parser.parse_args()
     for value in (args.version, args.branch):
@@ -1064,6 +1482,8 @@ def main():
     openmv_usb60_candidate_files = []
     if args.include_openmv_usb60_candidate:
         openmv_usb60_candidate_files = select_openmv_usb60_candidate(source, args.status)
+    openmv_uart_fifo_firmware_files = select_openmv_uart_fifo_firmware(
+        source, args.include_openmv_uart_fifo_firmware)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -1108,6 +1528,8 @@ def main():
     for name in openmv_native_preview_files:
         copy_allowlisted_file(source, target, name)
     for name in openmv_usb60_candidate_files:
+        copy_allowlisted_file(source, target, name)
+    for name in openmv_uart_fifo_firmware_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
