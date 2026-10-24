@@ -1,5 +1,5 @@
 {
-  "version": "v20261024-usb60-static-preview",
+  "version": "v20261024-usb60-static-preview-docfix",
   "status": "static-vision-preview-tested-uart-sink",
   "branch": "experimental/usb60-static-preview",
   "files": 599,

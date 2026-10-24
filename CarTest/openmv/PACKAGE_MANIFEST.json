@@ -325,12 +325,12 @@
       "sha256": "d86838b1b150f825dbd042fd7731bf20dcd2cd8cd002ab608609c56b23acb11e"
     },
     "README.md": {
-      "size_bytes": 2444,
-      "sha256": "22ebd9cd0c85f6ac3f1fd47606464cd3a49348f32aaa71f8c77898f37299627e"
+      "size_bytes": 2651,
+      "sha256": "6abe14d79b5da1944ac6f2142d86e9807de7f4069907d8f15e362c8f25bb4040"
     },
     "PROTOCOL_TEST_REPORT.md": {
-      "size_bytes": 1707,
-      "sha256": "c425cb1513e1ecb23f1d2b31d769c60a0863fd63053d90153c8e2f3af2590ba3"
+      "size_bytes": 1933,
+      "sha256": "b0f2deb3e08d12b9bd4da90abd4b55e8b343da5419ad284c16a7a80e82cdfff7"
     }
   },
   "hardware_validation": {
@@ -382,8 +382,9 @@
   "limits": [
     "This package records static preview validation; it does not establish full UART control, H743 reception, road acceptance, vehicle acceptance, or full-pipeline 60 FPS.",
     "The 19 runtime modules were loaded from an isolated camera filesystem; only the small performance runner was injected from RAM.",
-    "The five IDE rates are complete JPEG payload read throughput. Per-frame JPEG decoding and per-frame dimensions were not independently recorded; firmware unlock clears the buffer.",
-    "The separately decoded SDK marker rate is a host measurement and is not an IDE per-frame decode result. The GUI integer FPS is rounded down and is not used as a precise measurement.",
+    "The five IDE rates are complete JPEG payload read throughput. This run did not independently log per-frame decode success or dimensions. Firmware unlock clears the buffer to avoid rereading the same published buffer; the IDE run did not decode a sequence marker per frame, so independent per-frame freshness validation was not recorded.",
+    "The GUI truncates mean frame interval to integer milliseconds before computing 1000 divided by that interval; the resulting displayed FPS can be biased high and is not precise measurement evidence.",
+    "The separately decoded SDK marker rate is a host measurement and is not an IDE per-frame decode result.",
     "The CDC-off 60-second headless test measured valid route throughput with no JPEG marker writes; it does not measure USB preview throughput.",
     "The 1389-microsecond pyb.udelay experiment is a wire-time approximation, not actual UART I/O or H743 reception.",
     "The paired C_Coordinated ELF is a compatibility reference, not a claim about the current H743 C Incremental PI 20261020 core.",
@@ -533,9 +534,11 @@
       "complete_payload_reads": 3693,
       "payload_size_matches": 3693,
       "read_errors": 0,
-      "per_frame_jpeg_decode_recorded": false,
-      "per_frame_dimensions_recorded": false,
-      "unique_ide_frame_rate_claimed": false
+      "per_frame_decode_success_independently_logged": false,
+      "per_frame_dimensions_independently_logged": false,
+      "ide_marker_sequence_decoded_per_frame": false,
+      "firmware_unlock_prevents_repeated_reads_of_published_buffer": true,
+      "independent_per_frame_freshness_check_recorded": false
     },
     "closed_cdc_headless_60s_test": {
       "status": "complete",
@@ -599,7 +602,8 @@
       "real_uart_io_performed": false,
       "h743_receive_verified": false,
       "full_control_acceptance": false
-    }
+    },
+    "ide_gui_fps_computation": "The GUI truncates mean frame interval to integer milliseconds before calculating 1000 / interval; this can bias displayed FPS high and is not precise rate evidence."
   },
   "promotion_plan": {
     "target_source_folder": "openmv/",
@@ -864,8 +868,8 @@
   },
   "static_validation_evidence_document": {
     "path": "docs/OpenMV-USB60-Static-Validation-20261024.md",
-    "size_bytes": 2440,
-    "sha256": "53d0ff0dbbacfa7a92934919c41b322785e5872c4811520bc66f0d792b826386",
+    "size_bytes": 2554,
+    "sha256": "6d046c8d3b401eabbe39e5603c1de57527a717ba4f36d4cec5171613652dff53",
     "included_in_runtime_upload": false
   },
   "host_preview_tool_tests": {
