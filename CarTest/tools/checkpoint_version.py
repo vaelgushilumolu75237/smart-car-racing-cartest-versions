@@ -39,7 +39,12 @@ PUBLIC_TEST_FIXTURES = (
     "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.json",
     "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
     "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
+    "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf",
 )
+PUBLIC_TEST_FIXTURE_SHA256 = {
+    "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf":
+        "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48",
+}
 UPHILL_A_BASELINE_SHA256 = "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d"
 UPHILL_FROZEN_PROFILE_SHA256 = {
     "B": "f50336905ea5a072f687a2a0edaa74412f115ed5e21f40ced85c0dd378e0866c",
@@ -1555,6 +1560,9 @@ def main():
         fixture = source / name
         if not fixture.is_file() or fixture.is_symlink():
             raise RuntimeError(f"Required public regression fixture is missing or linked: {name}")
+        if name in PUBLIC_TEST_FIXTURE_SHA256 and \
+                hashlib.sha256(fixture.read_bytes()).hexdigest() != PUBLIC_TEST_FIXTURE_SHA256[name]:
+            raise RuntimeError(f"Pinned public regression fixture changed: {name}")
         destination = target / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture, destination)

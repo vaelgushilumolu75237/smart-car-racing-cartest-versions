@@ -1,7 +1,7 @@
 {
-  "version": "v20261026-h750-track-profiles-candidate",
+  "version": "v20261026-h750-track-profiles-candidate2",
   "status": "software-and-static-camera-tested-road-pending",
   "branch": "experimental/h750-track-profiles",
-  "files": 716,
+  "files": 724,
   "hardware_actions": "stationary-camera-upload-h743-flash-no-motor-start"
 }
