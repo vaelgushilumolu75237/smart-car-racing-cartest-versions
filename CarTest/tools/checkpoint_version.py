@@ -40,10 +40,13 @@ PUBLIC_TEST_FIXTURES = (
     "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
     "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
     "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf",
+    "test-data/failure3-20261015/baseline/build/DebugFollowTurn/CarTest.elf",
 )
 PUBLIC_TEST_FIXTURE_SHA256 = {
     "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf":
         "67f88cafcb1e30281ab136a535d96f71ca698c71e52efb3fcbd545f3b18fcf48",
+    "test-data/failure3-20261015/baseline/build/DebugFollowTurn/CarTest.elf":
+        "3cbcd7096c29e6df7131b4dd7b3282a8b2c4e437735f84ea1297ccb88da6d033",
 }
 UPHILL_A_BASELINE_SHA256 = "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d"
 UPHILL_FROZEN_PROFILE_SHA256 = {

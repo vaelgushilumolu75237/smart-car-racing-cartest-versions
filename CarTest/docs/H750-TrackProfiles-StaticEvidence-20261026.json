@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "release_date": "2026-10-26",
+  "status": "software-and-static-camera-tested-road-pending",
+  "camera_model_user_declared": "STM32H750 with MT9V034",
+  "camera_vendor_firmware": "5.0.1",
+  "camera_vendor_firmware_changed": false,
+  "image_size": [
+    320,
+    120
+  ],
+  "source_sha256": {
+    "adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+    "boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+    "config.py": "78315f275638912cb93b389e604d868940b459faeb92831f3ecc8c5ca33f937a",
+    "contour_route.py": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+    "contour_trace.py": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+    "fast_boundary.py": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
+    "fast_gray.py": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+    "fast_path.py": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
+    "fast_single_edge.py": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+    "fast_topology.py": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
+    "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+    "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+    "main.py": "bf9be79d7d86ec17381504cb614e2e8823909f455fed3a965f8d0653b8d49e34",
+    "reverse_control.py": "16d7e2dbfc5d1c05fa7e6eba6fcf284683482d7e065d7607bb98a64824d49047",
+    "road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+    "source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+    "surface_detector.py": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+    "thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+    "vision_protocol.py": "e521358ea3c0bf7ee1dbd67d3844bfd5f4dd6bfbf3135aac7bf314eb4f22cf06",
+    "track_elements.py": "f2691bd7e572c76c6e56b2ebf267d29f0a34dea9065a12249371c45800b9f41f"
+  },
+  "compiler": {
+    "version": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
+    "sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
+    "target": "armv7emsp",
+    "production_modules_compiled": 20,
+    "all_exit_codes_zero": true
+  },
+  "host_tests": {
+    "camera": {
+      "run": 289,
+      "skipped": 3,
+      "exit_code": 0
+    },
+    "tools_local": {
+      "run": 143,
+      "skipped": 2,
+      "exit_code": 0
+    },
+    "tools_independent_export": {
+      "run": 135,
+      "skipped": 4,
+      "exit_code": 0
+    },
+    "h743_control_cases": 73,
+    "h743_control_assertions": 7720,
+    "h743_declared_presets_built": 15
+  },
+  "probes": {
+    "B": {
+      "crc_verified": true,
+      "measurement_scope": "real_sensor_synthetic_follow_invalid_only_real_uart",
+      "cdc_closed": true,
+      "full_follow_acceptance": false,
+      "complete_10_second_windows": [
+        {
+          "index": 0,
+          "new_frames": 625,
+          "new_frames_per_second": 62.5,
+          "computed_valid": 625,
+          "full_real_uart_writes": 625,
+          "write_errors": 0
+        },
+        {
+          "index": 1,
+          "new_frames": 624,
+          "new_frames_per_second": 62.4,
+          "computed_valid": 624,
+          "full_real_uart_writes": 624,
+          "write_errors": 0
+        },
+        {
+          "index": 2,
+          "new_frames": 624,
+          "new_frames_per_second": 62.4,
+          "computed_valid": 624,
+          "full_real_uart_writes": 624,
+          "write_errors": 0
+        }
+      ]
+    },
+    "C": {
+      "crc_verified": true,
+      "measurement_scope": "real_sensor_synthetic_follow_invalid_only_real_uart",
+      "cdc_closed": true,
+      "full_follow_acceptance": false,
+      "complete_10_second_windows": [
+        {
+          "index": 0,
+          "new_frames": 625,
+          "new_frames_per_second": 62.5,
+          "computed_valid": 625,
+          "full_real_uart_writes": 625,
+          "write_errors": 0
+        },
+        {
+          "index": 1,
+          "new_frames": 624,
+          "new_frames_per_second": 62.4,
+          "computed_valid": 624,
+          "full_real_uart_writes": 624,
+          "write_errors": 0
+        },
+        {
+          "index": 2,
+          "new_frames": 624,
+          "new_frames_per_second": 62.4,
+          "computed_valid": 624,
+          "full_real_uart_writes": 624,
+          "write_errors": 0
+        }
+      ]
+    }
+  },
+  "production_link_stationary": {
+    "profile_required": 2,
+    "profile_ack": 2,
+    "profile_ack_fresh": true,
+    "forward_version": 3,
+    "accepted_fps_one_second_window": 68.0,
+    "invalid_observation_window": 0,
+    "sequence_reject_window": 0,
+    "missing_sequence_window": 0,
+    "parser_error_total_after_reset": 1,
+    "start_events": 0,
+    "manual_run_request": 0,
+    "session_token": 0,
+    "fault": 0,
+    "watchdog_reset_seen": false
+  },
+  "h743_profiles": [
+    {
+      "label": "A_FastNoRing",
+      "preset": "DebugFastNoRing",
+      "profile_id": 1,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": false,
+      "ring_outer_target_millirps": null,
+      "build_id": "1e27ef3571050fcd3efd26832b03ffde",
+      "elf_sha256": "81d70e47382c21d7bd675f978630bb21f2ac4b070d37026307cce0b68867f2d2",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    },
+    {
+      "label": "B_RingBase",
+      "preset": "DebugRingBase",
+      "profile_id": 2,
+      "straight_target_millirps": 4800,
+      "curve_outer_target_millirps": 4000,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4000,
+      "build_id": "471408fd26f7e1a6afa12ed5f5ed0fa2",
+      "elf_sha256": "a0b081432360fec2970a2691a2029e20a914c55e6782487cd04366e800459026",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    },
+    {
+      "label": "C_RingFast",
+      "preset": "DebugRingFast",
+      "profile_id": 3,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4400,
+      "build_id": "75cce0a4665b21ac58ba7c4deff52241",
+      "elf_sha256": "9cc991fce62459915ea89de4192f60a53f1fcf58bc982adfe27486c4e392bf17",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    }
+  ],
+  "motor_start_performed": false,
+  "pending": [
+    "manual raised-wheel start/stop and nonempty CSV",
+    "moving straight and separate left/right turns",
+    "cross straight-through speed comparison",
+    "left/right full ring traversal and exits",
+    "all-scene moving sustained FPS and three repeated road trials"
+  ]
+}
