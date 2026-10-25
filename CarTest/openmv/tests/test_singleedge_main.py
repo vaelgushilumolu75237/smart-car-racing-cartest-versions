@@ -19,6 +19,7 @@ import config  # noqa: E402
 import main  # noqa: E402
 import fast_single_edge  # noqa: E402
 import reverse_control  # noqa: E402
+import vision_protocol  # noqa: E402
 
 
 class _FakeUart:
@@ -221,7 +222,8 @@ def _dual_path_result(left=24, right=48, quality=1):
 
 def _decode_observation(frame):
     frame = bytes(frame)
-    if len(frame) != 16 or frame[:4] != b"\xA5\x5A\x02\x08":
+    if (len(frame) != 16 or frame[:2] != b"\xA5\x5A" or
+            frame[2] not in (2, 3) or frame[3] != 8):
         raise AssertionError("invalid observation frame")
     expected = main.vision_protocol.crc16_ccitt_false(frame[2:14])
     actual = frame[14] | frame[15] << 8
@@ -234,6 +236,8 @@ def _decode_observation(frame):
         "valid": frame[6] & 1,
         "quality": frame[7],
         "error": raw,
+        "profile_ack": frame[11] if frame[2] == 3 else 0,
+        "version": frame[2],
     }
 
 
@@ -271,7 +275,7 @@ class SingleEdgeMainTests(unittest.TestCase):
         parser = reverse_control.ReverseControlParser()
         drain = array("i", [0])
         excessive = _FakeUart(
-            bytes(reverse_control.pack_frame(0, 1)) * 5)
+            bytes(reverse_control.pack_frame(0, 1)) * 9)
         self.assertFalse(self._service(excessive, parser, drain, 0))
         self.assertEqual(parser.last_event, "RX_OVERFLOW")
         self.assertEqual(len(excessive.data), 8)
@@ -322,7 +326,7 @@ class SingleEdgeMainTests(unittest.TestCase):
     def test_new_bundle_apis_are_required_and_quality_is_diagnostic_only(self):
         self.assertTrue(main._validate_fast_config())
         self.assertEqual(config.SINGLEEDGE_RUNTIME_API_VERSION, 2)
-        with patch.object(main.reverse_control, "RUNTIME_API_VERSION", 2):
+        with patch.object(main.reverse_control, "RUNTIME_API_VERSION", 1):
             with self.assertRaisesRegex(RuntimeError, "reverse_control.py API"):
                 main._validate_fast_config()
         with patch.object(main.fast_path,
@@ -340,17 +344,37 @@ class SingleEdgeMainTests(unittest.TestCase):
         uart = _IntegrationUart(short_write_at=9)
         controls = (
             bytes(reverse_control.pack_frame(0, 1)) +
-            bytes(reverse_control.pack_frame(1, 2)),
-            bytes(reverse_control.pack_frame(1, 3)),
-            bytes(reverse_control.pack_frame(1, 4)),
-            bytes(reverse_control.pack_frame(1, 5)),
-            bytes(reverse_control.pack_frame(1, 6)),
-            bytes(reverse_control.pack_frame(1, 7)),
-            bytes(reverse_control.pack_frame(1, 8)),
+            bytes(reverse_control.pack_frame(1, 2)) +
+            bytes(reverse_control.pack_profile_state(
+                0, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 3)) +
+            bytes(reverse_control.pack_profile_state(
+                1, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 4)) +
+            bytes(reverse_control.pack_profile_state(
+                2, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 5)) +
+            bytes(reverse_control.pack_profile_state(
+                3, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 6)) +
+            bytes(reverse_control.pack_profile_state(
+                4, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 7)) +
+            bytes(reverse_control.pack_profile_state(
+                5, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 8)) +
+            bytes(reverse_control.pack_profile_state(
+                6, reverse_control.PROFILE_A)),
             bytes(reverse_control.pack_frame(0, 9)) +
-            bytes(reverse_control.pack_frame(1, 10)),
-            bytes(reverse_control.pack_frame(1, 11)),
-            bytes(reverse_control.pack_frame(1, 12)),
+            bytes(reverse_control.pack_frame(1, 10)) +
+            bytes(reverse_control.pack_profile_state(
+                7, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 11)) +
+            bytes(reverse_control.pack_profile_state(
+                8, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 12)) +
+            bytes(reverse_control.pack_profile_state(
+                9, reverse_control.PROFILE_A)),
         )
         camera = _FakeSensor(controls)
         camera.uart = uart
@@ -491,6 +515,10 @@ class SingleEdgeMainTests(unittest.TestCase):
         self.assertEqual(len(uart.frames), 10)
         self.assertEqual(camera.flush_calls, 10)
         decoded = [_decode_observation(frame) for frame in uart.frames]
+        self.assertTrue(all(frame[2] == vision_protocol.VERSION_V3
+                            for frame in uart.frames))
+        self.assertEqual([item["profile_ack"] for item in decoded],
+                         [reverse_control.PROFILE_A] * len(decoded))
         debug_lines = [line for line in console.getvalue().splitlines()
                        if line.startswith("V7DBG ")]
         control_by_sequence = {}

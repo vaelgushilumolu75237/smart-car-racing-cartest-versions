@@ -2,6 +2,66 @@
     "version":  "0.2.0",
     "configurations":  [
                            {
+                               "name":  "新A 提速无环岛 5.6/4.4",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build 新A 提速无环岛 5.6/4.4",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "新B 原速环岛 4.8/4.0",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build 新B 原速环岛 4.8/4.0",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugRingBase/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugRingBase/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
+                               "name":  "新C 提速环岛 5.6/4.4",
+                               "type":  "stlinkgdbtarget",
+                               "request":  "launch",
+                               "cwd":  "${workspaceFolder}",
+                               "preLaunchTask":  "CarTest: Build 新C 提速环岛 5.6/4.4",
+                               "serverInterface":  "SWD",
+                               "serverInterfaceFrequency":  "4000",
+                               "serverReset":  "Software system reset",
+                               "imagesAndSymbols":  [
+                                                        {
+                                                            "imageFileName":  "${workspaceFolder}/build/DebugRingFast/CarTest.elf",
+                                                            "symbolFileName":  "${workspaceFolder}/build/DebugRingFast/CarTest.elf"
+                                                        }
+                                                    ],
+                               "liveWatch":  {
+                                                 "enabled":  true,
+                                                 "samplesPerSecond":  "4"
+                                             }
+                           },
+                           {
                                "name":  "诊断 - 电机与舵机输出关闭",
                                "type":  "stlinkgdbtarget",
                                "request":  "launch",

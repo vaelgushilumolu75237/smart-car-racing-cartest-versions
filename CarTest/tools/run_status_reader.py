@@ -50,7 +50,18 @@ RECEIVE_RATE_SYMBOLS = (
     "car_rx_invalid_observation_permille",
     "car_rx_frame_rate_valid",
 )
-SCALAR_SYMBOLS = REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS + RECEIVE_RATE_SYMBOLS
+PROFILE_STATE_SYMBOLS = (
+    "car_camera_profile_required_ack", "car_camera_profile_latest_ack",
+    "car_camera_profile_ack_ready", "car_camera_profile_last_ack_ms",
+    "car_profile_state_sequence", "car_profile_state_last_tx_ms",
+    "car_session_token", "car_session_mean_forward_wheel_millirev",
+    "car_profile_state_id", "car_profile_state_session_active",
+    "car_camera_profile_latest_version", "car_camera_profile_ack_seen_after_reset",
+    "car_camera_profile_ack_age_ms", "car_camera_profile_mismatch_count",
+    "car_session_odom_valid_samples", "car_session_odom_invalid_samples",
+)
+SCALAR_SYMBOLS = (REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS +
+                  RECEIVE_RATE_SYMBOLS + PROFILE_STATE_SYMBOLS)
 SIGNED_SCALAR_SYMBOLS = {"car_vision_hold_snapshot_error_norm"}
 SCALAR_SIZE = 4
 MAX_SCALAR_READ_SIZE = 8192
@@ -131,6 +142,7 @@ D2_SRAM_END = 0x30020000
 ACKERMANN_SNAPSHOT_SYMBOL = "g_ackermann_snapshot"
 ACKERMANN_SNAPSHOT_MAGIC = b"ACK1"
 ACKERMANN_SNAPSHOT_VERSION = 1
+ACKERMANN_SNAPSHOT_SUPPORTED_VERSIONS = (1, 2)
 ACKERMANN_SNAPSHOT_SIZE = 64
 ACKERMANN_SNAPSHOT_CRC_OFFSET = 60
 ACKERMANN_SNAPSHOT_KNOWN_FLAGS = 0x003F
@@ -369,6 +381,7 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         "required_scalar_symbols": list(REQUIRED_SCALAR_SYMBOLS),
         "optional_hold_snapshot_symbols": list(HOLD_SNAPSHOT_SYMBOLS),
         "optional_receive_rate_symbols": list(RECEIVE_RATE_SYMBOLS),
+        "optional_profile_state_symbols": list(PROFILE_STATE_SYMBOLS),
         "scalar_symbols": planned_symbols,
         "scalar_read": {
             "address": _hex(symbol_start),
@@ -923,7 +936,7 @@ def _classify_legacy_headers(header_before: Dict[str, Any],
 def decode_ackermann_snapshot(raw: bytes,
                               generation_before: bytes | None = None,
                               generation_after: bytes | None = None) -> Dict[str, Any]:
-    """Validate and decode one ACK1/v1 seqlock snapshot.
+    """Validate and decode an ACK1/v1 or v2 seqlock snapshot.
 
     A stable even generation may be zero after uint32 wrap. Only an all-zero
     64-byte image denotes an uninitialized section. A caller requiring a
@@ -968,8 +981,8 @@ def decode_ackermann_snapshot(raw: bytes,
     issues: list[str] = []
     if raw[:4] != ACKERMANN_SNAPSHOT_MAGIC:
         issues.append("magic is not ACK1")
-    if raw[4] != ACKERMANN_SNAPSHOT_VERSION:
-        issues.append("version is not 1")
+    if raw[4] not in ACKERMANN_SNAPSHOT_SUPPORTED_VERSIONS:
+        issues.append("version is not supported (expected 1 or 2)")
     if raw[5] != ACKERMANN_SNAPSHOT_SIZE:
         issues.append("size is not 64")
     if flags & ~ACKERMANN_SNAPSHOT_KNOWN_FLAGS:

@@ -1,0 +1,155 @@
+{
+  "runtime_files": [
+    "adaptive_detector.py",
+    "boundary_evidence.py",
+    "config.py",
+    "contour_route.py",
+    "contour_trace.py",
+    "fast_boundary.py",
+    "fast_gray.py",
+    "fast_path.py",
+    "fast_single_edge.py",
+    "fast_topology.py",
+    "grayscale_adapter.py",
+    "line_detector.py",
+    "main.py",
+    "reverse_control.py",
+    "road_detector.py",
+    "source_selector.py",
+    "surface_detector.py",
+    "thresholding.py",
+    "vision_protocol.py",
+    "track_elements.py"
+  ],
+  "shared_profile_selection": true,
+  "sensor": "MT9V034",
+  "image_width": 320,
+  "image_height": 120,
+  "camera_firmware_policy": "retain_current_vendor_firmware",
+  "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
+  "compiler_target": "armv7emsp",
+  "compiler_version": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
+  "compilation": [
+    {
+      "file": "adaptive_detector.py",
+      "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+      "exit_code": 0,
+      "mpy_sha256": "090f3d6d5585431cd28af6a6702ba4f1717e051fdcfa2de5158deff97976f6aa"
+    },
+    {
+      "file": "boundary_evidence.py",
+      "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+      "exit_code": 0,
+      "mpy_sha256": "612380a1f961fbc5f43444366c86ed0e27da523e4bfcfe174d8ce5b92cb2bf60"
+    },
+    {
+      "file": "config.py",
+      "source_sha256": "78315f275638912cb93b389e604d868940b459faeb92831f3ecc8c5ca33f937a",
+      "exit_code": 0,
+      "mpy_sha256": "d177f288920dbf609969f2814c254253f6038f8a889cfc5564f408c556c0e30f"
+    },
+    {
+      "file": "contour_route.py",
+      "source_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+      "exit_code": 0,
+      "mpy_sha256": "88809dc9fdc8e8252c8d82bad6d3b0adc75b8cdfaccf5c939347c5a4b2f44f34"
+    },
+    {
+      "file": "contour_trace.py",
+      "source_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+      "exit_code": 0,
+      "mpy_sha256": "384f0264245509c0060128d67143cc03b266ae4947cf47abc0743ac315fc97b1"
+    },
+    {
+      "file": "fast_boundary.py",
+      "source_sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
+      "exit_code": 0,
+      "mpy_sha256": "33001f840341781a45f059bbb8f9c6832b842474efd11db0a269c6fe531c165e"
+    },
+    {
+      "file": "fast_gray.py",
+      "source_sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+      "exit_code": 0,
+      "mpy_sha256": "d023b8d7f33767c50b7db86dc452aab15479151a48848b675262fe77b0f9731a"
+    },
+    {
+      "file": "fast_path.py",
+      "source_sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
+      "exit_code": 0,
+      "mpy_sha256": "5ce0c5377330ca894c19d77fc157b30e5ff237d7396f94d8e8887fa2fbf878d8"
+    },
+    {
+      "file": "fast_single_edge.py",
+      "source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+      "exit_code": 0,
+      "mpy_sha256": "25c42d5b5458c4262e85cdd42364dc8f64e3aca9eecb60fbf25eb5466eb2d917"
+    },
+    {
+      "file": "fast_topology.py",
+      "source_sha256": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
+      "exit_code": 0,
+      "mpy_sha256": "a0c6b87ba484f108c2ab9b85235bb3b5f4680808c406b1af249c28edee4fa625"
+    },
+    {
+      "file": "grayscale_adapter.py",
+      "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+      "exit_code": 0,
+      "mpy_sha256": "52e8afc30fc566c37762b1982c2dee3fb19aa5cf0711b3a3596bf6d915d4ddb7"
+    },
+    {
+      "file": "line_detector.py",
+      "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+      "exit_code": 0,
+      "mpy_sha256": "2cc54e254be81a66410b7579eb50d2cdc1bb9acc2308fdd388af6934422482ae"
+    },
+    {
+      "file": "main.py",
+      "source_sha256": "bf9be79d7d86ec17381504cb614e2e8823909f455fed3a965f8d0653b8d49e34",
+      "exit_code": 0,
+      "mpy_sha256": "0da176f6e6f56e57a0e73d21330ff149d1bfea887221ce98399026d6ba919fc5"
+    },
+    {
+      "file": "reverse_control.py",
+      "source_sha256": "16d7e2dbfc5d1c05fa7e6eba6fcf284683482d7e065d7607bb98a64824d49047",
+      "exit_code": 0,
+      "mpy_sha256": "69d7a2476d01c98275ac7a1b6c31197ab584b95b50b2e459456fb145cbff8a42"
+    },
+    {
+      "file": "road_detector.py",
+      "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+      "exit_code": 0,
+      "mpy_sha256": "04c911d88c1cbfbdab9cb5895ce01bcbde979c399b0ef2e558f4f5ea8ae0301e"
+    },
+    {
+      "file": "source_selector.py",
+      "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+      "exit_code": 0,
+      "mpy_sha256": "22236441880e05cc5afdc03d347962c64fca34100b43ebf2f5157c5c39f00f15"
+    },
+    {
+      "file": "surface_detector.py",
+      "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+      "exit_code": 0,
+      "mpy_sha256": "8732f4899324c19b30ea27217cbb91757fdba7965bb6e330cc37128fc96472ab"
+    },
+    {
+      "file": "thresholding.py",
+      "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+      "exit_code": 0,
+      "mpy_sha256": "cd1e872f5e42903fe1e009d1ce939b139ee891b9f9da490b11c3428565e36d40"
+    },
+    {
+      "file": "vision_protocol.py",
+      "source_sha256": "e521358ea3c0bf7ee1dbd67d3844bfd5f4dd6bfbf3135aac7bf314eb4f22cf06",
+      "exit_code": 0,
+      "mpy_sha256": "c8df2a9ec1f43f3378674f430473a15c824404b495d1df058f1cd6b2bcc6e5ed"
+    },
+    {
+      "file": "track_elements.py",
+      "source_sha256": "f2691bd7e572c76c6e56b2ebf267d29f0a34dea9065a12249371c45800b9f41f",
+      "exit_code": 0,
+      "mpy_sha256": "901432695709415590e12f13e592d90201d0fdb8c1b9659bb1729b62a910e8c7"
+    }
+  ],
+  "mpy_output_policy": "validation_only_upload_python_sources"
+}

@@ -231,11 +231,11 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
             car_receive_diag_note_frame(
                 frame.sequence, (frame.flags & VP_FLAG_VALID) != 0u,
                 arrival_ms);
-            car_control_on_vision_frame_at_with_flags_and_curve(
+            car_control_on_vision_frame_at_with_flags_curve_and_profile(
                 control, config, frame.sequence, frame.flags,
                 frame.confidence, frame.lateral_error, frame.curve_phase,
-                frame.slowdown_request_permille, arrival_ms, now_ms,
-                pe7_raw_high);
+                frame.slowdown_request_permille, frame.version,
+                frame.profile_ack, arrival_ms, now_ms, pe7_raw_high);
             dispatch_new_rx_faults(rx, control);
         } else if ((parser_status = vp_parser_last_status(&rx->parser)) !=
                    VP_STATUS_NONE) {

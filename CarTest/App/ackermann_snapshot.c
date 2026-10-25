@@ -183,9 +183,14 @@ void car_ackermann_snapshot_publish(
         values->model_angle_cdeg < -2000 ||
         values->model_angle_cdeg > 2000 ||
         values->fastest_target_millirps < 0 ||
-        values->fastest_target_millirps > 4800 ||
-        values->left_target_millirps < 0 || values->left_target_millirps > 4800 ||
-        values->right_target_millirps < 0 || values->right_target_millirps > 4800 ||
+        values->fastest_target_millirps >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
+        values->left_target_millirps < 0 ||
+        values->left_target_millirps >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
+        values->right_target_millirps < 0 ||
+        values->right_target_millirps >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
         values->left_duty_permille > 1000u ||
         values->right_duty_permille > 1000u) {
         return;
@@ -274,11 +279,14 @@ uint8_t car_ackermann_snapshot_validate(
         bytes[56] > 12u || bytes[57] > 15u ||
         bytes[58] != 0u || bytes[59] != 0u ||
         (int32_t)read_u32(bytes, 32u) < 0 ||
-        (int32_t)read_u32(bytes, 32u) > 4800 ||
+        (int32_t)read_u32(bytes, 32u) >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
         (int32_t)read_u32(bytes, 36u) < 0 ||
-        (int32_t)read_u32(bytes, 36u) > 4800 ||
+        (int32_t)read_u32(bytes, 36u) >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
         (int32_t)read_u32(bytes, 40u) < 0 ||
-        (int32_t)read_u32(bytes, 40u) > 4800 ||
+        (int32_t)read_u32(bytes, 40u) >
+            CAR_ACKERMANN_SNAPSHOT_MAX_TARGET_MILLIRPS ||
         read_u16(bytes, 52u) > 1000u || read_u16(bytes, 54u) > 1000u) {
         return 0u;
     }

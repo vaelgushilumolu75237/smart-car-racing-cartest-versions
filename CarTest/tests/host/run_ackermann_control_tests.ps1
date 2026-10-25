@@ -36,6 +36,26 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /WX /TC /DCAR_ACKERMANN_SNAPSHOT_HOST_TEST /DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=1 /I`"Inc`" /Fo`"$runDirectory/`" tests\host\test_ackermann_control.c App\ackermann_control.c App\ackermann_snapshot.c App\follow_incremental_pi.c /Fe:`"$executable`"",
     "if errorlevel 1 (popd & exit /b 1)",
     "`"$executable`"",
+    "if errorlevel 1 (popd & exit /b 1)"
+)
+
+$trackProfiles = @(
+    @{ Name = "legacy"; Id = 0; Fastest = 4800; Slowest = 4000; ServoStep = 160 },
+    @{ Name = "DebugFastNoRing"; Id = 1; Fastest = 5600; Slowest = 4400; ServoStep = 160 },
+    @{ Name = "DebugRingBase"; Id = 2; Fastest = 4800; Slowest = 4000; ServoStep = 160 },
+    @{ Name = "DebugRingFast"; Id = 3; Fastest = 5600; Slowest = 4400; ServoStep = 160 }
+)
+foreach ($profile in $trackProfiles) {
+    $profileExe = Join-Path $runDirectory ("track-profile-{0}.exe" -f $profile.Name)
+    $batchLines += @(
+        "echo === Track target/snapshot/PI matrix: $($profile.Name) ===",
+        "cl /nologo /std:c11 /W4 /WX /TC /DCAR_ACKERMANN_SNAPSHOT_HOST_TEST /DCARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=1 /DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=$($profile.ServoStep) /DCARTEST_TRACK_PROFILE=$($profile.Id) /DCARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS=$($profile.Fastest) /DCARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS=$($profile.Slowest) /I`"Inc`" /Fo`"$runDirectory/`" tests\host\test_track_profile_targets.c App\ackermann_control.c App\ackermann_snapshot.c App\follow_incremental_pi.c /Fe:`"$profileExe`"",
+        "if errorlevel 1 (popd & exit /b 1)",
+        "`"$profileExe`"",
+        "if errorlevel 1 (popd & exit /b 1)"
+    )
+}
+$batchLines += @(
     "set TEST_EXIT=%errorlevel%",
     "popd",
     "exit /b %TEST_EXIT%"

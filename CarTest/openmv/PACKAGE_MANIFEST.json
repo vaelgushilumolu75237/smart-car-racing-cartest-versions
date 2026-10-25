@@ -1,1325 +1,155 @@
 {
-  "algorithm_build_id_unchanged": "OPENMV_ACKERMANN320_COORDINATED_20261022",
-  "algorithm_profile": "coordinated",
-  "baseline": {
-    "h743_elfs": [
-      {
-        "path": "deliverables/H743_Ackermann60_20261022/C_Coordinated/CarTest.elf",
-        "sha256": "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70"
-      },
-      {
-        "path": "deliverables/H743_Ackermann60_20261022/C_Baseline/CarTest.elf",
-        "sha256": "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655"
-      }
-    ],
-    "package": "deliverables/OpenMV_Ackermann320_20261022/coordinated",
-    "package_manifest_sha256": "49b9169425c39f5b7a453769ed41e8119063e7a5b0532260b8018f679dc6945d",
-    "runtime_files": [
-      {
-        "name": "adaptive_detector.py",
-        "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-        "size_bytes": 44071
-      },
-      {
-        "name": "boundary_evidence.py",
-        "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-        "size_bytes": 18818
-      },
-      {
-        "name": "config.py",
-        "sha256": "1933586878ceb4de7ce97a7b088332f822eb12206c73f180feced3142c725a16",
-        "size_bytes": 18044
-      },
-      {
-        "name": "contour_route.py",
-        "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-        "size_bytes": 24945
-      },
-      {
-        "name": "contour_trace.py",
-        "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-        "size_bytes": 38987
-      },
-      {
-        "name": "fast_boundary.py",
-        "sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
-        "size_bytes": 54416
-      },
-      {
-        "name": "fast_gray.py",
-        "sha256": "3baae466f229b00734f225506b6ea000c0b37b3736643ee94c6a5f70eb0b7f40",
-        "size_bytes": 51644
-      },
-      {
-        "name": "fast_path.py",
-        "sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
-        "size_bytes": 43868
-      },
-      {
-        "name": "fast_single_edge.py",
-        "sha256": "acf45003eb91843e4fcc4c1eea42754de1bd5f716855441753f191313deab991",
-        "size_bytes": 88076
-      },
-      {
-        "name": "fast_topology.py",
-        "sha256": "c2a9ac9639501fae10c4e70cb09e84212537bdee662c9e114ba313bca3dbf446",
-        "size_bytes": 48452
-      },
-      {
-        "name": "grayscale_adapter.py",
-        "sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-        "size_bytes": 7784
-      },
-      {
-        "name": "line_detector.py",
-        "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "size_bytes": 11979
-      },
-      {
-        "name": "main.py",
-        "sha256": "7c170901c88e935868d73b7ed7df7dc301d962721d22687e444c5c3f7d7b87eb",
-        "size_bytes": 250484
-      },
-      {
-        "name": "reverse_control.py",
-        "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-        "size_bytes": 7657
-      },
-      {
-        "name": "road_detector.py",
-        "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-        "size_bytes": 26649
-      },
-      {
-        "name": "source_selector.py",
-        "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-        "size_bytes": 8802
-      },
-      {
-        "name": "surface_detector.py",
-        "sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-        "size_bytes": 42699
-      },
-      {
-        "name": "thresholding.py",
-        "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-        "size_bytes": 12363
-      },
-      {
-        "name": "vision_protocol.py",
-        "sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
-        "size_bytes": 5172
-      }
-    ]
-  },
-  "baseline_coordinated_manifest_sha256": "49b9169425c39f5b7a453769ed41e8119063e7a5b0532260b8018f679dc6945d",
-  "baseline_h743_elfs": [
-    {
-      "path": "deliverables/H743_Ackermann60_20261022/C_Coordinated/CarTest.elf",
-      "sha256": "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70"
-    },
-    {
-      "path": "deliverables/H743_Ackermann60_20261022/C_Baseline/CarTest.elf",
-      "sha256": "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655"
-    }
-  ],
-  "build_id": "OPENMV_STATIC_VISION_PREVIEW_CANDIDATE_20261024",
-  "config_profile_selector": "coordinated",
-  "control": {
-    "exit_phase_ms": 800,
-    "invalid_frame": "publish phase=0/request=0 but retain internal latch",
-    "latch_clear_events": [
-      "STOP",
-      "RESET"
-    ],
-    "pd_enabled": true,
-    "preview_applied_limit": 120,
-    "preview_candidate_min_abs": 80,
-    "preview_confirm_frames": 3,
-    "preview_confirm_ms": 60,
-    "preview_enabled": true,
-    "preview_max_gain": 0.45,
-    "preview_slew_per_second": 500,
-    "release_candidate_abs_below": 80,
-    "release_confirm_ms": 300,
-    "release_position_abs_below": 50,
-    "slowdown_request_permille": 1000,
-    "speed_candidate_abs": 80,
-    "speed_candidate_confirm_ms": 60,
-    "speed_candidate_frames": 3,
-    "speed_stage_enabled": true
-  },
-  "control_profile": "coordinated",
-  "cross_compile": {
-    "all_exit_codes_zero": true,
-    "compiler_path": "D:\\OpenMV IDE\\share\\qtcreator\\mpy-cross\\windows\\mpy_cross\\mpy-cross.exe",
-    "compiler_sha256": "cced6a90ad63e31e0ef319cc52a33d582005e828aeef16abca01b15ba63b4b94",
-    "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
-    "module_count": 19,
-    "modules": [
-      {
-        "compiled_sha256": "1746d2e8a8bf3ec2b9afc83565d26f201b4300882ba3342eb985c010d5f1f8cd",
-        "compiled_size_bytes": 13897,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/adaptive_detector.mpy",
-        "exit_code": 0,
-        "name": "adaptive_detector.py",
-        "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-        "source_size_bytes": 44071
-      },
-      {
-        "compiled_sha256": "c3ba3f004fb96c5ac595fab5ae1a2628edca1241e6623e3cd1ae90c2e74b36d3",
-        "compiled_size_bytes": 5655,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/boundary_evidence.mpy",
-        "exit_code": 0,
-        "name": "boundary_evidence.py",
-        "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-        "source_size_bytes": 18818
-      },
-      {
-        "compiled_sha256": "9ae9db8901fcaa1f71d4a0e52ff04ead731b2a50ce83260c5f01ac26595ee529",
-        "compiled_size_bytes": 10879,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/config.mpy",
-        "exit_code": 0,
-        "name": "config.py",
-        "source_sha256": "ca141699c13b5b13fe8093cbed812d47bb6e6f076f9e0c45eacc22c826a2548c",
-        "source_size_bytes": 18264
-      },
-      {
-        "compiled_sha256": "d55e9fe91412e72728f07930a25b1def277190faa776c5e78c0ea2a2591df6b4",
-        "compiled_size_bytes": 8348,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/contour_route.mpy",
-        "exit_code": 0,
-        "name": "contour_route.py",
-        "source_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-        "source_size_bytes": 24945
-      },
-      {
-        "compiled_sha256": "0a3f6e6d59e03a660eb29921a26af9b11c75ae7e5b3d9022d28f642a1325edcf",
-        "compiled_size_bytes": 10508,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/contour_trace.mpy",
-        "exit_code": 0,
-        "name": "contour_trace.py",
-        "source_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-        "source_size_bytes": 38987
-      },
-      {
-        "compiled_sha256": "3e2ea85c7318b7c7827183538c03e353d8684159272679983827ac5b975b5e2f",
-        "compiled_size_bytes": 28591,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/fast_boundary.mpy",
-        "exit_code": 0,
-        "name": "fast_boundary.py",
-        "source_sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
-        "source_size_bytes": 54416
-      },
-      {
-        "compiled_sha256": "a68cdeb8832be436343ca1eaa001dfa3106ac6081b27d92d7592d4ec149f03c3",
-        "compiled_size_bytes": 23051,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/fast_gray.mpy",
-        "exit_code": 0,
-        "name": "fast_gray.py",
-        "source_sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
-        "source_size_bytes": 56266
-      },
-      {
-        "compiled_sha256": "6b1b6c584e934e50a3a0dce27ab1d014b03baf7fc20496d8b3d6c132f434abbe",
-        "compiled_size_bytes": 24073,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/fast_path.mpy",
-        "exit_code": 0,
-        "name": "fast_path.py",
-        "source_sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
-        "source_size_bytes": 43868
-      },
-      {
-        "compiled_sha256": "38dc65303153bdc1b59be903d49b70a3501919de6f997687fea4ec7f1de9d6ce",
-        "compiled_size_bytes": 50338,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/fast_single_edge.mpy",
-        "exit_code": 0,
-        "name": "fast_single_edge.py",
-        "source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
-        "source_size_bytes": 88694
-      },
-      {
-        "compiled_sha256": "d745f37441fa2cefadff71ca608e2b9989202a203ae9dedd22721cdd374d4dbb",
-        "compiled_size_bytes": 16409,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/fast_topology.mpy",
-        "exit_code": 0,
-        "name": "fast_topology.py",
-        "source_sha256": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
-        "source_size_bytes": 49292
-      },
-      {
-        "compiled_sha256": "256ea9fde37d78e1ee86355b0f5e21048399c7f25b848675def05e8438dd70bb",
-        "compiled_size_bytes": 2231,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/grayscale_adapter.mpy",
-        "exit_code": 0,
-        "name": "grayscale_adapter.py",
-        "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-        "source_size_bytes": 7784
-      },
-      {
-        "compiled_sha256": "4398ce167d043b82d2fe75c906c5498839199eb3073d0d9a5d44dd453cbc981f",
-        "compiled_size_bytes": 4047,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/line_detector.mpy",
-        "exit_code": 0,
-        "name": "line_detector.py",
-        "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "source_size_bytes": 11979
-      },
-      {
-        "compiled_sha256": "8c52b1ebc9e5241f3676b1cc2167d722e2f2e3a8f4d735a2d0e97b376cf8c32c",
-        "compiled_size_bytes": 124959,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/main.mpy",
-        "exit_code": 0,
-        "name": "main.py",
-        "source_sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-        "source_size_bytes": 284281
-      },
-      {
-        "compiled_sha256": "333af1360fd2f7a6421c5f6fa102e2f9fae24df70c0d9595f947ba530b8b879d",
-        "compiled_size_bytes": 2495,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/reverse_control.mpy",
-        "exit_code": 0,
-        "name": "reverse_control.py",
-        "source_sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-        "source_size_bytes": 7657
-      },
-      {
-        "compiled_sha256": "444a82d3c6a1ba9d044c56423ca5ab19e99e876dc3596661f09e477e44d99cb9",
-        "compiled_size_bytes": 8340,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/road_detector.mpy",
-        "exit_code": 0,
-        "name": "road_detector.py",
-        "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-        "source_size_bytes": 26649
-      },
-      {
-        "compiled_sha256": "34a6a43fb3d69ea91a3a17a0f64bdda0a11df94a84ee596a06a296600ee723b0",
-        "compiled_size_bytes": 2740,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/source_selector.mpy",
-        "exit_code": 0,
-        "name": "source_selector.py",
-        "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-        "source_size_bytes": 8802
-      },
-      {
-        "compiled_sha256": "0ef2c4c40b8a16c0b177f38a64026170f62d673eb38f51688c043d50fc1aed76",
-        "compiled_size_bytes": 11919,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/surface_detector.mpy",
-        "exit_code": 0,
-        "name": "surface_detector.py",
-        "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-        "source_size_bytes": 42699
-      },
-      {
-        "compiled_sha256": "c26ee89585cf69e0566d42aa28dfb0230c1b4239f6130735a0fb4540a77d18fb",
-        "compiled_size_bytes": 3590,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/thresholding.mpy",
-        "exit_code": 0,
-        "name": "thresholding.py",
-        "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-        "source_size_bytes": 12363
-      },
-      {
-        "compiled_sha256": "4b7d0c5a1958b348a2fa95e924b09a464d5f41bf2fd7bd34561dde18fc07686c",
-        "compiled_size_bytes": 1946,
-        "compiled_validation_path": "test-data/OpenMV_USB60_FIFO_20261025-validation-final/mpy-cross-armv7emsp/vision_protocol.mpy",
-        "exit_code": 0,
-        "name": "vision_protocol.py",
-        "source_sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
-        "source_size_bytes": 5172
-      }
-    ],
-    "target": "armv7emsp",
-    "summary_path": "openmv/CROSS_COMPILE_SUMMARY.json",
-    "summary_sha256": "1b6e1f1c39cb3af20cfb4675e16a10a564737a17bc9871151a479ff4af82b575"
-  },
-  "curve_trace": {
-    "camera_diag_record_size_bytes": 32,
-    "control_ext_v2_record_size_bytes": 32,
-    "field": "curve_trace_v2_hex",
-    "record_size_bytes": 16,
-    "source": "the exact V2 UART payload sent for the same camera row"
-  },
-  "documents": {
-    "CROSS_COMPILE_SUMMARY.json": {
-      "size_bytes": 20213,
-      "sha256": "1b6e1f1c39cb3af20cfb4675e16a10a564737a17bc9871151a479ff4af82b575"
-    },
-    "README.md": {
-      "size_bytes": 8339,
-      "sha256": "73e5d25acaa1cc165cc280b733b01d1ea46460eb64ce8dbd25e37e74f1c1f7b8"
-    },
-    "PROTOCOL_TEST_REPORT.md": {
-      "size_bytes": 1933,
-      "sha256": "b0f2deb3e08d12b9bd4da90abd4b55e8b343da5419ad284c16a7a80e82cdfff7"
-    }
-  },
-  "hardware_validation": {
-    "candidate_modules_loaded_from_isolated_camera_filesystem": true,
-    "closed_cdc_headless_60s_test_complete": true,
-    "command_complete_frame_measurement_complete": true,
-    "full_control_60fps_accepted": false,
-    "h743_flashed_or_reset_by_staging": false,
-    "image_crc_duplicate_frames_independently_decoded": false,
-    "motor_started": false,
-    "production_camera_package_promoted": false,
-    "road_or_vehicle_acceptance": false,
-    "small_performance_runner_ram_injected": true,
-    "post_promotion_ide_measurement": "complete_payload_read_measurement; no IDE per-frame JPEG decode, marker freshness, or physical display-refresh proof",
-    "production_openmv_source_promoted": true,
-    "uart_fifo_65s_invalid_only_wrapper_complete": true,
-    "closed_cdc_fifo_headless_test": {
-      "status": "complete_cdc_closed_headless_fifo_static_invalid_only_measurement",
-      "package_id": "OPENMV_UART_FIFO_65S_WRAPPER_CANDIDATE_20261025",
-      "runner_sha256": "3e9ed6b48b89220f8bd2dac05f18eaac85088f5152bf16636b5d37cfb75acf82",
-      "staged_candidate_manifest_sha256": "a549717c9d5e84bbcd6b5e3396ecc02aa2cb0b9f7d7aae6062fca7ad1f79bf37",
-      "main_sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-      "evidence_directory": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000",
-      "evidence_file_hashes": {
-        "report.json": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000/report.json",
-          "size_bytes": 9290,
-          "sha256": "0c1b82b300a49613523bfb18aba1c814bb26674361bda6cd5cee0fd23153bbbc"
-        },
-        "reconnected-session-stdout.txt": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000/reconnected-session-stdout.txt",
-          "size_bytes": 2271,
-          "sha256": "8329aff0a0d6a01178ad8cca609c02e364de0a6b32607c2c2a489678fa025e03"
-        },
-        "runner.py": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/uart-fifo-headless-20261025.py",
-          "size_bytes": 15311,
-          "sha256": "3e9ed6b48b89220f8bd2dac05f18eaac85088f5152bf16636b5d37cfb75acf82"
-        },
-        "previous_failed_attempt.json": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792869125535625200/failure.json",
-          "size_bytes": 5765,
-          "sha256": "d80fd07a881b98282a3aed923e62de281500ec558ea1f2c08cf56116bbe81cbf"
-        },
-        "h743_invalid_frame_swd_snapshot.json": {
-          "path": "logs/usb-preview-20261024/resume-20261025-during-headless-fifo/20261025-031227-330-8828/run-status.json",
-          "size_bytes": 67717,
-          "sha256": "f5a96485bc41150220037b914f90faf004a219954cf7d15b987dc8ee1c2d4b15"
-        }
-      },
-      "capture_duration_seconds": 65,
-      "cdc_session_closed": true,
-      "cdc_closed_duration_seconds_operator_reported": 68.0,
-      "physical_usb_cable_state": "connected per operator observation; report metadata says cable state was not instrumented",
-      "physical_usb_disconnect_test": false,
-      "headless_state": "NATIVE_HEADLESS",
-      "complete_10_second_window_count": 6,
-      "window_captures": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_computed_route_valid_frames": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_reported_accepted_frames": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_fps": [
-        79.4,
-        79.4,
-        79.2,
-        79.4,
-        79.2,
-        79.3
-      ],
-      "jpeg_marker_writes": 0,
-      "preview_errors": 0,
-      "buffer_overflow": 0,
-      "total_cycle_p95_upper_us_by_window": [
-        13000,
-        13000,
-        13000,
-        13000,
-        13000,
-        13000
-      ],
-      "total_cycle_max_us": 30759,
-      "fifo_tx": {
-        "mode": "FIFO_QUEUED",
-        "api": 1,
-        "attempts": 5156,
-        "accepted": 5156,
-        "busy": 0,
-        "partial": 0,
-        "errors": 0,
-        "fifo_txdone_before_and_after_samples_true": true,
-        "wire_valid_frames": 0,
-        "wire_sequence": 0,
-        "computed_route_forwarded": 0,
-        "read_side": "synthetic_RESET_KEEP",
-        "payload_scope": "UART TX carried a 16-byte V2 invalid vision frame (seq=0, valid=0, route/control fields zero); computed valid route packets were not forwarded"
-      },
-      "reverse_direction_input_substitute": {
-        "name": "synthetic_RESET_KEEP",
-        "provided_by": "test sink any()/readinto() to the OpenMV side",
-        "sent_over_physical_uart": false
-      },
-      "headless_report_h743_rx_verified": false,
-      "h743_invalid_frame_receive_observed": true,
-      "h743_invalid_frame_swd_snapshot": {
-        "path": "logs/usb-preview-20261024/resume-20261025-during-headless-fifo/20261025-031227-330-8828/run-status.json",
-        "sha256": "f5a96485bc41150220037b914f90faf004a219954cf7d15b987dc8ee1c2d4b15",
-        "invalid_observations_in_window": 79,
-        "sequence_rejects_in_window": 79,
-        "window_duration_ms": 1000,
-        "crc_valid": true,
-        "parser_error_total": 0,
-        "read_only_swd_snapshot": true
-      },
-      "h743_valid_route_acceptance_verified": false,
-      "h743_control_acceptance_verified": false,
-      "h743_flashed_or_reset_by_this_test": false,
-      "motor_started": false,
-      "prior_failed_attempt": {
-        "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792869125535625200/failure.json",
-        "status": "failed",
-        "exception_type": "RuntimeError",
-        "exception": "captured stdout must begin with HEADLESS_REPORT"
-      },
-      "scope": "Static sensor/headless route-computation run with a fixed invalid V2 frame sent through the FIFO; separate reverse-direction synthetic_RESET_KEEP input was not transmitted. H743 parsed and rejected invalid frames, but acceptance of a valid route/control output, road, vehicle, or all-scenario behavior is not established."
-    },
-    "latest_fifo_65s_ide_v6": {
-      "status": "complete_static_invalid_only_measurement",
-      "evidence_directory": "logs/usb-preview-20261024/resume-20261025-ide-fifo65-measurement-v6",
-      "runner_variant": "FIFO_QUEUED_INVALID_V2_65S",
-      "runner_source_path": "logs/usb-preview-20261024/real-uart-invalid-bench/uart-fifo-invalid-v2-65s-wrapper.py",
-      "runner_source_sha256": "81ff72fdc3800a6bac538b77d05f498a7e22cc18cfbe06a7086ac2c62f202901",
-      "run_status": "finished_marker_seen",
-      "run_elapsed_seconds": 69.642,
-      "board": {
-        "complete_10_second_window_count": 6,
-        "window_fps": [
-          60.7,
-          60.8,
-          60.7,
-          60.8,
-          60.6,
-          60.8
-        ],
-        "computed_route_valid_frames_by_window": [
-          607,
-          608,
-          607,
-          608,
-          606,
-          608
-        ],
-        "computed_route_valid_frames_total": 3644,
-        "transmitted_wire_valid_frames": 0,
-        "sink_transmits_fixed_invalid_frame_only": true,
-        "uart_errors": 0,
-        "fifo_accepted_frames": 3949,
-        "fifo_busy_results": 0,
-        "fifo_partial_writes": 0,
-        "fifo_errors": 0,
-        "fifo_txdone_before_and_after": true
-      },
-      "ide_payload_read": {
-        "measurement_kind": "complete IDE terminal JPEG payload reads; not per-frame decoded FPS",
-        "conservative_complete_payload_read_rates_hz": [
-          60.5142647373,
-          60.2316303329,
-          60.2352603627,
-          60.1152914784,
-          60.3861933008,
-          60.1489975176
-        ],
-        "advertised_payload_count": 3986,
-        "complete_payload_read_count": 3986,
-        "advertised_and_read_sizes_all_equal": true,
-        "read_errors": 0,
-        "sample_count_including_baseline": 7,
-        "interval_count": 6,
-        "read_bounds_used": "each read_begin/read_end monotonic pair; six conservative 10-second windows",
-        "per_frame_jpeg_decode_independently_verified": false,
-        "per_frame_marker_freshness_verified_by_ide": false,
-        "physical_screen_refresh_measured": false
-      },
-      "independent_sdk_marker_decode": {
-        "separate_from_ide_payload_read_measurement": true,
-        "complete_window_count": 6,
-        "window_fps_min": 60.2,
-        "window_fps_max": 60.8,
-        "missed_frames": 3,
-        "duplicates": 0,
-        "out_of_order": 0,
-        "crc_errors": 0,
-        "ide_per_frame_decode_claimed": false
-      },
-      "valid_route_control_frame_transmitted": false,
-      "road_or_vehicle_acceptance": false,
-      "closed_cdc_fifo_headless_test": "separate run completed; see hardware_validation.closed_cdc_fifo_headless_test",
-      "evidence_file_hashes": {
-        "run-metadata.json": {
-          "size_bytes": 1100,
-          "sha256": "5604a4e56c83d88fc50b03dad16e370609d6238198903473cd1a7307f20fec0c"
-        },
-        "samples.json": {
-          "size_bytes": 5236,
-          "sha256": "0281a7288a564bbca95a170e44518b7ccde9130edea936a344e7faad0050453d"
-        },
-        "lead-rate-analysis.json": {
-          "size_bytes": 457,
-          "sha256": "c883d930e27342950aa4e4615c7bf4fcf39622d64c290fe9f2e5dd398074370b"
-        },
-        "terminal.txt": {
-          "size_bytes": 540947,
-          "sha256": "91b9502a2e3660619dbc20390008b424ef467aeba90345fb5172d65065304b91"
-        }
-      }
-    },
-    "previous_fifo_65s_invalid_only_wrapper_run": {
-      "uart_fifo_65s_board_windows_fps": [
-        60.7,
-        60.7,
-        60.6,
-        60.7,
-        60.6,
-        60.7
-      ],
-      "uart_fifo_accepted_frames": 3944,
-      "uart_fifo_busy_results": 0,
-      "uart_fifo_partial_writes": 0,
-      "uart_fifo_errors": 0,
-      "uart_fifo_txdone_before_and_after": true,
-      "uart_fifo_65s_host_marker_window_fps_min": 60.2,
-      "uart_fifo_65s_host_marker_window_fps_max": 60.8,
-      "independent_host_marker_new_sequences": 3941,
-      "independent_host_marker_gaps_during_concurrent_swd_reads": 3,
-      "independent_host_marker_duplicates": 0,
-      "independent_host_marker_reordered": 0,
-      "independent_host_marker_crc_errors": 0,
-      "h743_uart_receive_verified": true,
-      "h743_parser_fps": 60,
-      "h743_invalid_frames": 60,
-      "h743_rejected_sequence_values": 60,
-      "h743_parser_errors": 0,
-      "h743_tokens": 0,
-      "h743_events": 0,
-      "h743_control_outputs": 0,
-      "h743_valid_route_frames": 0,
-      "scope": "Earlier 65-second invalid-only FIFO wrapper run; superseded by the separate IDE-v6 run below for latest counts."
-    }
-  },
-  "host_tests": {
-    "result": "PASS",
-    "source_paths_omitted": true,
-    "suites": {
-      "fresh_capture_fps": 5,
-      "usb_preview_state": 6
-    },
-    "tests_run": 20,
-    "fifo_uart_wrapper_tests": 9
-  },
-  "image_geometry": {
-    "crop": {
-      "height": 120,
-      "width": 320,
-      "x": 0,
-      "y": 60
-    },
-    "grid": {
-      "height": 60,
-      "width": 80
-    },
-    "minpool": {
-      "all_source_pixels_examined": true,
-      "source_x": 4,
-      "source_y": 2
-    },
-    "overlay_scale": {
-      "x": 4,
-      "y": 2
-    },
-    "resized": false,
-    "sensor_mode": "QVGA",
-    "vertical_field_of_view": "center 120 rows of QVGA; reduced from full 240-row sensor image"
-  },
-  "limits": [
-    "This package records static preview validation; it does not establish full UART control, H743 acceptance of valid routes/control, road acceptance, vehicle acceptance, or full-pipeline 60 FPS. Invalid test V2 frames were observed and rejected by the H743 parser in separate SWD snapshots.",
-    "The 19 runtime modules were loaded from an isolated camera filesystem; only the small performance runner was injected from RAM.",
-    "The five historical IDE rates from the pre-FIFO static preview run are complete JPEG payload read throughput. This run did not independently log per-frame decode success or dimensions. Firmware unlock clears the buffer to avoid rereading the same published buffer; the IDE run did not decode a sequence marker per frame, so independent per-frame freshness validation was not recorded.",
-    "The GUI truncates mean frame interval to integer milliseconds before computing 1000 divided by that interval; the resulting displayed FPS can be biased high and is not precise measurement evidence.",
-    "The separately decoded SDK marker rate is a host measurement and is not an IDE per-frame decode result.",
-    "The historical 60-second CDC-off headless run measured valid routes at 79.5-79.7 FPS with a no-op UART sink and no JPEG marker writes; it does not measure real UART or FIFO throughput.",
-    "The 1389-microsecond pyb.udelay experiment is a wire-time approximation, not actual UART I/O or H743 reception.",
-    "FIFO_QUEUED and QUEUED_16 indicate acceptance by the FIFO API only; neither proves UART line completion or H743 receipt. fifo_txdone is a separate completion query.",
-    "send_end_us, capture_to_send_us, send_ms, and related send timings are sampled at write API return and are not line-completion timestamps.",
-    "Firmware without WRITE_FIFO_API version 1 uses the legacy synchronous UART write path and may run below 60 FPS.",
-    "The latest IDE 65-second run measured complete terminal payload reads: six conservative rates and 3986/3986 size-matched payloads with zero read errors. This does not independently verify each JPEG decode, IDE marker freshness, or physical screen refresh.",
-    "The independent SDK marker result is a separate host decode measurement and must not be presented as IDE per-frame decode evidence.",
-    "The latest invalid-only wrapper run computed valid camera routes (607, 608, 607, 608, 606, 608 across six windows), but its sink transmitted only the fixed invalid frame, so wire_valid=0. This does not establish H743 control acceptance, road/vehicle acceptance, or full-scenario 60 FPS.",
-    "A separate 65-second CDC-closed headless run completed six windows at 79.2-79.4 FPS with valid route computation, captures, and per-window accepted counts [794, 794, 792, 794, 792, 793]. The FIFO carried 5156 fixed 16-byte V2 invalid vision frames (seq=0, valid=0, route/control fields zero) with zero busy/partial/errors and true fifo_txdone samples before/after. synthetic_RESET_KEEP was a reverse-direction OpenMV input substitute, not UART TX. SWD snapshots recorded 79 invalid observations/79 sequence rejects in 1 second and, in the earlier wrapper run, 60/60. This confirms invalid-frame receive/rejection only; valid-route acceptance/control, road/vehicle, and all-scene acceptance remain unverified. The USB CDC session was closed, but the cable remained connected. The historical 79.5-79.7 FPS headless result used a no-op sink and remains a separate non-FIFO result."
-  ],
-  "native_preview_firmware_reference": {
-    "api_version": 1,
-    "artifact_manifest_sha256": "cf3d6e503b6e572044218ffc7453607814174e368c53e6d9381caa146e438de6",
-    "firmware_bin_path": "deliverables/OpenMV_NativePreview_UARTFIFO_20261024/firmware.bin",
-    "firmware_bin_sha256": "0bbf81a534f99365a62187b3116559e313527e0aa1b7d585e618022b11feffc3",
-    "firmware_elf_path": "deliverables/OpenMV_NativePreview_UARTFIFO_20261024/firmware.elf",
-    "firmware_elf_sha256": "aae890556a1f35fe784ec451c064e4e24d1710ef91cff9f3f051117f1c18cde6",
-    "included_in_this_source_package": false,
-    "installation_state_claimed": true,
-    "required_capability_markers": [
-      "sensor.PREVIEW_CONTROL_API == 1",
-      "csi.PREVIEW_CONTROL_API == 1",
-      "UART.WRITE_FIFO_API == 1",
-      "callable(UART.write_fifo)",
-      "callable(UART.fifo_txdone)"
-    ],
-    "artifact_manifest_path": "deliverables/OpenMV_NativePreview_UARTFIFO_20261024/artifact-manifest.json",
-    "firmware_bin_size_bytes": 1736932,
-    "installation_readback_sha256": "0bbf81a534f99365a62187b3116559e313527e0aa1b7d585e618022b11feffc3",
-    "uart_write_fifo_api": 1
-  },
-  "package_id": "OPENMV_USB60_FIFO_20261025",
-  "preserved_live_openmv_baseline": {
-    "directory": "openmv/",
-    "manifest_sha256": "ba667cc5c4acf5003b14ad8cd9f3453f5b553d7d0b4272d5b15347893a44bfc0",
-    "runtime_file_count": 20,
-    "runtime_files": [
-      {
-        "name": "adaptive_detector.py",
-        "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-        "size_bytes": 44071
-      },
-      {
-        "name": "boundary_evidence.py",
-        "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-        "size_bytes": 18818
-      },
-      {
-        "name": "config.py",
-        "sha256": "75bef74246b41c653558a5335a1c2dda5c45c76a0f2e995700a097baa614f81e",
-        "size_bytes": 18043
-      },
-      {
-        "name": "contour_route.py",
-        "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-        "size_bytes": 24945
-      },
-      {
-        "name": "contour_trace.py",
-        "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-        "size_bytes": 38987
-      },
-      {
-        "name": "fast_boundary.py",
-        "sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
-        "size_bytes": 54416
-      },
-      {
-        "name": "fast_gray.py",
-        "sha256": "3baae466f229b00734f225506b6ea000c0b37b3736643ee94c6a5f70eb0b7f40",
-        "size_bytes": 51644
-      },
-      {
-        "name": "fast_path.py",
-        "sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
-        "size_bytes": 43868
-      },
-      {
-        "name": "fast_ring_slope.py",
-        "sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-        "size_bytes": 75024
-      },
-      {
-        "name": "fast_single_edge.py",
-        "sha256": "acf45003eb91843e4fcc4c1eea42754de1bd5f716855441753f191313deab991",
-        "size_bytes": 88076
-      },
-      {
-        "name": "fast_topology.py",
-        "sha256": "c2a9ac9639501fae10c4e70cb09e84212537bdee662c9e114ba313bca3dbf446",
-        "size_bytes": 48452
-      },
-      {
-        "name": "grayscale_adapter.py",
-        "sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-        "size_bytes": 7784
-      },
-      {
-        "name": "line_detector.py",
-        "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "size_bytes": 11979
-      },
-      {
-        "name": "main.py",
-        "sha256": "7c170901c88e935868d73b7ed7df7dc301d962721d22687e444c5c3f7d7b87eb",
-        "size_bytes": 250484
-      },
-      {
-        "name": "reverse_control.py",
-        "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-        "size_bytes": 7657
-      },
-      {
-        "name": "road_detector.py",
-        "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-        "size_bytes": 26649
-      },
-      {
-        "name": "source_selector.py",
-        "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-        "size_bytes": 8802
-      },
-      {
-        "name": "surface_detector.py",
-        "sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-        "size_bytes": 42699
-      },
-      {
-        "name": "thresholding.py",
-        "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-        "size_bytes": 12363
-      },
-      {
-        "name": "vision_protocol.py",
-        "sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
-        "size_bytes": 5172
-      }
-    ],
-    "unchanged_during_staging": true
-  },
-  "preview_validation": {
-    "board_command_to_complete_frame_measurement": {
-      "complete_window_count": 5,
-      "firmware_unlock_clears_buffer": true,
-      "image_crc_duplicates_decoded": false,
-      "status": "complete",
-      "window_fps": [
-        60.438,
-        60.3276,
-        60.2762,
-        60.3608,
-        60.289
-      ],
-      "measurement_kind": "complete IDE JPEG payload read throughput; not per-frame decoded FPS",
-      "configured_and_observed_resolution": [
-        320,
-        120
-      ],
-      "complete_payload_reads": 3693,
-      "payload_size_matches": 3693,
-      "read_errors": 0,
-      "per_frame_decode_success_independently_logged": false,
-      "per_frame_dimensions_independently_logged": false,
-      "ide_marker_sequence_decoded_per_frame": false,
-      "firmware_unlock_prevents_repeated_reads_of_published_buffer": true,
-      "independent_per_frame_freshness_check_recorded": false
-    },
-    "closed_cdc_headless_60s_test": {
-      "status": "complete",
-      "duration_seconds": 60,
-      "window_duration_seconds": 10,
-      "window_frame_counts": [
-        796,
-        796,
-        797,
-        795,
-        797,
-        795
-      ],
-      "window_fps": [
-        79.6,
-        79.6,
-        79.7,
-        79.5,
-        79.7,
-        79.5
-      ],
-      "valid_routes": 4777,
-      "jpeg_marker_writes": 0,
-      "usb_state": "NATIVE_HEADLESS",
-      "static_vision_pipeline_validity_only": true,
-      "uart_sink_scope": "no-op 16-byte test sink; no real UART transfer and no FIFO API",
-      "measurement_scope": "historical 79.5-79.7 FPS valid-route headless source-pipeline result; not a UART FIFO result"
-    },
-    "execution_source": "19 runtime modules loaded from isolated camera filesystem /flash/perf_usb_20261024_v1; only the small performance runner was injected from RAM",
-    "h743_uart_receive_verified": false,
-    "host_sdk_fresh_sequence_rate_fps_range": [
-      60.4,
-      60.5
-    ],
-    "ide_board_processing_fps_range": [
-      60.3,
-      60.6
-    ],
-    "ide_board_processing_rate_is_host_preview_fps": false,
-    "resolution": [
-      320,
-      120
-    ],
-    "uart_sink": "no-op test sink; accepts the full 16-byte V2 write",
-    "ide_gui_integer_fps_is_accepted_measurement": false,
-    "host_sdk_decoded_marker_measurement": {
-      "status": "separate host SDK measurement",
-      "marker_sequence_decoded": true,
-      "new_sequence_rate_fps_range": [
-        60.4,
-        60.5
-      ],
-      "represents_ide_payload_decode": false
-    },
-    "uart_wire_time_approximation": {
-      "mechanism": "pyb.udelay injected once per frame",
-      "delay_per_frame_us": 1389,
-      "duration_seconds": 20,
-      "measured_fps_range": [
-        55.6,
-        55.7
-      ],
-      "real_uart_io_performed": false,
-      "h743_receive_verified": false,
-      "full_control_acceptance": false
-    },
-    "ide_gui_fps_computation": "The GUI truncates mean frame interval to integer milliseconds before calculating 1000 / interval; this can bias displayed FPS high and is not precise rate evidence.",
-    "closed_cdc_fifo_headless_test": {
-      "status": "complete_cdc_closed_headless_fifo_static_invalid_only_measurement",
-      "package_id": "OPENMV_UART_FIFO_65S_WRAPPER_CANDIDATE_20261025",
-      "runner_sha256": "3e9ed6b48b89220f8bd2dac05f18eaac85088f5152bf16636b5d37cfb75acf82",
-      "staged_candidate_manifest_sha256": "a549717c9d5e84bbcd6b5e3396ecc02aa2cb0b9f7d7aae6062fca7ad1f79bf37",
-      "main_sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-      "evidence_directory": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000",
-      "evidence_file_hashes": {
-        "report.json": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000/report.json",
-          "size_bytes": 9290,
-          "sha256": "0c1b82b300a49613523bfb18aba1c814bb26674361bda6cd5cee0fd23153bbbc"
-        },
-        "reconnected-session-stdout.txt": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792870049252764000/reconnected-session-stdout.txt",
-          "size_bytes": 2271,
-          "sha256": "8329aff0a0d6a01178ad8cca609c02e364de0a6b32607c2c2a489678fa025e03"
-        },
-        "runner.py": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/uart-fifo-headless-20261025.py",
-          "size_bytes": 15311,
-          "sha256": "3e9ed6b48b89220f8bd2dac05f18eaac85088f5152bf16636b5d37cfb75acf82"
-        },
-        "previous_failed_attempt.json": {
-          "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792869125535625200/failure.json",
-          "size_bytes": 5765,
-          "sha256": "d80fd07a881b98282a3aed923e62de281500ec558ea1f2c08cf56116bbe81cbf"
-        },
-        "h743_invalid_frame_swd_snapshot.json": {
-          "path": "logs/usb-preview-20261024/resume-20261025-during-headless-fifo/20261025-031227-330-8828/run-status.json",
-          "size_bytes": 67717,
-          "sha256": "f5a96485bc41150220037b914f90faf004a219954cf7d15b987dc8ee1c2d4b15"
-        }
-      },
-      "capture_duration_seconds": 65,
-      "cdc_session_closed": true,
-      "cdc_closed_duration_seconds_operator_reported": 68.0,
-      "physical_usb_cable_state": "connected per operator observation; report metadata says cable state was not instrumented",
-      "physical_usb_disconnect_test": false,
-      "headless_state": "NATIVE_HEADLESS",
-      "complete_10_second_window_count": 6,
-      "window_captures": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_computed_route_valid_frames": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_reported_accepted_frames": [
-        794,
-        794,
-        792,
-        794,
-        792,
-        793
-      ],
-      "window_fps": [
-        79.4,
-        79.4,
-        79.2,
-        79.4,
-        79.2,
-        79.3
-      ],
-      "jpeg_marker_writes": 0,
-      "preview_errors": 0,
-      "buffer_overflow": 0,
-      "total_cycle_p95_upper_us_by_window": [
-        13000,
-        13000,
-        13000,
-        13000,
-        13000,
-        13000
-      ],
-      "total_cycle_max_us": 30759,
-      "fifo_tx": {
-        "mode": "FIFO_QUEUED",
-        "api": 1,
-        "attempts": 5156,
-        "accepted": 5156,
-        "busy": 0,
-        "partial": 0,
-        "errors": 0,
-        "fifo_txdone_before_and_after_samples_true": true,
-        "wire_valid_frames": 0,
-        "wire_sequence": 0,
-        "computed_route_forwarded": 0,
-        "read_side": "synthetic_RESET_KEEP",
-        "payload_scope": "UART TX carried a 16-byte V2 invalid vision frame (seq=0, valid=0, route/control fields zero); computed valid route packets were not forwarded"
-      },
-      "reverse_direction_input_substitute": {
-        "name": "synthetic_RESET_KEEP",
-        "provided_by": "test sink any()/readinto() to the OpenMV side",
-        "sent_over_physical_uart": false
-      },
-      "headless_report_h743_rx_verified": false,
-      "h743_invalid_frame_receive_observed": true,
-      "h743_invalid_frame_swd_snapshot": {
-        "path": "logs/usb-preview-20261024/resume-20261025-during-headless-fifo/20261025-031227-330-8828/run-status.json",
-        "sha256": "f5a96485bc41150220037b914f90faf004a219954cf7d15b987dc8ee1c2d4b15",
-        "invalid_observations_in_window": 79,
-        "sequence_rejects_in_window": 79,
-        "window_duration_ms": 1000,
-        "crc_valid": true,
-        "parser_error_total": 0,
-        "read_only_swd_snapshot": true
-      },
-      "h743_valid_route_acceptance_verified": false,
-      "h743_control_acceptance_verified": false,
-      "h743_flashed_or_reset_by_this_test": false,
-      "motor_started": false,
-      "prior_failed_attempt": {
-        "path": "logs/usb-preview-20261024/uart-fifo-headless-20261025/session-1792869125535625200/failure.json",
-        "status": "failed",
-        "exception_type": "RuntimeError",
-        "exception": "captured stdout must begin with HEADLESS_REPORT"
-      },
-      "scope": "Static sensor/headless route-computation run with a fixed invalid V2 frame sent through the FIFO; separate reverse-direction synthetic_RESET_KEEP input was not transmitted. H743 parsed and rejected invalid frames, but acceptance of a valid route/control output, road, vehicle, or all-scenario behavior is not established."
-    }
-  },
-  "promotion_plan": {
-    "target_source_folder": "openmv/",
-    "runtime_module_count": 19,
-    "completed": true,
-    "retained_inactive_module": "fast_ring_slope.py",
-    "retained_inactive_module_reason": "legacy host-test imports; not part of current runtime manifest"
-  },
-  "protocol": {
-    "crc": "CRC-16/CCITT-FALSE over bytes 2..13, little-endian",
-    "crc_offset": 14,
-    "curve_phase_offset": 10,
-    "frame_size_bytes": 16,
-    "invalid_sequence": "increments normally; observation/control fields zero",
-    "reserved_zero_offset": 11,
-    "slowdown_request_permille_offset": 12,
-    "version": 2
-  },
-  "release_status": "fifo-wrapper-promoted-static-headless-and-ide-measured-valid-control-road-and-all-scene-pending",
-  "row_weighting": {
-    "aggregation": "normalized across accepted support from selected same-lane chain",
-    "coordinate": "original crop y=0..119",
-    "core_min_support_rows": 3,
-    "core_min_support_span_grid_rows": 2,
-    "core_raw_y": [
-      40,
-      79
-    ],
-    "fallback": "nearest measured core row from selected chain, marked DEGRADED_CORE_SUPPORT",
-    "fixed_point_scale": 1000,
-    "formula": "w(y)=0.15+0.85*(1-((y-59.5)/59.5)^2)"
-  },
-  "runtime_file_count": 19,
   "runtime_files": [
+    "adaptive_detector.py",
+    "boundary_evidence.py",
+    "config.py",
+    "contour_route.py",
+    "contour_trace.py",
+    "fast_boundary.py",
+    "fast_gray.py",
+    "fast_path.py",
+    "fast_single_edge.py",
+    "fast_topology.py",
+    "grayscale_adapter.py",
+    "line_detector.py",
+    "main.py",
+    "reverse_control.py",
+    "road_detector.py",
+    "source_selector.py",
+    "surface_detector.py",
+    "thresholding.py",
+    "vision_protocol.py",
+    "track_elements.py"
+  ],
+  "shared_profile_selection": true,
+  "sensor": "MT9V034",
+  "image_width": 320,
+  "image_height": 120,
+  "camera_firmware_policy": "retain_current_vendor_firmware",
+  "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
+  "compiler_target": "armv7emsp",
+  "compiler_version": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
+  "compilation": [
     {
-      "name": "adaptive_detector.py",
-      "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-      "size_bytes": 44071
+      "file": "adaptive_detector.py",
+      "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+      "exit_code": 0,
+      "mpy_sha256": "090f3d6d5585431cd28af6a6702ba4f1717e051fdcfa2de5158deff97976f6aa"
     },
     {
-      "name": "boundary_evidence.py",
-      "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-      "size_bytes": 18818
+      "file": "boundary_evidence.py",
+      "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+      "exit_code": 0,
+      "mpy_sha256": "612380a1f961fbc5f43444366c86ed0e27da523e4bfcfe174d8ce5b92cb2bf60"
     },
     {
-      "name": "config.py",
-      "sha256": "ca141699c13b5b13fe8093cbed812d47bb6e6f076f9e0c45eacc22c826a2548c",
-      "size_bytes": 18264
+      "file": "config.py",
+      "source_sha256": "78315f275638912cb93b389e604d868940b459faeb92831f3ecc8c5ca33f937a",
+      "exit_code": 0,
+      "mpy_sha256": "d177f288920dbf609969f2814c254253f6038f8a889cfc5564f408c556c0e30f"
     },
     {
-      "name": "contour_route.py",
-      "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-      "size_bytes": 24945
+      "file": "contour_route.py",
+      "source_sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
+      "exit_code": 0,
+      "mpy_sha256": "88809dc9fdc8e8252c8d82bad6d3b0adc75b8cdfaccf5c939347c5a4b2f44f34"
     },
     {
-      "name": "contour_trace.py",
-      "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-      "size_bytes": 38987
+      "file": "contour_trace.py",
+      "source_sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
+      "exit_code": 0,
+      "mpy_sha256": "384f0264245509c0060128d67143cc03b266ae4947cf47abc0743ac315fc97b1"
     },
     {
-      "name": "fast_boundary.py",
-      "sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
-      "size_bytes": 54416
+      "file": "fast_boundary.py",
+      "source_sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
+      "exit_code": 0,
+      "mpy_sha256": "33001f840341781a45f059bbb8f9c6832b842474efd11db0a269c6fe531c165e"
     },
     {
-      "name": "fast_gray.py",
-      "sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
-      "size_bytes": 56266
+      "file": "fast_gray.py",
+      "source_sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+      "exit_code": 0,
+      "mpy_sha256": "d023b8d7f33767c50b7db86dc452aab15479151a48848b675262fe77b0f9731a"
     },
     {
-      "name": "fast_path.py",
-      "sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
-      "size_bytes": 43868
+      "file": "fast_path.py",
+      "source_sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
+      "exit_code": 0,
+      "mpy_sha256": "5ce0c5377330ca894c19d77fc157b30e5ff237d7396f94d8e8887fa2fbf878d8"
     },
     {
-      "name": "fast_single_edge.py",
-      "sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
-      "size_bytes": 88694
+      "file": "fast_single_edge.py",
+      "source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+      "exit_code": 0,
+      "mpy_sha256": "25c42d5b5458c4262e85cdd42364dc8f64e3aca9eecb60fbf25eb5466eb2d917"
     },
     {
-      "name": "fast_topology.py",
-      "sha256": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
-      "size_bytes": 49292
+      "file": "fast_topology.py",
+      "source_sha256": "e997f7a915f803b9ced83f1a828d9da0ed1c361a7dcf1d747df851a24d4857f8",
+      "exit_code": 0,
+      "mpy_sha256": "a0c6b87ba484f108c2ab9b85235bb3b5f4680808c406b1af249c28edee4fa625"
     },
     {
-      "name": "grayscale_adapter.py",
-      "sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-      "size_bytes": 7784
+      "file": "grayscale_adapter.py",
+      "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+      "exit_code": 0,
+      "mpy_sha256": "52e8afc30fc566c37762b1982c2dee3fb19aa5cf0711b3a3596bf6d915d4ddb7"
     },
     {
-      "name": "line_detector.py",
-      "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-      "size_bytes": 11979
+      "file": "line_detector.py",
+      "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+      "exit_code": 0,
+      "mpy_sha256": "2cc54e254be81a66410b7579eb50d2cdc1bb9acc2308fdd388af6934422482ae"
     },
     {
-      "name": "main.py",
-      "sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-      "size_bytes": 284281
+      "file": "main.py",
+      "source_sha256": "bf9be79d7d86ec17381504cb614e2e8823909f455fed3a965f8d0653b8d49e34",
+      "exit_code": 0,
+      "mpy_sha256": "0da176f6e6f56e57a0e73d21330ff149d1bfea887221ce98399026d6ba919fc5"
     },
     {
-      "name": "reverse_control.py",
-      "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-      "size_bytes": 7657
+      "file": "reverse_control.py",
+      "source_sha256": "16d7e2dbfc5d1c05fa7e6eba6fcf284683482d7e065d7607bb98a64824d49047",
+      "exit_code": 0,
+      "mpy_sha256": "69d7a2476d01c98275ac7a1b6c31197ab584b95b50b2e459456fb145cbff8a42"
     },
     {
-      "name": "road_detector.py",
-      "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-      "size_bytes": 26649
+      "file": "road_detector.py",
+      "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+      "exit_code": 0,
+      "mpy_sha256": "04c911d88c1cbfbdab9cb5895ce01bcbde979c399b0ef2e558f4f5ea8ae0301e"
     },
     {
-      "name": "source_selector.py",
-      "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-      "size_bytes": 8802
+      "file": "source_selector.py",
+      "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+      "exit_code": 0,
+      "mpy_sha256": "22236441880e05cc5afdc03d347962c64fca34100b43ebf2f5157c5c39f00f15"
     },
     {
-      "name": "surface_detector.py",
-      "sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-      "size_bytes": 42699
+      "file": "surface_detector.py",
+      "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+      "exit_code": 0,
+      "mpy_sha256": "8732f4899324c19b30ea27217cbb91757fdba7965bb6e330cc37128fc96472ab"
     },
     {
-      "name": "thresholding.py",
-      "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-      "size_bytes": 12363
+      "file": "thresholding.py",
+      "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+      "exit_code": 0,
+      "mpy_sha256": "cd1e872f5e42903fe1e009d1ce939b139ee891b9f9da490b11c3428565e36d40"
     },
     {
-      "name": "vision_protocol.py",
-      "sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
-      "size_bytes": 5172
+      "file": "vision_protocol.py",
+      "source_sha256": "e521358ea3c0bf7ee1dbd67d3844bfd5f4dd6bfbf3135aac7bf314eb4f22cf06",
+      "exit_code": 0,
+      "mpy_sha256": "c8df2a9ec1f43f3378674f430473a15c824404b495d1df058f1cd6b2bcc6e5ed"
+    },
+    {
+      "file": "track_elements.py",
+      "source_sha256": "f2691bd7e572c76c6e56b2ebf267d29f0a34dea9065a12249371c45800b9f41f",
+      "exit_code": 0,
+      "mpy_sha256": "901432695709415590e12f13e592d90201d0fdb8c1b9659bb1729b62a910e8c7"
     }
   ],
-  "schema_version": 1,
-  "prepromotion_openmv_baseline": {
-    "tree_file_count": 170,
-    "package_manifest_sha256": "ba667cc5c4acf5003b14ad8cd9f3453f5b553d7d0b4272d5b15347893a44bfc0",
-    "runtime_file_count": 20,
-    "runtime_files": [
-      {
-        "name": "adaptive_detector.py",
-        "sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-        "size_bytes": 44071
-      },
-      {
-        "name": "boundary_evidence.py",
-        "sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-        "size_bytes": 18818
-      },
-      {
-        "name": "config.py",
-        "sha256": "75bef74246b41c653558a5335a1c2dda5c45c76a0f2e995700a097baa614f81e",
-        "size_bytes": 18043
-      },
-      {
-        "name": "contour_route.py",
-        "sha256": "d37a20cfdb5c05cd8862f88f2c42705bd8447f5a0924a6120471e64a5a71d931",
-        "size_bytes": 24945
-      },
-      {
-        "name": "contour_trace.py",
-        "sha256": "2eae6f9fde714fd60a96deefdcc40e9ed36b3903b30d569fabd04040e9af0810",
-        "size_bytes": 38987
-      },
-      {
-        "name": "fast_boundary.py",
-        "sha256": "004eb456270a289559b8a915f6fb7d861bfd6086d3585273b2d61780b86aad9b",
-        "size_bytes": 54416
-      },
-      {
-        "name": "fast_gray.py",
-        "sha256": "3baae466f229b00734f225506b6ea000c0b37b3736643ee94c6a5f70eb0b7f40",
-        "size_bytes": 51644
-      },
-      {
-        "name": "fast_path.py",
-        "sha256": "5706c3310218ef2b3e25a14bcc95b87dfab16894920e05720d31f393224e975e",
-        "size_bytes": 43868
-      },
-      {
-        "name": "fast_ring_slope.py",
-        "sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-        "size_bytes": 75024
-      },
-      {
-        "name": "fast_single_edge.py",
-        "sha256": "acf45003eb91843e4fcc4c1eea42754de1bd5f716855441753f191313deab991",
-        "size_bytes": 88076
-      },
-      {
-        "name": "fast_topology.py",
-        "sha256": "c2a9ac9639501fae10c4e70cb09e84212537bdee662c9e114ba313bca3dbf446",
-        "size_bytes": 48452
-      },
-      {
-        "name": "grayscale_adapter.py",
-        "sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-        "size_bytes": 7784
-      },
-      {
-        "name": "line_detector.py",
-        "sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "size_bytes": 11979
-      },
-      {
-        "name": "main.py",
-        "sha256": "7c170901c88e935868d73b7ed7df7dc301d962721d22687e444c5c3f7d7b87eb",
-        "size_bytes": 250484
-      },
-      {
-        "name": "reverse_control.py",
-        "sha256": "da4563f755af4a94ffb3f5aae7361562de6d8734367a71f714a3da8748f49b14",
-        "size_bytes": 7657
-      },
-      {
-        "name": "road_detector.py",
-        "sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-        "size_bytes": 26649
-      },
-      {
-        "name": "source_selector.py",
-        "sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-        "size_bytes": 8802
-      },
-      {
-        "name": "surface_detector.py",
-        "sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-        "size_bytes": 42699
-      },
-      {
-        "name": "thresholding.py",
-        "sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-        "size_bytes": 12363
-      },
-      {
-        "name": "vision_protocol.py",
-        "sha256": "023ef569ad86d68aaa4bbf2d487b51241aca62e5b2dab7538e8674b4a2b33142",
-        "size_bytes": 5172
-      }
-    ],
-    "legacy_inactive_host_test_module": "fast_ring_slope.py",
-    "legacy_inactive_host_test_module_sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-    "snapshot_verified_before_promotion": true,
-    "snapshot_preserved_privately": true
-  },
-  "local_promotion": {
-    "status": "completed",
-    "target_directory": "openmv/",
-    "runtime_modules_copied": 1,
-    "runtime_modules_are_manifest_allowlist": true,
-    "fast_ring_slope.py": "retained unchanged for legacy host-test imports; excluded from active runtime manifest and upload set",
-    "github_published": false,
-    "prepromotion_snapshot_preserved_privately": true,
-    "algorithm_build_id_unchanged": "OPENMV_ACKERMANN320_COORDINATED_20261022",
-    "config_profile_selector_unchanged": "coordinated",
-    "control_profile_unchanged": "coordinated",
-    "main_sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-    "production_camera_upload_performed": false,
-    "runtime_module_allowlist_count": 19
-  },
-  "current_h743_core_note": "Parent-reported read-only full-image comparison matched the running H743 to deliverables/H743_Ackermann60_20261022/C_Coordinated/CarTest.elf (SHA-256 6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70). This OpenMV promotion did not rebuild, flash, or reset the H743.",
-  "repository_host_suite": {
-    "command": "python -B -m unittest discover -s openmv/tests -p 'test_*.py' -v",
-    "tests_run": 251,
-    "passed": 248,
-    "skipped": 3,
-    "failed": 0,
-    "exit_code": 0,
-    "scope": "Host Python regression suite; no hardware action. Includes 9 FIFO wrapper tests."
-  },
-  "static_validation_evidence_document": {
-    "path": "docs/OpenMV-USB60-Static-Validation-20261024.md",
-    "size_bytes": 2554,
-    "sha256": "6d046c8d3b401eabbe39e5603c1de57527a717ba4f36d4cec5171613652dff53",
-    "included_in_runtime_upload": false
-  },
-  "host_preview_tool_tests": {
-    "suite": "OpenMV USB preview host tool tests",
-    "tests_reported_passed": 44,
-    "status": "PASS"
-  },
-  "fifo_pre_promotion_backup": {
-    "all_declared_elf_count": 14,
-    "cmake_build_preset_elf_count": 12,
-    "complete_archive_verified": true,
-    "file_count": 371,
-    "frozen_h743_elf_count": 2,
-    "path": "logs/usb-preview-20261024/production-fifo-promotion-20261025/prepromotion-rollback-v2.zip",
-    "sha256": "a7fc4b58a1fecd23d307fcba61bb3c5df7f7c2933878e7cb632b5411e29df15f"
-  },
-  "fifo_wrapper_promotion": {
-    "candidate_path": "logs/usb-preview-20261024/uart-fifo-main-candidate/main.py",
-    "candidate_sha256": "044416e9161ba824bc9037ed7f40260003bfe942905d02106721a41b6cc26b06",
-    "fifo_acceptance_is_not_wire_completion": true,
-    "fifo_failure_retries_or_falls_back": false,
-    "old_firmware_synchronous_write_fallback": true,
-    "post_promotion_ide_test": "measured_static_complete_payload_reads_only",
-    "prepromotion_main_sha256": "9fc925898d15231fd0176443a955d4ade4dbe55c50e14887ac8d4c57c265f972",
-    "scope": "Single-call UART write_fifo adapter and transport status labels only; no route/control/configuration change.",
-    "send_end_and_capture_to_send_measure_api_return": true,
-    "ide_measurement_evidence": "logs/usb-preview-20261024/resume-20261025-ide-fifo65-measurement-v6",
-    "closed_cdc_fifo_headless_test": "complete; separate static V2-invalid-frame headless result and reverse synthetic input distinction recorded under hardware_validation.closed_cdc_fifo_headless_test"
-  }
+  "mpy_output_policy": "validation_only_upload_python_sources"
 }

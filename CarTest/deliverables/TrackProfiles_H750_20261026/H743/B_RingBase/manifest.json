@@ -1,0 +1,14 @@
+{
+  "label": "B_RingBase",
+  "preset": "DebugRingBase",
+  "profile_id": 2,
+  "straight_target_millirps": 4800,
+  "curve_outer_target_millirps": 4000,
+  "ring_enabled": true,
+  "ring_outer_target_millirps": 4000,
+  "build_id": "471408fd26f7e1a6afa12ed5f5ed0fa2",
+  "elf_sha256": "a0b081432360fec2970a2691a2029e20a914c55e6782487cd04366e800459026",
+  "runtime_log_record_size": 64,
+  "runtime_log_header_size": 64,
+  "vehicle_acceptance": "pending_manual_road_tests"
+}

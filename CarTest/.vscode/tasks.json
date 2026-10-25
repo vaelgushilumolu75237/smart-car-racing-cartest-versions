@@ -11,6 +11,30 @@
       "group": { "kind": "build", "isDefault": true }
     },
     {
+      "label": "CarTest: Build 新A 提速无环岛 5.6/4.4",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFastNoRing"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "CarTest: Build 新B 原速环岛 4.8/4.0",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugRingBase"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "CarTest: Build 新C 提速环岛 5.6/4.4",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugRingFast"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
       "label": "CarTest: Build DebugSteering (motors locked; vision steering diagnostic)",
       "type": "process",
       "command": "powershell.exe",

@@ -2,6 +2,7 @@
 #define CARTEST_ACKERMANN_CONTROL_H
 
 #include <stdint.h>
+#include "car_track_profile.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,8 +17,10 @@ enum {
     CAR_ACKERMANN_WHEELBASE_TENTH_MM = 1435u,
     CAR_ACKERMANN_TRACK_TENTH_MM = 1670u,
     CAR_ACKERMANN_MAX_STEER_CDEG = 2000u,
-    CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS = 4800u,
-    CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS = 4000u,
+    CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS =
+        CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+    CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS =
+        CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS,
     CAR_ACKERMANN_REQUEST_MAX_PERMILLE = 1000u,
     CAR_ACKERMANN_REQUEST_RAMP_DOWN_MS = 200u,
     CAR_ACKERMANN_REQUEST_RAMP_UP_MS = 800u,
@@ -58,8 +61,8 @@ uint8_t car_ackermann_model_geometry(uint16_t applied_pwm_us,
                                      int16_t *model_angle_cdeg,
                                      uint16_t *ratio_q15);
 
-/* Advance the 4800 <-> 4000 milli-RPS request ramp using wrap-safe elapsed
-   time. Repeated identical requests preserve the ramp start and progress. */
+/* Advance the profile-selected fastest/slowest request ramp using wrap-safe
+   elapsed time. Repeated identical requests preserve ramp start and progress. */
 uint8_t car_ackermann_control_update(
     car_ackermann_control_state_t *state,
     uint32_t now_ms,

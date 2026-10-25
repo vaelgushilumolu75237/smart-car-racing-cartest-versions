@@ -1,0 +1,559 @@
+"""Host tests for bounded ring and symmetric-cross observations."""
+
+from array import array
+from pathlib import Path
+import sys
+import unittest
+
+
+OPENMV_DIR = Path(__file__).resolve().parents[1]
+if str(OPENMV_DIR) not in sys.path:
+    sys.path.insert(0, str(OPENMV_DIR))
+
+import track_elements as te
+
+
+class TrackElementsHarness:
+    FLOOR = 8
+    HEIGHT = 60
+    WIDTH = 80
+    BASE_LEFT = 25
+    BASE_RIGHT = 55
+
+    def __init__(self, settings=None, start_ms=0):
+        base = {
+            "SURFACE_GRID_WIDTH": 80,
+            "SURFACE_GRID_HEIGHT": 60,
+            "SURFACE_ROI_FLOOR_Y": 8,
+            "ROAD_REFERENCE_Y": 40,
+            "TRACK_ELEMENTS_MIN_STABLE_FRAMES": 3,
+            "TRACK_ELEMENTS_MIN_DROP_FRAMES": 2,
+            "TRACK_ELEMENTS_EXIT_DROP_FRAMES": 2,
+            "TRACK_ELEMENTS_EXIT_CONFIRM_FRAMES": 2,
+            "TRACK_ELEMENTS_EXIT_REPAIR_FRAMES": 2,
+            "TRACK_ELEMENTS_REACQUIRE_FRAMES": 2,
+            "TRACK_ELEMENTS_MIN_SIDE_SUPPORT": 5,
+            "TRACK_ELEMENTS_MIN_SIDE_CONTIGUOUS": 4,
+            "TRACK_ELEMENTS_MAX_ACTIVE_FRAMES": 40,
+            "TRACK_ELEMENTS_MAX_ENTRY_FRAMES": 12,
+            "TRACK_ELEMENTS_CROSS_CONFIRM_FRAMES": 2,
+        }
+        if settings:
+            base.update(settings)
+        self.tracker = te.TrackElementsTracker(base)
+        self.cache_valid = bytearray(60)
+        self.cache_width = array("i", [0] * 60)
+        self.cache_left2 = array("i", [0] * 60)
+        self.cache_right2 = array("i", [0] * 60)
+        self.profile_seq = 0
+        self.odom = 100
+        self.now = int(start_ms) & (te._TICKS_PERIOD - 1)
+        for y in range(8, 60):
+            self.cache_valid[y] = 1
+            self.cache_width[y] = self.BASE_RIGHT - self.BASE_LEFT + 1
+            self.cache_left2[y] = self.BASE_LEFT * 2 - 1
+            self.cache_right2[y] = self.BASE_RIGHT * 2 + 1
+
+    def mask(self, left_by_y=None, right_by_y=None, open_band=None,
+             one_sided_open=False, extra_run=False, dark_hole=None):
+        road = bytearray(80 * 60)
+        edge = bytearray(80 * 60)
+        known = bytearray([1] * (80 * 60))
+        luma = bytearray([100] * (80 * 60))
+        for y in range(8, 60):
+            left = self.BASE_LEFT if left_by_y is None else left_by_y(y)
+            right = self.BASE_RIGHT if right_by_y is None else right_by_y(y)
+            if open_band is not None and open_band[0] <= y <= open_band[1]:
+                left = open_band[2]
+                right = (self.BASE_RIGHT if one_sided_open else open_band[3])
+            row = y * 80
+            for x in range(left, right + 1):
+                road[row + x] = 1
+            if left > 0:
+                edge[row + left - 1] = 1
+            if right < 79:
+                edge[row + right + 1] = 1
+            if extra_run and open_band is not None and open_band[0] <= y <= open_band[1]:
+                for x in range(65, 72):
+                    road[row + x] = 1
+                edge[row + 64] = 1
+                edge[row + 72] = 1
+            if dark_hole is not None:
+                hole_y, hole_left, hole_right = dark_hole
+                if y == hole_y:
+                    for x in range(hole_left, hole_right + 1):
+                        road[row + x] = 0
+        return {
+            "valid": True,
+            "width": 80,
+            "height": 60,
+            "floor": 8,
+            "luma": luma,
+            "road_mask": road,
+            "edge_mask": edge,
+            "known_region": known,
+        }
+
+    def frame(self, left=25, right=55, *, road_accepted=True,
+              raw_side=None, topology=None, mask_info=None,
+              left_by_y=None, right_by_y=None, open_band=None,
+              one_sided_open=False, extra_run=False, dark_hole=None,
+              profile_id=2, active=True, token="session-1", profile_seq=None,
+              odom=None, single_fresh=None, tracks=2, advance_ms=30,
+              now_ms=None):
+        if now_ms is None:
+            self.now = (self.now + advance_ms) & (te._TICKS_PERIOD - 1)
+        else:
+            self.now = int(now_ms) & (te._TICKS_PERIOD - 1)
+        self.profile_seq += 1
+        if profile_seq is None:
+            profile_seq = self.profile_seq & 0xffff
+        if odom is None:
+            self.odom += 10
+            odom = self.odom
+        rows = array("i")
+        status = bytearray(120)
+        edge2 = array("i", [0] * 120)
+        contrast = array("i", [0] * 120)
+        if road_accepted:
+            for y in range(8, 60):
+                row_left = left if left_by_y is None else left_by_y(y)
+                row_right = right if right_by_y is None else right_by_y(y)
+                rows.extend((y, row_left, row_right, 7))
+        elif raw_side in (te.SIDE_LEFT, te.SIDE_RIGHT):
+            visible = left if raw_side == te.SIDE_LEFT else right
+            for y in list(range(36, 45)) + list(range(48, 60)):
+                index = raw_side * 60 + y
+                status[index] = 1
+                edge2[index] = (visible * 2 - 1 if raw_side == te.SIDE_LEFT
+                                else visible * 2 + 1)
+        if single_fresh is None:
+            single_fresh = raw_side is not None
+        if topology is None:
+            topology = {"reason": "OK", "complete": True}
+        if mask_info is None:
+            mask_info = self.mask(
+                left_by_y, right_by_y, open_band, one_sided_open,
+                extra_run, dark_hole)
+        return self.tracker.update(
+            self.now, profile_id, active, token, True, road_accepted,
+            rows, len(rows) // 4, 4, tracks if road_accepted else 0,
+            topology, single_fresh, status, edge2, contrast,
+            self.cache_valid, self.cache_width, self.cache_left2,
+            self.cache_right2, mask_info, profile_seq, odom)
+
+    def prime(self):
+        for _ in range(3):
+            result = self.frame()
+        assert self.tracker._baseline_ready
+        return result
+
+    def lose(self, side, count=2, left=25, right=55):
+        missing = te.SIDE_RIGHT if side == te.SIDE_LEFT else te.SIDE_LEFT
+        result = None
+        for _ in range(count):
+            result = self.frame(left, right, road_accepted=False,
+                                raw_side=missing)
+        return result
+
+    def complete_left_ring(self, right_visible=55):
+        self.prime()
+        self.lose(te.SIDE_LEFT)
+        self.frame(left=30, right=right_visible)
+        self.frame(left=33, right=right_visible)
+        self.frame(left=30, right=right_visible)
+        return self.frame(left=27, right=right_visible)
+
+    def complete_right_ring(self, left_visible=25):
+        self.prime()
+        self.lose(te.SIDE_RIGHT)
+        self.frame(left=left_visible, right=50)
+        self.frame(left=left_visible, right=47)
+        self.frame(left=left_visible, right=50)
+        return self.frame(left=left_visible, right=53)
+
+
+class TrackElementsTests(unittest.TestCase):
+    def test_left_and_right_ring_sequences_are_mirrored(self):
+        left = TrackElementsHarness()
+        left_result = left.complete_left_ring()
+        self.assertEqual(left_result["state"], "INSIDE")
+        self.assertTrue(left_result["ring_confirmed"])
+        self.assertTrue(left_result["control_eligible"])
+        self.assertEqual(left_result["side"], te.SIDE_LEFT)
+
+        right = TrackElementsHarness()
+        right_result = right.complete_right_ring()
+        self.assertEqual(right_result["state"], "INSIDE")
+        self.assertTrue(right_result["ring_confirmed"])
+        self.assertTrue(right_result["control_eligible"])
+        self.assertEqual(right_result["side"], te.SIDE_RIGHT)
+
+    def test_locked_ring_side_uses_frozen_width_even_when_both_edges_show(self):
+        h = TrackElementsHarness()
+        result = h.complete_left_ring()
+        self.assertEqual(result["state"], "INSIDE")
+        frozen = list(h.tracker._ring_width)
+        self.assertTrue(h.tracker._ring_cache_frozen)
+        for y in range(8, 60):
+            h.cache_width[y] = 35
+            h.cache_left2[y] = 27 * 2 - 1
+            h.cache_right2[y] = 59 * 2 + 1
+        cache_snapshot = (list(h.cache_valid), list(h.cache_width),
+                          list(h.cache_left2), list(h.cache_right2))
+        result = h.frame(left=27, right=59)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(list(h.tracker._ring_width), frozen)
+        self.assertTrue(result["target_valid"])
+        self.assertGreater(result["target_count"], 0)
+        route = result["target_rows"]
+        self.assertEqual(route[1], 27)
+        self.assertEqual(route[2], 57)  # 31-cell frozen width; live edge is 59.
+        self.assertEqual(route[3], (te.TARGET_OBSERVED_LEFT |
+                                    te.TARGET_INFERRED_RIGHT |
+                                    te.TARGET_WIDTH_FROM_CACHE))
+        self.assertEqual(list(h.cache_valid), cache_snapshot[0])
+        self.assertEqual(list(h.cache_width), cache_snapshot[1])
+        self.assertEqual(list(h.cache_left2), cache_snapshot[2])
+        self.assertEqual(list(h.cache_right2), cache_snapshot[3])
+
+    def test_opposite_edge_motion_blocks_curve_false_positive(self):
+        h = TrackElementsHarness()
+        h.prime()
+        result = h.frame(left=25, right=60, road_accepted=False,
+                         raw_side=te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertFalse(result["candidate"])
+        self.assertEqual(result["side"], te.SIDE_NONE)
+
+        mirror = TrackElementsHarness()
+        mirror.prime()
+        result = mirror.frame(left=20, right=55, road_accepted=False,
+                              raw_side=te.SIDE_LEFT)
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertFalse(result["candidate"])
+
+    def test_one_frame_dropout_recovery_never_confirms_ring(self):
+        h = TrackElementsHarness()
+        h.prime()
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "ENTRY_CONFIRM")
+        self.assertFalse(result["control_eligible"])
+        self.assertFalse(result["target_valid"])
+        result = h.frame(left=25, right=55)
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertFalse(result["ring_confirmed"])
+
+    def test_single_edge_loss_without_arc_times_out_to_reacquire(self):
+        h = TrackElementsHarness({"TRACK_ELEMENTS_MAX_ENTRY_MS": 120})
+        h.prime()
+        h.lose(te.SIDE_LEFT)
+        for _ in range(5):
+            result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertFalse(result["ring_confirmed"])
+        self.assertFalse(result["control_eligible"])
+
+    def test_odom_alone_does_not_advance_and_limit_only_aborts(self):
+        h = TrackElementsHarness()
+        self.assertEqual(h.tracker.max_active_millirev, 60000)
+        result = h.frame(road_accepted=False, odom=50000, single_fresh=False)
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertFalse(result["candidate"])
+
+        h = TrackElementsHarness()
+        h.prime()
+        entry_odom = h.odom + 10
+        h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                odom=entry_odom)
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         odom=entry_odom + 60001)
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertFalse(result["ring_confirmed"])
+        self.assertEqual(result["reason"], "ODOM_PROGRESS_LIMIT")
+        self.assertTrue(result["millirev_guard_enabled"])
+
+    def test_wrap_safe_entry_and_active_time_limits(self):
+        period = te._TICKS_PERIOD
+        self.assertEqual(te._ticks_diff(25, period - 25), 50)
+        self.assertEqual(te._ticks_diff(period - 25, 25), -50)
+
+        h = TrackElementsHarness(
+            {"TRACK_ELEMENTS_MAX_ENTRY_FRAMES": 2},
+            start_ms=period - 100)
+        h.prime()
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "ENTRY_CONFIRM")
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         advance_ms=2000)
+        self.assertEqual(result["state"], "ENTER")
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         advance_ms=2000)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["state_elapsed_ms"], 2000)
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         advance_ms=1)
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertEqual(result["reason"], "STATE_TIMEOUT")
+
+        inside = TrackElementsHarness(
+            {"TRACK_ELEMENTS_MAX_ACTIVE_FRAMES": 2},
+            start_ms=period - 100)
+        result = inside.complete_left_ring()
+        self.assertEqual(result["state"], "INSIDE")
+        for _ in range(75):
+            result = inside.frame(left=27, right=55, advance_ms=30)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["state_elapsed_ms"], 2250)
+        self.assertEqual(result["state_frames"], 75)
+
+        result = inside.frame(left=27, right=55, advance_ms=13750)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["state_elapsed_ms"], 16000)
+        result = inside.frame(left=27, right=55, advance_ms=1)
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertEqual(result["reason"], "STATE_TIMEOUT")
+
+    def test_profile_a_keeps_ring_off_and_does_not_block_cross(self):
+        h = TrackElementsHarness()
+        for _ in range(3):
+            h.frame(profile_id=1)
+        for _ in range(2):
+            result = h.frame(profile_id=1, road_accepted=False,
+                             raw_side=te.SIDE_RIGHT)
+            self.assertEqual(result["state"], "OBSERVE")
+            self.assertFalse(result["candidate"])
+            self.assertFalse(result["ring_confirmed"])
+            self.assertFalse(result["control_eligible"])
+        for left in (30, 33, 30, 27):
+            result = h.frame(profile_id=1, left=left, right=55)
+            self.assertEqual(result["state"], "OBSERVE")
+            self.assertFalse(result["ring_confirmed"])
+        ring_events = [h.tracker._events[i + 1]
+                       for i in range(0, len(h.tracker._events),
+                                      te.EVENT_STRIDE)]
+        self.assertNotIn(te.EVENT_ENTRY_CANDIDATE, ring_events)
+        self.assertNotIn(te.EVENT_RING_CONFIRMED, ring_events)
+
+        topology = {"reason": "OPEN_BAND", "complete": True,
+                    "branch_evidence": True}
+        common = dict(profile_id=1, road_accepted=False, single_fresh=False,
+                      topology=topology, open_band=(24, 34, 20, 60))
+        h.frame(**common)
+        result = h.frame(**common)
+        self.assertTrue(result["cross_route_usable"])
+        self.assertTrue(result["cross_suppress_slowdown"])
+        self.assertEqual(result["state"], "OBSERVE")
+
+    def test_bilateral_visibility_inside_ring_does_not_infer_exit(self):
+        h = TrackElementsHarness()
+        h.complete_left_ring()
+        for _ in range(8):
+            result = h.frame(left=27, right=57)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertFalse(result["exit_reobserved"])
+        self.assertFalse(result["exit_experimental"])
+
+    def test_exit_requires_side_dropout_then_baseline_reappearance(self):
+        h = TrackElementsHarness()
+        h.complete_left_ring()
+        for y in range(8, 60):
+            h.cache_width[y] = 35
+        live_width_before_exit = list(h.cache_width)
+        result = h.lose(te.SIDE_LEFT)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertTrue(result["exit_experimental"])
+        self.assertEqual(result["side"], te.SIDE_LEFT)
+        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+        self.assertEqual(result["target_rows"][3], (
+            te.TARGET_OBSERVED_RIGHT | te.TARGET_INFERRED_LEFT |
+            te.TARGET_WIDTH_FROM_CACHE))
+        self.assertEqual(result["target_rows"][1:3], array("i", [25, 55]))
+        self.assertEqual(list(h.cache_width), live_width_before_exit)
+        for _ in range(2):
+            result = h.frame(left=25, right=55)
+        self.assertEqual(result["state"], "EXIT_REPAIR")
+        self.assertTrue(result["exit_experimental"])
+        self.assertEqual(result["side"], te.SIDE_LEFT)
+        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+        for _ in range(2):
+            result = h.frame(left=25, right=55)
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertTrue(result["exit_reobserved"])
+        self.assertFalse(h.tracker._ring_cache_frozen)
+
+        mirror = TrackElementsHarness()
+        mirror.complete_right_ring()
+        result = mirror.lose(te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertEqual(result["side"], te.SIDE_RIGHT)
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
+        self.assertTrue(result["target_valid"])
+        self.assertEqual(result["target_rows"][3], (
+            te.TARGET_OBSERVED_LEFT | te.TARGET_INFERRED_RIGHT |
+            te.TARGET_WIDTH_FROM_CACHE))
+        self.assertEqual(result["target_rows"][1:3], array("i", [25, 55]))
+
+    def test_exit_route_fails_closed_without_opposite_support_or_corridor(self):
+        h = TrackElementsHarness()
+        h.complete_left_ring()
+        result = h.lose(te.SIDE_LEFT)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertTrue(result["target_valid"])
+
+        # Only the locked ring side is visible now; exit guidance needs the
+        # opposite real edge, so no target may be published.
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_LEFT)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertEqual(result["side"], te.SIDE_LEFT)
+        self.assertEqual(result["target_side"], te.SIDE_NONE)
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
+        # Restore the opposite edge, but break its centerline corridor.
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         topology={"reason": "ISLAND", "complete": True,
+                                   "island_evidence": True},
+                         dark_hole=(40, 45, 47))
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertEqual(result["target_side"], te.SIDE_NONE)
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
+    def test_confirmed_ring_allows_island_only_with_clear_inner_corridor(self):
+        h = TrackElementsHarness()
+        h.complete_left_ring()
+        ambiguous = {"reason": "OK", "complete": True,
+                     "branch_evidence": True}
+        result = h.frame(left=27, right=57, topology=ambiguous)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
+        topology = {"reason": "ISLAND", "complete": True,
+                    "island_evidence": True}
+        result = h.frame(left=27, right=57, topology=topology)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+
+        result = h.frame(left=27, right=57, topology=topology,
+                         dark_hole=(40, 35, 37))
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
+    def test_profile_token_reset_clears_state_but_seq_is_diagnostic_only(self):
+        h = TrackElementsHarness()
+        h.prime()
+        for seq in (40, 41, 42):
+            result = h.frame(profile_seq=seq)
+            self.assertEqual(result["state"], "OBSERVE")
+        h.lose(te.SIDE_LEFT)
+        self.assertTrue(h.tracker._ring_cache_frozen)
+        result = h.frame(token="session-2")
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertEqual(result["reason"], "OBSERVING")
+        self.assertFalse(h.tracker._ring_cache_frozen)
+
+    def test_explicit_reset_clears_published_route_and_event_state(self):
+        h = TrackElementsHarness()
+        result = h.complete_left_ring()
+        self.assertTrue(result["control_eligible"])
+        self.assertGreater(result["target_count"], 0)
+        self.assertGreater(result["event_count"], 0)
+        h.tracker.reset()
+        result = h.tracker.result
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertFalse(result["candidate"])
+        self.assertFalse(result["ring_confirmed"])
+        self.assertFalse(result["control_eligible"])
+        self.assertFalse(result["target_valid"])
+        self.assertEqual(result["target_count"], 0)
+        self.assertEqual(result["event_count"], 0)
+        self.assertFalse(h.tracker._ring_cache_frozen)
+
+    def test_symmetric_open_band_cross_uses_measured_and_interpolated_rows(self):
+        h = TrackElementsHarness()
+        h.prime()
+        topology = {"reason": "OPEN_BAND", "complete": True,
+                    "branch_evidence": True}
+        common = dict(
+            road_accepted=False, single_fresh=False, topology=topology,
+            open_band=(24, 34, 20, 60), tracks=3)
+        first = h.frame(**common)
+        self.assertTrue(first["cross_candidate"])
+        self.assertFalse(first["cross_route_usable"])
+        result = h.frame(**common)
+        self.assertEqual(result["cross_reason"], "CROSS_STRAIGHT_CONFIRMED")
+        self.assertTrue(result["cross_route_usable"])
+        self.assertTrue(result["cross_suppress_slowdown"])
+        self.assertGreaterEqual(result["cross_near_rows"], 5)
+        self.assertGreaterEqual(result["cross_far_rows"], 5)
+        self.assertGreaterEqual(result["cross_span"], 6)
+        self.assertEqual(result["cross_reference_y"], result["cross_near_y"])
+        self.assertEqual(result["cross_lateral_error"], 13)
+        records = result["cross_route_rows"]
+        flags_by_y = {records[i]: records[i + 3]
+                      for i in range(0, result["cross_route_count"] * 4, 4)}
+        self.assertEqual(flags_by_y[result["cross_near_y"]],
+                         te.CROSS_ROUTE_MEASURED)
+        opening_y = 29
+        self.assertEqual(flags_by_y[opening_y], te.CROSS_ROUTE_INTERPOLATED)
+
+    def test_curve_asymmetric_neighbor_and_ambiguous_cross_are_rejected(self):
+        h = TrackElementsHarness()
+        h.prime()
+        curve = lambda y: 24 + (y // 20)
+        right_curve = lambda y: curve(y) + 30
+        result = h.frame(left_by_y=curve, right_by_y=right_curve)
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+        topology = {"reason": "OPEN_BAND", "complete": True,
+                    "branch_evidence": True}
+        result = h.frame(road_accepted=False, single_fresh=False,
+                         topology=topology, open_band=(24, 34, 20, 52),
+                         one_sided_open=True)
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+        result = h.frame(road_accepted=False, single_fresh=False,
+                         topology=topology, open_band=(24, 34, 20, 60),
+                         extra_run=True)
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+        dark_island_mask = h.mask(open_band=(24, 34, 20, 60),
+                                  dark_hole=(29, 40, 42))
+        result = h.frame(road_accepted=False, single_fresh=False,
+                         topology=topology, mask_info=dark_island_mask)
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+        missing_far_mask = h.mask(open_band=(24, 34, 20, 60))
+        for y in range(8, 20):
+            start = y * 80
+            for x in range(80):
+                missing_far_mask["road_mask"][start + x] = 0
+                missing_far_mask["edge_mask"][start + x] = 0
+        result = h.frame(road_accepted=False, single_fresh=False,
+                         topology=topology, mask_info=missing_far_mask)
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+        ambiguous = {"reason": "OPEN_BAND", "complete": True,
+                     "branch_evidence": True,
+                     "independent_branch_ambiguous": True}
+        result = h.frame(road_accepted=False, single_fresh=False,
+                         topology=ambiguous, open_band=(24, 34, 20, 60))
+        self.assertFalse(result["cross_candidate"])
+        self.assertFalse(result["cross_route_usable"])
+
+
+if __name__ == "__main__":
+    unittest.main()

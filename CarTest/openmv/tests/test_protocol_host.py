@@ -1,4 +1,4 @@
-"""Host-only checks for the CarTest OpenMV UART V2 transmitter."""
+"""Host-only checks for the CarTest OpenMV UART V2/V3 transmitter."""
 
 import csv
 import re
@@ -9,6 +9,11 @@ from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 VECTOR_FILE = Path(__file__).with_name("vision-protocol-v2.csv")
+V3_VECTOR_FILE = (
+    PACKAGE_DIR.parent / "tests" / "data" / "vision-protocol-v3.csv")
+V3_INVALID_ACK_VECTOR_FILE = (
+    PACKAGE_DIR.parent / "tests" / "data" /
+    "vision-protocol-v3-invalid-ack.csv")
 sys.path.insert(0, str(PACKAGE_DIR))
 
 import vision_protocol  # noqa: E402
@@ -113,6 +118,86 @@ class VisionProtocolTests(unittest.TestCase):
             vision_protocol.pack_into(bytearray(15), 1, 1, 1, 0)
         with self.assertRaises(TypeError):
             vision_protocol.pack_into(bytes(16), 1, 1, 1, 0)
+
+    def test_v3_profile_ack_uses_reserved_byte_and_preserves_v2_packer(self):
+        legacy = vision_protocol.pack_frame(7, 1, 91, -333, 1, 2, 1000)
+        self.assertEqual(legacy[2], 2)
+        self.assertEqual(legacy[11], 0)
+
+        for profile_ack in range(4):
+            with self.subTest(profile_ack=profile_ack):
+                frame = vision_protocol.pack_frame_v3(
+                    7, 1, 91, -333, 1, 2, 1000, profile_ack)
+                self.assertEqual(len(frame), 16)
+                self.assertEqual(frame[2], vision_protocol.VERSION_V3)
+                self.assertEqual(frame[:2], legacy[:2])
+                self.assertEqual(frame[3:11], legacy[3:11])
+                self.assertEqual(frame[11], profile_ack)
+                self.assertEqual(frame[12:14], legacy[12:14])
+                self.assertEqual(
+                    frame[14] | frame[15] << 8,
+                    vision_protocol.crc16_ccitt_false(frame[2:14]))
+
+        invalid = vision_protocol.pack_frame_v3(
+            8, 0, 0, 0, 0, 0, 0, 3)
+        self.assertEqual(invalid[6:11], bytearray(5))
+        self.assertEqual(invalid[11], 3)
+        self.assertEqual(
+            invalid[14] | invalid[15] << 8,
+            vision_protocol.crc16_ccitt_false(invalid[2:14]))
+
+        for profile_ack in (-1, 4, True, 1.0):
+            with self.subTest(profile_ack=profile_ack):
+                with self.assertRaises((TypeError, ValueError)):
+                    vision_protocol.pack_frame_v3(
+                        1, 1, 1, 0, profile_ack=profile_ack)
+
+    def test_shared_v3_vectors_match_exact_bytes(self):
+        with V3_VECTOR_FILE.open(
+                "r", newline="", encoding="ascii") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(
+            list(rows[0]), ["case", "sequence", "valid", "confidence",
+                            "error", "slope_hint", "curve_phase",
+                            "slowdown_request_permille", "profile_ack",
+                            "hex"])
+        for row in rows:
+            with self.subTest(case=row["case"]):
+                frame = vision_protocol.pack_frame_v3(
+                    int(row["sequence"]), int(row["valid"]),
+                    int(row["confidence"]), int(row["error"]),
+                    int(row["slope_hint"]), int(row["curve_phase"]),
+                    int(row["slowdown_request_permille"]),
+                    int(row["profile_ack"]))
+                self.assertEqual(bytes(frame).hex(), row["hex"].lower())
+
+    def test_shared_v3_invalid_ack_vectors_are_crc_valid_and_rejected(self):
+        with V3_INVALID_ACK_VECTOR_FILE.open(
+                "r", newline="", encoding="ascii") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertGreaterEqual(len(rows), 1)
+        self.assertEqual(list(rows[0]), ["case", "hex", "expected_status"])
+        for row in rows:
+            with self.subTest(case=row["case"]):
+                frame = bytes.fromhex(row["hex"])
+                self.assertEqual(len(frame), vision_protocol.FRAME_SIZE)
+                self.assertEqual(frame[2], vision_protocol.VERSION_V3)
+                self.assertEqual(frame[11], 4)
+                self.assertEqual(
+                    frame[14] | frame[15] << 8,
+                    vision_protocol.crc16_ccitt_false(frame[2:14]))
+                self.assertEqual(row["expected_status"], "BAD_HEADER")
+                with self.assertRaises(ValueError):
+                    vision_protocol.pack_frame_v3(
+                        frame[4] | frame[5] << 8,
+                        1 if frame[6] & vision_protocol.FLAG_VALID else 0,
+                        frame[7],
+                        ((frame[8] | frame[9] << 8) - 0x10000
+                         if frame[9] & 0x80 else
+                         frame[8] | frame[9] << 8),
+                        1 if frame[6] & vision_protocol.FLAG_SLOPE_HINT else 0,
+                        frame[10], frame[12] | frame[13] << 8, frame[11])
 
     def test_curve_phase_and_slowdown_bounds_and_invalid_payload_zero(self):
         for phase in (-1, 4, 255):

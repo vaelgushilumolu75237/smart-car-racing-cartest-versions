@@ -1,4 +1,4 @@
-"""V7 fast grayscale detector and UART V2 publisher."""
+"""V7 fast grayscale detector and UART V3 publisher."""
 
 import pyb
 import sensor
@@ -644,6 +644,7 @@ fast_topology = None
 fast_boundary = None
 fast_single_edge = None
 reverse_control = None
+track_elements = None
 contour_route = None
 contour_trace = None
 
@@ -675,8 +676,9 @@ V6_RUNTIME_API_VERSION = 6
 V7_RUNTIME_API_VERSION = 7
 V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
-REVERSE_CONTROL_RUNTIME_API_VERSION = 1
+REVERSE_CONTROL_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
+TRACK_ELEMENTS_RUNTIME_API_VERSION = 1
 CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS = tuple(
     config.STEERING_CONTROL_PROFILE_BUILD_IDS)
 CACHED_WIDTH_BUILD_ID = dict(
@@ -684,22 +686,6 @@ CACHED_WIDTH_BUILD_ID = dict(
         "pd", "BOTTOM80_POSPD_20261020")
 CLIPPED_MIDPOINT_BUILD_ID = "CLIPPED_MIDPOINT_RING_20261014"
 SLOPE_CLASSIFIER_RUNTIME_ENABLED = False
-_RING_CANDIDATE_REMOVED = {
-    "reason": "INDEPENDENT_RING_ROUTE_REMOVED",
-    "rejection_reason": "INDEPENDENT_RING_ROUTE_REMOVED",
-    "fit_mode": "REMOVED", "outer_fit_rows": 0,
-    "outer_fit_residual_max": None, "inner_fit_residual_max": None,
-    "inner_outer_residual_correlation": None,
-    "residual_difference_max": None, "width_range": None,
-    "path_row_count": 0, "path_y_span": 0,
-    "port_x": None, "port_y": None,
-    "near_seed_x": None, "near_seed_y": None,
-}
-_RING_INFO_REMOVED = {
-    "state": "REMOVED", "reason": "INDEPENDENT_RING_ROUTE_REMOVED",
-    "pending_count": 0, "route_authorized": False,
-    "current_geometry_ok": False,
-}
 SINGLEEDGE_ROUTE_BUILD_IDS = (
     tuple(("cached_width", build_id)
           for _profile, build_id in
@@ -1352,6 +1338,10 @@ def _steering_diag_source_code(source):
         return 2
     if source == "single_right":
         return 3
+    if source == "ring_left":
+        return 4
+    if source == "ring_right":
+        return 5
     return 0
 
 
@@ -1505,6 +1495,26 @@ def _load_singleedge_runtime():
     return _SINGLEEDGE_RUNTIME_MODULES
 
 
+def _load_track_elements_runtime():
+    """Load the bounded element observer used by the V7 camera loop."""
+    global track_elements
+    try:
+        if track_elements is None:
+            track_elements = __import__("track_elements")
+    except ImportError as exc:
+        raise ImportError(
+            "V7 element bundle mismatch: track_elements.py is missing or "
+            "cannot be imported (%s)" % exc)
+    if getattr(track_elements, "RUNTIME_API_VERSION", None) != \
+            TRACK_ELEMENTS_RUNTIME_API_VERSION:
+        raise RuntimeError(
+            "V7 element bundle mismatch: track_elements.py API is %s, "
+            "expected %d" % (
+                getattr(track_elements, "RUNTIME_API_VERSION", None),
+                TRACK_ELEMENTS_RUNTIME_API_VERSION))
+    return track_elements
+
+
 class _FreshObservationFilter:
     """Small V7-only equivalent of the legacy fresh-frame EMA filter."""
 
@@ -1556,6 +1566,9 @@ _CONTROL_RESET_CODES = {
     "UART_ERROR": 9,
     "CONTROL_TIMEOUT": 10,
     "DISABLED": 11,
+    "PROFILE_SWITCH": 12,
+    "SESSION_CHANGE": 13,
+    "PROFILE_TIMEOUT": 14,
 }
 
 
@@ -2446,7 +2459,8 @@ class _FastRowWeightWorkspace:
             support = result.get("boundary_support_rows") if result else None
             support_count = result.get("boundary_support_count", -1) \
                 if result else -1
-        elif source in ("single_left", "single_right"):
+        elif source in ("single_left", "single_right",
+                        "ring_left", "ring_right"):
             result = selection.get("result")
             stride = 5
             support = None
@@ -3184,6 +3198,7 @@ def _validate_v6_runtime_apis():
 
 def _validate_v7_runtime_apis():
     _load_fast_runtime()
+    _load_track_elements_runtime()
     for filename, module in _V7_RUNTIME_MODULES:
         version = getattr(module, "RUNTIME_API_VERSION", None)
         if version != V7_RUNTIME_API_VERSION:
@@ -3191,15 +3206,19 @@ def _validate_v7_runtime_apis():
                 "V7 bundle mismatch: %s API is %s, expected %d; install a "
                 "matching V7 bundle" % (
                     filename, version, V7_RUNTIME_API_VERSION))
-    if getattr(vision_protocol, "VERSION", None) != 2 or \
-            getattr(vision_protocol, "FRAME_SIZE", None) != 16:
-        raise RuntimeError("V7 requires the 16-byte UART V2 protocol")
+    if (getattr(vision_protocol, "VERSION", None) != 2 or
+            getattr(vision_protocol, "VERSION_V3", None) != 3 or
+            getattr(vision_protocol, "FRAME_SIZE", None) != 16):
+        raise RuntimeError("V7 requires the 16-byte UART V2/V3 protocol")
 
 
 def _validate_fast_config():
     _validate_v7_runtime_apis()
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
+    if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
+            "CARTEST_H750_TRACK_PROFILES_V1_20261025":
+        raise ValueError("V7 track package identity is missing or mismatched")
     control_profile = getattr(config, "STEERING_CONTROL_PROFILE", None)
     if control_profile not in (
             "no_pd", "pd", "pd_preview", "geometry_perf_only",
@@ -3232,6 +3251,14 @@ def _validate_fast_config():
                 "single-edge bundle mismatch: %s API is %s, expected %d; "
                 "install a matching bundle" % (
                     filename, version, expected_version))
+    if (getattr(config, "PROFILE_STATE_REVISION", None) !=
+            reverse_control.PROFILE_REVISION or
+            getattr(config, "PROFILE_STATE_TIMEOUT_MS", None) !=
+            reverse_control.PROFILE_TIMEOUT_MS or
+            getattr(config, "RING_ENABLED_PROFILE_IDS", None) !=
+            (reverse_control.PROFILE_B, reverse_control.PROFILE_C)):
+        raise RuntimeError(
+            "profile-state config/parser revision, timeout or ring IDs mismatch")
     configured_route = getattr(config, "SINGLE_EDGE_ROUTE_MODE", None)
     configured_build = getattr(config, "BUILD_ID", None)
     matched_build = False
@@ -3724,7 +3751,7 @@ def _selected_reference(selection):
         return {"x": float(target[0]), "y": float(target[1]),
                 "kind": "target"}
 
-    if source == "road":
+    if source in ("road", "ring_left", "ring_right"):
         comparison = selection.get("comparison") or {}
         comparison_y = comparison.get("target_y")
         comparison_x = comparison.get("road_center_x")
@@ -3855,13 +3882,202 @@ def _approved_bilateral_cache_candidate(selection, road_result,
 
 
 @micropython.native
+def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
+                             road_accepted, single_rows_fresh,
+                             route_result, route_rows, settings):
+    """Convert current ring targets to the existing fixed single-row format."""
+    if (not element_result or
+            not element_result.get("control_eligible") or
+            not element_result.get("target_valid")):
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        return 0
+
+    target_rows = element_result.get("target_rows")
+    target_count = element_result.get("target_count", 0)
+    target_stride = element_result.get("target_stride")
+    height = settings.SURFACE_GRID_HEIGHT
+    if (not isinstance(target_rows, array) or
+            isinstance(target_count, bool) or
+            not isinstance(target_count, int) or
+            target_count < element_tracker.min_target_rows or
+            target_count > height or
+            target_stride != track_elements.TARGET_ROW_STRIDE or
+            len(target_rows) < target_count * target_stride):
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        return 0
+
+    left_status = edge_tracker._row_status
+    left_edges = edge_tracker._row_edge2
+    right_base = height
+    output_count = 0
+    target_side = element_result.get(
+        "target_side", element_result.get("side"))
+    if target_side not in (track_elements.SIDE_LEFT,
+                           track_elements.SIDE_RIGHT):
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        return 0
+    reference_y = settings.ROAD_PARAMS.get("ROAD_REFERENCE_Y", 40)
+    reference_delta = height + 1
+    reference_row_y = -1
+    reference_center2 = 0
+    reference_edge2 = 0
+    reference_boundary = "NONE"
+    observed_left = track_elements.TARGET_OBSERVED_LEFT
+    observed_right = track_elements.TARGET_OBSERVED_RIGHT
+    from_cache = track_elements.TARGET_WIDTH_FROM_CACHE
+
+    for index in range(target_count):
+        source_offset = index * target_stride
+        y = int(target_rows[source_offset])
+        left_x = int(target_rows[source_offset + 1])
+        right_x = int(target_rows[source_offset + 2])
+        source_flags = int(target_rows[source_offset + 3])
+        if (y < settings.SURFACE_ROI_FLOOR_Y or y >= height or
+                left_x < 0 or right_x >= settings.SURFACE_GRID_WIDTH or
+                left_x >= right_x):
+            continue
+
+        has_left = bool(source_flags & observed_left)
+        has_right = bool(source_flags & observed_right)
+        if ((not has_left and not has_right) or
+                not (source_flags & from_cache)):
+            continue
+        if single_rows_fresh:
+            if ((has_left and left_status[y] != 1) or
+                    (has_right and left_status[right_base + y] != 1)):
+                continue
+        elif not road_accepted:
+            continue
+
+        if single_rows_fresh:
+            left_edge2 = int(left_edges[y]) if has_left else left_x * 2 - 1
+            right_edge2 = (int(left_edges[right_base + y]) if has_right
+                           else right_x * 2 + 1)
+        else:
+            left_edge2 = left_x * 2 - 1
+            right_edge2 = right_x * 2 + 1
+        if has_left and not has_right:
+            if not (source_flags & track_elements.TARGET_INFERRED_RIGHT):
+                continue
+            observed_side = track_elements.SIDE_LEFT
+            edge2 = left_edge2
+        elif has_right and not has_left:
+            if not (source_flags & track_elements.TARGET_INFERRED_LEFT):
+                continue
+            observed_side = track_elements.SIDE_RIGHT
+            edge2 = right_edge2
+        elif has_left and has_right:
+            observed_side = target_side
+            if observed_side == track_elements.SIDE_LEFT:
+                edge2 = left_edge2
+            elif observed_side == track_elements.SIDE_RIGHT:
+                edge2 = right_edge2
+            else:
+                continue
+        else:
+            continue
+
+        if ((observed_side == track_elements.SIDE_LEFT and not has_left) or
+                (observed_side == track_elements.SIDE_RIGHT and not has_right)):
+            continue
+        if observed_side != target_side:
+            continue
+
+        if has_left and has_right:
+            boundary = "OBSERVED_BOTH"
+        elif observed_side == track_elements.SIDE_LEFT:
+            edge2 = left_edge2
+            boundary = "LEFT_ONLY"
+        else:
+            edge2 = right_edge2
+            boundary = "RIGHT_ONLY"
+
+        center2 = left_x + right_x
+        target_offset = output_count * fast_single_edge.ROW_STRIDE
+        route_rows[target_offset] = y
+        route_rows[target_offset + 1] = center2
+        route_rows[target_offset + 2] = edge2
+        # `side` is the boundary used as the single-edge identity in the
+        # existing weighted-row format. Keep it paired with the actual edge
+        # and observed flags even when the route's locked ring side differs.
+        route_rows[target_offset + 3] = observed_side
+        row_flags = 0
+        if has_left:
+            row_flags |= fast_single_edge.FLAG_OBSERVED_LEFT
+        else:
+            row_flags |= fast_single_edge.FLAG_INFERRED_LEFT
+        if has_right:
+            row_flags |= fast_single_edge.FLAG_OBSERVED_RIGHT
+        else:
+            row_flags |= fast_single_edge.FLAG_INFERRED_RIGHT
+        if source_flags & from_cache:
+            row_flags |= (fast_single_edge.FLAG_WIDTH_CACHE |
+                          fast_single_edge.FLAG_IDENTITY_ANCHORED)
+        route_rows[target_offset + 4] = row_flags
+        output_count += 1
+
+        delta = abs(y - reference_y)
+        if delta < reference_delta:
+            reference_delta = delta
+            reference_row_y = y
+            reference_center2 = center2
+            reference_edge2 = edge2
+            reference_boundary = (
+                "LEFT" if observed_side == track_elements.SIDE_LEFT
+                else "RIGHT")
+
+    if output_count < element_tracker.min_target_rows or \
+            reference_delta > element_tracker.max_cache_gap + 2:
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        return 0
+
+    center_x = reference_center2 * 0.5
+    quality = 40 + min(60, output_count * 2)
+    route_result["valid"] = True
+    route_result["quality"] = quality
+    route_result["reason"] = "RING_WIDTH_CACHE_TARGET"
+    route_result["scene"] = "RING_ACTIVE"
+    route_result["lateral_error"] = _normalize_fast_reference(
+        center_x, settings.SURFACE_GRID_WIDTH)
+    route_result["selected_row_ints"] = route_rows
+    route_result["selected_row_count"] = output_count
+    route_result["selected_row_stride"] = fast_single_edge.ROW_STRIDE
+    route_result["selected_rows"] = None
+    route_result["reference_center_x"] = center_x
+    route_result["reference_y"] = float(reference_row_y)
+    route_result["reference_provenance"] = (
+        "RING_WIDTH_CACHE_LEFT" if reference_boundary == "LEFT" else
+        "RING_WIDTH_CACHE_RIGHT")
+    route_result["boundary_source"] = route_result[
+        "reference_provenance"]
+    route_result["inferred"] = True
+    route_result["inference_flags"] = (
+        fast_single_edge.INFERENCE_USED_WIDTH_CACHE |
+        fast_single_edge.INFERENCE_USED_CURRENT_EDGE |
+        fast_single_edge.INFERENCE_USED_CONTINUITY)
+    route_result["observed_both_rows"] = int(
+        element_result.get("observed_rows", 0)) - int(
+            element_result.get("inferred_rows", 0))
+    route_result["inferred_rows"] = int(
+        element_result.get("inferred_rows", 0))
+    route_result["actual_boundary"] = reference_boundary
+    route_result["actual_boundary_x"] = reference_edge2 * 0.5
+    route_result["weak_support"] = False
+    return output_count
+
+
+@micropython.native
 def _service_reverse_control(uart, parser, input_buffer, drain_state,
                              now_ms, ticks_diff):
     """Poll and read one bounded reverse-control chunk without allocations.
 
     On a heartbeat timeout or receive overflow, queued bytes are discarded in
-    chunks of at most 32 until the UART queue is empty. This prevents an old
-    queued KEEP from creating a fresh lease after a camera/control stall.
+    chunks no larger than ``MAX_FEED_BYTES``. This prevents old controls or
+    profile states from creating a fresh lease after a camera/controller stall.
     """
     if parser.poll(now_ms, ticks_diff):
         drain_state[0] = 1
@@ -3890,7 +4106,7 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
             if (isinstance(received, bool) or not isinstance(received, int) or
                     received < 0 or received > requested):
                 raise OSError("invalid UART.readinto result")
-            return False
+            return parser.single_enabled
 
         if available == 0:
             return parser.single_enabled
@@ -3953,7 +4169,7 @@ def _selected_actual_boundaries(selection, road_result, reference, valid):
         return left_x, right_x
 
     source = selection.get("source")
-    if source == "road" or source in ("ring_left", "ring_right"):
+    if source == "road":
         rows = road_result.get("selected_rows")
         reference_y = float(reference["y"])
         packed = road_result.get("selected_row_ints")
@@ -3997,7 +4213,8 @@ def _selected_actual_boundaries(selection, road_result, reference, valid):
                     if right is not None and len(right) >= 1:
                         right_x = float(right[0])
                 break
-    elif source in ("single_left", "single_right"):
+    elif source in ("single_left", "single_right",
+                    "ring_left", "ring_right"):
         result = selection.get("result") or {}
         boundary = result.get("actual_boundary")
         boundary_x = result.get("actual_boundary_x")
@@ -4058,44 +4275,14 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
                                    weight_info=None):
     """Format compact control and preview details, never frame geometry."""
     source = selection.get("source", "NONE") if valid else "NONE"
-    ring_state = selection.get("ring_state", "IDLE")
-    details0 = "BP15 %s %s" % (
-        source.upper(), str(ring_state)[:10])
-    gate_reason = selection.get("ring_candidate_reason")
-    if not gate_reason:
-        gate_reason = (selection.get("single_edge_reason") or
-                       selection.get("reason", "NO_CANDIDATE"))
-    gate_codes = {
-        "PARALLEL_CURVE": "PAR",
-        "OPPOSITE_EDGE_CURVED": "OUTER",
-        "ARC_AND_CONNECTED_PORT": "PORT",
-        "NO_FRESH_KEEP": "KEEP",
-    }
-    gate_code = gate_codes.get(gate_reason, str(gate_reason)[:5])
-    fit_modes = {
-        "STRAIGHT_OUTER": "LINE",
-        "INDEPENDENT_CURVATURE": "INDEP",
-        "REJECT_PARALLEL_CURVE": "PAR",
-        "REJECT_CURVED_OUTER": "CURVE",
-    }
-    fit_mode = fit_modes.get(selection.get("ring_fit_mode"), "--")
-    outer_residual = selection.get("ring_outer_fit_residual_max")
-    inner_residual = selection.get("ring_inner_fit_residual_max")
-    outer_text = "-" if outer_residual is None else "%.1f" % float(
-        outer_residual)
-    inner_text = "-" if inner_residual is None else "%.1f" % float(
-        inner_residual)
-    correlation = selection.get("ring_residual_correlation")
-    correlation_text = ("--" if correlation is None else
-                        "%+.1f" % float(correlation))
-    details1 = "G%s/%s O%s I%s" % (
-        gate_code, fit_mode, outer_text, inner_text)
-    details2 = "P%d/%d A%d G%d C%s" % (
-        selection.get("ring_path_row_count", 0),
-        selection.get("ring_path_y_span", 0),
-        1 if selection.get("ring_route_authorized") else 0,
-        1 if selection.get("ring_candidate_reason") == "ARC_AND_CONNECTED_PORT"
-        else 0, correlation_text)
+    track_profile = str(selection.get("track_profile_label", "UNK"))
+    ring_state = str(selection.get("track_ring_state", "IDLE"))
+    ring_reason = str(selection.get(
+        "track_ring_reason", selection.get("reason", "NOT_RUN")))
+    details0 = "TRK %s %s" % (track_profile, ring_state)
+    details1 = "WHY %s" % ring_reason
+    details2 = ""
+    details3 = ""
     if valid and weight_info is not None and weight_info.get("valid"):
         position_error = weight_info.get("position_error", 0)
         heading_error = weight_info.get("heading_error", 0)
@@ -4103,63 +4290,69 @@ def _build_gray_overlay_text_cache(selection, surface_result, road_result,
         near_percent = int(weight_info.get("near_weight", 0.0) * 100 + 0.5)
         far_percent = int(weight_info.get("far_weight", 0.0) * 100 + 0.5)
         if source in ("ring_left", "ring_right"):
-            details1 = "POS%+d RINGH%+d" % (
+            details2 = "POS%+d RH%+d" % (
                 position_error, heading_error)
-            details2 = "CMD%+d P%+d" % (
+            details3 = "CMD%+d P%+d W%d/%d" % (
                 weight_info.get("pd_error", raw_ctrl),
-                weight_info.get("filtered_position", filtered_error))
-            details3 = "W%d/%d %s" % (
-                far_percent, near_percent, gate_reason)
+                weight_info.get("filtered_position", filtered_error),
+                far_percent, near_percent)
         else:
-            details1 = "P%+d D%+d CAN%+d" % (
+            details2 = "P%+d D%+d CAN%+d" % (
                 weight_info.get("filtered_position", position_error),
                 weight_info.get("derivative_d", 0),
                 weight_info.get("preview_candidate", contribution))
-            details2 = "CMD%+d EMA%+d" % (
+            details3 = "CMD%+d EMA%+d" % (
                 weight_info.get("pd_error", raw_ctrl),
                 weight_info.get("filtered_position", filtered_error))
             if weight_info.get("preview_valid"):
                 preview_mode = weight_info.get("profile_short", "PD")
                 preview_state = weight_info.get("preview_state_name", "STR")
-                details3 = "%s %s A%+d" % (
+                details3 += " %s %s A%+d" % (
                     preview_mode, preview_state,
                     weight_info.get("preview_applied", 0))
             else:
                 preview_mode = weight_info.get("profile_short", "PD")
                 preview_state = weight_info.get("preview_state_name", "STR")
-                details3 = "%s %s W%d/%d" % (
+                details3 += " %s %s W%d/%d" % (
                     preview_mode, preview_state, far_percent, near_percent)
     elif valid:
-        details1 = "POS UNAVAILABLE"
-        details2 = "CMD%+d EMA%+d" % (raw_ctrl, filtered_error)
-        details3 = "%s NONE" % str(config.STEERING_CONTROL_PROFILE).upper()
+        details2 = "POS UNAVAILABLE"
+        details3 = "CMD%+d EMA%+d" % (raw_ctrl, filtered_error)
     else:
-        details0 = "BP15 INVALID"
-        details1 = "GATE %s" % gate_reason
         details2 = "CMD0 EMA0"
-        details3 = "%s NONE" % str(config.STEERING_CONTROL_PROFILE).upper()
+        single_edge_reason = selection.get("single_edge_reason")
+        if isinstance(single_edge_reason, str):
+            details3 = single_edge_reason[:24]
+        else:
+            details3 = "%s NONE" % str(config.STEERING_CONTROL_PROFILE).upper()
     return (details0[:24], details1[:24], details2[:24], details3[:24])
 
 
 @micropython.native
 def _v7_overlay_status(overlay_state, selection, valid):
-    """Reuse the live one-line status string until route/validity changes."""
+    """Reuse the live profile and element state until those fields change."""
     route_mode = getattr(config, "SINGLE_EDGE_ROUTE_MODE", "unknown")
     source = selection.get("source", "NONE") if valid else "NONE"
+    track_profile = selection.get("track_profile_label", "UNK")
+    ring_state = selection.get("track_ring_state", "IDLE")
+    ring_reason = selection.get("track_ring_reason", "NOT_RUN")
     if (overlay_state.status_text is None or
             overlay_state.status_valid != bool(valid) or
             overlay_state.status_source != source or
-            overlay_state.status_route_mode != route_mode):
-        route_label = ("CLIP" if route_mode == "clipped_midpoint" else
-                       "CACHE" if route_mode == "cached_width" else
-                       str(route_mode).upper())
-        source_label = source.upper() if valid else "NONE"
-        overlay_state.status_text = (
-            "NOW V %s/%s" % (route_label, source_label)
-            if valid else "NOW INVALID %s" % route_label)
+            overlay_state.status_route_mode != route_mode or
+            overlay_state.status_track_profile != track_profile or
+            overlay_state.status_ring_state != ring_state or
+            overlay_state.status_ring_reason != ring_reason):
+        reason_code = _TRACK_STATUS_REASON_CODES.get(
+            ring_reason, str(ring_reason)[:7])
+        overlay_state.status_text = "TRK %s %s:%s" % (
+            track_profile, str(ring_state)[:7], reason_code[:7])
         overlay_state.status_valid = bool(valid)
         overlay_state.status_source = source
         overlay_state.status_route_mode = route_mode
+        overlay_state.status_track_profile = track_profile
+        overlay_state.status_ring_state = ring_state
+        overlay_state.status_ring_reason = ring_reason
     status_image = overlay_state.status_image
     status_text = overlay_state.status_text
     status_mask = overlay_state.status_mask
@@ -4409,6 +4602,33 @@ def _draw_gray_result(img, selection, surface_result, road_result,
             candidate = selection.get("ring_candidate") or {}
             _draw_sparse_road_contour(
                 img, road_result.get("selected_rows") or ())
+            ring_result = selection.get("result") or {}
+            ring_rows = ring_result.get("selected_row_ints")
+            ring_count = ring_result.get("selected_row_count", 0)
+            previous_ring_center = None
+            if (isinstance(ring_rows, array) and
+                    ring_result.get("selected_row_stride") == 5 and
+                    isinstance(ring_count, int) and
+                    not isinstance(ring_count, bool) and
+                    0 < ring_count <= config.SURFACE_GRID_HEIGHT and
+                    len(ring_rows) >= ring_count * 5):
+                sample_count = _preview_row_sample_count(ring_count)
+                for sample_index in range(sample_count):
+                    index = _preview_row_sample_index(
+                        ring_count, sample_index, sample_count)
+                    offset = index * 5
+                    row_y = ring_rows[offset]
+                    center_x = ring_rows[offset + 1] * 0.5
+                    boundary_x = ring_rows[offset + 2] * 0.5
+                    img.draw_cross(_surface_pixel((boundary_x, row_y)),
+                                   color=192)
+                    center_pixel = _surface_pixel((center_x, row_y))
+                    if previous_ring_center is not None:
+                        img.draw_line((previous_ring_center[0],
+                                       previous_ring_center[1],
+                                       center_pixel[0], center_pixel[1]),
+                                      color=255)
+                    previous_ring_center = center_pixel
             path_x = candidate.get("path_x_rows")
             path_valid = candidate.get("path_valid_rows")
             if (isinstance(path_x, array) and
@@ -4552,6 +4772,9 @@ class _V7OverlayState:
         self.status_valid = None
         self.status_source = None
         self.status_route_mode = None
+        self.status_track_profile = None
+        self.status_ring_state = None
+        self.status_ring_reason = None
         self.status_image = status_image
         self.status_mask = status_mask
         self.status_bitmap_text = None
@@ -4564,12 +4787,33 @@ class _V7OverlayState:
 # font uses 8-pixel character cells; keep 16 pixels of spare width while
 # avoiding a full-preview-width masked blit on every frame.
 _OVERLAY_DETAIL_IMAGE_WIDTH = min(config.IMAGE_WIDTH, 24 * 8 + 16)
-# The longest current status is "NOW V CACHE/SINGLE_RIGHT" (24 cells). Any
-# future route/source label that exceeds the bitmap falls back to draw_string.
+# Profile/state/reason status is capped at 24 cells. Longer vendor reason
+# strings remain complete in the low-rate V7 diagnostic line.
 _OVERLAY_STATUS_IMAGE_WIDTH = min(
-    config.IMAGE_WIDTH, len("NOW V CACHE/SINGLE_RIGHT") * 8)
+    config.IMAGE_WIDTH, 24 * 8)
 _OVERLAY_STATUS_IMAGE_HEIGHT = 10
 _OVERLAY_STATUS_USE_MASK = False
+_TRACK_PROFILE_LABELS = ("UNK", "A", "B", "C")
+_TRACK_STATUS_REASON_CODES = {
+    "OBSERVING": "OBS",
+    "SESSION_INACTIVE": "IDLE",
+    "PROFILE_UNAVAILABLE": "NO_PROFILE",
+    "FRAME_INVALID": "BAD_FRAME",
+    "RING_DISABLED_PROFILE_A": "A_OFF",
+    "TOPOLOGY_NOT_CLEAR": "AMBIG",
+    "NO_FROZEN_WIDTH_PROFILE": "NO_WIDTH",
+    "ONE_SIDE_LOST_CANDIDATE": "SIDE_LOSS",
+    "CONFIRMING_ONE_SIDE_LOSS": "ENTRY",
+    "WAITING_FOR_RING_ARC": "ARC",
+    "RING_INSIDE_EXIT_UNOBSERVED": "INSIDE",
+    "EXIT_EXPERIMENTAL_CONFIRM": "EXIT_CONF",
+    "EXIT_EXPERIMENTAL_REOBSERVATION": "EXIT_REOBS",
+    "WAITING_FOR_NORMAL_ROAD_REACQUIRE": "REACQUIRE",
+    "NO_CROSS_EVIDENCE": "NO_CROSS",
+    "SYMMETRIC_OPENING_STRAIGHT_PATH": "CROSS_PATH",
+    "CROSS_CANDIDATE_DEBOUNCE": "CROSS_WAIT",
+    "CROSS_STRAIGHT_CONFIRMED": "CROSS_OK",
+}
 
 
 def _noop_preview_flush():
@@ -4596,6 +4840,21 @@ def _open_usb_vcp_safely():
         return constructor()
     except Exception:
         return None
+
+
+def _fixture_usb_vcp(frame_source):
+    """Return a fixture's explicit USB handle and whether it supplied one."""
+    not_provided = object()
+    for name in ("usb_vcp", "_usb_vcp"):
+        try:
+            usb_vcp = getattr(frame_source, name, not_provided)
+        except Exception:
+            # A present but failing handle must fail closed like a disconnected
+            # CDC device; it must not fall back to unconditional fixture draw.
+            return None, True
+        if usb_vcp is not not_provided:
+            return usb_vcp, True
+    return None, False
 
 
 def _usb_vcp_is_connected(usb_vcp):
@@ -4732,7 +4991,8 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
                              reference, valid, control_command, filtered_error,
                              processing_ms, fps, overlay_state, now_ms,
                              flush_func=None, weight_info=None,
-                             contour_trace_info=None, contour_used=False):
+                             contour_trace_info=None, contour_used=False,
+                             draw_enabled=True):
     """Draw every captured frame, refresh details at the configured interval, then flush it.
 
     This runs only after detection and the observation UART write. The flush
@@ -4742,7 +5002,7 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
     overlay_state.flush_us = 0
     if img is None:
         return
-    if config.OVERLAY_ENABLED:
+    if config.OVERLAY_ENABLED and draw_enabled:
         draw_start_us = time.ticks_us()
         current_status = _v7_overlay_status(
             overlay_state, selection, valid)
@@ -4895,6 +5155,11 @@ class _V7PerfWindow:
         self.full_writes = 0
         self.write_errors = 0
         self.last_sequence = -1
+        self.heap_samples = 0
+        self.heap_free_min = None
+        self.heap_alloc_max = None
+        self.heap_free_last = None
+        self.heap_alloc_last = None
 
     @micropython.native
     def clear(self):
@@ -4913,6 +5178,23 @@ class _V7PerfWindow:
         self.full_writes = 0
         self.write_errors = 0
         self.last_sequence = -1
+        self.heap_samples = 0
+        self.heap_free_min = None
+        self.heap_alloc_max = None
+        self.heap_free_last = None
+        self.heap_alloc_last = None
+
+    def record_heap(self, free_bytes, allocated_bytes):
+        """Retain once-per-second heap samples in the active 10 s window."""
+        self.heap_samples += 1
+        self.heap_free_last = free_bytes
+        self.heap_alloc_last = allocated_bytes
+        if (self.heap_free_min is None or
+                free_bytes < self.heap_free_min):
+            self.heap_free_min = free_bytes
+        if (self.heap_alloc_max is None or
+                allocated_bytes > self.heap_alloc_max):
+            self.heap_alloc_max = allocated_bytes
 
     @micropython.native
     def record(self, stage, elapsed_us):
@@ -4958,6 +5240,8 @@ class _V7PerfWindow:
                 "valid_frames=%d valid_full_writes=%d late_invalid_frames=%d "
                 "uart_write_errors=%d "
                 "attempted_by_loop=%d last_sequence=%d "
+                "heap_samples=%d heap_free_min=%s heap_alloc_max=%s "
+                "heap_free_last=%s heap_alloc_last=%s "
                 "p95_method=1ms_bin_upper_overflow_uses_max stage_stats=%s" % (
                     run_id, window_index,
                     window_index * config.PERF_WINDOW_MS,
@@ -4965,7 +5249,10 @@ class _V7PerfWindow:
                     self.frames, self.write_attempts, self.full_writes,
                     self.valid_frames, self.valid_full_writes,
                     self.late_invalid_frames, self.write_errors, attempted,
-                    self.last_sequence, stages))
+                    self.last_sequence, self.heap_samples,
+                    str(self.heap_free_min), str(self.heap_alloc_max),
+                    str(self.heap_free_last), str(self.heap_alloc_last),
+                    stages))
 
     def summary_lines(self, run_id, window_index, attempted):
         """Return short stdout lines so the SDK's bounded channel cannot drop them."""
@@ -4974,6 +5261,8 @@ class _V7PerfWindow:
              "distinct_captures=%d write_attempts=%d full_uart_writes=%d "
              "valid_frames=%d valid_full_writes=%d late_invalid_frames=%d "
              "uart_write_errors=%d attempted_by_loop=%d last_sequence=%d "
+             "heap_samples=%d heap_free_min=%s heap_alloc_max=%s "
+             "heap_free_last=%s heap_alloc_last=%s "
              "p95_method=1ms_bin_upper_overflow_uses_max" % (
                  run_id, window_index,
                  window_index * config.PERF_WINDOW_MS,
@@ -4981,7 +5270,9 @@ class _V7PerfWindow:
                  self.frames, self.write_attempts, self.full_writes,
                  self.valid_frames, self.valid_full_writes,
                  self.late_invalid_frames, self.write_errors, attempted,
-                 self.last_sequence))]
+                 self.last_sequence, self.heap_samples,
+                 str(self.heap_free_min), str(self.heap_alloc_max),
+                  str(self.heap_free_last), str(self.heap_alloc_last)))]
         for stage in _V7_PERF_STAGES:
             lines.append("V7_PERF_STAGE run=%d index=%d %s" % (
                 run_id, window_index, self._stage_summary(stage)))
@@ -5293,6 +5584,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     fixture_mode = frame_source is not None or uart_sink is not None
     native_preview_api = False
     usb_vcp = None
+    fixture_usb_vcp_provided = False
     preview_source = None
     if fixture_mode:
         if frame_source is None or uart_sink is None:
@@ -5316,19 +5608,22 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             preview_source.configure(config.USB_PREVIEW_ENABLED,
                                      config.USB_PREVIEW_QUALITY)
             usb_vcp = preview_source._usb_vcp
+            fixture_usb_vcp_provided = True
             preview_flush = preview_source.flush
         else:
+            usb_vcp, fixture_usb_vcp_provided = _fixture_usb_vcp(
+                frame_source)
             preview_flush = getattr(frame_source, "flush", None)
             if not callable(preview_flush):
                 preview_flush = _noop_preview_flush
     else:
         sensor_id = _configure_gray_sensor(sensor, fast=True)
         native_preview_api = _native_preview_control_api_available()
+        usb_vcp = (_open_usb_vcp_safely()
+                   if config.USB_PREVIEW_ENABLED else None)
         if native_preview_api:
             # This object latches USB state at snapshot and publishes only
             # that same frame after processing, UART and overlay drawing.
-            usb_vcp = (_open_usb_vcp_safely()
-                       if config.USB_PREVIEW_ENABLED else None)
             preview_source = _NativeUSBPreviewSource(
                 sensor, usb_vcp, config.USB_PREVIEW_ENABLED,
                 config.USB_PREVIEW_QUALITY)
@@ -5347,7 +5642,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         contour_route.ContourRouteRecovery(config)
         if config.CONTOUR_RECOVERY_ENABLED else None)
     reverse_parser = reverse_control.ReverseControlParser(
-        reverse_control.DEFAULT_TIMEOUT_MS)
+        reverse_control.DEFAULT_TIMEOUT_MS,
+        config.PROFILE_STATE_TIMEOUT_MS)
     steering_diag_session = _SteeringDiagSession(_STEERING_DIAG)
     sensor_get_exposure = (None if fixture_mode else
                            getattr(sensor, "get_exposure_us", None))
@@ -5386,7 +5682,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     source_name = (getattr(frame_source, "name", "RAM_FIXTURE")
                    if fixture_mode else "SENSOR")
     print("V7_BUILD=%s backend=fast source=%s route=%s v7_api=%d single_api=%d "
-          "ring_route=removed slope_classifier=disabled "
+          "ring_route=profile_gated_experimental slope_classifier=disabled "
           "slope_hint=always0 contour_api=%d contour_backend=%s "
           "sensor_id=%s "
           "camera=320x120 crop=QVGA(0,60,320,120) grid=80x60 floor=%d budget=%dms "
@@ -5395,7 +5691,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
           "exposure_cap_us=%s gain_db=%s "
           "gray_backend=%s topology_backend=%s boundary_backend=%s "
           "single_backend=%s native_row_preview=%d "
-          "reverse=8byte/ccitt-false" % (
+          "reverse=v1-8+v2-20/ccitt-false profile_timeout_ms=%d " % (
               config.BUILD_ID, source_name, config.SINGLE_EDGE_ROUTE_MODE,
               V7_RUNTIME_API_VERSION,
               SINGLEEDGE_RUNTIME_API_VERSION,
@@ -5409,18 +5705,24 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
               getattr(fast_topology, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_boundary, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_single_edge, "COMPILER_BACKEND", "UNKNOWN"),
-              1 if _NATIVE_ACCELERATION_ENABLED else 0))
+              1 if _NATIVE_ACCELERATION_ENABLED else 0,
+              config.PROFILE_STATE_TIMEOUT_MS))
+    print("TRACK_BUILD=%s forward=V3/16 reverse=V1/8+V2/20 "
+          "profile=awaiting_state ring=profile_gated_experimental "
+          "cross=experimental" % config.TRACK_PACKAGE_BUILD_ID)
 
-    if fixture_mode and not native_preview_api:
+    if (fixture_mode and not native_preview_api and
+            not fixture_usb_vcp_provided):
         preview_state = "RAM_FIXTURE"
-    elif not native_preview_api:
-        preview_state = "LEGACY_FALLBACK"
     elif not config.USB_PREVIEW_ENABLED:
-        preview_state = "NATIVE_DISABLED"
+        preview_state = ("NATIVE_DISABLED" if native_preview_api else
+                         "LEGACY_DISABLED")
     elif _usb_vcp_is_connected(usb_vcp):
-        preview_state = "NATIVE_ACTIVE"
+        preview_state = ("NATIVE_ACTIVE" if native_preview_api else
+                         "LEGACY_ACTIVE")
     else:
-        preview_state = "NATIVE_HEADLESS"
+        preview_state = ("NATIVE_HEADLESS" if native_preview_api else
+                         "LEGACY_HEADLESS")
     last_usb_preview_state = preview_state
     last_preview_error_ms = None
     print("USB_PREVIEW_CANDIDATE build=%s quality=Q%d mode=%s overlay=%s "
@@ -5449,10 +5751,80 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     position_pd = _FastPositionPD(config)
     adaptive_preview = _FastAdaptivePreview(config)
     speed_stage = _FastSpeedStage(config)
+    element_tracker = track_elements.TrackElementsTracker(config)
+    element_result = element_tracker.result
+    element_input_row_status = getattr(
+        single_edge_tracker, "_row_status", None)
+    element_input_row_edge2 = getattr(
+        single_edge_tracker, "_row_edge2", None)
+    element_input_row_contrast = getattr(
+        single_edge_tracker, "_row_contrast", None)
+    element_input_cache_valid = getattr(
+        single_edge_tracker, "_cache_valid", None)
+    element_input_cache_width = getattr(
+        single_edge_tracker, "_cache_width", None)
+    element_input_cache_left2 = getattr(
+        single_edge_tracker, "_cache_left2", None)
+    element_input_cache_right2 = getattr(
+        single_edge_tracker, "_cache_right2", None)
+    grid_height = config.SURFACE_GRID_HEIGHT
+    if element_input_row_status is None:
+        element_input_row_status = bytearray(2 * grid_height)
+    if element_input_row_edge2 is None:
+        element_input_row_edge2 = array("i", [0] * (2 * grid_height))
+    if element_input_row_contrast is None:
+        element_input_row_contrast = array("i", [0] * (2 * grid_height))
+    if element_input_cache_valid is None:
+        element_input_cache_valid = bytearray(grid_height)
+    if element_input_cache_width is None:
+        element_input_cache_width = array("i", [0] * grid_height)
+    if element_input_cache_left2 is None:
+        element_input_cache_left2 = array("i", [0] * grid_height)
+    if element_input_cache_right2 is None:
+        element_input_cache_right2 = array("i", [0] * grid_height)
+    ring_route_rows = array(
+        "i", [0] * (config.SURFACE_GRID_HEIGHT *
+                    fast_single_edge.ROW_STRIDE))
+    ring_route_result = {
+        "valid": False, "quality": 0, "reason": "RING_ROUTE_INACTIVE",
+        "scene": "RING_ACTIVE", "lateral_error": 0,
+        "selected_row_ints": ring_route_rows, "selected_row_count": 0,
+        "selected_row_stride": fast_single_edge.ROW_STRIDE,
+        "selected_rows": None, "reference_center_x": 0.0,
+        "reference_y": 0.0, "reference_provenance": "RING_WIDTH_CACHE",
+        "boundary_source": "RING_WIDTH_CACHE", "inferred": True,
+        "inference_flags": 0, "observed_both_rows": 0,
+        "inferred_rows": 0, "actual_boundary": "NONE",
+        "actual_boundary_x": None, "weak_support": False,
+    }
+    ring_selection = {
+        "valid": False, "quality": 0, "lateral_error": 0,
+        "reason": "RING_ROUTE_INACTIVE", "source": "NONE",
+        "rejected_source": None, "result": ring_route_result,
+        "comparison": {}, "boundary_source": "RING_WIDTH_CACHE",
+        "inferred": True, "inference_flags": 0,
+        "ring_candidate": element_result,
+    }
+    cross_route_result = {
+        "valid": False, "quality": 0,
+        "reason": "CROSS_STRAIGHT_UNAVAILABLE", "scene": "CROSS_STRAIGHT",
+        "lateral_error": 0, "selected_row_ints": None,
+        "selected_row_count": 0, "selected_row_stride": 4,
+        "selected_rows": None, "reference_center_x": 0.0,
+        "reference_y": 0.0, "reference_provenance": "CROSS_STRAIGHT",
+        "topology_evidence": None,
+    }
+    cross_selection = {
+        "valid": False, "quality": 0, "lateral_error": 0,
+        "reason": "CROSS_STRAIGHT_UNAVAILABLE", "source": "road",
+        "rejected_source": "road", "result": cross_route_result,
+        "comparison": {}, "boundary_source": "CROSS_STRAIGHT",
+    }
     packet = bytearray(vision_protocol.FRAME_SIZE)
     reverse_input_buffer = bytearray(reverse_control.MAX_FEED_BYTES)
     reverse_drain_state = array("i", [0])
     reverse_generation = reverse_parser.generation
+    profile_generation = reverse_parser.profile_generation
     last_capture_end_ms = None
     sequence = 0
     tx_error_count = 0
@@ -5517,6 +5889,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     window_start_us = bench_start_us
     perf = _V7PerfWindow()
     summary_queue = _V7SummaryQueue()
+    last_heap_sample_ms = None
     pending_cycle_start_us = None
 
     while (duration_us is None or
@@ -5547,6 +5920,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                     reverse_parser.invalidate("CAPTURE_GAP")
                     reverse_drain_state[0] = 1
                     single_edge_tracker.clear("CAPTURE_GAP")
+                    element_tracker.reset("CAPTURE_GAP")
                     observation_filter.reset()
                     position_pd.reset("CAPTURE_GAP")
                     adaptive_preview.reset()
@@ -5578,15 +5952,25 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             capture_end_ms, time.ticks_diff)
         steering_diag_session.observe(
             reverse_parser, single_edge_tracker, config.BUILD_ID)
-        if reverse_parser.generation != reverse_generation:
-            speed_stage.lifecycle_event(reverse_parser.last_event)
-            single_edge_tracker.clear(reverse_parser.last_event)
+        control_session_changed = (
+            reverse_parser.generation != reverse_generation)
+        profile_session_changed = (
+            reverse_parser.profile_generation != profile_generation)
+        if control_session_changed or profile_session_changed:
+            reset_event = (reverse_parser.last_profile_event
+                           if profile_session_changed else
+                           reverse_parser.last_event)
+            speed_stage.lifecycle_event(
+                "RESET" if profile_session_changed else
+                reverse_parser.last_event)
+            single_edge_tracker.clear(reset_event)
+            element_tracker.reset(reset_event)
             observation_filter.reset()
-            reset_reason = ("REVERSE_RESET" if
-                            reverse_parser.last_event == "RESET" else
-                            "CONTROL_TIMEOUT" if "TIMEOUT" in
-                            reverse_parser.last_event else
-                            "REVERSE_RESET")
+            reset_reason = (
+                reverse_parser.last_profile_event
+                if profile_session_changed else
+                "CONTROL_TIMEOUT" if "TIMEOUT" in
+                reverse_parser.last_event else "REVERSE_RESET")
             position_pd.reset(reset_reason)
             adaptive_preview.reset()
             previous_source = None
@@ -5594,8 +5978,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             previous_reference_y = None
             previous_reference_x = None
             reverse_generation = reverse_parser.generation
+            profile_generation = reverse_parser.profile_generation
         if capture_interrupted:
             single_edge_tracker.clear("CAPTURE_GAP")
+            element_tracker.reset("CAPTURE_GAP")
             observation_filter.reset()
             position_pd.reset("CAPTURE_GAP")
             adaptive_preview.reset()
@@ -5812,43 +6198,224 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
 
         bilateral_cache_candidate = _approved_bilateral_cache_candidate(
             selection, road_result, boundary_reference, mask_info)
+        normal_cache_commit_allowed = bilateral_cache_candidate is not None
 
-        if reverse_fresh and reverse_parser.poll(
-                time.ticks_ms(), time.ticks_diff):
-            reverse_fresh = False
-            reverse_drain_state[0] = 1
-            single_edge_tracker.clear(reverse_parser.last_event)
+        # Recheck both independent leases immediately before element routing.
+        # A stale profile must clear ring state without disabling a still-fresh
+        # legacy V1 single-edge KEEP session.
+        reverse_parser.poll(time.ticks_ms(), time.ticks_diff)
+        control_expired = reverse_parser.generation != reverse_generation
+        profile_expired = (
+            reverse_parser.profile_generation != profile_generation)
+        if control_expired or profile_expired:
+            reset_event = (reverse_parser.last_profile_event
+                           if profile_expired else reverse_parser.last_event)
+            single_edge_tracker.clear(reset_event)
+            element_tracker.reset(reset_event)
             observation_filter.reset()
-            position_pd.reset("CONTROL_TIMEOUT")
+            position_pd.reset(
+                "PROFILE_TIMEOUT" if profile_expired else "CONTROL_TIMEOUT")
             adaptive_preview.reset()
             previous_source = None
             previous_reference_kind = None
             previous_reference_y = None
             previous_reference_x = None
-            if selection.get("source") in ("single_left", "single_right"):
-                single_diagnostic_reason = "CONTROL_TIMEOUT"
+            reverse_generation = reverse_parser.generation
+            profile_generation = reverse_parser.profile_generation
+            if control_expired:
+                reverse_fresh = False
+                reverse_drain_state[0] = 1
+            if selection.get("source") in (
+                    "single_left", "single_right") and (
+                        control_expired or profile_expired):
+                single_diagnostic_reason = reset_event
                 selection["valid"] = False
                 selection["quality"] = 0
                 selection["lateral_error"] = 0
-                selection["reason"] = "CONTROL_TIMEOUT"
-                selection["single_edge_reason"] = "CONTROL_TIMEOUT"
+                selection["reason"] = reset_event
+                selection["single_edge_reason"] = reset_event
                 selection["source"] = "NONE"
                 selection["result"] = None
                 reference = None
+                bilateral_cache_candidate = None
+                normal_cache_commit_allowed = False
 
         topology = road_result.get("topology_evidence") or {}
-        topology_clear = not (
-            topology.get("branch_evidence") or topology.get("branch") or
-            topology.get("ambiguous"))
-        # Independent ring route selection was removed. Ordinary road,
-        # accepted single-edge, and topology evidence remain authoritative.
-        ring_candidate = _RING_CANDIDATE_REMOVED
-        ring_info = _RING_INFO_REMOVED
-        ring_detection_us = 0
+        profile_now_ms = time.ticks_ms()
+        profile_id = reverse_parser.profile_ack(
+            profile_now_ms, time.ticks_diff)
+        profile_session_active = bool(
+            reverse_fresh and profile_id != config.VEHICLE_PROFILE_UNKNOWN and
+            reverse_parser.profile_session_active and
+            reverse_parser.session_token != 0)
+        road_rows = (road_result.get("selected_row_ints")
+                     if normal_cache_commit_allowed else None)
+        road_count = (road_result.get("selected_row_count", 0)
+                      if normal_cache_commit_allowed else 0)
+        road_stride = (road_result.get("selected_row_stride", 0)
+                       if normal_cache_commit_allowed else 0)
+        candidate_tracks = (road_result.get("candidate_tracks", 0)
+                            if normal_cache_commit_allowed else 0)
+        single_rows_fresh = bool(getattr(
+            single_edge_tracker, "_frame_scan_done", False))
+        ring_start_us = time.ticks_us()
+        element_result = element_tracker.update(
+            profile_now_ms, profile_id, profile_session_active,
+            reverse_parser.session_token if profile_id else 0,
+            bool(image_size_valid and mask_info is not None),
+            normal_cache_commit_allowed, road_rows, road_count, road_stride,
+            candidate_tracks, topology, single_rows_fresh,
+            element_input_row_status, element_input_row_edge2,
+            element_input_row_contrast, element_input_cache_valid,
+            element_input_cache_width, element_input_cache_left2,
+            element_input_cache_right2, mask_info,
+            profile_seq=(reverse_parser._profile_last_sequence
+                         if profile_id else 0),
+            mean_forward_wheel_millirev=(
+                reverse_parser.mean_forward_wheel_millirev
+                if profile_id else 0))
+        ring_detection_us = time.ticks_diff(time.ticks_us(), ring_start_us)
+        ring_candidate = element_result
+        ring_info = element_result
+        control_road_result = road_result
+        element_route_selected = False
+        ring_profile_enabled = bool(
+            profile_session_active and
+            reverse_parser.ring_profile_enabled(
+                profile_now_ms, time.ticks_diff))
+
+        if ring_profile_enabled and element_result.get("control_eligible"):
+            ring_count = _fill_ring_control_route(
+                element_result, element_tracker, single_edge_tracker,
+                normal_cache_commit_allowed, single_rows_fresh,
+                ring_route_result, ring_route_rows, config)
+            if ring_count:
+                ring_target_side = element_result.get(
+                    "target_side", element_result.get("side"))
+                ring_source = ("ring_left" if ring_target_side ==
+                               track_elements.SIDE_LEFT else "ring_right")
+                ring_selection["valid"] = True
+                ring_selection["quality"] = ring_route_result["quality"]
+                ring_selection["lateral_error"] = ring_route_result[
+                    "lateral_error"]
+                ring_selection["reason"] = "RING_WIDTH_CACHE_TARGET"
+                ring_selection["source"] = ring_source
+                ring_selection["rejected_source"] = None
+                ring_selection["boundary_source"] = ring_route_result[
+                    "boundary_source"]
+                ring_selection["inferred"] = True
+                ring_selection["inference_flags"] = ring_route_result[
+                    "inference_flags"]
+                selection = ring_selection
+                reference = _selected_reference(selection)
+                element_route_selected = reference is not None
+                boundary_reference = {
+                    "valid": reference is not None,
+                    "reason": "RING_CURRENT_EDGE_AND_CACHED_WIDTH",
+                    "source": ring_source,
+                }
+
+        ring_confirmed_state = element_result.get("state_id") in (
+            track_elements.STATE_INSIDE,
+            track_elements.STATE_EXIT_CONFIRM,
+            track_elements.STATE_EXIT_REPAIR)
+        ring_target_blocked = bool(
+            ring_profile_enabled and
+            element_result.get("ring_confirmed") and
+            ring_confirmed_state and not element_route_selected)
+        if ring_target_blocked:
+            selection["rejected_source"] = selection.get("source", "NONE")
+            selection["valid"] = False
+            selection["quality"] = 0
+            selection["lateral_error"] = 0
+            selection["reason"] = "RING_TARGET_UNSUPPORTED"
+            selection["source"] = "NONE"
+            selection["result"] = None
+            reference = None
+
+        if (not ring_target_blocked and
+                selection.get("source") not in ("ring_left", "ring_right") and
+                not selection.get("valid") and mask_info is not None and
+                element_result.get("cross_route_usable")):
+            cross_count = element_result.get("cross_route_count", 0)
+            cross_rows = element_result.get("cross_route_rows")
+            if (isinstance(cross_rows, array) and
+                    isinstance(cross_count, int) and
+                    not isinstance(cross_count, bool) and
+                    0 < cross_count <= config.SURFACE_GRID_HEIGHT and
+                    element_result.get("cross_route_stride") == 4 and
+                    len(cross_rows) >= cross_count * 4):
+                center2 = element_result.get(
+                    "cross_reference_center2", 0)
+                ref_y = element_result.get("cross_reference_y", -1)
+                cross_route_result["valid"] = True
+                cross_route_result["quality"] = min(
+                    100, 40 + 2 * (element_result.get("cross_near_rows", 0) +
+                                   element_result.get("cross_far_rows", 0)))
+                cross_route_result["reason"] = "CROSS_STRAIGHT_CONFIRMED"
+                cross_route_result["lateral_error"] = element_result.get(
+                    "cross_lateral_error", 0)
+                cross_route_result["selected_row_ints"] = cross_rows
+                cross_route_result["selected_row_count"] = cross_count
+                cross_route_result["selected_row_stride"] = 4
+                cross_route_result["reference_center_x"] = center2 * 0.5
+                cross_route_result["reference_y"] = float(ref_y)
+                cross_route_result["boundary_evidence"] = None
+                cross_route_result["topology_evidence"] = topology
+                try:
+                    boundary_validator.gate_fast_path_candidate(
+                        cross_route_result, mask_info.get("luma"),
+                        mask_info.get("edge_mask"),
+                        mask_info.get("road_mask"),
+                        mask_info.get("known_region"), config)
+                except Exception as exc:
+                    cross_route_result["valid"] = False
+                    cross_route_result["reason"] = "CROSS_BOUNDARY_EXCEPTION"
+                    detector_error = "CROSS_BOUNDARY:%s" % exc
+                if cross_route_result.get("valid"):
+                    cross_selection["valid"] = True
+                    cross_selection["quality"] = cross_route_result[
+                        "quality"]
+                    cross_selection["lateral_error"] = cross_route_result[
+                        "lateral_error"]
+                    cross_selection["reason"] = "CROSS_STRAIGHT_CONFIRMED"
+                    cross_selection["source"] = "road"
+                    cross_selection["rejected_source"] = None
+                    cross_selection["boundary_source"] = "CROSS_STRAIGHT"
+                    selection, reference, boundary_reference = \
+                        _validate_selected_fast_boundary(
+                            cross_selection, cross_route_result,
+                            boundary_validator)
+                    if selection.get("valid"):
+                        control_road_result = cross_route_result
+                        element_route_selected = True
+                    else:
+                        cross_selection["reason"] = (
+                            "CROSS_REFERENCE_%s" %
+                            boundary_reference.get("reason", "REJECTED"))
+                else:
+                    cross_selection["valid"] = False
+                    cross_selection["reason"] = cross_route_result.get(
+                        "reason", "CROSS_BOUNDARY_REJECTED")
+
+        # The candidate was computed from the ordinary route before element
+        # routing. It may support current-frame diagnosis, but only a final
+        # ordinary bilateral route can seed the persistent measured-width
+        # cache after it is accepted and fully written.
+        if element_route_selected or ring_target_blocked:
+            normal_cache_commit_allowed = False
+
+        track_profile_label = (
+            _TRACK_PROFILE_LABELS[profile_id]
+            if 0 <= profile_id < len(_TRACK_PROFILE_LABELS) else "UNK")
+        selection["track_profile_label"] = track_profile_label
+        selection["track_ring_state"] = element_result.get("state", "IDLE")
+        selection["track_ring_reason"] = element_result.get(
+            "reason", "NOT_RUN")
 
         row_weight_start_us = time.ticks_us()
         weight_info = row_weight_workspace.aggregate(
-            selection, road_result, config)
+            selection, control_road_result, config)
         row_weight_end_us = time.ticks_us()
         raw_valid = bool(selection.get("valid"))
         raw_error = 0
@@ -5925,6 +6492,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             raw_error = 0
             quality = 0
             single_edge_tracker.clear("FRAME_BUDGET")
+            element_tracker.reset("FRAME_BUDGET")
             observation_filter.reset()
             position_pd.reset("FRAME_BUDGET")
             adaptive_preview.reset()
@@ -5989,6 +6557,19 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         else:
             curve_phase = 0
             slowdown_request_permille = 0
+        if (valid and element_route_selected and
+                control_source in ("ring_left", "ring_right")):
+            # H743 maps the full vision slowdown request to the selected
+            # profile's outer-wheel ring target (B 4.0, C 4.4 rps).
+            curve_phase = vision_protocol.CURVE_PHASE_TURN
+            slowdown_request_permille = 1000
+        elif (element_route_selected and control_source == "road" and
+                control_boundary_source == "CROSS_STRAIGHT" and
+                element_result.get("cross_suppress_slowdown")):
+            # Only a fully confirmed and output-eligible straight cross route
+            # suppresses the vision-side extra slowdown request.
+            curve_phase = 0
+            slowdown_request_permille = 0
         final_control = control_info.get("pd_output", 0) + preview_applied
         if final_control < -config.STEERING_OUTPUT_LIMIT:
             final_control = -config.STEERING_OUTPUT_LIMIT
@@ -6041,13 +6622,61 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         write_attempts = 0
         full_write = False
         write_error = None
+        profile_check_ms = time.ticks_ms()
+        reverse_parser.poll(profile_check_ms, time.ticks_diff)
+        profile_ack = reverse_parser.profile_ack(
+            profile_check_ms, time.ticks_diff)
+        if (element_route_selected and
+                (not reverse_parser.single_enabled or
+                 not reverse_parser.profile_session_active or
+                 profile_ack != profile_id or
+                 reverse_parser.session_token !=
+                 element_result.get("session_token"))):
+            # A status/session lease that expires while a candidate is being
+            # processed cannot authorize one final element-derived command.
+            valid = False
+            raw_valid = False
+            raw_error = 0
+            quality = 0
+            final_control = 0
+            preview_applied = 0
+            curve_phase = 0
+            slowdown_request_permille = 0
+            selection["valid"] = False
+            selection["quality"] = 0
+            selection["lateral_error"] = 0
+            selection["reason"] = "ELEMENT_SESSION_LEASE_EXPIRED"
+            selection["rejected_source"] = selection.get("source", "NONE")
+            selection["source"] = "NONE"
+            selection["result"] = None
+            reference = None
+            element_tracker.reset("ELEMENT_SESSION_LEASE_EXPIRED")
+            single_edge_tracker.clear("ELEMENT_SESSION_LEASE_EXPIRED")
+            observation_filter.reset()
+            position_pd.reset("PROFILE_TIMEOUT")
+            adaptive_preview.reset()
+            speed_stage.lifecycle_event("RESET")
+            control_info["position_p"] = 0
+            control_info["derivative_d"] = 0
+            control_info["pd_output"] = 0
+            control_info["preview_applied"] = 0
+            control_info["preview_state"] = 0
+            control_info["reset_code"] = _CONTROL_RESET_CODES[
+                "PROFILE_TIMEOUT"]
+            weight_info["position_p"] = 0
+            weight_info["derivative_d"] = 0
+            weight_info["preview_applied"] = 0
+            weight_info["pd_error"] = 0
+            weight_info["steering_error"] = 0
+            reverse_fresh = bool(reverse_parser.single_enabled)
         try:
-            vision_protocol.pack_into(
+            vision_protocol.pack_into_v3(
                 packet, sequence, 1 if valid else 0,
                 quality if valid else 0,
                 final_control if valid else 0,
                 0, curve_phase if valid else 0,
-                slowdown_request_permille if valid else 0)
+                slowdown_request_permille if valid else 0,
+                profile_ack)
             packet_ready_us = time.ticks_us()
             packet_ready_age_us = time.ticks_diff(
                 packet_ready_us, cycle_start_us)
@@ -6064,6 +6693,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 filtered_error = 0
                 quality = 0
                 single_edge_tracker.clear("FRAME_BUDGET")
+                element_tracker.reset("FRAME_BUDGET")
                 observation_filter.reset()
                 previous_source = None
                 previous_reference_kind = None
@@ -6101,10 +6731,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 weight_info["pd_error"] = 0
                 weight_info["steering_error"] = 0
                 weight_info["heading_contribution"] = 0
-                vision_protocol.pack_into(
-                    packet, sequence, 0, 0, 0, 0, 0, 0)
+                vision_protocol.pack_into_v3(
+                    packet, sequence, 0, 0, 0, 0, 0, 0, profile_ack)
             if len(packet) < vision_protocol.FRAME_SIZE:
-                raise ValueError("vision_protocol returned a short V2 frame")
+                raise ValueError("vision_protocol returned a short V3 frame")
             write_attempts = 1
             written = uart.write(packet)
             if written == len(packet):
@@ -6145,8 +6775,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 elif (diag_source == "ring_left" or
                       diag_source == "ring_right") and \
                         ring_candidate is not None:
-                    diag_row_count = ring_candidate.get(
-                        "path_row_count", 0)
+                    diag_result = selection.get("result")
+                    diag_row_count = (diag_result.get(
+                        "selected_row_count", 0) if diag_result else 0)
                 diag_reference_error = 0
                 if reference is not None:
                     diag_reference_error = weight_info.get(
@@ -6184,6 +6815,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             reverse_generation = reverse_parser.generation
             reverse_drain_state[0] = 1
             single_edge_tracker.clear("OBSERVATION_UART_ERROR")
+            element_tracker.reset("OBSERVATION_UART_ERROR")
             observation_filter.reset()
             position_pd.reset("UART_ERROR")
             adaptive_preview.reset()
@@ -6192,15 +6824,35 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             previous_reference_y = None
             previous_reference_x = None
         elif full_write and valid:
-            if (selection.get("source") == "road" and reverse_fresh and
-                    bilateral_cache_candidate is not None):
+            if (normal_cache_commit_allowed and reverse_fresh and
+                    bilateral_cache_candidate is not None and
+                    selection.get("valid") and
+                    selection.get("source") == "road" and
+                    selection.get("result") is road_result and
+                    control_road_result is road_result and
+                    selection.get("boundary_source") == "OBSERVED_BOTH"):
                 single_edge_tracker.observe_bilateral(
                     bilateral_cache_candidate, mask_info.get("luma"),
                     mask_info.get("edge_mask"), mask_info.get("road_mask"),
                     mask_info.get("known_region"), True, True)
-            elif (single_candidate is not None and
+            elif (selection.get("source") in ("single_left", "single_right") and
+                  single_candidate is not None and
                   single_candidate.get("valid")):
                 single_edge_tracker.commit_single(single_candidate)
+
+        heap_sample_now_ms = time.ticks_ms()
+        if (last_heap_sample_ms is None or
+                time.ticks_diff(heap_sample_now_ms,
+                                last_heap_sample_ms) >= 1000):
+            last_heap_sample_ms = heap_sample_now_ms
+            heap_free_fn = getattr(gc, "mem_free", None)
+            heap_alloc_fn = getattr(gc, "mem_alloc", None)
+            if callable(heap_free_fn) and callable(heap_alloc_fn):
+                try:
+                    perf.record_heap(int(heap_free_fn()),
+                                     int(heap_alloc_fn()))
+                except Exception:
+                    pass
 
         window_start_us, windows_advanced = _advance_v7_perf_window(
             send_end_us, window_start_us, window_us)
@@ -6243,19 +6895,41 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             selection.get("result") is road_result and
             contour_candidate is road_result)
 
+        render_profile_id = reverse_parser.profile_ack(
+            time.ticks_ms(), time.ticks_diff)
+        selection["track_profile_label"] = (
+            _TRACK_PROFILE_LABELS[render_profile_id]
+            if 0 <= render_profile_id < len(_TRACK_PROFILE_LABELS) else "UNK")
+        selection["track_ring_state"] = ring_info.get("state", "IDLE")
+        selection["track_ring_reason"] = ring_info.get("reason", "NOT_RUN")
+
         if not native_preview_api:
+            usb_connected = _usb_vcp_is_connected(usb_vcp)
+            fixture_without_usb_vcp = bool(
+                fixture_mode and not fixture_usb_vcp_provided)
+            fallback_draw_enabled = bool(
+                config.USB_PREVIEW_ENABLED and
+                (fixture_without_usb_vcp or usb_connected))
             _render_v7_preview_frame(
-                img, selection, no_surface_result, road_result, reference,
+                img, selection, no_surface_result, control_road_result,
+                reference,
                 valid, final_control if valid else 0, filtered_error,
                 capture_to_send_us // 1000, capture_fps_value, overlay_state,
                 time.ticks_ms(), weight_info=weight_info,
                 contour_trace_info=(contour_trace_info
                                     if contour_selected else None),
-                contour_used=contour_selected, flush_func=preview_flush)
+                contour_used=contour_selected, flush_func=preview_flush,
+                draw_enabled=fallback_draw_enabled)
             overlay_us = overlay_state.draw_us
             preview_flush_us = overlay_state.flush_us
-            current_usb_preview_state = (
-                "RAM_FIXTURE" if fixture_mode else "LEGACY_FALLBACK")
+            if fixture_without_usb_vcp:
+                current_usb_preview_state = "RAM_FIXTURE"
+            elif not config.USB_PREVIEW_ENABLED:
+                current_usb_preview_state = "LEGACY_DISABLED"
+            elif usb_connected:
+                current_usb_preview_state = "LEGACY_ACTIVE"
+            else:
+                current_usb_preview_state = "LEGACY_HEADLESS"
         elif not config.USB_PREVIEW_ENABLED:
             # Keep capture, detection, tracing and UART; suppress the optional
             # preview-side render and JPEG work.
@@ -6274,7 +6948,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 preview_source.frame_preview_active and usb_connected)
             if frame_preview_active:
                 _render_v7_preview_frame(
-                    img, selection, no_surface_result, road_result,
+                    img, selection, no_surface_result, control_road_result,
                     reference, valid, final_control if valid else 0,
                     filtered_error, capture_to_send_us // 1000,
                     capture_fps_value, overlay_state, time.ticks_ms(),
@@ -6316,6 +6990,19 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         if config.DEBUG_ENABLED and time.ticks_diff(
                 debug_now_ms, last_debug_ms) >= config.DEBUG_PERIOD_MS:
             debug_start_us = time.ticks_us()
+            diagnostic_profile_id = reverse_parser.profile_ack(
+                debug_now_ms, time.ticks_diff)
+            diagnostic_profile_label = (
+                _TRACK_PROFILE_LABELS[diagnostic_profile_id]
+                if 0 <= diagnostic_profile_id <
+                len(_TRACK_PROFILE_LABELS) else "UNK")
+            diagnostic_ring_enabled = bool(
+                reverse_parser.ring_profile_enabled(
+                    debug_now_ms, time.ticks_diff))
+            diagnostic_session_active = bool(
+                diagnostic_profile_id != config.VEHICLE_PROFILE_UNKNOWN and
+                reverse_parser.profile_session_active and
+                reverse_parser.session_token != 0)
             topology = road_result.get("topology_evidence") or {}
             boundary = road_result.get("boundary_evidence") or {}
             trusted_blocks = (mask_info.get("trusted_block_count", 0)
@@ -6337,7 +7024,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 diagnostic_result)
             actual_left, actual_right, actual_reference = \
                 _format_selected_actual_diagnostic(
-                    selection, road_result, reference, valid)
+                    selection, control_road_result, reference, valid)
             reference_row_y = weight_info.get("reference_row_y")
             reference_error = weight_info.get("reference_error")
             reference_row_text = ("-" if reference_row_y is None else
@@ -6349,9 +7036,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                   "%s cache_rows=%d actual=%s/%s "
                   "safe_ref=%s wctrl=%s rows_nf=%d/%d eff_nf=%d/%d "
                   "reverse=%s/%s why=%s road_why=%s rows=%d scene=%s topology=%s "
-                  "ring=%s:%s/%d gate=%s fit=%s ofit=%d/%.2f ifit=%.2f "
-                  "corr=%s diff=%s width=%s path=%d/%d auth=%d geo=%d "
-                  "port=%s,%s seed=%s,%s "
+                  "track=%s ack=%d enabled=%d follow=%d token=%08x "
+                  "ring=%s:%s candidate=%d confirmed=%d side=%d rows=%d "
+                  "cross=%s/%d usable=%d "
                   "slope=%s:%d "
                   "preview_mode=%s preview=%+d preview_candidate=%+d bend=%.2f "
                   "preview_block=- "
@@ -6389,36 +7076,19 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                                       road_result.get("observed_rows", 0)),
                       road_result.get("scene", "UNKNOWN"),
                       topology.get("reason", "NOT_RUN"),
+                      diagnostic_profile_label, diagnostic_profile_id,
+                      1 if diagnostic_ring_enabled else 0,
+                      1 if diagnostic_session_active else 0,
+                      reverse_parser.session_token & 0xFFFFFFFF,
                       ring_info.get("state", "IDLE"),
                       ring_info.get("reason", "NOT_RUN"),
-                      ring_info.get("pending_count", 0),
-                       selection.get("ring_candidate_reason", "NOT_RUN"),
-                      ring_candidate.get("fit_mode", "NONE"),
-                      ring_candidate.get("outer_fit_rows", 0),
-                      -1.0 if ring_candidate.get(
-                          "outer_fit_residual_max") is None else
-                          ring_candidate.get("outer_fit_residual_max"),
-                      -1.0 if ring_candidate.get(
-                          "inner_fit_residual_max") is None else
-                          ring_candidate.get("inner_fit_residual_max"),
-                      "-" if ring_candidate.get(
-                          "inner_outer_residual_correlation") is None else
-                          "%.2f" % ring_candidate.get(
-                              "inner_outer_residual_correlation"),
-                      "-" if ring_candidate.get(
-                          "residual_difference_max") is None else
-                          "%.2f" % ring_candidate.get(
-                              "residual_difference_max"),
-                      "-" if ring_candidate.get("width_range") is None else
-                          str(ring_candidate.get("width_range")),
-                       ring_candidate.get("path_row_count", 0),
-                       ring_candidate.get("path_y_span", 0),
-                       1 if ring_info.get("route_authorized") else 0,
-                       1 if ring_info.get("current_geometry_ok") else 0,
-                      str(ring_candidate.get("port_x"))[:5],
-                      str(ring_candidate.get("port_y"))[:5],
-                      str(ring_candidate.get("near_seed_x"))[:5],
-                      str(ring_candidate.get("near_seed_y"))[:5],
+                      1 if ring_info.get("candidate") else 0,
+                      1 if ring_info.get("ring_confirmed") else 0,
+                      ring_info.get("side", track_elements.SIDE_NONE),
+                      ring_info.get("target_count", 0),
+                      ring_info.get("cross_reason", "NOT_EVALUATED"),
+                      ring_info.get("cross_route_count", 0),
+                      1 if ring_info.get("cross_route_usable") else 0,
                       "DISABLED", slope_hint,
                        control_profile,
                       weight_info.get("heading_contribution", 0),

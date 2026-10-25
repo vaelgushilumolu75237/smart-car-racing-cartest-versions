@@ -89,6 +89,36 @@ struct ReverseVector {
     std::array<uint8_t, CAR_REVERSE_CONTROL_FRAME_SIZE> bytes{};
 };
 std::vector<ReverseVector> g_reverse_vectors;
+struct ProfileStateVector {
+    std::string name;
+    uint16_t sequence = 0;
+    uint8_t profile_id = 0;
+    uint8_t active = 0;
+    uint16_t revision = 0;
+    uint32_t session_token = 0;
+    uint32_t mean_forward_wheel_millirev = 0;
+    std::array<uint8_t, CAR_REVERSE_PROFILE_STATE_FRAME_SIZE> bytes{};
+};
+std::vector<ProfileStateVector> g_profile_state_vectors;
+struct ProfileAckWireVector {
+    std::string name;
+    uint16_t sequence = 0;
+    uint8_t valid = 0;
+    uint8_t confidence = 0;
+    int16_t error = 0;
+    uint8_t slope_hint = 0;
+    uint8_t curve_phase = 0;
+    uint16_t slowdown_request_permille = 0;
+    uint8_t profile_ack = 0;
+    std::array<uint8_t, VP_FRAME_SIZE> bytes{};
+};
+std::vector<ProfileAckWireVector> g_profile_ack_vectors;
+struct InvalidProfileAckVector {
+    std::string name;
+    vp_status expected_status = VP_STATUS_BAD_HEADER;
+    std::array<uint8_t, VP_FRAME_SIZE> bytes{};
+};
+std::vector<InvalidProfileAckVector> g_invalid_profile_ack_vectors;
 unsigned g_case_count = 0;
 unsigned g_check_count = 0;
 unsigned g_fail_count = 0;
@@ -339,6 +369,184 @@ bool parse_reverse_vectors(const char *path)
     return true;
 }
 
+bool parse_profile_state_vectors(const char *path)
+{
+    std::ifstream input(path);
+    std::string line;
+    if (!input.is_open()) {
+        std::printf("FAIL cannot open shared profile-state vector file: %s\n",
+                    path);
+        return false;
+    }
+    while (std::getline(input, line)) {
+        if (line.empty() || line[0] == '#' || line.rfind("case,", 0) == 0) {
+            continue;
+        }
+        std::stringstream row(line);
+        std::array<std::string, 8> fields{};
+        for (std::string &field : fields) {
+            if (!std::getline(row, field, ',')) {
+                std::printf("FAIL malformed profile-state CSV row: %s\n",
+                            line.c_str());
+                return false;
+            }
+        }
+        try {
+            ProfileStateVector vector;
+            vector.name = fields[0];
+            vector.sequence = static_cast<uint16_t>(std::stoul(fields[1]));
+            vector.profile_id = static_cast<uint8_t>(std::stoul(fields[2]));
+            vector.active = static_cast<uint8_t>(std::stoul(fields[3]));
+            vector.revision = static_cast<uint16_t>(std::stoul(fields[4]));
+            vector.session_token = static_cast<uint32_t>(std::stoul(fields[5]));
+            vector.mean_forward_wheel_millirev =
+                static_cast<uint32_t>(std::stoul(fields[6]));
+            if (vector.profile_id > 3u || vector.active > 1u ||
+                vector.revision != CAR_REVERSE_PROFILE_STATE_REVISION ||
+                fields[7].size() !=
+                    CAR_REVERSE_PROFILE_STATE_FRAME_SIZE * 2u) {
+                std::printf("FAIL invalid profile-state vector: %s\n",
+                            vector.name.c_str());
+                return false;
+            }
+            for (size_t index = 0; index < vector.bytes.size(); ++index) {
+                vector.bytes[index] = static_cast<uint8_t>(
+                    std::stoul(fields[7].substr(index * 2u, 2u), nullptr, 16));
+            }
+            g_profile_state_vectors.push_back(vector);
+        } catch (const std::exception &exception) {
+            std::printf("FAIL parsing profile-state CSV row '%s': %s\n",
+                        line.c_str(), exception.what());
+            return false;
+        }
+    }
+    if (!input.eof() || g_profile_state_vectors.size() != 4u) {
+        std::printf("FAIL profile-state vector file must contain four rows; found %zu\n",
+                    g_profile_state_vectors.size());
+        return false;
+    }
+    return true;
+}
+
+bool parse_profile_ack_vectors(const char *path)
+{
+    std::ifstream input(path);
+    std::string line;
+    if (!input.is_open()) {
+        std::printf("FAIL cannot open shared V3 profile-ack vector file: %s\n",
+                    path);
+        return false;
+    }
+    while (std::getline(input, line)) {
+        if (line.empty() || line[0] == '#' || line.rfind("case,", 0) == 0) {
+            continue;
+        }
+        std::stringstream row(line);
+        std::array<std::string, 10> fields{};
+        for (std::string &field : fields) {
+            if (!std::getline(row, field, ',')) {
+                std::printf("FAIL malformed V3 profile-ack CSV row: %s\n",
+                            line.c_str());
+                return false;
+            }
+        }
+        try {
+            ProfileAckWireVector vector;
+            vector.name = fields[0];
+            vector.sequence = static_cast<uint16_t>(std::stoul(fields[1]));
+            vector.valid = static_cast<uint8_t>(std::stoul(fields[2]));
+            vector.confidence = static_cast<uint8_t>(std::stoul(fields[3]));
+            vector.error = static_cast<int16_t>(std::stoi(fields[4]));
+            vector.slope_hint = static_cast<uint8_t>(std::stoul(fields[5]));
+            vector.curve_phase = static_cast<uint8_t>(std::stoul(fields[6]));
+            vector.slowdown_request_permille =
+                static_cast<uint16_t>(std::stoul(fields[7]));
+            vector.profile_ack = static_cast<uint8_t>(std::stoul(fields[8]));
+            if (vector.valid > 1u || vector.slope_hint > 1u ||
+                vector.curve_phase > VP_CURVE_PHASE_MAX ||
+                vector.slowdown_request_permille >
+                    VP_MAX_SLOWDOWN_REQUEST_PERMILLE ||
+                vector.profile_ack > VP_PROFILE_ACK_MAX ||
+                (vector.valid == 0u &&
+                 (vector.confidence != 0u || vector.error != 0 ||
+                  vector.slope_hint != 0u ||
+                  vector.curve_phase != VP_CURVE_PHASE_STRAIGHT ||
+                  vector.slowdown_request_permille != 0u)) ||
+                fields[9].size() != VP_FRAME_SIZE * 2u) {
+                std::printf("FAIL invalid V3 profile-ack vector: %s\n",
+                            vector.name.c_str());
+                return false;
+            }
+            for (size_t index = 0; index < vector.bytes.size(); ++index) {
+                vector.bytes[index] = static_cast<uint8_t>(
+                    std::stoul(fields[9].substr(index * 2u, 2u), nullptr, 16));
+            }
+            g_profile_ack_vectors.push_back(vector);
+        } catch (const std::exception &exception) {
+            std::printf("FAIL parsing V3 profile-ack CSV row '%s': %s\n",
+                        line.c_str(), exception.what());
+            return false;
+        }
+    }
+    if (!input.eof() || g_profile_ack_vectors.size() != 5u) {
+        std::printf("FAIL V3 profile-ack vector file must contain five rows; found %zu\n",
+                    g_profile_ack_vectors.size());
+        return false;
+    }
+    return true;
+}
+
+bool parse_invalid_profile_ack_vectors(const char *path)
+{
+    std::ifstream input(path);
+    std::string line;
+    if (!input.is_open()) {
+        std::printf("FAIL cannot open invalid V3 ACK vector file: %s\n", path);
+        return false;
+    }
+    while (std::getline(input, line)) {
+        if (line.empty() || line[0] == '#' || line.rfind("case,", 0) == 0) {
+            continue;
+        }
+        std::stringstream row(line);
+        std::array<std::string, 3> fields{};
+        for (std::string &field : fields) {
+            if (!std::getline(row, field, ',')) {
+                std::printf("FAIL malformed invalid V3 ACK vector: %s\n",
+                            line.c_str());
+                return false;
+            }
+        }
+        try {
+            InvalidProfileAckVector vector;
+            vector.name = fields[0];
+            vector.expected_status = fields[2] == "BAD_HEADER"
+                ? VP_STATUS_BAD_HEADER : VP_STATUS_NONE;
+            if (vector.expected_status != VP_STATUS_BAD_HEADER ||
+                fields[1].size() != VP_FRAME_SIZE * 2u) {
+                std::printf("FAIL invalid V3 ACK vector metadata: %s\n",
+                            vector.name.c_str());
+                return false;
+            }
+            for (size_t index = 0; index < vector.bytes.size(); ++index) {
+                vector.bytes[index] = static_cast<uint8_t>(
+                    std::stoul(fields[1].substr(index * 2u, 2u), nullptr, 16));
+            }
+            g_invalid_profile_ack_vectors.push_back(vector);
+        } catch (const std::exception &exception) {
+            std::printf("FAIL parsing invalid V3 ACK vector '%s': %s\n",
+                        line.c_str(), exception.what());
+            return false;
+        }
+    }
+    if (!input.eof() || g_invalid_profile_ack_vectors.size() != 1u) {
+        std::printf("FAIL expected one invalid V3 ACK vector; found %zu\n",
+                    g_invalid_profile_ack_vectors.size());
+        return false;
+    }
+    return true;
+}
+
 car_config_t make_config(bool bench = false, bool servo_measured = false)
 {
     car_config_t config{};
@@ -469,6 +677,24 @@ void send_frame_at(car_control_t *control,
     car_control_on_vision_frame_at_with_flags(
         control, config, sequence, flags, confidence, error, arrival_ms,
         now_ms, switch_high ? 1u : 0u);
+}
+
+void send_profile_frame_at(car_control_t *control,
+                           const car_config_t *config,
+                           uint16_t sequence,
+                           uint8_t profile_ack,
+                           bool valid,
+                           uint8_t confidence,
+                           int16_t error,
+                           uint32_t arrival_ms,
+                           uint32_t now_ms,
+                           bool switch_high)
+{
+    const uint8_t flags = valid ? VP_FLAG_VALID : 0u;
+    car_control_on_vision_frame_at_with_flags_curve_and_profile(
+        control, config, sequence, flags, confidence, error,
+        VP_CURVE_PHASE_STRAIGHT, 0u, VP_VERSION_V3, profile_ack,
+        arrival_ms, now_ms, switch_high ? 1u : 0u);
 }
 
 void establish_fresh_vision(car_control_t *control,
@@ -741,6 +967,102 @@ void test_shared_protocol_vectors()
     }
 }
 
+void test_shared_v3_profile_ack_vectors()
+{
+    CHECK_EQ("five shared V3 profile-ack vectors loaded",
+             g_profile_ack_vectors.size(), 5u);
+    for (const ProfileAckWireVector &vector : g_profile_ack_vectors) {
+        vp_frame frame = make_wire_frame(
+            vector.sequence, vector.valid != 0u, vector.confidence,
+            vector.error, vector.slope_hint != 0u, vector.curve_phase,
+            vector.slowdown_request_permille);
+        frame.profile_ack = vector.profile_ack;
+
+        std::array<uint8_t, VP_FRAME_SIZE> packed{};
+        CHECK_EQ("V3 packer accepts the shared vector",
+                 vp_pack_v3(&frame, packed.data()), 1u);
+        CHECK(packed == vector.bytes,
+              "V3 packer matches the shared Python-compatible bytes");
+
+        vp_frame decoded{};
+        CHECK_EQ("V3 unpack validates the shared vector",
+                 vp_unpack_ex(vector.bytes.data(), &decoded),
+                 VP_STATUS_FRAME);
+        CHECK_EQ("V3 decoded protocol version", decoded.version,
+                 VP_VERSION_V3);
+        CHECK_EQ("V3 decoded profile acknowledgement", decoded.profile_ack,
+                 vector.profile_ack);
+        CHECK_EQ("V3 decoded sequence", decoded.sequence, vector.sequence);
+        CHECK_EQ("V3 decoded route flags", decoded.flags,
+                 (vector.valid != 0u ? VP_FLAG_VALID : 0u) |
+                     (vector.slope_hint != 0u ? VP_FLAG_SLOPE_HINT : 0u));
+
+        vp_parser parser{};
+        vp_parser_init(&parser);
+        unsigned produced = 0u;
+        for (uint8_t byte : vector.bytes) {
+            produced += vp_parser_feed(&parser, byte, &decoded);
+        }
+        CHECK_EQ("V3 parser emits one shared vector", produced, 1u);
+        CHECK_EQ("V3 parser preserves its profile acknowledgement",
+                 decoded.profile_ack, vector.profile_ack);
+    }
+
+    vp_frame frame = make_wire_frame(9u);
+    frame.profile_ack = VP_PROFILE_ACK_DEBUG_RING_BASE;
+    std::array<uint8_t, VP_FRAME_SIZE> v2{};
+    CHECK_EQ("legacy packer still emits V2", vp_pack(&frame, v2.data()), 1u);
+    CHECK_EQ("legacy V2 profile byte remains zero", v2[11], 0u);
+    vp_frame decoded{};
+    CHECK_EQ("V2 still unpacks after adding V3", vp_unpack_ex(v2.data(), &decoded),
+             VP_STATUS_FRAME);
+    CHECK_EQ("V2 reports unknown profile acknowledgement",
+             decoded.profile_ack, VP_PROFILE_ACK_UNKNOWN);
+    frame.profile_ack = 0xFFu;
+    CHECK_EQ("legacy V2 packer ignores the appended V3-only field",
+             vp_pack(&frame, v2.data()), 1u);
+    const vp_frame legacy_positional_initializer = {
+        10u, VP_FLAG_VALID, 80u, 5, VP_CURVE_PHASE_STRAIGHT, 0u};
+    CHECK_EQ("old six-field positional initializer keeps source field order",
+             vp_pack(&legacy_positional_initializer, v2.data()), 1u);
+
+    std::array<uint8_t, VP_FRAME_SIZE> bad_ack =
+        g_profile_ack_vectors.front().bytes;
+    bad_ack[11] = VP_PROFILE_ACK_MAX + 1u;
+    refresh_wire_crc(&bad_ack);
+    CHECK_EQ("out-of-range V3 acknowledgement is rejected",
+             vp_unpack_ex(bad_ack.data(), &decoded), VP_STATUS_BAD_HEADER);
+    frame.profile_ack = VP_PROFILE_ACK_MAX + 1u;
+    CHECK_EQ("V3 packer rejects an out-of-range acknowledgement",
+             vp_pack_v3(&frame, v2.data()), 0u);
+
+    CHECK_EQ("one CRC-valid invalid-ACK vector loaded",
+             g_invalid_profile_ack_vectors.size(), 1u);
+    for (const InvalidProfileAckVector &vector :
+         g_invalid_profile_ack_vectors) {
+        const uint16_t expected_crc = vp_crc16_ccitt_false(
+            vector.bytes.data() + 2u, 12u);
+        const uint16_t received_crc =
+            static_cast<uint16_t>(vector.bytes[14]) |
+            (static_cast<uint16_t>(vector.bytes[15]) << 8u);
+        CHECK_EQ("invalid ACK vector still has a valid CRC",
+                 received_crc, expected_crc);
+        CHECK_EQ("CRC-valid out-of-range ACK vector is rejected as a header",
+                 vp_unpack_ex(vector.bytes.data(), &decoded),
+                 vector.expected_status);
+        vp_parser parser{};
+        vp_frame ignored{};
+        vp_parser_init(&parser);
+        unsigned produced = 0u;
+        for (uint8_t byte : vector.bytes) {
+            produced += vp_parser_feed(&parser, byte, &ignored);
+        }
+        CHECK_EQ("invalid ACK never becomes a parser frame", produced, 0u);
+        CHECK_EQ("invalid ACK keeps an explicit parser error",
+                 vp_parser_last_status(&parser), vector.expected_status);
+    }
+}
+
 void test_reverse_control_shared_vectors_and_lifecycle()
 {
     for (const ReverseVector &vector : g_reverse_vectors) {
@@ -840,6 +1162,140 @@ void test_reverse_control_shared_vectors_and_lifecycle()
              car_reverse_control_next_byte(&partial_keep, 251u, 1u,
                                            &byte), 1u);
     CHECK_EQ("new lifecycle begins with RESET sync byte", byte, 0xA6u);
+}
+
+void test_reverse_profile_state_vectors_and_paired_scheduler()
+{
+    CHECK_EQ("four shared profile-state vectors loaded",
+             g_profile_state_vectors.size(), 4u);
+    for (const ProfileStateVector &vector : g_profile_state_vectors) {
+        std::array<uint8_t, CAR_REVERSE_PROFILE_STATE_FRAME_SIZE> encoded{};
+        car_reverse_profile_state_encode(
+            vector.sequence, vector.profile_id, vector.active,
+            vector.session_token, vector.mean_forward_wheel_millirev,
+            encoded.data());
+        CHECK(encoded == vector.bytes,
+              "profile-state packer matches shared protocol bytes");
+        const uint16_t expected_crc = car_reverse_control_crc16(
+            encoded.data(), 18u);
+        const uint16_t received_crc = static_cast<uint16_t>(encoded[18]) |
+            (static_cast<uint16_t>(encoded[19]) << 8u);
+        CHECK_EQ("profile-state CRC covers bytes 0 through 17",
+                 received_crc, expected_crc);
+    }
+
+    car_reverse_control_tx_t tx{};
+    car_reverse_control_init(&tx, 0u);
+    car_reverse_control_set_profile_state(
+        &tx, 2u, 1u, 0x12345678u, 0x01020304u);
+    std::vector<uint8_t> stream;
+    for (uint32_t now_ms = 0u; now_ms < 1200u; ++now_ms) {
+        if (now_ms == 390u) {
+            car_reverse_control_set_profile_state(
+                &tx, 3u, 0u, 0x87654321u, 123456u);
+        }
+        uint8_t byte = 0u;
+        if (car_reverse_control_next_byte_paired(
+                &tx, now_ms, now_ms >= 250u ? 1u : 0u, &byte) != 0u) {
+            stream.push_back(byte);
+        }
+    }
+
+    uint16_t expected_control_sequence = 0u;
+    uint16_t expected_profile_sequence = 0u;
+    unsigned reset_count = 0u;
+    unsigned keep_count = 0u;
+    unsigned old_profile_status_count = 0u;
+    unsigned new_profile_status_count = 0u;
+    size_t cursor = 0u;
+    while (cursor < stream.size()) {
+        CHECK(cursor + 4u <= stream.size(),
+              "paired UART stream ends at a frame boundary");
+        if (cursor + 4u > stream.size()) break;
+        CHECK_EQ("paired stream sync byte 0", stream[cursor], 0xA6u);
+        CHECK_EQ("paired stream sync byte 1", stream[cursor + 1u], 0x5Au);
+        const uint8_t version = stream[cursor + 2u];
+        size_t frame_size = 0u;
+        if (version == 1u) {
+            frame_size = CAR_REVERSE_CONTROL_FRAME_SIZE;
+            CHECK(cursor + frame_size <= stream.size(),
+                  "V1 RESET/KEEP frame remains complete");
+            if (cursor + frame_size > stream.size()) break;
+            const uint8_t command = stream[cursor + 3u];
+            const uint16_t sequence = static_cast<uint16_t>(stream[cursor + 4u]) |
+                (static_cast<uint16_t>(stream[cursor + 5u]) << 8u);
+            const uint16_t crc = car_reverse_control_crc16(
+                stream.data() + cursor, 6u);
+            CHECK_EQ("V1 sequence is independent of status sequence",
+                     sequence, expected_control_sequence++);
+            CHECK_EQ("V1 CRC remains valid",
+                     static_cast<uint16_t>(stream[cursor + 6u]) |
+                         (static_cast<uint16_t>(stream[cursor + 7u]) << 8u),
+                     crc);
+            if (command == CAR_REVERSE_CONTROL_RESET) {
+                ++reset_count;
+            } else {
+                CHECK_EQ("V1 command is RESET or KEEP", command,
+                         CAR_REVERSE_CONTROL_KEEP);
+                ++keep_count;
+            }
+        } else if (version == 2u) {
+            frame_size = CAR_REVERSE_PROFILE_STATE_FRAME_SIZE;
+            CHECK_EQ("profile-state V2 marker is 2", stream[cursor + 3u], 2u);
+            CHECK(cursor + frame_size <= stream.size(),
+                  "V2 state frame remains complete");
+            if (cursor + frame_size > stream.size()) break;
+            const uint16_t sequence = static_cast<uint16_t>(stream[cursor + 4u]) |
+                (static_cast<uint16_t>(stream[cursor + 5u]) << 8u);
+            const uint16_t revision = static_cast<uint16_t>(stream[cursor + 8u]) |
+                (static_cast<uint16_t>(stream[cursor + 9u]) << 8u);
+            const uint32_t token = static_cast<uint32_t>(stream[cursor + 10u]) |
+                (static_cast<uint32_t>(stream[cursor + 11u]) << 8u) |
+                (static_cast<uint32_t>(stream[cursor + 12u]) << 16u) |
+                (static_cast<uint32_t>(stream[cursor + 13u]) << 24u);
+            const uint32_t mean = static_cast<uint32_t>(stream[cursor + 14u]) |
+                (static_cast<uint32_t>(stream[cursor + 15u]) << 8u) |
+                (static_cast<uint32_t>(stream[cursor + 16u]) << 16u) |
+                (static_cast<uint32_t>(stream[cursor + 17u]) << 24u);
+            const uint16_t crc = car_reverse_control_crc16(
+                stream.data() + cursor, 18u);
+            CHECK_EQ("status sequence is independent of V1 RESET/KEEP",
+                     sequence, expected_profile_sequence++);
+            CHECK_EQ("status revision remains one", revision, 1u);
+            CHECK_EQ("status flags reserve all but active bit",
+                     stream[cursor + 7u] & 0xFEu, 0u);
+            CHECK_EQ("V2 status CRC remains valid",
+                     static_cast<uint16_t>(stream[cursor + 18u]) |
+                         (static_cast<uint16_t>(stream[cursor + 19u]) << 8u),
+                     crc);
+            if (stream[cursor + 6u] == 2u) {
+                CHECK_EQ("initial status has active Follow session",
+                         stream[cursor + 7u], 1u);
+                CHECK_EQ("initial status preserves token", token, 0x12345678u);
+                CHECK_EQ("initial status carries encoder mean", mean, 0x01020304u);
+                ++old_profile_status_count;
+            } else {
+                CHECK_EQ("updated status has inactive Follow session",
+                         stream[cursor + 7u], 0u);
+                CHECK_EQ("updated status carries new token", token, 0x87654321u);
+                CHECK_EQ("updated status carries new mean", mean, 123456u);
+                ++new_profile_status_count;
+            }
+        } else {
+            CHECK(false, "paired stream contains only V1 and V2 frames");
+            break;
+        }
+        cursor += frame_size;
+    }
+    CHECK_EQ("the original five RESET frames are preserved", reset_count,
+             CAR_REVERSE_CONTROL_RESET_FRAMES);
+    CHECK(keep_count > 0u, "KEEP resumes only after permission is granted");
+    CHECK(old_profile_status_count > 0u,
+          "heartbeat sends the initial profile/token state");
+    CHECK(new_profile_status_count > 0u,
+          "heartbeat sends the updated profile/token state");
+    CHECK_EQ("completed status count matches the independent sequence",
+             tx.profile_tx_count, expected_profile_sequence);
 }
 
 void test_servo_live_timer_validation()
@@ -2825,6 +3281,124 @@ void start_follow_by_physical_pe7(car_control_t *control,
     car_inputs_t press_stable = make_debounced_inputs(
         start_ms + 24u, false, false, true);
     car_control_tick(control, config, &press_stable);
+}
+
+void test_new_track_profile_requires_fresh_matching_v3_ack()
+{
+    car_config_t config = make_follow_config();
+    config.required_camera_profile_ack =
+        VP_PROFILE_ACK_DEBUG_RING_BASE;
+    car_control_t control{};
+    car_control_init(&control, &config, 0u, 1u, 0u);
+    confirm_follow_startup_release(&control, &config, 0u);
+
+    /* A matching acknowledgement from before this physical start is cached,
+       then the new RESET generation must invalidate it. */
+    send_profile_frame_at(&control, &config, 1u,
+                          VP_PROFILE_ACK_DEBUG_RING_BASE, true, 80u, 0,
+                          1u, 1u, true);
+    CHECK_EQ("pre-start V3 frame can identify the current camera build",
+             car_control_camera_profile_ack_ready(&control, &config, 1u), 1u);
+    car_inputs_t start_request = make_inputs(5u, false);
+    CHECK_EQ("physical Follow start begins a new pairing lifecycle",
+             car_control_begin_manual_follow_start(
+                 &control, &config, &start_request), 1u);
+    CHECK_EQ("RESET invalidates cached profile acknowledgement immediately",
+             car_control_camera_profile_ack_ready(&control, &config, 5u), 0u);
+    car_control_rx_recovery_flush_complete(&control);
+    car_control_reverse_control_reset_started(&control);
+    car_control_reverse_control_reset_phase_complete(&control);
+    car_control_reverse_control_keep_started(&control);
+
+    for (uint16_t sequence = 2u; sequence <= 4u; ++sequence) {
+        send_frame_at(&control, &config, sequence, true, 80u, 0,
+                      sequence + 5u, sequence + 5u, true);
+    }
+    CHECK_EQ("V2 is still parsed but cannot acknowledge a new profile",
+             control.latest_rx_protocol_version, VP_VERSION_V2);
+    CHECK_EQ("legacy V2 frames do not satisfy the new pairing gate",
+             car_control_camera_profile_ack_ready(&control, &config, 10u), 0u);
+    CHECK_EQ("V2 frames cannot become trusted recovery route data",
+             control.have_valid_vision, 0u);
+
+    send_profile_frame_at(&control, &config, 5u,
+                          VP_PROFILE_ACK_DEBUG_FAST_NO_RING, true, 80u, 0,
+                          11u, 11u, true);
+    send_profile_frame_at(&control, &config, 6u,
+                          VP_PROFILE_ACK_DEBUG_FAST_NO_RING, true, 80u, 0,
+                          12u, 12u, true);
+    CHECK_EQ("wrong-profile V3 acknowledgement remains fail-closed",
+             car_control_camera_profile_ack_ready(&control, &config, 12u), 0u);
+    CHECK_EQ("wrong profile frame cannot update trusted vision",
+             control.have_valid_vision, 0u);
+    CHECK(control.profile_ack_mismatch_count >= 5u,
+          "legacy and wrong-profile observations are counted for diagnosis");
+
+    send_profile_frame_at(&control, &config, 7u,
+                          VP_PROFILE_ACK_DEBUG_RING_BASE, false, 0u, 0,
+                          13u, 13u, true);
+    CHECK_EQ("fresh matching V3 ACK is valid even while the route is absent",
+             car_control_camera_profile_ack_ready(&control, &config, 13u), 1u);
+    CHECK_EQ("an invalid-route ACK does not create trusted route data",
+             control.have_valid_vision, 0u);
+    for (uint16_t sequence = 8u; sequence <= 10u; ++sequence) {
+        const uint32_t now_ms = 13u + sequence - 7u;
+        send_profile_frame_at(&control, &config, sequence,
+                              VP_PROFILE_ACK_DEBUG_RING_BASE, true, 80u, 0,
+                              now_ms, now_ms, true);
+    }
+    CHECK_EQ("three fresh matching V3 route frames restore vision trust",
+             control.have_valid_vision, 1u);
+    CHECK_EQ("camera pairing alone does not start Follow",
+             control.follow_session_active, 0u);
+    CHECK_EQ("recovered route waits for a separate physical start edge",
+             control.mode, CAR_MODE_WAIT_START_EDGE);
+
+    car_inputs_t press_edge = make_debounced_inputs(20u, false, true, false);
+    car_control_tick(&control, &config, &press_edge);
+    car_inputs_t press_stable = make_debounced_inputs(40u, false, false, true);
+    car_control_tick(&control, &config, &press_stable);
+    CHECK_EQ("a separate PE7 edge starts the paired Follow session",
+             control.mode, CAR_MODE_FOLLOW_RUNNING);
+    CHECK_EQ("started Follow session owns the profile token scope",
+             control.follow_session_active, 1u);
+
+    car_control_t stale = control;
+    stale.latest_rx_arrival_ms = 20u;
+    stale.latest_rx_profile_ack_arrival_ms = 20u;
+    stale.vision_last_frame_alive_ms = 269u;
+    stale.vision_last_valid_ms = 269u;
+    stale.road_drive_allowed = 1u;
+    stale.follow_output_duty_permille = 500u;
+    car_inputs_t expired = make_inputs(270u, false);
+    car_control_tick(&stale, &config, &expired);
+    CHECK_EQ("250 ms ACK age expires even with cached matching bytes",
+             stale.fault, CAR_FAULT_PROTOCOL);
+    CHECK_EQ("expired ACK revokes road permission", stale.road_drive_allowed, 0u);
+    CHECK_EQ("expired ACK stops commanded Follow duty",
+             stale.follow_output_duty_permille, 0u);
+
+    send_profile_frame_at(&control, &config, 11u,
+                          VP_PROFILE_ACK_DEBUG_FAST_NO_RING, true, 80u, 0,
+                          41u, 41u, false);
+    CHECK_EQ("active profile mismatch raises protocol fault",
+             control.fault, CAR_FAULT_PROTOCOL);
+    CHECK_EQ("active profile mismatch stops road output",
+             control.road_drive_allowed, 0u);
+    CHECK_EQ("active profile mismatch zeros commanded duty",
+             control.follow_output_duty_permille, 0u);
+
+    car_config_t legacy = make_follow_config();
+    CHECK_EQ("legacy profile keeps V2/no-ACK behavior",
+             legacy.required_camera_profile_ack,
+             VP_PROFILE_ACK_UNKNOWN);
+    car_control_t legacy_control{};
+    car_control_init(&legacy_control, &legacy, 0u, 1u, 0u);
+    send_frame_at(&legacy_control, &legacy, 1u, true, 80u, 0,
+                  1u, 1u, true);
+    CHECK_EQ("legacy profile does not require V3 pairing",
+             car_control_camera_profile_ack_ready(
+                 &legacy_control, &legacy, 1u), 1u);
 }
 
 void enter_follow_visual_hold(car_control_t *control,
@@ -6986,10 +7560,25 @@ int main(int argc, char **argv)
     if (!parse_reverse_vectors("openmv/tests/data/reverse-control-v1.csv")) {
         return 2;
     }
+    if (!parse_profile_state_vectors(
+            "tests/data/reverse-profile-state-v2.csv")) {
+        return 2;
+    }
+    if (!parse_profile_ack_vectors("tests/data/vision-protocol-v3.csv")) {
+        return 2;
+    }
+    if (!parse_invalid_profile_ack_vectors(
+            "tests/data/vision-protocol-v3-invalid-ack.csv")) {
+        return 2;
+    }
 
     run_case("shared_protocol_vectors", test_shared_protocol_vectors);
+    run_case("shared_v3_profile_ack_vectors",
+             test_shared_v3_profile_ack_vectors);
     run_case("reverse_control_vectors_lifecycle",
              test_reverse_control_shared_vectors_and_lifecycle);
+    run_case("reverse_profile_state_vectors_paired_scheduler",
+             test_reverse_profile_state_vectors_and_paired_scheduler);
     run_case("servo_live_timer_validation", test_servo_live_timer_validation);
     run_case("servo_live_clock_profile_derivation",
              test_servo_live_clock_profile_derivation);
@@ -7044,6 +7633,8 @@ int main(int argc, char **argv)
     run_case("exact_vision_timeout", test_exact_vision_timeout_and_late_frame);
     run_case("follow_toggle_actual_controller",
              test_follow_toggle_drives_manual_controller_session);
+    run_case("new_track_profile_fresh_v3_ack_gate",
+             test_new_track_profile_requires_fresh_matching_v3_ack);
     run_case("manual_start_reverse_resync",
              test_manual_follow_start_restarts_reverse_resync);
     run_case("follow_hold_requires_applied_outputs",

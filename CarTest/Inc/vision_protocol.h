@@ -11,6 +11,8 @@ extern "C" {
 #define VP_SYNC_BYTE_0 0xA5u
 #define VP_SYNC_BYTE_1 0x5Au
 #define VP_VERSION 2u
+#define VP_VERSION_V2 2u
+#define VP_VERSION_V3 3u
 #define VP_VERSION_V1 1u
 #define VP_PAYLOAD_LENGTH 8u
 #define VP_FLAG_VALID 0x01u
@@ -25,6 +27,11 @@ extern "C" {
 #define VP_CURVE_PHASE_EXIT 3u
 #define VP_CURVE_PHASE_MAX VP_CURVE_PHASE_EXIT
 #define VP_MAX_SLOWDOWN_REQUEST_PERMILLE 1000u
+#define VP_PROFILE_ACK_UNKNOWN 0u
+#define VP_PROFILE_ACK_DEBUG_FAST_NO_RING 1u
+#define VP_PROFILE_ACK_DEBUG_RING_BASE 2u
+#define VP_PROFILE_ACK_DEBUG_RING_FAST 3u
+#define VP_PROFILE_ACK_MAX VP_PROFILE_ACK_DEBUG_RING_FAST
 
 typedef enum {
     VP_STATUS_NONE = 0u,
@@ -43,6 +50,9 @@ typedef struct {
     int16_t lateral_error;
     uint8_t curve_phase;
     uint16_t slowdown_request_permille;
+    /* Appended so legacy positional initializers retain their field order. */
+    uint8_t version;
+    uint8_t profile_ack;
 } vp_frame;
 
 /* The parser owns this fixed-size storage; it performs no allocation. */
@@ -56,8 +66,11 @@ typedef struct {
 /* CRC-16/CCITT-FALSE: poly 0x1021, init 0xFFFF, no reflection, xorout 0. */
 uint16_t vp_crc16_ccitt_false(const uint8_t* data, uint8_t length);
 
-/* Pack/unpack the strict V2 wire format. Return 1/FRAME on success. */
+/* vp_pack preserves the V2 wire format for legacy sources and test vectors. */
 uint8_t vp_pack(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]);
+/* V3 keeps every V2 field offset; byte 11 carries profile_ack. */
+uint8_t vp_pack_v3(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]);
+/* Unpack accepts V2 and V3; V2 reports profile_ack=UNKNOWN. */
 vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame);
 uint8_t vp_unpack(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame);
 

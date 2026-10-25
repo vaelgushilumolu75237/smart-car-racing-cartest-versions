@@ -1,7 +1,7 @@
 {
-  "version": "v20261025-usb60-fifo-static",
-  "status": "static-straight-fifo-preview-tested",
-  "branch": "experimental/usb60-fifo-static",
-  "files": 612,
-  "hardware_actions": "none"
+  "version": "v20261026-h750-track-profiles-candidate",
+  "status": "software-and-static-camera-tested-road-pending",
+  "branch": "experimental/h750-track-profiles",
+  "files": 716,
+  "hardware_actions": "stationary-camera-upload-h743-flash-no-motor-start"
 }

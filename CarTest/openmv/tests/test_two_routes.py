@@ -353,7 +353,8 @@ class TwoRouteTests(unittest.TestCase):
         })
         self.assertTrue(all(point[1] < main._surface_pixel((0, HEIGHT - 1))[1]
                             for point in boundary_points))
-        self.assertIn("BP15 SINGLE_LEFT", image.strings[1][1])
+        self.assertEqual(image.strings[1][1], "TRK UNK IDLE")
+        self.assertIn("WHY OK_CLIPPED", image.strings[2][1])
         self.assertLessEqual(len(image.strings), 5)
         self.assertEqual(image.strings[0][1], "NOW V CLIP/SINGLE_LEFT")
 

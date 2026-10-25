@@ -8,7 +8,10 @@ Set-StrictMode -Version Latest
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $logDirectory = Join-Path $PSScriptRoot "logs"
 $vectorFile = Join-Path $projectRoot "tests\data\vision-protocol-v2.csv"
+$profileAckVectorFile = Join-Path $projectRoot "tests\data\vision-protocol-v3.csv"
+$invalidProfileAckVectorFile = Join-Path $projectRoot "tests\data\vision-protocol-v3-invalid-ack.csv"
 $reverseVectorFile = Join-Path $projectRoot "openmv\tests\data\reverse-control-v1.csv"
+$profileStateVectorFile = Join-Path $projectRoot "tests\data\reverse-profile-state-v2.csv"
 $sourceFiles = @(
     (Join-Path $projectRoot "App\commissioning.c"),
     (Join-Path $projectRoot "App\servo_safety.c"),
@@ -34,8 +37,12 @@ $sourceFiles = @(
     (Join-Path $PSScriptRoot "test_speed_pi_diag.c"),
     (Join-Path $PSScriptRoot "test_receive_diag.c"),
     (Join-Path $PSScriptRoot "test_speed_pi_trace.c"),
+    (Join-Path $PSScriptRoot "test_track_profile_targets.c"),
     $vectorFile,
-    $reverseVectorFile
+    $profileAckVectorFile,
+    $invalidProfileAckVectorFile,
+    $reverseVectorFile,
+    $profileStateVectorFile
 )
 
 foreach ($path in $sourceFiles) {
@@ -263,6 +270,9 @@ $batchLines = @(
     "echo === Execute production motor_apply speed PI zero-coast and guard paths ===",
     "python tests\host\test_follow_output_path.py --source Src\main.c --output-dir test-data\speedpd-20261020-validation\host-motor-apply",
     "if errorlevel 1 set TEST_EXIT=1",
+    "echo === Verify Ackermann target, PI cap, steering mirror and snapshot profile matrix ===",
+    "powershell -ExecutionPolicy Bypass -File tests\host\run_ackermann_control_tests.ps1",
+    "if errorlevel 1 set TEST_EXIT=1",
     "popd",
     "exit /b %TEST_EXIT%"
 )
@@ -301,6 +311,12 @@ $header = @(
     "Vector SHA-256: $((Get-FileHash -LiteralPath $vectorFile -Algorithm SHA256).Hash)",
     "Shared reverse-control vector: $reverseVectorFile",
     "Reverse-control vector SHA-256: $((Get-FileHash -LiteralPath $reverseVectorFile -Algorithm SHA256).Hash)",
+    "Shared V3 profile-ack vector: $profileAckVectorFile",
+    "V3 profile-ack vector SHA-256: $((Get-FileHash -LiteralPath $profileAckVectorFile -Algorithm SHA256).Hash)",
+    "Shared invalid V3 profile-ack vector: $invalidProfileAckVectorFile",
+    "Invalid V3 profile-ack vector SHA-256: $((Get-FileHash -LiteralPath $invalidProfileAckVectorFile -Algorithm SHA256).Hash)",
+    "Shared reverse profile-state V2 vector: $profileStateVectorFile",
+    "Profile-state vector SHA-256: $((Get-FileHash -LiteralPath $profileStateVectorFile -Algorithm SHA256).Hash)",
     "App/ pure modules and runtime_log.c are compiled directly; the speed PI adapter tests run against the production module, and the servo_apply() body is extracted from baseline and production main.c and compiled against HAL mocks. No HAL, UART device, or STM32 board is executed.",
     ""
 )

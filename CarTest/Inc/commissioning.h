@@ -2,17 +2,18 @@
 #define CARTEST_COMMISSIONING_H
 
 #include <stdint.h>
+#include "car_track_profile.h"
 
 #ifndef CARTEST_VISION_HOLD_MS
 #define CARTEST_VISION_HOLD_MS 3000u
 #endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
-    CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u
+    CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u,
+    CAR_CAMERA_PROFILE_ACK_TIMEOUT_MS = 250u
 };
 
 #define CAR_CONTROL_VISION_HOLD_MS CARTEST_VISION_HOLD_MS
@@ -121,6 +122,8 @@ typedef struct {
     uint16_t follow_kp_permille;
     uint16_t follow_max_duty_permille;
     uint16_t follow_ramp_step_permille;
+    /* 0 keeps legacy V2 operation; 1..3 require a fresh matching V3 ack. */
+    uint8_t required_camera_profile_ack;
 } car_config_t;
 
 /* Shared production profile configuration used by target main and host tests. */
@@ -199,6 +202,11 @@ typedef struct {
     uint32_t latest_rx_arrival_ms;
     uint32_t latest_rx_frame_count;
     uint8_t latest_rx_have_frame;
+    uint8_t latest_rx_protocol_version;
+    uint8_t latest_rx_profile_ack;
+    uint8_t profile_ack_seen_after_reset;
+    uint32_t profile_ack_mismatch_count;
+    uint32_t latest_rx_profile_ack_arrival_ms;
     /* Recovery accepts only a new uninterrupted set of fresh observations. */
     uint8_t recovery_frame_count;
     uint32_t auto_recovery_count;
@@ -353,6 +361,28 @@ void car_control_on_vision_frame_at_with_flags_and_curve(
     uint32_t arrival_ms,
     uint32_t now_ms,
     uint8_t pe7_raw_high);
+
+/* V2/V3 parser path with the byte-11 profile acknowledgement. */
+void car_control_on_vision_frame_at_with_flags_curve_and_profile(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high);
+
+/* True for legacy profiles, or a fresh matching V3 ack after latest RESET. */
+uint8_t car_control_camera_profile_ack_ready(
+    const car_control_t *control,
+    const car_config_t *config,
+    uint32_t now_ms);
 
 /* Call only after outputs are stopped and RX/UART queues are atomically flushed. */
 void car_control_rx_recovery_flush_complete(car_control_t *control);

@@ -1,9 +1,10 @@
-"""MicroPython-safe encoder for the strict smart-car vision UART V2 frame."""
+"""MicroPython-safe encoder for fixed-layout smart-car vision frames."""
 
 FRAME_SIZE = 16
 SYNC_BYTE_0 = 0xA5
 SYNC_BYTE_1 = 0x5A
 VERSION = 2
+VERSION_V3 = 3
 PAYLOAD_LENGTH = 8
 FLAG_VALID = 0x01
 FLAG_SLOPE_HINT = 0x02
@@ -101,9 +102,30 @@ def pack_into(out, sequence, valid, confidence, lateral_error,
     if len(out) < FRAME_SIZE:
         raise ValueError("out must contain at least 16 bytes")
 
+    return _pack_into_version(
+        out, sequence, valid, confidence, lateral_error, slope_hint,
+        curve_phase, slowdown_request_permille, VERSION, 0)
+
+
+def _pack_into_version(out, sequence, valid, confidence, lateral_error,
+                       slope_hint, curve_phase,
+                       slowdown_request_permille, version, profile_ack):
+    """Pack the common 16-byte layout with a selected version/byte 11."""
+    _check_frame(sequence, valid, confidence, lateral_error, slope_hint,
+                 curve_phase, slowdown_request_permille)
+    if not isinstance(out, bytearray):
+        raise TypeError("out must be a writable bytearray")
+    if len(out) < FRAME_SIZE:
+        raise ValueError("out must contain at least 16 bytes")
+    if version not in (VERSION, VERSION_V3):
+        raise ValueError("unsupported vision frame version")
+    if (isinstance(profile_ack, bool) or not isinstance(profile_ack, int) or
+            profile_ack < 0 or profile_ack > 3):
+        raise ValueError("profile_ack must be in 0..3")
+
     out[0] = SYNC_BYTE_0
     out[1] = SYNC_BYTE_1
-    out[2] = VERSION
+    out[2] = version
     out[3] = PAYLOAD_LENGTH
     out[4] = sequence & 0xFF
     out[5] = (sequence >> 8) & 0xFF
@@ -117,7 +139,7 @@ def pack_into(out, sequence, valid, confidence, lateral_error,
     out[8] = raw_error & 0xFF
     out[9] = (raw_error >> 8) & 0xFF
     out[10] = curve_phase
-    out[11] = 0
+    out[11] = profile_ack if version == VERSION_V3 else 0
     out[12] = slowdown_request_permille & 0xFF
     out[13] = (slowdown_request_permille >> 8) & 0xFF
 
@@ -125,6 +147,15 @@ def pack_into(out, sequence, valid, confidence, lateral_error,
     out[14] = crc & 0xFF
     out[15] = (crc >> 8) & 0xFF
     return out
+
+
+def pack_into_v3(out, sequence, valid, confidence, lateral_error,
+                 slope_hint=0, curve_phase=0,
+                 slowdown_request_permille=0, profile_ack=0):
+    """Pack a V3 frame; byte 11 confirms an acknowledged A/B/C profile."""
+    return _pack_into_version(
+        out, sequence, valid, confidence, lateral_error, slope_hint,
+        curve_phase, slowdown_request_permille, VERSION_V3, profile_ack)
 
 
 def pack_frame(sequence, valid, confidence, lateral_error, slope_hint=0,
@@ -135,8 +166,26 @@ def pack_frame(sequence, valid, confidence, lateral_error, slope_hint=0,
                      slope_hint, curve_phase, slowdown_request_permille)
 
 
+def pack_frame_v3(sequence, valid, confidence, lateral_error, slope_hint=0,
+                  curve_phase=0, slowdown_request_permille=0,
+                  profile_ack=0):
+    """Pack one V3 observation into a new 16-byte bytearray."""
+    out = bytearray(FRAME_SIZE)
+    return pack_into_v3(
+        out, sequence, valid, confidence, lateral_error, slope_hint,
+        curve_phase, slowdown_request_permille, profile_ack)
+
+
 def pack(sequence, valid, confidence, lateral_error, slope_hint=0,
          curve_phase=0, slowdown_request_permille=0):
     """Short alias for pack_frame used by the vision loop."""
     return pack_frame(sequence, valid, confidence, lateral_error, slope_hint,
                       curve_phase, slowdown_request_permille)
+
+
+def pack_v3(sequence, valid, confidence, lateral_error, slope_hint=0,
+            curve_phase=0, slowdown_request_permille=0, profile_ack=0):
+    """Short alias for the production V3 encoder."""
+    return pack_frame_v3(
+        sequence, valid, confidence, lateral_error, slope_hint, curve_phase,
+        slowdown_request_permille, profile_ack)

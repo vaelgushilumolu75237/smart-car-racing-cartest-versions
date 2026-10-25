@@ -71,7 +71,7 @@
     (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
     (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != \
         (CARTEST_ACKERMANN_COORDINATION_ENABLED ? 160 : 120))
-#error "FollowTurn requires a 65/35 or 70/30 differential with 120us/20ms steering and 40-permille/10ms motor ramp."
+#error "FollowTurn requires a 65/35 or 70/30 differential with the selected 120/160us steering slew and 40-permille/10ms motor ramp."
 #endif
 #if CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200
 #error "FollowTurn requires a 2000 ms hold deadline and 200 ms deceleration."
@@ -115,8 +115,9 @@
      !CARTEST_FOLLOW_SPEED_PI_ENABLED || \
      !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
      CARTEST_FOLLOW_DIFF_PERMILLE != 150 || \
-     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 160)
-#error "Ackermann coordination requires the C incremental-PI profile and 160us/20ms servo slew."
+     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != \
+        160)
+#error "Ackermann coordination requires the incremental-PI profile and its selected 120/160us servo slew."
 #endif
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED && \
     !CARTEST_ACKERMANN_COORDINATION_ENABLED && \
@@ -139,6 +140,15 @@
      CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE != 1000 || \
      CARTEST_FOLLOW_SPEED_PI_TRACKING_TIME_MS != 200)
 #error "The speed PI trial requires the exact accepted FollowTurn profile and provisional PI parameters."
+#endif
+#if CARTEST_TRACK_PROFILE != CAR_TRACK_PROFILE_LEGACY && \
+    (!CARTEST_FOLLOW_MODE_COMPILED || \
+     !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
+     !CARTEST_FOLLOW_SPEED_PI_ENABLED || \
+     !CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED || \
+     !CARTEST_ACKERMANN_COORDINATION_ENABLED || \
+     !CARTEST_HARDWARE_ACCEPTED || !CARTEST_RUNTIME_LOG_ENABLED)
+#error "Paired track profiles require logged, hardware-accepted incremental-PI Ackermann Follow."
 #endif
 #if (CARTEST_BENCH_MODE_COMPILED + CARTEST_FOLLOW_MODE_COMPILED + \
      CARTEST_STEERING_MODE_COMPILED) > 1
@@ -351,6 +361,23 @@ volatile uint32_t car_reverse_control_reset_generation;
 volatile uint32_t car_reverse_control_reset_phase_complete;
 volatile uint32_t car_reverse_control_keep_active;
 volatile uint32_t car_reverse_control_fresh_frames;
+volatile uint32_t car_camera_profile_required_ack;
+volatile uint32_t car_camera_profile_latest_ack;
+volatile uint32_t car_camera_profile_latest_version;
+volatile uint32_t car_camera_profile_ack_ready;
+volatile uint32_t car_camera_profile_ack_seen_after_reset;
+volatile uint32_t car_camera_profile_ack_age_ms;
+volatile uint32_t car_camera_profile_last_ack_ms;
+volatile uint32_t car_camera_profile_mismatch_count;
+volatile uint32_t car_profile_state_sequence;
+volatile uint32_t car_profile_state_last_tx_ms;
+volatile uint32_t car_profile_state_tx_count;
+volatile uint32_t car_profile_state_id;
+volatile uint32_t car_profile_state_session_active;
+volatile uint32_t car_session_token;
+volatile uint32_t car_session_mean_forward_wheel_millirev;
+volatile uint32_t car_session_odom_valid_samples;
+volatile uint32_t car_session_odom_invalid_samples;
 volatile uint32_t car_follow_servo_target_us;
 volatile uint32_t car_follow_motor_duty_permille;
 volatile uint32_t car_follow_diff_mode_permille;
@@ -524,6 +551,15 @@ static car_servo_safety_t servo_safety;
 static car_follow_output_state_t follow_output_state;
 static car_servo_safety_io_t servo_safety_io;
 static car_reverse_control_tx_t reverse_control_tx;
+static uint32_t follow_session_token;
+static uint64_t session_left_millirev;
+static uint64_t session_right_millirev;
+static uint64_t session_mean_forward_millirev;
+static int64_t odometry_last_left_raw_counts;
+static int64_t odometry_last_right_raw_counts;
+static uint8_t odometry_have_baseline;
+static uint32_t odometry_valid_sample_count;
+static uint32_t odometry_rejected_sample_count;
 static uint32_t reverse_control_seen_generation;
 static uint32_t reverse_control_seen_rx_fault_generation;
 static uint8_t reverse_control_ready;
@@ -582,6 +618,8 @@ static uint8_t servo_hardware_start(void *context);
 static uint8_t servo_take_completed_update(void *context);
 static void servo_safety_fault_to_controller(void);
 static void service_reverse_control(uint32_t now_ms);
+static void reset_session_odometry(void);
+static void update_session_odometry(void);
 static void enforce_motor_hardware_lock(void);
 static void consume_fast_stop_latch(void);
 static void flush_uart_and_parser(void);
@@ -1887,6 +1925,131 @@ static void consume_manual_stop_request(const car_inputs_t *inputs)
     __set_PRIMASK(primask);
 }
 
+static void reset_session_odometry(void)
+{
+    session_left_millirev = 0u;
+    session_right_millirev = 0u;
+    session_mean_forward_millirev = 0u;
+    odometry_have_baseline = 0u;
+    odometry_valid_sample_count = 0u;
+    odometry_rejected_sample_count = 0u;
+}
+
+static uint8_t normalize_forward_encoder_delta(
+    int64_t current,
+    int64_t previous,
+    int8_t sign,
+    uint64_t *forward_delta)
+{
+    int64_t delta;
+
+    if (forward_delta == 0 || (sign != 1 && sign != -1) ||
+        (previous > 0 && current < INT64_MIN + previous) ||
+        (previous < 0 && current > INT64_MAX + previous)) {
+        return 0u;
+    }
+    delta = current - previous;
+    if (sign < 0) {
+        if (delta == INT64_MIN) {
+            return 0u;
+        }
+        delta = -delta;
+    }
+    if (delta < 0) {
+        return 0u;
+    }
+    *forward_delta = (uint64_t)delta;
+    return 1u;
+}
+
+static uint8_t encoder_counts_to_millirev(uint64_t counts,
+                                          uint32_t counts_per_rev,
+                                          uint64_t *millirev)
+{
+    const uint64_t scale = UINT64_C(1000000);
+    uint64_t whole_revolutions;
+    uint64_t remainder;
+    uint64_t whole_part;
+    uint64_t fractional_part;
+
+    if (counts_per_rev == 0u || millirev == 0) {
+        return 0u;
+    }
+    whole_revolutions = counts / counts_per_rev;
+    remainder = counts % counts_per_rev;
+    if (whole_revolutions > UINT64_MAX / scale) {
+        return 0u;
+    }
+    whole_part = whole_revolutions * scale;
+    fractional_part = (remainder * scale) / counts_per_rev;
+    if (whole_part > UINT64_MAX - fractional_part) {
+        return 0u;
+    }
+    *millirev = whole_part + fractional_part;
+    return 1u;
+}
+
+static void update_session_odometry(void)
+{
+    const int64_t left_counts = car_encoder_diag.left_raw_delta_sum;
+    const int64_t right_counts = car_encoder_diag.right_raw_delta_sum;
+    uint64_t left_delta;
+    uint64_t right_delta;
+    uint64_t left_millirev;
+    uint64_t right_millirev;
+
+    if (car_control_state.follow_session_active == 0u) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (speed_observer_result.valid == 0u) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_WAITING) {
+        return;
+    }
+    if (speed_observer_result.status != CAR_SPEED_OBSERVER_STATUS_SAMPLE) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (odometry_have_baseline == 0u) {
+        odometry_last_left_raw_counts = left_counts;
+        odometry_last_right_raw_counts = right_counts;
+        odometry_have_baseline = 1u;
+        return;
+    }
+    if (normalize_forward_encoder_delta(
+            left_counts, odometry_last_left_raw_counts,
+            app_config.follow_left_encoder_sign, &left_delta) == 0u ||
+        normalize_forward_encoder_delta(
+            right_counts, odometry_last_right_raw_counts,
+            app_config.follow_right_encoder_sign, &right_delta) == 0u ||
+        encoder_counts_to_millirev(
+            left_delta, app_config.follow_left_encoder_counts_per_rev,
+            &left_millirev) == 0u ||
+        encoder_counts_to_millirev(
+            right_delta, app_config.follow_right_encoder_counts_per_rev,
+            &right_millirev) == 0u ||
+        left_millirev > UINT64_MAX - session_left_millirev ||
+        right_millirev > UINT64_MAX - session_right_millirev) {
+        odometry_have_baseline = 0u;
+        ++odometry_rejected_sample_count;
+        return;
+    }
+
+    odometry_last_left_raw_counts = left_counts;
+    odometry_last_right_raw_counts = right_counts;
+    session_left_millirev += left_millirev;
+    session_right_millirev += right_millirev;
+    session_mean_forward_millirev =
+        (session_left_millirev / 2u) +
+        (session_right_millirev / 2u) +
+        (((session_left_millirev & 1u) +
+          (session_right_millirev & 1u)) / 2u);
+    ++odometry_valid_sample_count;
+}
+
 static void flush_uart_and_parser(void)
 {
     uint32_t primask;
@@ -3117,6 +3280,12 @@ static void service_reverse_control(uint32_t now_ms)
         return;
     }
 
+    car_reverse_control_set_profile_state(
+        &reverse_control_tx, (uint8_t)CARTEST_TRACK_PROFILE,
+        car_control_state.follow_session_active, follow_session_token,
+        session_mean_forward_millirev > UINT32_MAX
+            ? UINT32_MAX : (uint32_t)session_mean_forward_millirev);
+
     if (car_control_state.reverse_control_reset_generation !=
         reverse_control_seen_generation) {
         reverse_control_seen_generation =
@@ -3167,8 +3336,8 @@ static void service_reverse_control(uint32_t now_ms)
        single-byte DR-empty condition. Preserve the prior bounded pacing by
        enqueueing at most one protocol byte per main-loop service call. */
     if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_reverse_control_next_byte(&reverse_control_tx, now_ms,
-                                      keep_permitted, &byte) != 0u) {
+        car_reverse_control_next_byte_paired(
+            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
         USART1->TDR = byte;
         if (reverse_control_tx.keep_active != 0u &&
             reverse_keep_notified == 0u) {
@@ -3186,6 +3355,17 @@ static void service_reverse_control(uint32_t now_ms)
     car_reverse_control_keep_active = reverse_control_tx.keep_active;
     car_reverse_control_fresh_frames =
         car_control_state.reverse_control_fresh_frames;
+    car_profile_state_sequence = reverse_control_tx.profile_sequence;
+    car_profile_state_last_tx_ms = reverse_control_tx.profile_last_tx_ms;
+    car_profile_state_tx_count = reverse_control_tx.profile_tx_count;
+    car_profile_state_id = reverse_control_tx.profile_id;
+    car_profile_state_session_active = reverse_control_tx.profile_flags & 1u;
+    car_session_token = follow_session_token;
+    car_session_mean_forward_wheel_millirev =
+        session_mean_forward_millirev > UINT32_MAX
+            ? UINT32_MAX : (uint32_t)session_mean_forward_millirev;
+    car_session_odom_valid_samples = odometry_valid_sample_count;
+    car_session_odom_invalid_samples = odometry_rejected_sample_count;
 }
 
 static void publish_encoder_hardware_snapshot(void)
@@ -3281,6 +3461,26 @@ static void publish_debug_snapshot(uint8_t raw_high,
     car_latest_rx_sequence = car_control_state.latest_rx_sequence;
     car_latest_rx_arrival_ms = car_control_state.latest_rx_arrival_ms;
     car_latest_rx_frame_count = car_control_state.latest_rx_frame_count;
+    car_camera_profile_required_ack =
+        app_config.required_camera_profile_ack;
+    car_camera_profile_latest_ack =
+        car_control_state.latest_rx_profile_ack;
+    car_camera_profile_latest_version =
+        car_control_state.latest_rx_protocol_version;
+    car_camera_profile_ack_ready =
+        car_control_camera_profile_ack_ready(
+            &car_control_state, &app_config, snapshot_now_ms);
+    car_camera_profile_ack_seen_after_reset =
+        car_control_state.profile_ack_seen_after_reset;
+    car_camera_profile_ack_age_ms =
+        car_control_state.latest_rx_have_frame != 0u
+            ? snapshot_now_ms -
+                car_control_state.latest_rx_profile_ack_arrival_ms
+            : 0u;
+    car_camera_profile_last_ack_ms =
+        car_control_state.latest_rx_profile_ack_arrival_ms;
+    car_camera_profile_mismatch_count =
+        car_control_state.profile_ack_mismatch_count;
     car_recovery_frame_count = car_control_state.recovery_frame_count;
     car_recovery_active = car_control_state.recovery_active;
     car_auto_recovery_count = car_control_state.auto_recovery_count;
@@ -3445,12 +3645,15 @@ static void publish_debug_snapshot(uint8_t raw_high,
 #endif
     car_follow_diff_mode_permille = CARTEST_FOLLOW_DIFF_PERMILLE;
     car_follow_inner_diff_permille = CARTEST_FOLLOW_INNER_DIFF_PERMILLE;
-    car_follow_profile_id = CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED ? 6u :
-        (CARTEST_FOLLOW_SPEED_PI_ENABLED ? 4u :
-        (CARTEST_FOLLOW_TURN_PROFILE_COMPILED ?
-            (CARTEST_FOLLOW_DIFF_PERMILLE == 150 ? 5u : 3u) :
-        (CARTEST_FOLLOW_DIFF_PERMILLE == 0 ? 0u :
-         (CARTEST_FOLLOW_DIFF_PERMILLE == 50 ? 1u : 2u))));
+    car_follow_profile_id = CARTEST_TRACK_PROFILE !=
+                                    CAR_TRACK_PROFILE_LEGACY
+        ? 6u + CARTEST_TRACK_PROFILE :
+        (CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED ? 6u :
+         (CARTEST_FOLLOW_SPEED_PI_ENABLED ? 4u :
+          (CARTEST_FOLLOW_TURN_PROFILE_COMPILED ?
+              (CARTEST_FOLLOW_DIFF_PERMILLE == 150 ? 5u : 3u) :
+           (CARTEST_FOLLOW_DIFF_PERMILLE == 0 ? 0u :
+            (CARTEST_FOLLOW_DIFF_PERMILLE == 50 ? 1u : 2u)))));
     car_follow_diff_u_permille = follow_output_state.differential_u_permille;
     car_follow_outer_delta_permille =
         follow_output_state.outer_delta_permille;
@@ -3873,6 +4076,9 @@ int main(void)
         (uint8_t)CARTEST_STEERING_MODE_COMPILED,
         (uint8_t)CARTEST_FOLLOW_MODE_COMPILED,
         (uint8_t)CARTEST_HARDWARE_ACCEPTED);
+    car_camera_profile_required_ack =
+        app_config.required_camera_profile_ack;
+    reset_session_odometry();
     car_servo_safety_init(&servo_safety);
     servo_safety_io = (car_servo_safety_io_t){
         .context = 0,
@@ -4063,6 +4269,7 @@ int main(void)
                 car_encoder_diag.right_raw_delta_sum,
                 observer_motion_expected, &speed_observer_result);
         }
+        update_session_odometry();
 
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
         consume_fast_stop_latch();
@@ -4146,6 +4353,11 @@ int main(void)
             }
             __set_PRIMASK(start_event_primask);
             if (manual_start_accepted != 0u) {
+                ++follow_session_token;
+                if (follow_session_token == 0u) {
+                    ++follow_session_token;
+                }
+                reset_session_odometry();
                 /* A previous local KEEP may have left applied outputs active. */
                 emergency_stop_hardware();
             }

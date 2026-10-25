@@ -104,7 +104,8 @@ void car_config_init_application(car_config_t *config,
         .follow_right_encoder_sign = CARTEST_ENCODER_RIGHT_SIGN,
         .follow_kp_permille = CARTEST_STEERING_GAIN_PERMILLE,
         .follow_max_duty_permille = CAR_FOLLOW_NORMAL_LIMIT_PM,
-        .follow_ramp_step_permille = CAR_FOLLOW_RAMP_STEP_PM
+        .follow_ramp_step_permille = CAR_FOLLOW_RAMP_STEP_PM,
+        .required_camera_profile_ack = CARTEST_TRACK_PROFILE
     };
 }
 
@@ -115,7 +116,8 @@ static uint8_t config_is_valid(const car_config_t *config)
 
     if (config == 0 || config->vision_timeout_ms == 0u ||
         config->vision_timeout_ms > 0x7fffffffu ||
-        config->motor_hardware_accepted > 1u) {
+        config->motor_hardware_accepted > 1u ||
+        config->required_camera_profile_ack > VP_PROFILE_ACK_MAX) {
         return 0u;
     }
 
@@ -123,6 +125,10 @@ static uint8_t config_is_valid(const car_config_t *config)
         (uint32_t)(config->bench_mode_compiled != 0u) +
             (uint32_t)(config->follow_mode_compiled != 0u) +
             (uint32_t)(config->debug_steering_mode_compiled != 0u) > 1u) {
+        return 0u;
+    }
+    if (config->required_camera_profile_ack != VP_PROFILE_ACK_UNKNOWN &&
+        config->follow_mode_compiled == 0u) {
         return 0u;
     }
 
@@ -270,6 +276,32 @@ static void request_reverse_control_reset(car_control_t *control)
     ++control->reverse_control_reset_generation;
     control->reverse_control_keep_seen = 0u;
     control->reverse_control_fresh_frames = 0u;
+    control->profile_ack_seen_after_reset = 0u;
+}
+
+uint8_t car_control_camera_profile_ack_ready(
+    const car_control_t *control,
+    const car_config_t *config,
+    uint32_t now_ms)
+{
+    uint32_t age_ms;
+
+    if (control == 0 || config == 0 ||
+        config->required_camera_profile_ack > VP_PROFILE_ACK_MAX) {
+        return 0u;
+    }
+    if (config->required_camera_profile_ack == VP_PROFILE_ACK_UNKNOWN) {
+        return 1u;
+    }
+    if (control->profile_ack_seen_after_reset == 0u ||
+        control->latest_rx_have_frame == 0u ||
+        control->latest_rx_protocol_version != VP_VERSION_V3 ||
+        control->latest_rx_profile_ack !=
+            config->required_camera_profile_ack) {
+        return 0u;
+    }
+    age_ms = (uint32_t)(now_ms - control->latest_rx_arrival_ms);
+    return age_ms < CAR_CAMERA_PROFILE_ACK_TIMEOUT_MS ? 1u : 0u;
 }
 
 static void note_reverse_control_frame(car_control_t *control)
@@ -753,6 +785,7 @@ void car_control_reverse_control_reset_started(car_control_t *control)
         control->reverse_transport_have_sequence = 0u;
         control->reverse_transport_last_sequence = 0u;
         control->reverse_transport_last_arrival_ms = 0u;
+        control->profile_ack_seen_after_reset = 0u;
     }
 }
 
@@ -831,6 +864,27 @@ void car_control_on_vision_frame_at_with_flags_and_curve(
     uint32_t now_ms,
     uint8_t pe7_raw_high)
 {
+    car_control_on_vision_frame_at_with_flags_curve_and_profile(
+        control, config, sequence, flags, confidence, error_norm,
+        curve_phase, slowdown_request_permille, VP_VERSION_V2,
+        VP_PROFILE_ACK_UNKNOWN, arrival_ms, now_ms, pe7_raw_high);
+}
+
+void car_control_on_vision_frame_at_with_flags_curve_and_profile(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high)
+{
     uint16_t delta;
     uint32_t interval;
     uint32_t queue_age;
@@ -851,6 +905,13 @@ void car_control_on_vision_frame_at_with_flags_and_curve(
     control->latest_rx_error_norm = error_norm;
     control->latest_rx_sequence = sequence;
     control->latest_rx_arrival_ms = arrival_ms;
+    control->latest_rx_protocol_version = protocol_version;
+    control->latest_rx_profile_ack =
+        protocol_version == VP_VERSION_V3
+            ? profile_ack : VP_PROFILE_ACK_UNKNOWN;
+    if (protocol_version == VP_VERSION_V3) {
+        control->latest_rx_profile_ack_arrival_ms = arrival_ms;
+    }
     control->latest_rx_have_frame = 1u;
     ++control->latest_rx_frame_count;
     ++control->rx_frame_count;
@@ -858,6 +919,23 @@ void car_control_on_vision_frame_at_with_flags_and_curve(
     if (config_is_valid(config) == 0u) {
         enter_hard_fault(control, CAR_FAULT_CONFIG);
         return;
+    }
+
+    if (config->required_camera_profile_ack != VP_PROFILE_ACK_UNKNOWN) {
+        if (protocol_version == VP_VERSION_V3 &&
+            profile_ack == config->required_camera_profile_ack) {
+            control->profile_ack_seen_after_reset = 1u;
+        }
+        if (car_control_camera_profile_ack_ready(control, config,
+                                                 now_ms) == 0u) {
+            ++control->profile_ack_mismatch_count;
+            if (control->follow_session_active != 0u ||
+                control->mode == CAR_MODE_FOLLOW_RUNNING ||
+                control->mode == CAR_MODE_FOLLOW_VISION_HOLD) {
+                car_control_note_fault(control, CAR_FAULT_PROTOCOL);
+            }
+            return;
+        }
     }
 
     if (control->fault_latched != 0u ||
@@ -1681,6 +1759,14 @@ void car_control_tick(car_control_t *control,
     if ((control->mode == CAR_MODE_FOLLOW_RUNNING ||
          control->mode == CAR_MODE_FOLLOW_VISION_HOLD) &&
         control->follow_session_active != 0u &&
+        car_control_camera_profile_ack_ready(
+            control, config, inputs->now_ms) == 0u) {
+        car_control_note_fault(control, CAR_FAULT_PROTOCOL);
+    }
+
+    if ((control->mode == CAR_MODE_FOLLOW_RUNNING ||
+         control->mode == CAR_MODE_FOLLOW_VISION_HOLD) &&
+        control->follow_session_active != 0u &&
         control->vision_have_frame_sequence != 0u &&
         (uint32_t)(inputs->now_ms - control->vision_last_frame_alive_ms) >=
             config->vision_timeout_ms) {
@@ -1729,7 +1815,9 @@ void car_control_tick(car_control_t *control,
                    control->manual_run_request != 0u &&
                    control->reverse_control_keep_seen != 0u &&
                    control->reverse_control_fresh_frames >=
-                       CAR_RECOVERY_REQUIRED_FRAMES) {
+                       CAR_RECOVERY_REQUIRED_FRAMES &&
+                   car_control_camera_profile_ack_ready(
+                       control, config, inputs->now_ms) != 0u) {
             control->mode = CAR_MODE_FOLLOW_RUNNING;
             control->follow_session_active = 1u;
             control->follow_last_ramp_ms = inputs->now_ms;

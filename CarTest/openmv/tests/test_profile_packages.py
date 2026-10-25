@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import unittest
 
+from tools.build_openmv_ackermann320_packages import RUNTIME_NAMES as ACKERMANN_RUNTIME_NAMES
+
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 OPENMV_DIR = PROJECT_DIR / "openmv"
@@ -64,7 +66,9 @@ def _verify_compiled_outputs(entries):
 
 class ProfilePackageTests(unittest.TestCase):
     def test_all_three_manifests_cover_complete_profile_matched_sources(self):
-        source_names = sorted(path.name for path in OPENMV_DIR.glob("*.py"))
+        # This verifies an immutable 20261021 package. New live modules must
+        # neither change its historical allowlist nor force it to be rebuilt.
+        source_names = sorted(tuple(ACKERMANN_RUNTIME_NAMES) + ("fast_ring_slope.py",))
         self.assertEqual(len(source_names), 20)
         manifests = {}
         for profile, build_id in EXPECTED.items():

@@ -55,6 +55,12 @@ def main() -> int:
     )
     assert "car_control_begin_manual_follow_start(" in start_guard
 
+    accepted_block = block_after(
+        resync_block, "if (manual_start_accepted != 0u)")
+    assert "++follow_session_token;" in accepted_block
+    assert "if (follow_session_token == 0u)" in accepted_block
+    assert "reset_session_odometry();" in accepted_block
+
     call_at = source.index("car_control_begin_manual_follow_start(")
     assert source.rfind("car_control_tick(", 0, call_at) < call_at
     assert source.rfind("cancel_manual_request_on_fault();", 0, call_at) < call_at
@@ -62,7 +68,7 @@ def main() -> int:
     service_at = source.index("service_reverse_control(HAL_GetTick());", call_at)
     assert call_at < flush_at < service_at
 
-    print("PASS production main consumes one PE7 start and rechecks stop state")
+    print("PASS production PE7 start rechecks stop state and advances session identity")
     return 0
 
 

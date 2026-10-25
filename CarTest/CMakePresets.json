@@ -151,6 +151,39 @@
       "cacheVariables": {
         "CARTEST_ENABLE_ACKERMANN_COORDINATION": "OFF"
       }
+    },
+    {
+      "name": "DebugFastNoRing",
+      "displayName": "DebugFastNoRing - paired profile A; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "1",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400"
+      }
+    },
+    {
+      "name": "DebugRingBase",
+      "displayName": "DebugRingBase - paired profile B; 4800/4000 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "2",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "4800",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000"
+      }
+    },
+    {
+      "name": "DebugRingFast",
+      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "3",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400"
+      }
     }
   ],
   "buildPresets": [
@@ -165,6 +198,9 @@
     { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" },
     { "name": "DebugFollowTurn65", "configurePreset": "DebugFollowTurn65" },
     { "name": "DebugFollowIncrementalPI", "configurePreset": "DebugFollowIncrementalPI" },
-    { "name": "DebugFollowIncrementalPIBaseline", "configurePreset": "DebugFollowIncrementalPIBaseline" }
+    { "name": "DebugFollowIncrementalPIBaseline", "configurePreset": "DebugFollowIncrementalPIBaseline" },
+    { "name": "DebugFastNoRing", "configurePreset": "DebugFastNoRing" },
+    { "name": "DebugRingBase", "configurePreset": "DebugRingBase" },
+    { "name": "DebugRingFast", "configurePreset": "DebugRingFast" }
   ]
 }

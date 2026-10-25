@@ -215,7 +215,9 @@ class RunStatusReaderTests(unittest.TestCase):
         self.assertEqual(plan["endianness"], "little")
         self.assertEqual(set(reader.REQUIRED_SCALAR_SYMBOLS), set(plan["required_scalar_symbols"]))
         self.assertEqual(set(reader.HOLD_SNAPSHOT_SYMBOLS), set(plan["optional_hold_snapshot_symbols"]))
-        self.assertEqual(len(plan["scalar_symbols"]), 20)
+        self.assertEqual(len(plan["scalar_symbols"]), len(reader.SCALAR_SYMBOLS))
+        self.assertEqual(plan["optional_profile_state_symbols"],
+                         list(reader.PROFILE_STATE_SYMBOLS))
         self.assertEqual(plan["optional_receive_rate_symbols"],
                          list(reader.RECEIVE_RATE_SYMBOLS))
         self.assertEqual(plan["descriptor_read"]["size"], 64)
@@ -277,6 +279,19 @@ class RunStatusReaderTests(unittest.TestCase):
             make_ackermann_snapshot(phase=4))
         self.assertEqual(out_of_range["status"], "invalid")
         self.assertIn("curve phase", " ".join(out_of_range["issues"]))
+
+    def test_ackermann_v2_faster_targets_and_unknown_versions(self):
+        raw = bytearray(make_ackermann_snapshot())
+        raw[4] = 2
+        struct.pack_into("<3i", raw, 32, 5600, 5600, 3600)
+        struct.pack_into("<I", raw, 60, zlib.crc32(raw[:60]) & 0xFFFFFFFF)
+        decoded = reader.decode_ackermann_snapshot(bytes(raw))
+        self.assertTrue(decoded["valid"])
+        self.assertEqual(decoded["version"], 2)
+        self.assertEqual(decoded["fastest_target_mRPS"], 5600)
+        raw[4] = 3
+        struct.pack_into("<I", raw, 60, zlib.crc32(raw[:60]) & 0xFFFFFFFF)
+        self.assertFalse(reader.decode_ackermann_snapshot(bytes(raw))["valid"])
 
     def test_ackermann_export_writes_one_nonempty_row_only_when_frozen(self):
         with tempfile.TemporaryDirectory() as directory:

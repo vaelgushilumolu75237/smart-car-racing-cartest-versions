@@ -45,9 +45,11 @@ static uint8_t valid_input(const car_follow_speed_pi_input_t *input)
            input->target_override_valid <= 1u &&
            (input->target_override_valid == 0u ||
             (input->target_left_millirps >= 0 &&
-             input->target_left_millirps <= 4800 &&
+             input->target_left_millirps <=
+                 CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS &&
              input->target_right_millirps >= 0 &&
-             input->target_right_millirps <= 4800));
+             input->target_right_millirps <=
+                 CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS));
 }
 
 static uint16_t nominal_to_feedforward(uint16_t nominal_permille)

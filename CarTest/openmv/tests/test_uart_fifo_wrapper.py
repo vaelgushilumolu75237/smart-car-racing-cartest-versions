@@ -257,33 +257,13 @@ class UARTFIFOWrapperTests(unittest.TestCase):
         self.assertIs(uart.readinto_calls[0][0][0], buffer)
         self.assertEqual(uart.readinto_calls[0][0][1], 3)
 
-    def test_only_uart_wrapper_and_tx_status_change_in_main_fast(self):
-        baseline_tree = ast.parse(BASELINE_MAIN.read_text(encoding="utf-8"))
+    def test_uart_adapter_isolated_from_frame_selection_and_writes_once(self):
         candidate_tree = ast.parse(CANDIDATE_MAIN.read_text(encoding="utf-8"))
-        baseline_fast = _find_function(baseline_tree, "_main_fast")
         candidate_fast = _find_function(candidate_tree, "_main_fast")
-        self.assertEqual(
-            ast.dump(_normalize_main_fast(candidate_fast, baseline_fast),
-                     include_attributes=False),
-            ast.dump(baseline_fast, include_attributes=False))
 
-        normalized_candidate_body = []
-        for node in candidate_tree.body:
-            if isinstance(node, ast.ClassDef) and \
-                    node.name == "_VisionUARTWriter":
-                continue
-            if isinstance(node, ast.FunctionDef) and \
-                    node.name == "_main_fast":
-                node = _normalize_main_fast(node, baseline_fast)
-            normalized_candidate_body.append(
-                ast.dump(node, include_attributes=False))
-        self.assertEqual(
-            normalized_candidate_body,
-            [ast.dump(node, include_attributes=False)
-             for node in baseline_tree.body])
-
-        # The fixture/sink route must remain direct, while only the real UART
-        # path receives the adapter.
+        # The fixture/sink route remains direct, while the real UART path gets
+        # the bounded adapter. The ring/profile work changes frame selection,
+        # so this guard pins the transport boundary and per-frame write count.
         setup = _find_uart_setup(candidate_fast)
         self.assertTrue(_assignment_to(setup, "uart"))
         self.assertTrue(any(isinstance(stmt, ast.Assign) and
@@ -310,6 +290,21 @@ class UARTFIFOWrapperTests(unittest.TestCase):
                             isinstance(stmt.value.func, ast.Name) and
                             stmt.value.func.id == "_VisionUARTWriter"
                             for stmt in setup.orelse))
+
+        adapter_calls = [node for node in ast.walk(candidate_fast)
+                         if isinstance(node, ast.Call) and
+                         isinstance(node.func, ast.Name) and
+                         node.func.id == "_VisionUARTWriter"]
+        self.assertEqual(len(adapter_calls), 1)
+        frame_writes = [node for node in ast.walk(candidate_fast)
+                        if isinstance(node, ast.Call) and
+                        isinstance(node.func, ast.Attribute) and
+                        isinstance(node.func.value, ast.Name) and
+                        node.func.value.id == "uart" and
+                        node.func.attr == "write" and node.args and
+                        isinstance(node.args[0], ast.Name) and
+                        node.args[0].id == "packet"]
+        self.assertEqual(len(frame_writes), 1)
 
         candidate_source = CANDIDATE_MAIN.read_text(encoding="utf-8")
         self.assertIn('"UART_TX_MODE=%s" % uart_tx_mode', candidate_source)

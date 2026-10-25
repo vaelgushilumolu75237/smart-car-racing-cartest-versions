@@ -1445,6 +1445,30 @@ def select_openmv_usb60_candidate(source: Path, status: str) -> list[str]:
     return verify_openmv_usb60_candidate_delivery(source)
 
 
+def verify_historical_ackermann_pair(source: Path):
+    """Validate frozen restoration ELFs without equating them to new builds.
+
+    The old validator intentionally tied the original release to its then-live
+    build tree. A later release reuses those preset names for new source, so
+    only the independently pinned historical payloads may identify this pair.
+    """
+    for relative_name, expected_sha in OPENMV_USB60_BASELINE_H743_ELFS.items():
+        path = source / relative_name
+        if (not path.is_file() or path.is_symlink() or
+                hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha):
+            raise RuntimeError("Historical Ackermann restoration ELF is missing or changed: " + relative_name)
+    for spec in ACKERMANN_PROFILE_DELIVERIES.values():
+        elf = source / spec["elf"]
+        manifest_path = source / spec["manifest"]
+        if manifest_path.is_symlink():
+            raise RuntimeError("Historical Ackermann manifest is linked")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        if (manifest.get("sha256") != hashlib.sha256(elf.read_bytes()).hexdigest() or
+                manifest.get("bytes") != elf.stat().st_size or
+                manifest.get("preset", spec["profile"]) != spec["profile"]):
+            raise RuntimeError("Historical Ackermann manifest differs from its pinned ELF")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=PROJECT)
@@ -1458,6 +1482,11 @@ def main():
         "--include-openmv-uart-fifo-firmware", action="store_true",
         help="Validate and include the pinned OpenMV UART FIFO firmware delivery.")
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--hardware-actions", default="none",
+                        choices=("none", "stationary-camera-upload-h743-flash-no-motor-start"),
+                        help="Record completed hardware actions accurately in VERSION.json.")
+    parser.add_argument("--track-profiles", type=Path,
+                        help="Validate and include an explicit three-profile H750 delivery under deliverables.")
     args = parser.parse_args()
     for value in (args.version, args.branch):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", value) or ".." in value or value.endswith("/"):
@@ -1475,7 +1504,10 @@ def main():
             raise RuntimeError(f"Build the declared profile before checkpointing: {profile}")
     verify_uphill_deliveries(source)
     verify_speedpd_deliveries(source)
-    verify_ackermann_deliveries(source, set(profile_names))
+    if args.track_profiles is None:
+        verify_ackermann_deliveries(source, set(profile_names))
+    else:
+        verify_historical_ackermann_pair(source)
     openmv_speedpd_files = verify_openmv_speedpd_packages(source)
     openmv_ackermann_files = verify_openmv_ackermann_packages(source)
     openmv_native_preview_files = verify_openmv_native_preview_delivery(source)
@@ -1484,6 +1516,13 @@ def main():
         openmv_usb60_candidate_files = select_openmv_usb60_candidate(source, args.status)
     openmv_uart_fifo_firmware_files = select_openmv_uart_fifo_firmware(
         source, args.include_openmv_uart_fifo_firmware)
+    track_profile_files = []
+    if args.track_profiles is not None:
+        try:
+            from .build_track_profiles import public_delivery_files
+        except ImportError:
+            from build_track_profiles import public_delivery_files
+        track_profile_files = public_delivery_files(source, args.track_profiles)
     STORE.mkdir(parents=True, exist_ok=True)
     if not (STORE / ".git").is_dir():
         run_git("init", "-b", "main")
@@ -1531,6 +1570,8 @@ def main():
         copy_allowlisted_file(source, target, name)
     for name in openmv_uart_fifo_firmware_files:
         copy_allowlisted_file(source, target, name)
+    for name in track_profile_files:
+        copy_allowlisted_file(source, target, name)
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
         output = target / "build" / elf.parent.name / elf.name
@@ -1542,7 +1583,7 @@ def main():
     (STORE / "SHA256SUMS.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     (STORE / "VERSION.json").write_text(json.dumps({"version": args.version,
         "status": args.status, "branch": args.branch, "files": len(manifest),
-        "hardware_actions": "none"}, indent=2) + "\n", encoding="utf-8")
+        "hardware_actions": args.hardware_actions}, indent=2) + "\n", encoding="utf-8")
     (STORE / "README.md").write_text("# CarTest version checkpoints\n\n"
         "H743 source, OpenMV upload files, and paired ELF checkpoints.\n\n"
         "Select a tag to restore a complete version. Experimental versions are not vehicle acceptance.\n"

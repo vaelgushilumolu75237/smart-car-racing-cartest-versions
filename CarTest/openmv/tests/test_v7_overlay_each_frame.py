@@ -87,12 +87,21 @@ class V7OverlayEachFrameTests(unittest.TestCase):
         clock = _Clock()
         frames = [_Image() for _ in range(4)]
         road_selection = {"source": "road", "quality": 80,
-                          "reason": "CURRENT_ROAD"}
+                          "reason": "CURRENT_ROAD",
+                          "track_profile_label": "A",
+                          "track_ring_state": "OBSERVE",
+                          "track_ring_reason": "RING_DISABLED_PROFILE_A"}
         single_selection = {
             "source": "single_right", "quality": 80,
             "reason": "CURRENT_SINGLE_RIGHT", "result": {},
+            "track_profile_label": "B", "track_ring_state": "INSIDE",
+            "track_ring_reason": "RING_INSIDE_EXIT_UNOBSERVED",
         }
-        invalid_selection = {"source": "NONE", "reason": "CURRENT_INVALID"}
+        invalid_selection = {
+            "source": "NONE", "reason": "CURRENT_INVALID",
+            "track_profile_label": "C", "track_ring_state": "EXIT_CONFIRM",
+            "track_ring_reason": "EXIT_EXPERIMENTAL_CONFIRM",
+        }
 
         with patch.object(main, "time", clock), \
                 patch.object(config, "OVERLAY_ENABLED", True), \
@@ -101,13 +110,13 @@ class V7OverlayEachFrameTests(unittest.TestCase):
             main._render_v7_preview_frame(
                 frames[0], road_selection, {}, {"selected_rows": ()}, None,
                 True, 0, 0, 1, 30.0, state, 0, lambda: None)
-            self.assertEqual(state.status_text, "NOW V CACHE/ROAD")
+            self.assertEqual(state.status_text, "TRK A OBSERVE:A_OFF")
             self.assertEqual(status_image.draw_string_calls, 1)
 
             main._render_v7_preview_frame(
                 frames[1], road_selection, {}, {"selected_rows": ()}, None,
                 True, 0, 0, 2, 30.0, state, 50, lambda: None)
-            self.assertEqual(state.status_text, "NOW V CACHE/ROAD")
+            self.assertEqual(state.status_text, "TRK A OBSERVE:A_OFF")
             self.assertEqual(status_image.draw_string_calls, 1)
 
             with patch.object(config, "SINGLE_EDGE_ROUTE_MODE",
@@ -116,13 +125,13 @@ class V7OverlayEachFrameTests(unittest.TestCase):
                     frames[2], single_selection, {}, {}, None, True,
                     0, 0, 3, 30.0, state, 99, lambda: None)
                 self.assertEqual(
-                    state.status_text, "NOW V CLIP/SINGLE_RIGHT")
+                    state.status_text, "TRK B INSIDE:INSIDE")
                 self.assertEqual(status_image.draw_string_calls, 2)
 
                 main._render_v7_preview_frame(
                     frames[3], invalid_selection, {}, {}, None, False,
                     0, 0, 4, 30.0, state, 100, lambda: None)
-                self.assertEqual(state.status_text, "NOW INVALID CLIP")
+                self.assertEqual(state.status_text, "TRK C EXIT_CO:EXIT_CO")
                 self.assertEqual(status_image.draw_string_calls, 3)
 
         for frame in frames:
@@ -133,18 +142,13 @@ class V7OverlayEachFrameTests(unittest.TestCase):
             self.assertFalse(any(point == (0, 0)
                                  for point, value in frame.strings))
 
-    def test_status_bitmap_width_covers_current_route_and_source_labels(self):
-        route_labels = ("CACHE", "CLIP")
-        source_labels = (
-            "road", "surface", "single_left", "single_right",
-            "ring_left", "ring_right",
+    def test_status_bitmap_width_covers_profile_state_and_reason(self):
+        current_statuses = (
+            "TRK UNK IDLE:NOT_RUN",
+            "TRK B INSIDE:INSIDE",
+            "TRK C EXIT_REP:EXIT_REO",
         )
-        current_statuses = [
-            "NOW V %s/%s" % (route, source.upper())
-            for route in route_labels for source in source_labels
-        ]
         longest = max(current_statuses, key=len)
-        self.assertEqual(longest, "NOW V CACHE/SINGLE_RIGHT")
         self.assertGreaterEqual(
             main._OVERLAY_STATUS_IMAGE_WIDTH, len(longest) * 8)
 
@@ -152,7 +156,7 @@ class V7OverlayEachFrameTests(unittest.TestCase):
             self.assertLessEqual(
                 len(status) * 8, main._OVERLAY_STATUS_IMAGE_WIDTH)
 
-    def test_status_bitmap_uses_optional_mask_and_falls_back_without_clipping(self):
+    def test_status_bitmap_uses_optional_mask_and_draws_unmasked_text(self):
         status_image = _CountingImage()
         status_mask = _CountingImage()
         masked_state = main._V7OverlayState(
@@ -181,11 +185,11 @@ class V7OverlayEachFrameTests(unittest.TestCase):
                 fallback_frame, {"source": "road"}, {},
                 {"selected_rows": ()}, None, True, 0, 0, 1, 30.0,
                 fallback_state, 0, lambda: None)
-        self.assertFalse(fallback_state.status_bitmap_ready)
-        self.assertIsNone(fallback_state.status_bitmap_text)
-        self.assertTrue(any(
-            point == (0, 0) and value == fallback_state.status_text
-            for point, value in fallback_frame.strings))
+        self.assertTrue(fallback_state.status_bitmap_ready)
+        self.assertEqual(fallback_state.status_text, "TRK UNK IDLE:NOT_RUN")
+        self.assertIs(fallback_frame.images[0][0],
+                      fallback_state.status_image)
+        self.assertEqual(fallback_frame.images[0][3], {})
 
     def test_each_frame_draws_and_flushes_while_details_refresh_every_100ms(self):
         rows = [
@@ -261,7 +265,8 @@ class V7OverlayEachFrameTests(unittest.TestCase):
                 main._surface_pixel((29.5, 21))[1],
             )
             self.assertIn((clipped_midline, 255), images[1].lines)
-            self.assertIn("NOW V CLIP/SINGLE_LEFT", images[1].strings[0][1])
+            self.assertEqual(images[1].strings[0][1],
+                             "TRK UNK IDLE:NOT_RUN")
 
             with patch.object(config, "SINGLE_EDGE_ROUTE_MODE",
                               "clipped_midpoint"):
@@ -278,7 +283,8 @@ class V7OverlayEachFrameTests(unittest.TestCase):
         self.assertEqual(flushed, ["0", "50", "99", "100"])
         self.assertEqual(state.draw_us, 100)
         self.assertEqual(state.flush_us, 100)
-        self.assertIn("NOW INVALID CLIP", images[2].strings[0][1])
+        self.assertEqual(images[2].strings[0][1],
+                         "TRK UNK IDLE:NOT_RUN")
         self.assertEqual(images[2].lines, [])
         self.assertEqual(images[2].crosses, [])
         self.assertIn("NO_FRESH_KEEP", " ".join(
@@ -320,7 +326,7 @@ class V7OverlayEachFrameTests(unittest.TestCase):
         self.assertEqual(frame0.images[0][1:3], (0, 10))
         self.assertIs(frame0.images[0][3]["mask"], detail_mask)
         self.assertEqual(len(frame1.strings), 1)
-        self.assertEqual(frame1.strings[0][1], "NOW INVALID CACHE")
+        self.assertEqual(frame1.strings[0][1], "TRK UNK IDLE:NOT_RUN")
         self.assertEqual(len(frame1.images), 1)
         self.assertEqual(detail_image.lines, [])
         self.assertEqual(detail_image.crosses, [])
