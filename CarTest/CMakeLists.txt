@@ -249,6 +249,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/App/ackermann_snapshot.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/speed_pi_trace.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/session_odometry.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/receive_diag.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_log.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/runtime_diag.c"

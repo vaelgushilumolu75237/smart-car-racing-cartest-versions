@@ -28,6 +28,19 @@ static uint32_t generation_state;
 static uint32_t total_samples;
 static uint16_t next_index;
 static uint16_t sample_count;
+static struct {
+    uint8_t pending;
+    uint8_t pi_type;
+    uint16_t count;
+    uint16_t first_index;
+    uint16_t next_index;
+    uint16_t processed_samples;
+    uint32_t total_samples;
+    uint32_t start_token;
+    uint32_t start_ms;
+    uint32_t stop_ms;
+    uint32_t crc_state;
+} freeze_work;
 
 static uint32_t crc32_update(uint32_t crc, const uint8_t *bytes,
                              uint32_t length)
@@ -142,7 +155,10 @@ static void publish_header(const car_speed_pi_trace_header_t *desired)
 
 static void init_header(uint8_t state, uint32_t start_token,
                         uint32_t start_ms, uint32_t stop_ms,
-                        uint8_t pi_type, uint32_t records_crc32)
+                        uint8_t pi_type, uint16_t count,
+                        uint16_t header_next_index,
+                        uint32_t header_total_samples,
+                        uint32_t records_crc32)
 {
     car_speed_pi_trace_header_t next = {0};
 
@@ -155,13 +171,13 @@ static void init_header(uint8_t state, uint32_t start_token,
     next.start_ms = start_ms;
     next.stop_ms = stop_ms;
     next.capacity = CAR_SPEED_PI_TRACE_CAPACITY;
-    next.count = sample_count;
-    next.next_index = next_index;
+    next.count = count;
+    next.next_index = header_next_index;
     next.pi_type = pi_type;
     next.state = state;
-    next.total_samples = total_samples;
-    next.lost_samples = total_samples > sample_count
-        ? total_samples - sample_count : 0u;
+    next.total_samples = header_total_samples;
+    next.lost_samples = header_total_samples > count
+        ? header_total_samples - count : 0u;
     {
         const uint8_t build_id[16] = CAR_RUNTIME_LOG_BUILD_ID_BYTES;
         memcpy(next.build_id, build_id, sizeof(next.build_id));
@@ -176,10 +192,12 @@ void car_speed_pi_trace_init(void)
     total_samples = 0u;
     next_index = 0u;
     sample_count = 0u;
+    memset(&freeze_work, 0, sizeof(freeze_work));
     memset(&g_speed_pi_trace.header, 0, sizeof(g_speed_pi_trace.header));
     clean_range(&g_speed_pi_trace.header,
                 (uint32_t)sizeof(g_speed_pi_trace.header));
-    init_header(CAR_SPEED_PI_TRACE_STATE_IDLE, 0u, 0u, 0u, 0u, 0u);
+    init_header(CAR_SPEED_PI_TRACE_STATE_IDLE, 0u, 0u, 0u, 0u,
+                0u, 0u, 0u, 0u);
 }
 
 void car_speed_pi_trace_begin(uint32_t start_token, uint32_t start_ms,
@@ -188,8 +206,9 @@ void car_speed_pi_trace_begin(uint32_t start_token, uint32_t start_ms,
     total_samples = 0u;
     next_index = 0u;
     sample_count = 0u;
+    memset(&freeze_work, 0, sizeof(freeze_work));
     init_header(CAR_SPEED_PI_TRACE_STATE_ACTIVE, start_token, start_ms,
-                0u, pi_type, 0u);
+                0u, pi_type, 0u, 0u, 0u, 0u);
 }
 
 void car_speed_pi_trace_append(const car_speed_pi_trace_values_t *values)
@@ -198,6 +217,7 @@ void car_speed_pi_trace_append(const car_speed_pi_trace_values_t *values)
     car_speed_pi_trace_sample_t *destination;
 
     if (values == 0 ||
+        freeze_work.pending != 0u ||
         g_speed_pi_trace.header.state != CAR_SPEED_PI_TRACE_STATE_ACTIVE) {
         return;
     }
@@ -242,30 +262,57 @@ void car_speed_pi_trace_append(const car_speed_pi_trace_values_t *values)
     }
 }
 
-void car_speed_pi_trace_freeze(uint32_t stop_ms)
+uint8_t car_speed_pi_trace_freeze(uint32_t stop_ms)
 {
-    uint32_t crc = 0xFFFFFFFFu;
-    uint32_t i;
-    const uint16_t first = sample_count == CAR_SPEED_PI_TRACE_CAPACITY
-        ? next_index : 0u;
-    const uint8_t pi_type = g_speed_pi_trace.header.pi_type;
-    const uint32_t start_token = g_speed_pi_trace.header.start_token;
-    const uint32_t start_ms = g_speed_pi_trace.header.start_ms;
+    uint16_t work_this_call = 0u;
 
     if (g_speed_pi_trace.header.state != CAR_SPEED_PI_TRACE_STATE_ACTIVE) {
-        return;
+        return 1u;
     }
-    TRACE_DSB();
-    clean_range(g_speed_pi_trace.samples,
-                (uint32_t)CAR_SPEED_PI_TRACE_CAPACITY *
-                    CAR_SPEED_PI_TRACE_SAMPLE_SIZE);
-    for (i = 0u; i < sample_count; ++i) {
+    if (freeze_work.pending == 0u) {
+        freeze_work.pending = 1u;
+        freeze_work.pi_type = g_speed_pi_trace.header.pi_type;
+        freeze_work.count = sample_count;
+        freeze_work.first_index = sample_count == CAR_SPEED_PI_TRACE_CAPACITY
+            ? next_index : 0u;
+        freeze_work.next_index = next_index;
+        freeze_work.total_samples = total_samples;
+        freeze_work.start_token = g_speed_pi_trace.header.start_token;
+        freeze_work.start_ms = g_speed_pi_trace.header.start_ms;
+        freeze_work.stop_ms = stop_ms;
+        freeze_work.processed_samples = 0u;
+        freeze_work.crc_state = 0xFFFFFFFFu;
+        /* Appends already clean each 48-byte record. This barrier orders
+           those writes/cache cleans before the CPU reads the snapshot. */
+        TRACE_DSB();
+    } else {
+        /* Keep the first stop timestamp and all captured ring metadata. */
+        TRACE_DSB();
+    }
+
+    while (freeze_work.processed_samples < freeze_work.count &&
+           work_this_call < CAR_SPEED_PI_TRACE_FREEZE_MAX_SAMPLES_PER_CALL) {
         const uint16_t index = (uint16_t)(
-            (first + i) % CAR_SPEED_PI_TRACE_CAPACITY);
-        crc = crc32_update(crc,
+            (freeze_work.first_index + freeze_work.processed_samples) %
+            CAR_SPEED_PI_TRACE_CAPACITY);
+        freeze_work.crc_state = crc32_update(freeze_work.crc_state,
             (const uint8_t *)&g_speed_pi_trace.samples[index],
             CAR_SPEED_PI_TRACE_SAMPLE_SIZE);
+        ++freeze_work.processed_samples;
+        ++work_this_call;
     }
-    init_header(CAR_SPEED_PI_TRACE_STATE_FROZEN, start_token, start_ms,
-                stop_ms, pi_type, crc ^ 0xFFFFFFFFu);
+
+    if (freeze_work.processed_samples < freeze_work.count) {
+        return 0u;
+    }
+
+    TRACE_DSB();
+    init_header(CAR_SPEED_PI_TRACE_STATE_FROZEN,
+                freeze_work.start_token, freeze_work.start_ms,
+                freeze_work.stop_ms, freeze_work.pi_type,
+                freeze_work.count, freeze_work.next_index,
+                freeze_work.total_samples,
+                freeze_work.crc_state ^ 0xFFFFFFFFu);
+    freeze_work.pending = 0u;
+    return 1u;
 }

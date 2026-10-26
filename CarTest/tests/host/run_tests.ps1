@@ -37,6 +37,8 @@ $sourceFiles = @(
     (Join-Path $PSScriptRoot "test_speed_pi_diag.c"),
     (Join-Path $PSScriptRoot "test_receive_diag.c"),
     (Join-Path $PSScriptRoot "test_speed_pi_trace.c"),
+    (Join-Path $projectRoot "App\session_odometry.c"),
+    (Join-Path $PSScriptRoot "test_session_odometry.c"),
     (Join-Path $PSScriptRoot "test_track_profile_targets.c"),
     $vectorFile,
     $profileAckVectorFile,
@@ -104,13 +106,16 @@ $objectFiles = @(
     (Join-Path $runDirectory "receive_diag_host.obj"),
     (Join-Path $runDirectory "speed_pi_trace_host.obj"),
     (Join-Path $runDirectory "test_receive_diag.obj"),
-    (Join-Path $runDirectory "test_speed_pi_trace.obj")
+    (Join-Path $runDirectory "test_speed_pi_trace.obj"),
+    (Join-Path $runDirectory "session_odometry.obj"),
+    (Join-Path $runDirectory "test_session_odometry.obj")
 )
 $testExecutable = Join-Path $runDirectory "CarTestHostTests.exe"
 $speedPiDiagTestExecutable = Join-Path $runDirectory "CarTestSpeedPiDiagTests.exe"
 $visionHoldProfileTestExecutable = Join-Path $runDirectory "CarTestVisionHoldProfileTests.exe"
 $receiveDiagTestExecutable = Join-Path $runDirectory "CarTestReceiveDiagTests.exe"
 $speedPiTraceTestExecutable = Join-Path $runDirectory "CarTestSpeedPiTraceTests.exe"
+$sessionOdometryTestExecutable = Join-Path $runDirectory "CarTestSessionOdometryTests.exe"
 $includeArgument = "/I`"$(Join-Path $projectRoot 'Inc')`""
 $traceBuildIdInclude = "/I`"$(Join-Path $PSScriptRoot 'fixtures')`""
 $runtimeLogBuildIdInclude = ""
@@ -207,6 +212,11 @@ $batchLines = @(
     "if errorlevel 1 exit /b %errorlevel%",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[27])`" `"$(Join-Path $PSScriptRoot 'test_speed_pi_trace.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Compile production session odometry converter and assertions ===",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[28])`" `"$(Join-Path $projectRoot 'App\session_odometry.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[29])`" `"$(Join-Path $PSScriptRoot 'test_session_odometry.c')`"",
+    "if errorlevel 1 exit /b %errorlevel%",
     "if errorlevel 1 exit /b %errorlevel%",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[20])`" `"$(Join-Path $PSScriptRoot 'test_speed_pi_diag.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
@@ -235,6 +245,11 @@ $batchLines = @(
     "cl /nologo /Fe:`"$speedPiTraceTestExecutable`" `"$($objectFiles[25])`" `"$($objectFiles[27])`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "`"$speedPiTraceTestExecutable`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "echo === Link and run session odometry unit and threshold assertions ===",
+    "cl /nologo /Fe:`"$sessionOdometryTestExecutable`" `"$($objectFiles[28])`" `"$($objectFiles[29])`"",
+    "if errorlevel 1 exit /b %errorlevel%",
+    "`"$sessionOdometryTestExecutable`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Link and run 2000 ms hold / 200 ms deceleration profile assertions ===",
     "cl /nologo /Fe:`"$visionHoldProfileTestExecutable`" `"$($objectFiles[23])`" `"$($objectFiles[21])`" `"$($objectFiles[1])`" `"$($objectFiles[2])`" `"$($objectFiles[3])`" `"$($objectFiles[4])`" `"$($objectFiles[5])`" `"$($objectFiles[6])`" `"$($objectFiles[8])`" `"$($objectFiles[9])`" `"$($objectFiles[10])`" `"$($objectFiles[22])`" `"$($objectFiles[12])`" `"$($objectFiles[13])`" `"$($objectFiles[14])`" `"$($objectFiles[15])`" `"$($objectFiles[16])`" `"$($objectFiles[17])`" `"$($objectFiles[24])`"",

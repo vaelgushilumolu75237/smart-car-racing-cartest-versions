@@ -10,6 +10,7 @@
 #include "run_block_reason.h"
 #include "runtime_diag.h"
 #include "runtime_log.h"
+#include "session_odometry.h"
 #include "receive_diag.h"
 #include "servo_safety.h"
 #include "speed_pi_diag.h"
@@ -555,6 +556,8 @@ static uint32_t follow_session_token;
 static uint64_t session_left_millirev;
 static uint64_t session_right_millirev;
 static uint64_t session_mean_forward_millirev;
+static uint64_t odometry_left_fractional_remainder;
+static uint64_t odometry_right_fractional_remainder;
 static int64_t odometry_last_left_raw_counts;
 static int64_t odometry_last_right_raw_counts;
 static uint8_t odometry_have_baseline;
@@ -1930,6 +1933,8 @@ static void reset_session_odometry(void)
     session_left_millirev = 0u;
     session_right_millirev = 0u;
     session_mean_forward_millirev = 0u;
+    odometry_left_fractional_remainder = 0u;
+    odometry_right_fractional_remainder = 0u;
     odometry_have_baseline = 0u;
     odometry_valid_sample_count = 0u;
     odometry_rejected_sample_count = 0u;
@@ -1962,33 +1967,6 @@ static uint8_t normalize_forward_encoder_delta(
     return 1u;
 }
 
-static uint8_t encoder_counts_to_millirev(uint64_t counts,
-                                          uint32_t counts_per_rev,
-                                          uint64_t *millirev)
-{
-    const uint64_t scale = UINT64_C(1000000);
-    uint64_t whole_revolutions;
-    uint64_t remainder;
-    uint64_t whole_part;
-    uint64_t fractional_part;
-
-    if (counts_per_rev == 0u || millirev == 0) {
-        return 0u;
-    }
-    whole_revolutions = counts / counts_per_rev;
-    remainder = counts % counts_per_rev;
-    if (whole_revolutions > UINT64_MAX / scale) {
-        return 0u;
-    }
-    whole_part = whole_revolutions * scale;
-    fractional_part = (remainder * scale) / counts_per_rev;
-    if (whole_part > UINT64_MAX - fractional_part) {
-        return 0u;
-    }
-    *millirev = whole_part + fractional_part;
-    return 1u;
-}
-
 static void update_session_odometry(void)
 {
     const int64_t left_counts = car_encoder_diag.left_raw_delta_sum;
@@ -1997,6 +1975,10 @@ static void update_session_odometry(void)
     uint64_t right_delta;
     uint64_t left_millirev;
     uint64_t right_millirev;
+    uint64_t left_fractional_remainder =
+        odometry_left_fractional_remainder;
+    uint64_t right_fractional_remainder =
+        odometry_right_fractional_remainder;
 
     if (car_control_state.follow_session_active == 0u) {
         odometry_have_baseline = 0u;
@@ -2025,12 +2007,12 @@ static void update_session_odometry(void)
         normalize_forward_encoder_delta(
             right_counts, odometry_last_right_raw_counts,
             app_config.follow_right_encoder_sign, &right_delta) == 0u ||
-        encoder_counts_to_millirev(
+        car_encoder_counts_to_millirev(
             left_delta, app_config.follow_left_encoder_counts_per_rev,
-            &left_millirev) == 0u ||
-        encoder_counts_to_millirev(
+            &left_fractional_remainder, &left_millirev) == 0u ||
+        car_encoder_counts_to_millirev(
             right_delta, app_config.follow_right_encoder_counts_per_rev,
-            &right_millirev) == 0u ||
+            &right_fractional_remainder, &right_millirev) == 0u ||
         left_millirev > UINT64_MAX - session_left_millirev ||
         right_millirev > UINT64_MAX - session_right_millirev) {
         odometry_have_baseline = 0u;
@@ -2040,6 +2022,8 @@ static void update_session_odometry(void)
 
     odometry_last_left_raw_counts = left_counts;
     odometry_last_right_raw_counts = right_counts;
+    odometry_left_fractional_remainder = left_fractional_remainder;
+    odometry_right_fractional_remainder = right_fractional_remainder;
     session_left_millirev += left_millirev;
     session_right_millirev += right_millirev;
     session_mean_forward_millirev =
@@ -2518,10 +2502,12 @@ static void speed_pi_trace_freeze_if_stopped(uint32_t now_ms)
     if (speed_pi_trace_session_active == 0u || terminal_state == 0u) {
         return;
     }
-    /* This CRC covers up to 96 KiB. Call only after motor_apply() has stopped
-       the outputs, and with interrupts enabled so UART service can continue. */
-    car_speed_pi_trace_freeze(now_ms);
-    speed_pi_trace_session_active = 0u;
+    /* CRC work is limited per call so serial and main-loop safety servicing
+       continue after outputs stop. The trace remains ACTIVE/pending until its
+       complete chronological CRC is published. */
+    if (car_speed_pi_trace_freeze(now_ms) != 0u) {
+        speed_pi_trace_session_active = 0u;
+    }
 }
 #endif
 

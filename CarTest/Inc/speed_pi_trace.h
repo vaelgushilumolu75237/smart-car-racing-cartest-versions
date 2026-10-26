@@ -14,6 +14,7 @@ enum {
     CAR_SPEED_PI_TRACE_HEADER_SIZE = 64u,
     CAR_SPEED_PI_TRACE_SAMPLE_SIZE = 48u,
     CAR_SPEED_PI_TRACE_CAPACITY = 2048u,
+    CAR_SPEED_PI_TRACE_FREEZE_MAX_SAMPLES_PER_CALL = 16u,
     CAR_SPEED_PI_TRACE_SECTION_SIZE = CAR_SPEED_PI_TRACE_HEADER_SIZE +
         CAR_SPEED_PI_TRACE_SAMPLE_SIZE * CAR_SPEED_PI_TRACE_CAPACITY,
     CAR_SPEED_PI_TRACE_STATE_IDLE = 0u,
@@ -107,7 +108,9 @@ void car_speed_pi_trace_init(void);
 void car_speed_pi_trace_begin(uint32_t start_token, uint32_t start_ms,
                               uint8_t pi_type);
 void car_speed_pi_trace_append(const car_speed_pi_trace_values_t *values);
-void car_speed_pi_trace_freeze(uint32_t stop_ms);
+/* Returns nonzero when the immutable trace has reached FROZEN. A zero return
+ * means another bounded service call is required. */
+uint8_t car_speed_pi_trace_freeze(uint32_t stop_ms);
 uint32_t car_speed_pi_trace_crc32(const void *bytes, uint32_t length);
 uint32_t car_speed_pi_trace_header_crc32(
     const car_speed_pi_trace_header_t *header);
@@ -120,7 +123,7 @@ static_assert(sizeof(car_speed_pi_trace_header_t) ==
               "speed PI trace header ABI must remain 64 bytes");
 static_assert(sizeof(car_speed_pi_trace_sample_t) ==
                   CAR_SPEED_PI_TRACE_SAMPLE_SIZE,
-              "speed PI trace sample ABI must remain 40 bytes");
+              "speed PI trace sample ABI must remain 48 bytes");
 static_assert(sizeof(car_speed_pi_trace_t) == CAR_SPEED_PI_TRACE_SECTION_SIZE,
               "speed PI trace section ABI changed");
 #else
@@ -129,7 +132,7 @@ _Static_assert(sizeof(car_speed_pi_trace_header_t) ==
                "speed PI trace header ABI must remain 64 bytes");
 _Static_assert(sizeof(car_speed_pi_trace_sample_t) ==
                    CAR_SPEED_PI_TRACE_SAMPLE_SIZE,
-               "speed PI trace sample ABI must remain 40 bytes");
+               "speed PI trace sample ABI must remain 48 bytes");
 _Static_assert(sizeof(car_speed_pi_trace_t) == CAR_SPEED_PI_TRACE_SECTION_SIZE,
                "speed PI trace section ABI changed");
 #endif
