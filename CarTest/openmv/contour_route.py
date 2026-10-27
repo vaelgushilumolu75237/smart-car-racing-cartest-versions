@@ -7,9 +7,23 @@ not authorize steering and never invents a calibrated normal offset.
 
 from contour_trace import ContourTraceWorkspace, WHITE, _array_fill
 
+try:
+    import micropython
+    _IS_MICROPYTHON = True
+except ImportError:  # Host tests retain ordinary CPython execution.
+    _IS_MICROPYTHON = False
+
+    class _HostMicropython:
+        @staticmethod
+        def native(function):
+            return function
+
+    micropython = _HostMicropython()
+
 
 RUNTIME_API_VERSION = 1
-COMPILER_BACKEND = "python-bounded"
+COMPILER_BACKEND = ("micropython-native-viper" if _IS_MICROPYTHON else
+                    "python-bounded")
 
 
 _ELIGIBLE_PRIOR_REASONS = (
@@ -239,15 +253,6 @@ class ContourRouteRecovery:
         info["seed_y"] = -1
         info["seed_left_x"] = -1
         info["seed_right_x"] = -1
-        for y in range(self.height):
-            self._left_x[y] = -1
-            self._right_x[y] = -1
-            self._left_seen[y] = 0
-            self._right_seen[y] = 0
-            self._row_ambiguous[y] = 0
-            self._row_valid[y] = 0
-            self._row_width[y] = 0
-            self._row_center_twice[y] = 0
         result = self._result
         result["valid"] = False
         result["quality"] = 0
@@ -275,6 +280,24 @@ class ContourRouteRecovery:
         result["observed_both_rows"] = 0
         result["observed_left_rows"] = 0
         result["observed_right_rows"] = 0
+
+    def _clear_candidate_workspaces(self):
+        """Clear private row buffers immediately before collecting a trace.
+
+        Early failures publish zero counts and never expose these buffers in
+        the result. Deferring the linear clear keeps those failures bounded by
+        their actual gates while every attempted edge collection still starts
+        from the same all-zero workspace state.
+        """
+        for y in range(self.height):
+            self._left_x[y] = -1
+            self._right_x[y] = -1
+            self._left_seen[y] = 0
+            self._right_seen[y] = 0
+            self._row_ambiguous[y] = 0
+            self._row_valid[y] = 0
+            self._row_width[y] = 0
+            self._row_center_twice[y] = 0
         for index in range(self.height * 4):
             self.selected_row_ints[index] = 0
 
@@ -285,6 +308,7 @@ class ContourRouteRecovery:
         self.trace_info["topology_evidence"] = topology
         return self._prior_result
 
+    @micropython.native
     def _collect_trace_edges(self, road, known, floor):
         workspace = self.workspace
         for side in (0, 1):
@@ -494,6 +518,7 @@ class ContourRouteRecovery:
             return self._fail("TRACE_TERMINATION_UNSAFE", prior_reason,
                               topology)
 
+        self._clear_candidate_workspaces()
         if self._collect_trace_edges(road, known, floor) <= 0:
             return self._fail("NO_PAIRED_EDGES", prior_reason, topology)
 

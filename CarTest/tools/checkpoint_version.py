@@ -1492,6 +1492,11 @@ def main():
     parser.add_argument(
         "--openmv-native-v501", type=Path, metavar="DELIVERABLES_SUBDIR",
         help="Validate and include an explicit OpenMV v5.0.1 native-camera bundle under deliverables/.")
+    parser.add_argument(
+        "--openmv-native-v501-runtime-root", type=Path,
+        metavar="DELIVERABLES_RUNTIME_DIR",
+        help=("Validate native build Python sources against a frozen runtime "
+              "directory under deliverables/ and include its manifest and 23 sources."))
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--hardware-actions", default="none",
                         choices=("none",
@@ -1502,6 +1507,9 @@ def main():
     parser.add_argument("--track-profiles", type=Path,
                         help="Validate and include an explicit three-profile H750 delivery under deliverables.")
     args = parser.parse_args()
+    if (args.openmv_native_v501_runtime_root is not None and
+            args.openmv_native_v501 is None):
+        parser.error("--openmv-native-v501-runtime-root requires --openmv-native-v501")
     for value in (args.version, args.branch):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", value) or ".." in value or value.endswith("/"):
             raise ValueError("Use a plain version/branch name without traversal or Git special syntax.")
@@ -1537,7 +1545,8 @@ def main():
         except ImportError:
             from verify_native_camera_v501_delivery import verify_native_camera_v501_delivery
         openmv_native_v501_files = verify_native_camera_v501_delivery(
-            source, args.openmv_native_v501)
+            source, args.openmv_native_v501,
+            runtime_root=args.openmv_native_v501_runtime_root)
     track_profile_files = []
     if args.track_profiles is not None:
         try:
@@ -1613,6 +1622,9 @@ def main():
         "hardware_actions": args.hardware_actions}
     if args.openmv_native_v501 is not None:
         version_info["openmv_native_v501_bundle"] = args.openmv_native_v501.as_posix()
+    if args.openmv_native_v501_runtime_root is not None:
+        version_info["openmv_native_v501_runtime_root"] = \
+            args.openmv_native_v501_runtime_root.as_posix()
     (STORE / "VERSION.json").write_text(json.dumps(version_info, indent=2) + "\n", encoding="utf-8")
     (STORE / "README.md").write_text("# CarTest version checkpoints\n\n"
         "H743 source, OpenMV upload files, and paired ELF checkpoints.\n\n"

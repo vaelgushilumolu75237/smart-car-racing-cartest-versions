@@ -9,7 +9,9 @@ PACKAGE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_DIR))
 
 import config  # noqa: E402
+import contour_route  # noqa: E402
 from contour_route import ContourRouteRecovery  # noqa: E402
+import contour_trace  # noqa: E402
 
 
 WIDTH = 80
@@ -51,6 +53,12 @@ def _prior(reason="INSUFFICIENT_FRESH_ROWS", topology=None):
 
 
 class ContourRouteTests(unittest.TestCase):
+    def test_host_backend_labels_keep_python_bounded_fallback(self):
+        self.assertFalse(contour_route._IS_MICROPYTHON)
+        self.assertFalse(contour_trace._IS_MICROPYTHON)
+        self.assertEqual("python-bounded", contour_route.COMPILER_BACKEND)
+        self.assertEqual("python-bounded", contour_trace.COMPILER_BACKEND)
+
     def test_continuous_bilateral_path_recovers_row_mid_candidate(self):
         topology = {"ambiguous": False, "branch_evidence": False,
                     "island_evidence": False, "reason": "PARTIAL_KNOWN_ROI"}
@@ -83,6 +91,89 @@ class ContourRouteTests(unittest.TestCase):
         self.assertEqual("OK", prior["reason"])
         self.assertEqual("PRIOR_ALREADY_VALID", recovery.reason)
         self.assertFalse(recovery.used)
+
+    def test_early_reject_and_failed_trace_do_not_publish_prior_frame_rows(self):
+        recovery = ContourRouteRecovery(config)
+        mask = _mask()
+        good_prior = _prior()
+        first = recovery.detect(mask, good_prior)
+        self.assertTrue(first["valid"])
+        first_count = first["selected_row_count"]
+        first_rows = tuple(recovery.selected_row_ints[:first_count * 4])
+        first_trace = (
+            recovery.trace_info["Lcount"],
+            recovery.trace_info["Rcount"],
+            recovery.trace_info["left_termination"],
+            recovery.trace_info["right_termination"],
+        )
+
+        ambiguous_topology = {
+            "ambiguous": True,
+            "branch_evidence": False,
+            "island_evidence": False,
+            "reason": "AMBIGUOUS",
+        }
+        early_prior = _prior(topology=ambiguous_topology)
+        early_prior["scene"] = "AMBIGUOUS_TOPOLOGY"
+        self.assertIs(early_prior, recovery.detect(mask, early_prior))
+        self.assertEqual("TOPOLOGY_UNRESOLVED", recovery.reason)
+        self.assertFalse(recovery.used)
+        self.assertEqual(0, recovery.selected_row_count)
+        self.assertEqual(0, recovery.trace_info["selected_row_count"])
+        self.assertEqual(0, recovery.trace_info["Lcount"])
+        self.assertEqual(0, recovery.trace_info["Rcount"])
+        self.assertFalse(recovery._result["valid"])
+        self.assertEqual(0, recovery._result["selected_row_count"])
+        self.assertIsNone(recovery._result["selected_rows"])
+        self.assertIs(recovery.selected_row_ints,
+                      recovery._result["selected_row_ints"])
+        self.assertIs(recovery.workspace.left_points,
+                      recovery.trace_info["left_points"])
+
+        # A rejected trace follows a successful frame. The returned result
+        # must not publish the prior candidate, while diagnostics describe
+        # only the current trace.
+        failed_mask = _mask(top=58)
+        failed_prior = _prior()
+        self.assertIs(failed_prior,
+                      recovery.detect(failed_mask, failed_prior))
+        self.assertEqual("INSUFFICIENT_FRESH_ROWS", recovery.reason)
+        self.assertFalse(recovery._result["valid"])
+        self.assertEqual(0, recovery._result["selected_row_count"])
+        self.assertIsNone(recovery._result["selected_rows"])
+        self.assertIs(recovery.selected_row_ints,
+                      recovery._result["selected_row_ints"])
+        self.assertEqual(1, recovery.selected_row_count)
+        self.assertEqual(1, recovery.trace_info["selected_row_count"])
+        self.assertGreater(recovery.trace_info["Lcount"], 0)
+        self.assertEqual(recovery.workspace.left_count,
+                         recovery.trace_info["Lcount"])
+        self.assertEqual(recovery.workspace.right_count,
+                         recovery.trace_info["Rcount"])
+        self.assertFalse(recovery.trace_info["used"])
+
+        next_prior = _prior()
+        next_result = recovery.detect(mask, next_prior)
+        fresh_recovery = ContourRouteRecovery(config)
+        fresh_result = fresh_recovery.detect(mask, _prior())
+        self.assertTrue(next_result["valid"])
+        self.assertEqual(first_count, next_result["selected_row_count"])
+        self.assertEqual(first_rows, tuple(
+            recovery.selected_row_ints[:first_count * 4]))
+        self.assertEqual(first_trace, (
+            recovery.trace_info["Lcount"],
+            recovery.trace_info["Rcount"],
+            recovery.trace_info["left_termination"],
+            recovery.trace_info["right_termination"],
+        ))
+        self.assertEqual(
+            tuple(fresh_recovery.selected_row_ints[:first_count * 4]),
+            tuple(recovery.selected_row_ints[:first_count * 4]))
+        for key in ("valid", "reason", "lateral_error", "reference_y",
+                    "reference_center_x", "vertical_span",
+                    "selected_row_count", "selected_row_stride"):
+            self.assertEqual(fresh_result.get(key), next_result.get(key), key)
+        self.assertEqual(0, recovery.trace_info["ambiguous_row_count"])
 
     def test_topology_ambiguity_branch_and_island_are_rejected(self):
         mask = _mask()

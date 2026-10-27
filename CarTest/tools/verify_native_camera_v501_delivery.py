@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import struct
 from typing import Any
@@ -170,6 +170,30 @@ def _resolve_delivery(source: Path, relative_directory: Path | str) -> tuple[Pat
         _error("delivery directory is missing or resolves outside deliverables/")
     if not resolved.is_dir():
         _error("delivery path is not a directory")
+    return resolved, relative.as_posix()
+
+
+def _resolve_runtime_root(source: Path, runtime_root: Path | str) -> tuple[Path, str]:
+    raw = str(runtime_root)
+    normalized = raw.replace("\\", "/")
+    parts = normalized.split("/")
+    if (not normalized or Path(raw).is_absolute() or
+            PurePosixPath(normalized).is_absolute() or
+            PureWindowsPath(raw).is_absolute() or PureWindowsPath(raw).drive or
+            any(part in ("", ".", "..") for part in parts)):
+        _error("runtime root must be a safe source-relative path")
+    relative = Path(*parts)
+    if relative.parts[0].lower() != "deliverables":
+        _error("runtime root must be under deliverables/")
+    candidate = _ensure_no_symlink_components(source, relative, "runtime root")
+    deliverables = source / "deliverables"
+    try:
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(deliverables.resolve(strict=True))
+    except (OSError, ValueError):
+        _error("runtime root is missing or resolves outside deliverables/")
+    if not resolved.is_dir():
+        _error("runtime root is not a directory")
     return resolved, relative.as_posix()
 
 
@@ -419,14 +443,24 @@ def _normalize_runtime_rows(value: Any, expected_names: set[str]) -> dict[str, d
     return normalized
 
 
-def _verify_runtime_sources(source: Path, build_verification: dict[str, Any]) -> None:
-    package_manifest_path = source / "openmv" / "PACKAGE_MANIFEST.json"
+def _verify_runtime_sources(
+    source: Path,
+    build_verification: dict[str, Any],
+    runtime_root: Path | None = None,
+) -> list[str]:
+    explicit_runtime_root = runtime_root is not None
+    runtime_source_root = runtime_root or (source / "openmv")
+    runtime_label = (
+        "frozen OpenMV runtime reference" if explicit_runtime_root
+        else "live OpenMV")
+    package_manifest_path = runtime_source_root / "PACKAGE_MANIFEST.json"
     if package_manifest_path.is_symlink() or not package_manifest_path.is_file():
-        _error("live OpenMV PACKAGE_MANIFEST.json is missing or linked")
-    runtime_manifest = _load_json(package_manifest_path, "live OpenMV PACKAGE_MANIFEST.json")
+        _error(f"{runtime_label} PACKAGE_MANIFEST.json is missing or linked")
+    runtime_manifest = _load_json(
+        package_manifest_path, f"{runtime_label} PACKAGE_MANIFEST.json")
     raw_runtime_rows = runtime_manifest.get("runtime_files")
     if not isinstance(raw_runtime_rows, list) or len(raw_runtime_rows) != 23:
-        _error("live OpenMV manifest must enumerate exactly 23 runtime source files")
+        _error(f"{runtime_label} manifest must enumerate exactly 23 runtime source files")
 
     package_rows: dict[str, dict[str, Any]] | None = None
     if all(isinstance(name, str) for name in raw_runtime_rows):
@@ -453,9 +487,28 @@ def _verify_runtime_sources(source: Path, build_verification: dict[str, Any]) ->
 
     if (len(set(runtime_names)) != 23 or
             any(PurePosixPath(name.replace("\\", "/")).name != name for name in runtime_names)):
-        _error("live OpenMV manifest must enumerate exactly 23 safe, unique runtime source names")
+        _error(f"{runtime_label} manifest must enumerate exactly 23 safe, unique runtime source names")
     rows = _normalize_runtime_rows(
         build_verification.get("runtime_python_sources"), set(runtime_names))
+
+    if explicit_runtime_root:
+        actual_files: set[str] = set()
+        actual_dirs: set[str] = set()
+        for path in runtime_source_root.rglob("*"):
+            relative = path.relative_to(runtime_source_root).as_posix()
+            if path.is_symlink():
+                _error(f"frozen runtime reference contains a symlink: {relative}")
+            if path.is_dir():
+                actual_dirs.add(relative)
+            elif path.is_file():
+                actual_files.add(relative)
+            else:
+                _error(f"frozen runtime reference contains a non-regular entry: {relative}")
+        expected_files = set(runtime_names) | {"PACKAGE_MANIFEST.json"}
+        if actual_dirs or actual_files != expected_files:
+            _error(
+                "frozen runtime reference must contain only PACKAGE_MANIFEST.json "
+                "and its 23 runtime Python files")
 
     if package_rows is not None:
         for name, package_row in package_rows.items():
@@ -472,11 +525,12 @@ def _verify_runtime_sources(source: Path, build_verification: dict[str, Any]) ->
                 _error(f"v16 package-manifest source/MPY record differs from build-verification: {name}")
 
     for name in runtime_names:
-        path = source / "openmv" / name
+        path = runtime_source_root / name
         if path.is_symlink() or not path.is_file():
-            _error(f"live OpenMV runtime source is missing or linked: {name}")
+            _error(f"{runtime_label} runtime source is missing or linked: {name}")
         if _sha256_file(path) != rows[name]["sha256"]:
-            _error(f"build-verification runtime source hash differs from the main package: {name}")
+            _error(f"build-verification runtime source hash differs from {runtime_label}: {name}")
+    return runtime_names
 
 
 def _normalize_artifact_rows(value: Any, label: str) -> dict[str, dict[str, Any]]:
@@ -516,7 +570,8 @@ def _verify_build_verification(
     expected_modules: dict[str, str],
     expected_overlays: dict[str, str],
     candidate_pair: dict[str, int],
-) -> None:
+    runtime_root: Path | None = None,
+) -> list[str]:
     base = build_verification.get("base", {})
     openmv_commit = build_verification.get("source_commit", base.get("openmv_commit"))
     micropython_commit = build_verification.get("micropython_commit", base.get("micropython_commit"))
@@ -569,7 +624,8 @@ def _verify_build_verification(
                           "build-verification module_sources")
     _normalize_source_map(build_verification.get("jpeg_guard_overlay_sources"), expected_overlays,
                           "build-verification jpeg_guard_overlay_sources")
-    _verify_runtime_sources(source, build_verification)
+    runtime_names = _verify_runtime_sources(
+        source, build_verification, runtime_root)
 
     if ("make_exit_code" in verification and
             (type(verification.get("make_exit_code")) is not int or
@@ -597,6 +653,7 @@ def _verify_build_verification(
             _error(f"build-verification vector does not match the image: {name}")
 
     _verify_build_artifacts(files, build_verification)
+    return runtime_names
 
 
 def _verify_elf_bin_pair(firmware_bin: bytes, firmware_elf: bytes, label: str) -> dict[str, int]:
@@ -714,10 +771,21 @@ def _verify_rollback(files: dict[str, Path]) -> None:
 def verify_native_camera_v501_delivery(
     source: Path,
     relative_directory: Path | str,
+    runtime_root: Path | str | None = None,
 ) -> list[str]:
-    """Validate and return only the explicit OpenMV v5.0.1 native app bundle."""
+    """Validate the native app, optionally against a frozen source bundle.
+
+    Without ``runtime_root``, runtime sources must match the live ``openmv/``
+    tree. An explicit source-relative ``deliverables/`` runtime root adds its
+    manifest and 23 source files to the returned checkpoint allowlist.
+    """
     source = Path(source).resolve()
     root, relative_name = _resolve_delivery(source, relative_directory)
+    frozen_runtime_root = None
+    frozen_runtime_relative = None
+    if runtime_root is not None:
+        frozen_runtime_root, frozen_runtime_relative = _resolve_runtime_root(
+            source, runtime_root)
     files = _verify_exact_tree(root)
     _verify_sha256_sums(files)
 
@@ -729,12 +797,18 @@ def verify_native_camera_v501_delivery(
     build_verification = _load_json(files["build-verification.json"], "build-verification.json")
     candidate_pair = _verify_elf_bin_pair(files["firmware.bin"].read_bytes(),
                                           files["firmware.elf"].read_bytes(), "candidate")
-    _verify_build_verification(source, files, build_verification,
-                               expected_patches, expected_modules, expected_overlays,
-                               candidate_pair)
+    runtime_names = _verify_build_verification(
+        source, files, build_verification,
+        expected_patches, expected_modules, expected_overlays,
+        candidate_pair, frozen_runtime_root)
 
     artifact_manifest = _load_json(files["artifact-manifest.json"], "artifact-manifest.json")
     _verify_artifact_manifest(artifact_manifest, root.name, files)
     _verify_rollback(files)
-    return [f"{relative_name}/{name}" for name in PUBLIC_NATIVE_V501_FILES]
+    result = [f"{relative_name}/{name}" for name in PUBLIC_NATIVE_V501_FILES]
+    if frozen_runtime_relative is not None:
+        result.append(f"{frozen_runtime_relative}/PACKAGE_MANIFEST.json")
+        result.extend(
+            f"{frozen_runtime_relative}/{name}" for name in runtime_names)
+    return result
 

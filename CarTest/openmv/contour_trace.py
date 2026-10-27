@@ -19,13 +19,18 @@ except ImportError:  # Host tests use the same bounded Python reference path.
         def viper(function):
             return function
 
+        @staticmethod
+        def native(function):
+            return function
+
     micropython = _HostMicropython()
 
 
 WHITE = 255
 UNKNOWN = 125
 RUNTIME_API_VERSION = 1
-COMPILER_BACKEND = "python-bounded"
+COMPILER_BACKEND = ("micropython-native-viper" if _IS_MICROPYTHON else
+                    "python-bounded")
 
 TERM_NOT_RUN = "NOT_RUN"
 TERM_EDGE = "EDGE"
@@ -291,6 +296,7 @@ class ContourTraceWorkspace:
                 self._state_position[index] = 0
                 self._state_code[index] = 0
 
+    @micropython.native
     def _state_seen(self, y, x, direction, error, side):
         if _IS_MICROPYTHON:
             return _state_seen_viper(
@@ -313,6 +319,7 @@ class ContourTraceWorkspace:
             slot = (slot + 1) & self._state_mask
         return -1
 
+    @micropython.native
     def _append(self, side, y, x, direction, error, road, known):
         if side == 0:
             count = self.left_count
@@ -361,6 +368,7 @@ class ContourTraceWorkspace:
         self.event_actions[index] = action
         self.event_count += 1
 
+    @micropython.native
     def find_seeds(self, mask_info, center_x=39.5, row=None,
                    search_rows=8, max_center_distance=None):
         """Find the unique lower-image white run with two known dark borders.
@@ -449,6 +457,7 @@ class ContourTraceWorkspace:
             return -1, -1
         return y, x
 
+    @micropython.native
     def _collides(self, side, y, x):
         if side == 0:
             points = self.right_points
@@ -464,6 +473,7 @@ class ContourTraceWorkspace:
                 return True
         return False
 
+    @micropython.native
     def trace(self, mask_info, left_seed=None, right_seed=None):
         """Trace both borders, preferring lower lost count and left on ties.
 

@@ -442,7 +442,9 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                                   path_type=_PathDetector,
                                   clock_step_us=100,
                                   fixture_sensor_id=None,
-                                  fixture_mode=False):
+                                  fixture_mode=False,
+                                  single_edge_result=None,
+                                  pair_diagnostic_record=None):
         main._load_fast_runtime()
         main._load_singleedge_runtime()
         main._load_track_elements_runtime()
@@ -461,6 +463,15 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         class _RecordingSingleEdgeTracker(_SingleEdgeTracker):
             def observe_bilateral(self, *args):
                 cache_commits.append(args)
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.pair_diagnostic_record = pair_diagnostic_record
+
+            def detect(self, *args, **kwargs):
+                if single_edge_result is not None:
+                    return single_edge_result
+                return super().detect(*args, **kwargs)
 
         with patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", fake_sensor), \
@@ -820,7 +831,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_RING45_USB60_20261026 "
+            "TRACK_BUILD=CARTEST_H750_RING45_OFFLINE_V17_20261027 "
             "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
@@ -1077,54 +1088,98 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
     def test_preview_marker_is_opt_in_gray_crc_and_draws_before_flush(self):
         class _MarkerImage:
             def __init__(self, events=None):
-                self.calls = []
-                self.events = events
+                self.pixels = bytearray([37] * (320 * 120))
 
-            def draw_rectangle(self, rect, color, fill=False):
-                call = (tuple(rect), color, fill)
-                self.calls.append(call)
-                if self.events is not None:
-                    self.events.append(("marker", call))
+            @staticmethod
+            def format():
+                return 1
+
+            @staticmethod
+            def width():
+                return 320
+
+            @staticmethod
+            def height():
+                return 120
+
+            def bytearray(self):
+                return self.pixels
+
+        def decode_marker(image):
+            colors = []
+            for cell in range(32):
+                x = 4 + cell * 5
+                block = [image.pixels[(y * 320) + x + dx]
+                         for y in range(4, 8) for dx in range(4)]
+                if len(set(block)) != 1 or block[0] not in (0, 255):
+                    raise AssertionError("marker cell is not a solid bit")
+                colors.append(block[0])
+            gray = sum(1 << bit for bit, color in enumerate(colors[:24])
+                       if color == 255)
+            checksum = sum(1 << bit for bit, color in
+                           enumerate(colors[24:]) if color == 255)
+            binary = gray
+            shifted = gray >> 1
+            while shifted:
+                binary ^= shifted
+                shifted >>= 1
+            return binary, gray, checksum, colors
 
         self.assertFalse(config.PREVIEW_FPS_MARKER_ENABLED)
         image = _MarkerImage()
+        untouched = bytes(image.pixels)
         self.assertFalse(main._draw_preview_frame_marker(image, 0x123456))
-        self.assertEqual(image.calls, [])
+        self.assertEqual(bytes(image.pixels), untouched)
 
         sequence = 0x123456
         gray = sequence ^ (sequence >> 1)
         crc = 0
-        for byte_value in gray.to_bytes(3, "little"):
-            crc ^= byte_value
+        for shift in (0, 8, 16):
+            crc ^= (gray >> shift) & 0xFF
             for _ in range(8):
-                crc = (((crc << 1) ^ 0x07) & 0xFF
-                       if crc & 0x80 else (crc << 1) & 0xFF)
-        expected_colors = [
-            255 if ((gray >> bit) & 1) else 0 for bit in range(24)]
-        expected_colors.extend(
-            255 if ((crc >> bit) & 1) else 0 for bit in range(8))
+                if crc & 0x80:
+                    crc = ((crc << 1) ^ 0x07) & 0xFF
+                else:
+                    crc = (crc << 1) & 0xFF
         with patch.object(config, "PREVIEW_FPS_MARKER_ENABLED", True):
-            self.assertTrue(main._draw_preview_frame_marker(image, sequence))
-        self.assertEqual(len(image.calls), 32)
-        self.assertEqual([call[1] for call in image.calls], expected_colors)
-        self.assertTrue(all(call[2] for call in image.calls))
-        self.assertEqual(image.calls[0][0], (4, 4, 4, 4))
-        self.assertEqual(image.calls[-1][0], (159, 4, 4, 4))
+            with patch.object(main, "ptr8", lambda buffer: buffer,
+                              create=True), \
+                    patch.object(main.sensor, "GRAYSCALE", 1, create=True):
+                self.assertTrue(main._draw_preview_frame_marker(
+                    image, sequence))
+        decoded, observed_gray, observed_crc, expected_colors = \
+            decode_marker(image)
+        self.assertEqual(decoded, sequence)
+        self.assertEqual(observed_gray, gray)
+        self.assertEqual(observed_crc, crc)
+        self.assertEqual(expected_colors,
+                         [255 if ((gray >> bit) & 1) else 0
+                          for bit in range(24)] +
+                         [255 if ((crc >> bit) & 1) else 0
+                          for bit in range(8)])
+        self.assertEqual(image.pixels[(4 * 320) + 8], 37)
 
         events = []
         preview_image = _MarkerImage(events)
         fake_time = _Time(step_us=1)
         overlay = main._V7OverlayState(0)
+
+        def flush_after_marker():
+            events.append(("flush", decode_marker(preview_image)))
+
         with patch.object(config, "PREVIEW_FPS_MARKER_ENABLED", True), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
-                patch.object(main, "time", fake_time):
+                patch.object(main, "time", fake_time), \
+                patch.object(main, "ptr8", lambda buffer: buffer,
+                             create=True), \
+                patch.object(main.sensor, "GRAYSCALE", 1, create=True):
             main._render_v7_preview_frame(
                 preview_image, {}, {}, {}, None, False, 0, 0, 0, 0.0,
-                overlay, 0, flush_func=lambda: events.append(("flush", None)),
+                overlay, 0, flush_func=flush_after_marker,
                 preview_sequence=sequence)
-        self.assertEqual(len(preview_image.calls), 32)
-        self.assertEqual(events[-1][0], "flush")
-        self.assertTrue(all(event[0] == "marker" for event in events[:-1]))
+        self.assertEqual(len(preview_image.pixels), 38400)
+        self.assertEqual(events[0][0], "flush")
+        self.assertEqual(events[0][1][:3], (sequence, gray, crc))
 
     def test_ring_target_uses_the_existing_weight_path_without_legacy_loader(self):
         rows = array("i")

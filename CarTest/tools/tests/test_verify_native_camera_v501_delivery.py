@@ -86,6 +86,18 @@ class DeliveryFixture:
         for name in runtime_names:
             shutil.copyfile(PROJECT / "openmv" / name, target_dir / name)
 
+    def copy_frozen_runtime_reference(self):
+        relative = Path("deliverables") / "TrackProfilesFixture_v16" / "OpenMV"
+        target_dir = self.source / relative
+        target_dir.mkdir(parents=True)
+        source_dir = self.source / "openmv"
+        manifest = json.loads(
+            (source_dir / "PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
+        write_json(target_dir / "PACKAGE_MANIFEST.json", manifest)
+        for name in manifest["runtime_files"]:
+            shutil.copyfile(source_dir / name, target_dir / name)
+        return relative
+
     def _write_package(self):
         self.package.mkdir(parents=True)
         (self.package / "rollback").mkdir()
@@ -285,6 +297,78 @@ class VerifyNativeCameraV501DeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "package-manifest source/MPY record"):
             validator.verify_native_camera_v501_delivery(
                 self.fixture.source, self.fixture.relative)
+
+    def test_frozen_runtime_reference_keeps_default_strict_and_returns_34_files(self):
+        runtime_relative = self.fixture.copy_frozen_runtime_reference()
+        live_main = self.fixture.source / "openmv" / "main.py"
+        live_main.write_bytes(live_main.read_bytes() + b"# changed live runtime\n")
+
+        with self.assertRaisesRegex(RuntimeError, "differs from live OpenMV"):
+            validator.verify_native_camera_v501_delivery(
+                self.fixture.source, self.fixture.relative)
+
+        result = validator.verify_native_camera_v501_delivery(
+            self.fixture.source, self.fixture.relative,
+            runtime_root=runtime_relative)
+        expected = [
+            f"{self.fixture.relative.as_posix()}/{name}"
+            for name in validator.PUBLIC_NATIVE_V501_FILES
+        ]
+        expected.append(
+            f"{runtime_relative.as_posix()}/PACKAGE_MANIFEST.json")
+        expected.extend(
+            f"{runtime_relative.as_posix()}/{name}"
+            for name in json.loads(
+                ((self.fixture.source / runtime_relative) /
+                 "PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))["runtime_files"]
+        )
+        self.assertEqual(result, expected)
+        self.assertEqual(len(result), 34)
+
+    def test_tampered_frozen_runtime_source_is_rejected(self):
+        runtime_relative = self.fixture.copy_frozen_runtime_reference()
+        frozen_main = self.fixture.source / runtime_relative / "main.py"
+        frozen_main.write_bytes(frozen_main.read_bytes() + b"# tampered\n")
+        with self.assertRaisesRegex(
+                RuntimeError, "differs from frozen OpenMV runtime reference"):
+            validator.verify_native_camera_v501_delivery(
+                self.fixture.source, self.fixture.relative,
+                runtime_root=runtime_relative)
+
+    def test_tampered_frozen_runtime_manifest_is_rejected(self):
+        runtime_relative = self.fixture.copy_frozen_runtime_reference()
+        manifest_path = self.fixture.source / runtime_relative / "PACKAGE_MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime_files"].pop()
+        write_json(manifest_path, manifest)
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "frozen OpenMV runtime reference manifest must enumerate exactly 23"):
+            validator.verify_native_camera_v501_delivery(
+                self.fixture.source, self.fixture.relative,
+                runtime_root=runtime_relative)
+
+    def test_unsafe_frozen_runtime_reference_paths_are_rejected(self):
+        for runtime_root in ("deliverables/../openmv", "openmv"):
+            with self.subTest(runtime_root=runtime_root), self.assertRaisesRegex(
+                    RuntimeError, "runtime root"):
+                validator.verify_native_camera_v501_delivery(
+                    self.fixture.source, self.fixture.relative,
+                    runtime_root=runtime_root)
+
+    def test_symlinked_frozen_runtime_reference_is_rejected(self):
+        runtime_relative = self.fixture.copy_frozen_runtime_reference()
+        linked_root = self.fixture.source / "deliverables" / "LinkedRuntime"
+        real_is_symlink = Path.is_symlink
+
+        def simulated_symlink(path):
+            return path == linked_root or real_is_symlink(path)
+
+        with patch.object(Path, "is_symlink", simulated_symlink):
+            with self.assertRaisesRegex(RuntimeError, "runtime root contains a symlink"):
+                validator.verify_native_camera_v501_delivery(
+                    self.fixture.source, self.fixture.relative,
+                    runtime_root=Path("deliverables") / "LinkedRuntime")
 
     def test_extra_file_is_rejected(self):
         (self.fixture.package / "unexpected.log").write_text("private", encoding="utf-8")

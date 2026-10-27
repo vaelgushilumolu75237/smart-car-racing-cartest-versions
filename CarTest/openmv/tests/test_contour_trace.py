@@ -8,6 +8,7 @@ import unittest
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PACKAGE_DIR))
 
+import contour_trace as trace_module  # noqa: E402
 from contour_trace import (
     ContourPostWorkspace,
     ContourTraceWorkspace,
@@ -50,6 +51,54 @@ def paint_corridor(mask, center_by_row=None, half_width=15):
 def points(path, count):
     return [(path[index * 2], path[index * 2 + 1])
             for index in range(count)]
+
+
+def _run_trace_branch(use_viper, callback):
+    saved_flag = trace_module._IS_MICROPYTHON
+    pointer_names = ("ptr8", "ptr16", "ptr32")
+    saved_pointers = {name: getattr(trace_module, name, None)
+                      for name in pointer_names}
+    existed = {name: hasattr(trace_module, name) for name in pointer_names}
+    if use_viper:
+        for name in pointer_names:
+            setattr(trace_module, name, lambda value: value)
+    trace_module._IS_MICROPYTHON = use_viper
+    try:
+        return callback()
+    finally:
+        trace_module._IS_MICROPYTHON = saved_flag
+        for name in pointer_names:
+            if existed[name]:
+                setattr(trace_module, name, saved_pointers[name])
+            elif hasattr(trace_module, name):
+                delattr(trace_module, name)
+
+
+def _trace_snapshot(workspace):
+    event_count = workspace.event_count
+    return {
+        "left_points": tuple(workspace.left_points[:workspace.left_count * 2]),
+        "right_points": tuple(workspace.right_points[:workspace.right_count * 2]),
+        "left_support": tuple(workspace.left_dark_support[:workspace.left_count]),
+        "right_support": tuple(workspace.right_dark_support[:workspace.right_count]),
+        "left_row_support": tuple(workspace.left_row_support),
+        "right_row_support": tuple(workspace.right_row_support),
+        "left_count": workspace.left_count,
+        "right_count": workspace.right_count,
+        "left_lost": workspace.left_lost,
+        "right_lost": workspace.right_lost,
+        "left_termination": workspace.left_termination,
+        "right_termination": workspace.right_termination,
+        "seed_status": workspace.seed_status,
+        "iterations": workspace.iterations,
+        "event_count": event_count,
+        "events": (tuple(workspace.event_side[:event_count]),
+                   tuple(workspace.event_points[:event_count * 2]),
+                   tuple(workspace.event_directions[:event_count]),
+                   tuple(workspace.event_errors[:event_count]),
+                   tuple(workspace.event_lost[:event_count]),
+                   tuple(workspace.event_actions[:event_count])),
+    }
 
 
 class ContourTraceTests(unittest.TestCase):
@@ -265,6 +314,105 @@ class ContourTraceTests(unittest.TestCase):
             bent.left_points, bent.left_count))), 3)
         self.assertNotEqual(TERM_BAD_SEED, bent.left_termination)
         self.assertNotEqual(TERM_BAD_SEED, bent.right_termination)
+
+
+class ContourViperParityTests(unittest.TestCase):
+    def _run_shape(self, use_viper, mask, **workspace_options):
+        def run():
+            workspace = ContourTraceWorkspace(
+                record_events=True, **workspace_options)
+            workspace.trace(mask)
+            return _trace_snapshot(workspace)
+        return _run_trace_branch(use_viper, run)
+
+    def test_viper_helpers_match_reference_trace_and_reset_reuse(self):
+        straight = paint_corridor(empty_mask())
+        ring = empty_mask()
+        for y in range(16, HEIGHT):
+            for x in range(19, 61):
+                if not (26 <= y <= 49 and 29 <= x <= 50):
+                    ring["road_mask"][y * WIDTH + x] = 255
+        no_road = empty_mask()
+        ambiguous = empty_mask()
+        for x in range(10, 20):
+            ambiguous["road_mask"][58 * WIDTH + x] = 255
+        for x in range(36, 52):
+            ambiguous["road_mask"][58 * WIDTH + x] = 255
+
+        cases = (
+            ("straight", straight, {}),
+            ("collision", ring, {"iteration_budget": 1800}),
+            ("seed_failure", no_road, {}),
+            ("ambiguous_seed", ambiguous, {}),
+            ("capacity", straight, {"max_points": 8}),
+        )
+        for name, mask, options in cases:
+            with self.subTest(case=name):
+                expected = self._run_shape(False, mask, **options)
+                actual = self._run_shape(True, mask, **options)
+                self.assertEqual(expected, actual)
+        self.assertIn(TERM_COLLISION,
+                      (self._run_shape(True, ring, iteration_budget=1800)[
+                          "left_termination"],
+                       self._run_shape(True, ring, iteration_budget=1800)[
+                          "right_termination"]))
+
+        def reuse(use_viper):
+            def run():
+                workspace = ContourTraceWorkspace(record_events=True)
+                workspace.trace(straight)
+                workspace.trace(no_road)
+                workspace.trace(straight)
+                return _trace_snapshot(workspace)
+            return _run_trace_branch(use_viper, run)
+        self.assertEqual(reuse(False), reuse(True))
+
+    def test_viper_state_collision_table_full_collision_and_clear_helpers(self):
+        def exercise(use_viper):
+            def run():
+                workspace = ContourTraceWorkspace(
+                    max_points=8, iteration_budget=8, state_table_size=16)
+                mask = workspace._state_mask
+                y, x, direction, error, side = 10, 12, 0, 0, 0
+                flat = y * WIDTH + x
+                code = ((error + 10) * 4 + direction) * 2 + side
+                first_slot = (flat * 131 + code * 17) & mask
+                workspace._state_position[first_slot] = 1
+                workspace._state_code[first_slot] = 1
+                self.assertEqual(0, workspace._state_seen(
+                    y, x, direction, error, side))
+                self.assertEqual(1, workspace._state_seen(
+                    y, x, direction, error, side))
+
+                for index in range(len(workspace._state_position)):
+                    workspace._state_position[index] = index + 1
+                    workspace._state_code[index] = 255
+                self.assertEqual(-1, workspace._state_seen(
+                    y, x, direction, error, side))
+
+                workspace.right_points[0] = 20
+                workspace.right_points[1] = 30
+                workspace.right_count = 1
+                self.assertTrue(workspace._collides(0, 20, 30))
+                self.assertFalse(workspace._collides(0, 20, 31))
+
+                workspace.left_row_support[:] = array.array(
+                    "H", [1] * HEIGHT)
+                workspace.right_row_support[:] = array.array(
+                    "H", [2] * HEIGHT)
+                workspace._clear()
+                self.assertEqual((0,) * len(workspace._state_position),
+                                 tuple(workspace._state_position))
+                self.assertEqual(bytes(len(workspace._state_code)),
+                                 bytes(workspace._state_code))
+                self.assertEqual((0,) * HEIGHT,
+                                 tuple(workspace.left_row_support))
+                self.assertEqual((0,) * HEIGHT,
+                                 tuple(workspace.right_row_support))
+            return _run_trace_branch(use_viper, run)
+
+        exercise(False)
+        exercise(True)
 
 
 class ContourGeometryTests(unittest.TestCase):

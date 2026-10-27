@@ -20,7 +20,8 @@ class TrackElementsHarness:
     BASE_LEFT = 25
     BASE_RIGHT = 55
 
-    def __init__(self, settings=None, start_ms=0):
+    def __init__(self, settings=None, start_ms=0,
+                 require_calibration=False):
         base = {
             "SURFACE_GRID_WIDTH": 80,
             "SURFACE_GRID_HEIGHT": 60,
@@ -40,7 +41,8 @@ class TrackElementsHarness:
         }
         if settings:
             base.update(settings)
-        self.tracker = te.TrackElementsTracker(base, require_calibration=False)
+        self.tracker = te.TrackElementsTracker(
+            base, require_calibration=require_calibration)
         self.cache_valid = bytearray(60)
         self.cache_width = array("i", [0] * 60)
         self.cache_left2 = array("i", [0] * 60)
@@ -94,8 +96,68 @@ class TrackElementsHarness:
             "known_region": known,
         }
 
+    def entry_arc_inputs(self, side, outward2=6, *, outer_far=True,
+                         near_outer_rows=4, near_inner_rows=5,
+                         ambiguous_outer_y=None, arc_start=20,
+                         arc_end=36):
+        status = bytearray(120)
+        edge2 = array("i", [0] * 120)
+        left_cells = [self.BASE_LEFT] * self.HEIGHT
+        right_cells = [self.BASE_RIGHT] * self.HEIGHT
+        inner_base = side * self.HEIGHT
+        outer_side = te.SIDE_RIGHT if side == te.SIDE_LEFT else te.SIDE_LEFT
+        outer_base = outer_side * self.HEIGHT
+
+        for y in range(arc_start, arc_end):
+            baseline_inner = int(
+                self.tracker._baseline_left_by_y2[y]
+                if side == te.SIDE_LEFT else
+                self.tracker._baseline_right_by_y2[y])
+            inner_edge2 = (baseline_inner + outward2
+                           if side == te.SIDE_LEFT else
+                           baseline_inner - outward2)
+            status[inner_base + y] = 1
+            edge2[inner_base + y] = inner_edge2
+            if side == te.SIDE_LEFT:
+                left_cells[y] = (inner_edge2 + 1) // 2
+                right_edge2 = inner_edge2 + 62
+                right_cells[y] = (right_edge2 - 1) // 2
+            else:
+                right_cells[y] = (inner_edge2 - 1) // 2
+                left_edge2 = inner_edge2 - 62
+                left_cells[y] = (left_edge2 + 1) // 2
+            if outer_far:
+                if ambiguous_outer_y == y:
+                    status[outer_base + y] = 2
+                else:
+                    status[outer_base + y] = 1
+                    edge2[outer_base + y] = (
+                        right_edge2 if side == te.SIDE_LEFT else left_edge2)
+
+        near_start = self.HEIGHT - near_inner_rows
+        for y in range(near_start, self.HEIGHT):
+            status[inner_base + y] = 1
+            edge2[inner_base + y] = int(
+                self.tracker._baseline_left_by_y2[y]
+                if side == te.SIDE_LEFT else
+                self.tracker._baseline_right_by_y2[y])
+        if near_outer_rows:
+            near_outer_start = self.HEIGHT - near_outer_rows
+            for y in range(near_outer_start, self.HEIGHT):
+                status[outer_base + y] = 1
+                edge2[outer_base + y] = int(
+                    self.tracker._baseline_right_by_y2[y]
+                    if outer_side == te.SIDE_RIGHT else
+                    self.tracker._baseline_left_by_y2[y])
+
+        mask_info = self.mask(
+            left_by_y=lambda y: left_cells[y],
+            right_by_y=lambda y: right_cells[y])
+        return status, edge2, mask_info
+
     def frame(self, left=25, right=55, *, road_accepted=True,
-              raw_side=None, topology=None, mask_info=None,
+              raw_side=None, raw_status=None, raw_edge2=None,
+              topology=None, mask_info=None,
               left_by_y=None, right_by_y=None, open_band=None,
               one_sided_open=False, extra_run=False, dark_hole=None,
               profile_id=2, active=True, token="session-1", profile_seq=None,
@@ -127,8 +189,11 @@ class TrackElementsHarness:
                 status[index] = 1
                 edge2[index] = (visible * 2 - 1 if raw_side == te.SIDE_LEFT
                                 else visible * 2 + 1)
+        elif raw_status is not None and raw_edge2 is not None:
+            status = bytearray(raw_status)
+            edge2 = array("i", raw_edge2)
         if single_fresh is None:
-            single_fresh = raw_side is not None
+            single_fresh = raw_side is not None or raw_status is not None
         if topology is None:
             topology = {"reason": "OK", "complete": True}
         if mask_info is None:
@@ -216,6 +281,247 @@ class TrackElementsTests(unittest.TestCase):
         self.assertTrue(right_result["ring_confirmed"])
         self.assertTrue(right_result["control_eligible"])
         self.assertEqual(right_result["side"], te.SIDE_RIGHT)
+
+    def test_growing_inner_arc_confirms_both_sides_with_valid_routes(self):
+        for side in (te.SIDE_LEFT, te.SIDE_RIGHT):
+            with self.subTest(side=side):
+                h = TrackElementsHarness()
+                h.prime()
+                before_width = list(h.cache_width)
+                h.lose(side)
+                self.assertEqual(h.tracker.result["state"], "ENTER")
+
+                status, edge2, mask = h.entry_arc_inputs(side, 6)
+                result = h.frame(
+                    road_accepted=False, raw_status=status,
+                    raw_edge2=edge2, mask_info=mask)
+                self.assertEqual(result["state"], "ENTER")
+                self.assertEqual(result["ring_arc_growth_frames"], 1)
+
+                status, edge2, mask = h.entry_arc_inputs(side, 8)
+                result = h.frame(
+                    road_accepted=False, raw_status=status,
+                    raw_edge2=edge2, mask_info=mask)
+                self.assertEqual(result["state"], "INSIDE")
+                self.assertEqual(result["reason"], "GROWING_ARC_CONFIRMED")
+                self.assertEqual(result["entry_confirmation_path"],
+                                 "GROWING_ARC")
+                self.assertEqual(result["ring_arc_growth_frames"], 2)
+                self.assertEqual(result["ring_arc_growth_x2"], 2)
+                self.assertTrue(result["ring_confirmed"])
+                self.assertTrue(result["target_valid"])
+                self.assertTrue(result["control_eligible"])
+                self.assertFalse(result["growth_ready_but_target_rejected"])
+                self.assertEqual(list(h.cache_width), before_width)
+                result = h.frame(left=25, right=55)
+                self.assertEqual(result["state"], "INSIDE")
+                self.assertEqual(result["entry_confirmation_path"],
+                                 "GROWING_ARC")
+
+    def test_cropped_far_outer_edge_is_allowed_with_stable_near_anchor(self):
+        h = TrackElementsHarness()
+        h.prime()
+        h.lose(te.SIDE_LEFT)
+
+        status, edge2, mask = h.entry_arc_inputs(
+            te.SIDE_LEFT, 6, outer_far=False, near_outer_rows=4)
+        result = h.frame(road_accepted=False, raw_status=status,
+                         raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+
+        status, edge2, mask = h.entry_arc_inputs(
+            te.SIDE_LEFT, 8, outer_far=False, near_outer_rows=4)
+        result = h.frame(road_accepted=False, raw_status=status,
+                         raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["reason"], "GROWING_ARC_CONFIRMED")
+        self.assertEqual(result["entry_confirmation_path"], "GROWING_ARC")
+        self.assertEqual(result["ring_near_anchor_rows"], 4)
+        self.assertEqual(result["ring_near_anchor_run"], 4)
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+
+    def test_growth_confirmation_does_not_bypass_target_corridor_guards(self):
+        h = TrackElementsHarness()
+        h.prime()
+        h.lose(te.SIDE_LEFT)
+        for outward2 in (6, 8):
+            status, edge2, mask = h.entry_arc_inputs(
+                te.SIDE_LEFT, outward2, near_inner_rows=0)
+            result = h.frame(road_accepted=False, raw_status=status,
+                             raw_edge2=edge2, mask_info=mask)
+
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertTrue(result["ring_confirmed"])
+        self.assertTrue(result["growth_ready_but_target_rejected"])
+        self.assertEqual(result["growth_target_rejection"], "NEAR_SUPPORT")
+        self.assertEqual(result["ring_target_rejection"], "NEAR_SUPPORT")
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
+        no_reference = TrackElementsHarness()
+        no_reference.prime()
+        no_reference.lose(te.SIDE_LEFT)
+        for outward2 in (6, 8):
+            status, edge2, mask = no_reference.entry_arc_inputs(
+                te.SIDE_LEFT, outward2, arc_end=28)
+            result = no_reference.frame(
+                road_accepted=False, raw_status=status, raw_edge2=edge2,
+                mask_info=mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertTrue(result["growth_ready_but_target_rejected"])
+        self.assertEqual(result["growth_target_rejection"], "REFERENCE_GAP")
+        self.assertEqual(result["ring_target_rejection"], "REFERENCE_GAP")
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+        status, edge2, mask = no_reference.entry_arc_inputs(
+            te.SIDE_LEFT, 8, arc_end=28)
+        result = no_reference.frame(road_accepted=False, raw_status=status,
+                                   raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["entry_confirmation_path"], "GROWING_ARC")
+        self.assertTrue(result["growth_ready_but_target_rejected"])
+        self.assertFalse(result["target_valid"])
+
+    def test_entry_arc_requires_unambiguous_far_and_near_support(self):
+        baseline = TrackElementsHarness().tracker
+        self.assertEqual(baseline.min_near_support, 5)
+        self.assertEqual(baseline.min_near_contiguous, 4)
+        self.assertEqual(baseline.ring_entry_min_near_support, 4)
+        self.assertEqual(baseline.ring_entry_min_near_contiguous, 3)
+
+        missing_near = TrackElementsHarness()
+        missing_near.prime()
+        missing_near.lose(te.SIDE_LEFT)
+        status, edge2, mask = missing_near.entry_arc_inputs(
+            te.SIDE_LEFT, 8, near_outer_rows=0)
+        result = missing_near.frame(
+            road_accepted=False, raw_status=status, raw_edge2=edge2,
+            mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["ring_arc_rejection"],
+                         "OPPOSITE_NEAR_SUPPORT")
+        self.assertFalse(result["ring_confirmed"])
+
+        ambiguous = TrackElementsHarness()
+        ambiguous.prime()
+        ambiguous.lose(te.SIDE_LEFT)
+        status, edge2, mask = ambiguous.entry_arc_inputs(
+            te.SIDE_LEFT, 8, ambiguous_outer_y=24)
+        result = ambiguous.frame(
+            road_accepted=False, raw_status=status, raw_edge2=edge2,
+            mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["ring_arc_rejection"], "OUTER_AMBIGUOUS")
+        self.assertFalse(result["ring_confirmed"])
+
+        only_border = TrackElementsHarness()
+        only_border.prime()
+        only_border.lose(te.SIDE_LEFT)
+        status, edge2, mask = only_border.entry_arc_inputs(
+            te.SIDE_LEFT, 0)
+        result = only_border.frame(
+            road_accepted=False, raw_status=status, raw_edge2=edge2,
+            mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["ring_arc_rejection"], "INNER_ARC_SUPPORT")
+        self.assertFalse(result["ring_confirmed"])
+
+    def test_entry_arc_growth_resets_after_invalid_frame_and_rejects_jitter(self):
+        interrupted = TrackElementsHarness()
+        interrupted.prime()
+        interrupted.lose(te.SIDE_LEFT)
+        status, edge2, mask = interrupted.entry_arc_inputs(
+            te.SIDE_LEFT, 6)
+        result = interrupted.frame(road_accepted=False, raw_status=status,
+                                  raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["ring_arc_growth_frames"], 1)
+        result = interrupted.frame(road_accepted=False, single_fresh=False)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["ring_arc_growth_frames"], 0)
+        for outward2 in (6, 8):
+            status, edge2, mask = interrupted.entry_arc_inputs(
+                te.SIDE_LEFT, outward2)
+            result = interrupted.frame(road_accepted=False,
+                                      raw_status=status, raw_edge2=edge2,
+                                      mask_info=mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["reason"], "GROWING_ARC_CONFIRMED")
+
+        jitter = TrackElementsHarness()
+        jitter.prime()
+        jitter.lose(te.SIDE_LEFT)
+        for outward2 in (6, 7, 6, 7, 6, 7):
+            status, edge2, mask = jitter.entry_arc_inputs(
+                te.SIDE_LEFT, outward2)
+            result = jitter.frame(road_accepted=False, raw_status=status,
+                                  raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertFalse(result["ring_confirmed"])
+        self.assertEqual(result["ring_arc_growth_frames"], 2)
+        self.assertEqual(result["ring_arc_growth_x2"], 1)
+
+        stationary = TrackElementsHarness()
+        stationary.prime()
+        stationary.lose(te.SIDE_LEFT)
+        for _ in range(4):
+            status, edge2, mask = stationary.entry_arc_inputs(
+                te.SIDE_LEFT, 6)
+            result = stationary.frame(road_accepted=False,
+                                      raw_status=status, raw_edge2=edge2,
+                                      mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertFalse(result["ring_confirmed"])
+        self.assertEqual(result["ring_arc_growth_x2"], 0)
+
+    def test_one_reversal_frame_keeps_the_existing_peak_fallback_pending(self):
+        h = TrackElementsHarness({
+            "TRACK_ELEMENTS_RING_ARC_GROWING_SUPPORT_FRAMES": 4,
+        })
+        h.prime()
+        h.lose(te.SIDE_LEFT)
+        for outward2 in (6, 12, 6):
+            status, edge2, mask = h.entry_arc_inputs(
+                te.SIDE_LEFT, outward2, outer_far=False)
+            result = h.frame(road_accepted=False, raw_status=status,
+                             raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertFalse(result["ring_confirmed"])
+        self.assertEqual(h.tracker._reverse_count, 1)
+
+        fallback = TrackElementsHarness({
+            "TRACK_ELEMENTS_RING_ARC_GROWING_SUPPORT_FRAMES": 10,
+        })
+        fallback.prime()
+        fallback.lose(te.SIDE_LEFT)
+        for outward2 in (6, 12, 6, 6):
+            status, edge2, mask = fallback.entry_arc_inputs(
+                te.SIDE_LEFT, outward2, outer_far=False)
+            result = fallback.frame(road_accepted=False, raw_status=status,
+                                   raw_edge2=edge2, mask_info=mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertEqual(result["reason"], "RING_ARC_CONFIRMED")
+        self.assertEqual(result["entry_confirmation_path"], "PEAK_REVERSAL")
+
+    def test_ring_entry_still_requires_calibration_and_clear_topology(self):
+        no_calibration = TrackElementsHarness(require_calibration=True)
+        no_calibration.prime()
+        result = no_calibration.lose(te.SIDE_LEFT)
+        self.assertEqual(result["state"], "OBSERVE")
+        self.assertEqual(result["reason"], "RING_CALIBRATION_NOT_READY")
+        self.assertFalse(result["candidate"])
+
+        branch = TrackElementsHarness()
+        branch.prime()
+        branch.lose(te.SIDE_LEFT)
+        status, edge2, mask = branch.entry_arc_inputs(te.SIDE_LEFT, 6)
+        result = branch.frame(
+            road_accepted=False, raw_status=status, raw_edge2=edge2,
+            mask_info=mask,
+            topology={"reason": "OK", "complete": True,
+                      "branch_evidence": True})
+        self.assertEqual(result["state"], "REACQUIRE")
+        self.assertFalse(result["ring_confirmed"])
 
     def test_entry_dropout_single_scan_preserves_mirrored_guards(self):
         straight = TrackElementsHarness()
@@ -538,6 +844,10 @@ class TrackElementsTests(unittest.TestCase):
         self.assertEqual(result["state"], "ENTER")
         self.assertEqual(result["state_elapsed_ms"], 2000)
         result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         advance_ms=2000)
+        self.assertEqual(result["state"], "ENTER")
+        self.assertEqual(result["state_elapsed_ms"], 4000)
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
                          advance_ms=1)
         self.assertEqual(result["state"], "REACQUIRE")
         self.assertEqual(result["reason"], "STATE_TIMEOUT")
@@ -550,10 +860,10 @@ class TrackElementsTests(unittest.TestCase):
         for _ in range(75):
             result = inside.frame(left=27, right=55, advance_ms=30)
         self.assertEqual(result["state"], "INSIDE")
-        self.assertEqual(result["state_elapsed_ms"], 2250)
-        self.assertEqual(result["state_frames"], 75)
+        self.assertEqual(result["state_elapsed_ms"], 2310)
+        self.assertEqual(result["state_frames"], 77)
 
-        result = inside.frame(left=27, right=55, advance_ms=13750)
+        result = inside.frame(left=27, right=55, advance_ms=13690)
         self.assertEqual(result["state"], "INSIDE")
         self.assertEqual(result["state_elapsed_ms"], 16000)
         result = inside.frame(left=27, right=55, advance_ms=1)
@@ -734,6 +1044,7 @@ class TrackElementsTests(unittest.TestCase):
         self.assertFalse(result["control_eligible"])
         self.assertFalse(result["target_valid"])
         self.assertEqual(result["target_count"], 0)
+        self.assertEqual(result["entry_confirmation_path"], "NONE")
         self.assertEqual(result["event_count"], 0)
         self.assertFalse(h.tracker._ring_cache_frozen)
 

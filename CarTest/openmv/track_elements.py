@@ -610,6 +610,12 @@ class TrackElementsTracker:
         self.min_near_contiguous = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MIN_NEAR_CONTIGUOUS", 4, 2,
             self.near_rows)
+        self.ring_entry_min_near_support = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ENTRY_MIN_NEAR_SUPPORT", 4, 2,
+            self.near_rows)
+        self.ring_entry_min_near_contiguous = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ENTRY_MIN_NEAR_CONTIGUOUS", 3,
+            2, self.near_rows)
         self.min_stable_frames = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MIN_STABLE_FRAMES", 3, 2, 20)
         self.min_side_support = self._bounded_setting(
@@ -629,11 +635,33 @@ class TrackElementsTracker:
         self.reappear_shift2 = self._bounded_setting(
             settings, "TRACK_ELEMENTS_REAPPEAR_SHIFT_X2", 8, 2,
             (self.width - 1) * 2)
+        self.ring_entry_opposite_tolerance2 = self._bounded_setting(
+            settings,
+            "TRACK_ELEMENTS_RING_ENTRY_OPPOSITE_POSITION_TOLERANCE_X2",
+            10, 0, (self.width - 1) * 2)
+        self.ring_entry_reappear_shift2 = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ENTRY_REAPPEAR_SHIFT_X2", 6,
+            2, (self.width - 1) * 2)
         self.peak_reversal2 = self._bounded_setting(
             settings, "TRACK_ELEMENTS_PEAK_REVERSAL_X2", 6, 2,
             (self.width - 1) * 2)
         self.peak_confirm_frames = self._bounded_setting(
             settings, "TRACK_ELEMENTS_PEAK_CONFIRM_FRAMES", 2, 2, 10)
+        self.ring_arc_min_rows = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ARC_MIN_ROWS", 4, 2,
+            self.height)
+        self.ring_arc_min_contiguous_rows = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ARC_MIN_CONTIGUOUS_ROWS", 3, 2,
+            self.height)
+        self.ring_arc_min_span_rows = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ARC_MIN_SPAN_ROWS", 4, 1,
+            self.height - 1)
+        self.ring_arc_min_growth2 = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ARC_MIN_GROWTH_X2", 2, 1,
+            (self.width - 1) * 2)
+        self.ring_arc_growing_support_frames = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_ARC_GROWING_SUPPORT_FRAMES", 2,
+            2, 10)
         self.min_target_rows = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MIN_TARGET_ROWS", 5, 3, self.height)
         self.max_cache_gap = self._bounded_setting(
@@ -643,7 +671,7 @@ class TrackElementsTracker:
         self.max_active_frames = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MAX_ACTIVE_FRAMES", 180, 2, 2000)
         self.max_entry_ms = self._bounded_setting(
-            settings, "TRACK_ELEMENTS_MAX_ENTRY_MS", 2000, 1, 60000)
+            settings, "TRACK_ELEMENTS_MAX_ENTRY_MS", 4000, 1, 60000)
         self.max_active_ms = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MAX_ACTIVE_MS", 16000, 1, 600000)
         self.exit_confirm_frames = self._bounded_setting(
@@ -724,10 +752,19 @@ class TrackElementsTracker:
         self._ring_diag_arc_rows = 0
         self._ring_diag_anchor_rows = 0
         self._ring_diag_arc_span = 0
+        self._ring_diag_anchor_run = 0
+        self._ring_diag_arc_rejection = "NONE"
+        self._ring_diag_growth_frames = 0
+        self._ring_diag_growth_x2 = 0
         self._ring_diag_exit_rows = 0
         self._ring_diag_exit_span = 0
         self._ring_diag_exit_residual = -1
         self._ring_diag_reason_code = 0
+        self._entry_growth_frames = 0
+        self._entry_growth_origin_x2 = -1
+        self._entry_growth_last_x2 = -1
+        self._growth_confirmation_latched = False
+        self._entry_confirmation_path = "NONE"
         self._scratch_left = array("i", [0] * self.height)
         self._scratch_right = array("i", [0] * self.height)
         self._scratch_y = array("i", [0] * self.height)
@@ -814,7 +851,15 @@ class TrackElementsTracker:
             "ring_diagnostic_reason": "NONE",
             "ring_arc_support_rows": 0,
             "ring_arc_span_rows": 0,
+            "ring_arc_rejection": "NONE",
+            "ring_arc_growth_frames": 0,
+            "ring_arc_growth_x2": 0,
+            "growth_ready_but_target_rejected": False,
+            "growth_target_rejection": "NONE",
+            "entry_confirmation_path": "NONE",
+            "ring_target_rejection": "NONE",
             "ring_near_anchor_rows": 0,
+            "ring_near_anchor_run": 0,
             "ring_exit_fit_rows": 0,
             "ring_exit_span_rows": 0,
             "ring_exit_residual_x2": -1,
@@ -858,6 +903,7 @@ class TrackElementsTracker:
         self._reappear_count = 0
         self._extreme_x2 = 0
         self._reverse_count = 0
+        self._reset_entry_growth()
         self._exit_count = 0
         self._exit_side = SIDE_NONE
         self._exit_drop_count = 0
@@ -1225,6 +1271,7 @@ class TrackElementsTracker:
         self._reappear_count = 0
         self._extreme_x2 = 0
         self._reverse_count = 0
+        self._reset_entry_growth()
         self._exit_count = 0
         self._exit_side = SIDE_NONE
         self._exit_drop_count = 0
@@ -1392,13 +1439,23 @@ class TrackElementsTracker:
                 self._current_valid):
             if (self._state == STATE_INSIDE and
                     not inside_target_attempted):
-                self._build_target_rows(mask_info, topology, self._side)
+                inside_target_built = self._build_target_rows(
+                    mask_info, topology, self._side)
+                inside_target_attempted = True
             elif self._state == STATE_EXIT_REPAIR:
                 exit_target_side = (SIDE_RIGHT if self._side == SIDE_LEFT else
                                     SIDE_LEFT)
                 if self._result["target_side"] == SIDE_NONE:
                     self._build_target_rows(
                         mask_info, topology, exit_target_side)
+        if (self._state == STATE_INSIDE and
+                self._growth_confirmation_latched and
+                not self._result["target_valid"]):
+            self._result["growth_ready_but_target_rejected"] = True
+            self._result["growth_target_rejection"] = (
+                self._result["ring_target_rejection"]
+                if inside_target_attempted else
+                "TARGET_NOT_BUILT")
         self._publish()
         return self._result
 
@@ -1443,10 +1500,21 @@ class TrackElementsTracker:
         self._ring_diag_arc_rows = 0
         self._ring_diag_anchor_rows = 0
         self._ring_diag_arc_span = 0
+        self._ring_diag_anchor_run = 0
+        self._ring_diag_arc_rejection = "NONE"
+        self._ring_diag_growth_frames = 0
+        self._ring_diag_growth_x2 = 0
         self._ring_diag_exit_rows = 0
         self._ring_diag_exit_span = 0
         self._ring_diag_exit_residual = -1
         self._ring_diag_reason_code = 0
+        result["ring_arc_rejection"] = "NONE"
+        result["ring_arc_growth_frames"] = 0
+        result["ring_arc_growth_x2"] = 0
+        result["growth_ready_but_target_rejected"] = False
+        result["growth_target_rejection"] = "NONE"
+        result["ring_target_rejection"] = "NONE"
+        result["ring_near_anchor_run"] = 0
         result["cross_candidate"] = False
         result["cross_confirmed"] = False
         result["cross_suppress_slowdown"] = False
@@ -1712,7 +1780,7 @@ class TrackElementsTracker:
             longest = summary[4]
             anchor_rows = summary[5]
         accepted = int(longest >= 4 and missing >= 4 and
-                       anchor_rows >= self.min_near_support)
+                       anchor_rows >= self.ring_entry_min_near_support)
         if accepted:
             self._ring_diag_arc_rows = missing
             self._ring_diag_anchor_rows = anchor_rows
@@ -1728,9 +1796,9 @@ class TrackElementsTracker:
         right_longest = summary[4]
         right_anchor = summary[5]
         left_ok = (left_longest >= 4 and left_missing >= 4 and
-                   left_anchor >= self.min_near_support)
+                   left_anchor >= self.ring_entry_min_near_support)
         right_ok = (right_longest >= 4 and right_missing >= 4 and
-                    right_anchor >= self.min_near_support)
+                    right_anchor >= self.ring_entry_min_near_support)
         if left_ok and right_ok:
             self._ring_diag_arc_rows = 0
             self._ring_diag_anchor_rows = 0
@@ -1753,45 +1821,66 @@ class TrackElementsTracker:
             self._baseline_row_valid, self._baseline_left_by_y2,
             self._baseline_right_by_y2, self._entry_dropout_summary,
             self.height, self.floor_y, self.near_rows,
-            self.reappear_shift2, self.opposite_position_tolerance2)
+            self.ring_entry_reappear_shift2,
+            self.opposite_position_tolerance2)
 
     def _entry_arc_profile(self, ring_side):
-        """Measure one real inner-edge arc without averaging edge centers."""
+        """Measure a continuous observed inner arc with a stable near anchor."""
+        self._ring_diag_arc_rejection = "NONE"
         if ring_side not in (SIDE_LEFT, SIDE_RIGHT):
+            self._ring_diag_arc_rejection = "NO_RING_SIDE"
             return 0, 0, 0, 0, 0
         inner_base = ring_side * self.height
         outer_side = SIDE_RIGHT if ring_side == SIDE_LEFT else SIDE_LEFT
         outer_base = outer_side * self.height
         outward_rows = 0
-        outer_anchor_rows = 0
         run = 0
         max_run = 0
         first_y = -1
         last_y = -1
         peak = 0
         peak_edge2 = 0
+        ambiguous_outer = False
+        invalid_outer = False
         for y in range(self.floor_y, 48):
-            if (not self._baseline_row_valid[y] or
-                    self._current_status[inner_base + y] != 1 or
-                    self._current_status[outer_base + y] != 1):
+            if not self._baseline_row_valid[y]:
+                run = 0
+                continue
+            inner_status = self._current_status[inner_base + y]
+            outer_status = self._current_status[outer_base + y]
+            if inner_status != 1:
+                run = 0
+                continue
+            if outer_status == 2:
+                # Ambiguous counterpart evidence is never treated as a crop.
+                ambiguous_outer = True
+                run = 0
+                continue
+            if outer_status not in (0, 1):
+                invalid_outer = True
                 run = 0
                 continue
             inner_baseline = int(
                 self._baseline_left_by_y2[y] if ring_side == SIDE_LEFT else
                 self._baseline_right_by_y2[y])
-            outer_baseline = int(
-                self._baseline_right_by_y2[y] if ring_side == SIDE_LEFT else
-                self._baseline_left_by_y2[y])
             inner_edge = int(self._current_edge2[inner_base + y])
-            outer_edge = int(self._current_edge2[outer_base + y])
-            if abs(outer_edge - outer_baseline) > \
-                    self.opposite_position_tolerance2:
-                run = 0
-                continue
-            outer_anchor_rows += 1
+            if outer_status == 1:
+                outer_baseline = int(
+                    self._baseline_right_by_y2[y] if
+                    ring_side == SIDE_LEFT else
+                    self._baseline_left_by_y2[y])
+                outer_edge = int(self._current_edge2[outer_base + y])
+                correctly_ordered = (inner_edge < outer_edge if
+                                     ring_side == SIDE_LEFT else
+                                     outer_edge < inner_edge)
+                if (not correctly_ordered or
+                        abs(outer_edge - outer_baseline) >
+                        self.ring_entry_opposite_tolerance2):
+                    run = 0
+                    continue
             outward = (inner_edge - inner_baseline if ring_side == SIDE_LEFT
                        else inner_baseline - inner_edge)
-            minimum_outward = (self.reappear_shift2 if
+            minimum_outward = (self.ring_entry_reappear_shift2 if
                                self._reappear_count == 0 else 1)
             if outward < minimum_outward:
                 run = 0
@@ -1808,6 +1897,8 @@ class TrackElementsTracker:
                 peak_edge2 = inner_edge
         span = last_y - first_y if first_y >= 0 else 0
         near_anchor = 0
+        near_run = 0
+        max_near_run = 0
         for y in range(max(self.floor_y, self.height - self.near_rows),
                         self.height):
             baseline = int(
@@ -1816,12 +1907,34 @@ class TrackElementsTracker:
             if (self._baseline_row_valid[y] and
                     self._current_status[outer_base + y] == 1 and
                     abs(int(self._current_edge2[outer_base + y]) - baseline) <=
-                    self.opposite_position_tolerance2):
+                    self.ring_entry_opposite_tolerance2):
                 near_anchor += 1
+                near_run += 1
+                if near_run > max_near_run:
+                    max_near_run = near_run
+            else:
+                near_run = 0
         self._ring_diag_arc_rows = outward_rows
         self._ring_diag_anchor_rows = near_anchor
-        if (outward_rows < 5 or max_run < 4 or span < 6 or
-                near_anchor < self.min_near_support):
+        self._ring_diag_anchor_run = max_near_run
+        if invalid_outer:
+            self._ring_diag_arc_rejection = "OUTER_STATUS_INVALID"
+            return outward_rows, peak, peak_edge2, span, 0
+        if ambiguous_outer:
+            self._ring_diag_arc_rejection = "OUTER_AMBIGUOUS"
+            return outward_rows, peak, peak_edge2, span, 0
+        if (outward_rows < self.ring_arc_min_rows or
+                max_run < self.ring_arc_min_contiguous_rows or
+                span < self.ring_arc_min_span_rows):
+            self._ring_diag_arc_rejection = "INNER_ARC_SUPPORT"
+            return outward_rows, peak, peak_edge2, span, 0
+        if (near_anchor < self.ring_entry_min_near_support or
+                max_near_run < self.ring_entry_min_near_contiguous or
+                (outer_side == SIDE_LEFT and
+                 self._near_left_ambiguous != 0) or
+                (outer_side == SIDE_RIGHT and
+                 self._near_right_ambiguous != 0)):
+            self._ring_diag_arc_rejection = "OPPOSITE_NEAR_SUPPORT"
             return outward_rows, peak, peak_edge2, span, 0
         return outward_rows, peak, peak_edge2, span, 1
 
@@ -1971,14 +2084,43 @@ class TrackElementsTracker:
         self._reset_to_observe("DROPOUT_NOT_SUSTAINED", now_ms)
         self._reject(REJECT_RING_SEQUENCE)
 
+    def _reset_entry_growth(self):
+        self._entry_growth_frames = 0
+        self._entry_growth_origin_x2 = -1
+        self._entry_growth_last_x2 = -1
+        self._ring_diag_growth_frames = 0
+        self._ring_diag_growth_x2 = 0
+        self._reverse_count = 0
+        self._growth_confirmation_latched = False
+        self._entry_confirmation_path = "NONE"
+
+    def _start_entry_growth(self, outward):
+        self._entry_growth_frames = 1
+        self._entry_growth_origin_x2 = int(outward)
+        self._entry_growth_last_x2 = int(outward)
+        self._ring_diag_growth_frames = 1
+        self._ring_diag_growth_x2 = 0
+
     def _observe_entry_arc(self, now_ms, topology):
         self._reason = "WAITING_FOR_RING_ARC"
         if not self._current_valid:
+            self._reset_entry_growth()
+            self._ring_diag_arc_rejection = "CURRENT_ROWS_INVALID"
             self._reject(REJECT_SINGLE_ROWS_STALE)
             return
         if not self._topology_clear(topology):
+            self._reset_entry_growth()
             self._abort("ENTRY_TOPOLOGY_AMBIGUOUS", now_ms,
                         REJECT_TOPOLOGY_AMBIGUOUS)
+            return
+        if (not self._ring_cache_frozen or
+                (self.require_calibration and
+                 not (self._calibration_ready and
+                      self._cal_check_ready and
+                      self._ring_width_calibrated))):
+            self._reset_entry_growth()
+            self._ring_diag_arc_rejection = "WIDTH_NOT_READY"
+            self._reject(REJECT_CACHE_INVALID)
             return
         rows, outward, edge2, span, arc_ok = self._entry_arc_profile(
             self._side)
@@ -1986,12 +2128,41 @@ class TrackElementsTracker:
         self._ring_diag_arc_span = span
         self._ring_diag_reason_code = 8
         if not arc_ok:
+            self._reset_entry_growth()
             self._reject(REJECT_SIDE_SUPPORT)
             return
         if self._reappear_count == 0:
             self._reappear_count = 1
             self._extreme_x2 = outward
             self._reverse_count = 0
+            self._start_entry_growth(outward)
+            return
+
+        if self._entry_growth_frames <= 0:
+            self._start_entry_growth(outward)
+        else:
+            growth = outward - self._entry_growth_last_x2
+            if growth >= 0:
+                if (self._entry_growth_frames <
+                        self.ring_arc_growing_support_frames):
+                    self._entry_growth_frames += 1
+                self._entry_growth_last_x2 = outward
+                self._ring_diag_growth_frames = self._entry_growth_frames
+                self._ring_diag_growth_x2 = max(
+                    0, outward - self._entry_growth_origin_x2)
+            else:
+                # A negative step starts a new consecutive evidence run.
+                self._start_entry_growth(outward)
+
+        if (self._entry_growth_frames >=
+                self.ring_arc_growing_support_frames and
+                self._ring_diag_growth_x2 >= self.ring_arc_min_growth2):
+            self._set_state(STATE_INSIDE, "GROWING_ARC_CONFIRMED", now_ms)
+            self._growth_confirmation_latched = True
+            self._entry_confirmation_path = "GROWING_ARC"
+            self._ring_diag_reason_code = 9
+            self._record_event(EVENT_RING_CONFIRMED, REJECT_NONE, edge2,
+                               now_ms)
             return
 
         if outward > self._extreme_x2:
@@ -2005,6 +2176,7 @@ class TrackElementsTracker:
             self._reverse_count = 0
         if self._reverse_count >= self.peak_confirm_frames:
             self._set_state(STATE_INSIDE, "RING_ARC_CONFIRMED", now_ms)
+            self._entry_confirmation_path = "PEAK_REVERSAL"
             self._ring_diag_reason_code = 9
             self._record_event(EVENT_RING_CONFIRMED, REJECT_NONE, edge2,
                                now_ms)
@@ -2230,6 +2402,7 @@ class TrackElementsTracker:
         self._reappear_count = 0
         self._extreme_x2 = 0
         self._reverse_count = 0
+        self._reset_entry_growth()
         self._exit_count = 0
         self._exit_side = SIDE_NONE
         self._exit_drop_count = 0
@@ -2239,6 +2412,11 @@ class TrackElementsTracker:
         self._cross_count = 0
 
     def _set_state(self, state, reason, now_ms):
+        if state == STATE_ENTER:
+            self._reset_entry_growth()
+        elif state != STATE_INSIDE:
+            self._growth_confirmation_latched = False
+            self._entry_confirmation_path = "NONE"
         self._state = state
         self._reason = reason
         self._state_frames = 0
@@ -2265,6 +2443,7 @@ class TrackElementsTracker:
         self._reappear_count = 0
         self._extreme_x2 = 0
         self._reverse_count = 0
+        self._reset_entry_growth()
         self._exit_count = 0
         self._exit_side = SIDE_NONE
         self._exit_drop_count = 0
@@ -2275,14 +2454,18 @@ class TrackElementsTracker:
         self._record_event(EVENT_ABORT, reject_code, 0, now_ms)
 
     def _build_target_rows(self, mask_info, topology, target_side):
+        self._result["ring_target_rejection"] = "NONE"
         if (not self._ring_cache_frozen or
                 self._side not in (SIDE_LEFT, SIDE_RIGHT) or
                 target_side not in (SIDE_LEFT, SIDE_RIGHT)):
+            self._result["ring_target_rejection"] = "CACHE_OR_SIDE"
             return False
         if not self._ring_topology_precheck(topology):
+            self._result["ring_target_rejection"] = "TOPOLOGY"
             self._reject(REJECT_TOPOLOGY_AMBIGUOUS)
             return False
         if not isinstance(mask_info, dict):
+            self._result["ring_target_rejection"] = "INPUT"
             self._reject(REJECT_INPUT_INVALID)
             return False
         try:
@@ -2296,9 +2479,11 @@ class TrackElementsTracker:
                     not isinstance(known, bytearray) or
                     len(road_mask) != self.width * self.height or
                     len(known) != self.width * self.height):
+                self._result["ring_target_rejection"] = "INPUT"
                 self._reject(REJECT_INPUT_INVALID)
                 return False
         except (TypeError, AttributeError):
+            self._result["ring_target_rejection"] = "INPUT"
             self._reject(REJECT_INPUT_INVALID)
             return False
         count = 0
@@ -2351,18 +2536,29 @@ class TrackElementsTracker:
                 near_observed += 1
             inferred += 1
 
-        if (count < self.min_target_rows or
-                near_observed < self.min_near_support or
-                (target_side == SIDE_LEFT and
-                 (self._near_left_rows < self.min_side_support or
-                  self._near_left_run < self.min_side_contiguous)) or
-                (target_side == SIDE_RIGHT and
-                 (self._near_right_rows < self.min_side_support or
-                  self._near_right_run < self.min_side_contiguous))):
+        if count < self.min_target_rows:
+            self._result["ring_target_rejection"] = "MIN_ROWS"
+            self._reject(REJECT_SIDE_SUPPORT)
+            return False
+        if near_observed < self.min_near_support:
+            self._result["ring_target_rejection"] = "NEAR_SUPPORT"
+            self._reject(REJECT_SIDE_SUPPORT)
+            return False
+        if (target_side == SIDE_LEFT and
+                (self._near_left_rows < self.min_side_support or
+                 self._near_left_run < self.min_side_contiguous)):
+            self._result["ring_target_rejection"] = "LOCKED_SIDE_SUPPORT"
+            self._reject(REJECT_SIDE_SUPPORT)
+            return False
+        if (target_side == SIDE_RIGHT and
+                (self._near_right_rows < self.min_side_support or
+                 self._near_right_run < self.min_side_contiguous)):
+            self._result["ring_target_rejection"] = "LOCKED_SIDE_SUPPORT"
             self._reject(REJECT_SIDE_SUPPORT)
             return False
         if _ring_corridor_viper(road_mask, known, self._target_rows, count,
                                 target_side) != 1:
+            self._result["ring_target_rejection"] = "CORRIDOR"
             self._reject(REJECT_SIDE_SUPPORT)
             return False
         ref_index = -1
@@ -2377,6 +2573,7 @@ class TrackElementsTracker:
                 best_delta = delta
                 ref_index = index
         if ref_index < 0 or best_delta > self.max_cache_gap + 2:
+            self._result["ring_target_rejection"] = "REFERENCE_GAP"
             self._reject(REJECT_SIDE_SUPPORT)
             return False
         offset = ref_index * TARGET_ROW_STRIDE
@@ -2832,7 +3029,13 @@ class TrackElementsTracker:
             _RING_DIAG_REASON_NAMES[reason_code]
         result["ring_arc_support_rows"] = self._ring_diag_arc_rows
         result["ring_arc_span_rows"] = self._ring_diag_arc_span
+        result["ring_arc_rejection"] = self._ring_diag_arc_rejection
+        result["ring_arc_growth_frames"] = self._ring_diag_growth_frames
+        result["ring_arc_growth_x2"] = self._ring_diag_growth_x2
+        result["entry_confirmation_path"] = \
+            self._entry_confirmation_path
         result["ring_near_anchor_rows"] = self._ring_diag_anchor_rows
+        result["ring_near_anchor_run"] = self._ring_diag_anchor_run
         result["ring_exit_fit_rows"] = self._ring_diag_exit_rows
         result["ring_exit_span_rows"] = self._ring_diag_exit_span
         result["ring_exit_residual_x2"] = self._ring_diag_exit_residual

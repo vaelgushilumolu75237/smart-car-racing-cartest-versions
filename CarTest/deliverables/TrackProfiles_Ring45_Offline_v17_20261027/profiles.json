@@ -48,13 +48,9 @@
   "reverse_state_wire": "V2/20-byte/revision1",
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
   "hardware_acceptance": "pending_manual_road_tests",
-  "camera_policy": {
-    "target": "OPENMV4P",
-    "firmware_bundle_path": "deliverables/OpenMV_Ring45_Native_v16_20261027",
-    "artifact_manifest_sha256": "d935ca1799b0a58b522298b9c6c0a14e4a3db8593eab59e2e4bdeed6fd69e1d4",
-    "firmware_bin_sha256": "baa2b1de63a2db71416da23321c1a628cfd634e3aec20f16c508e793a156326c",
-    "payload_scope": "APP-only at 0x08040000; no bootloader or ROMFS",
-    "general_h750_compatibility": false,
-    "artifact_class": "bench-only-road-pending"
-  }
+  "candidate_only": true,
+  "hardware_validation": false,
+  "deployment_eligible": false,
+  "state": "experimental-offline",
+  "ring_route_state": "experimental"
 }

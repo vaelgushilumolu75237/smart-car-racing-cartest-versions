@@ -1704,10 +1704,11 @@ def _load_contour_runtime():
             raise RuntimeError(
                 "contour bundle mismatch: %s API is %s, expected %d" % (
                     filename, version, CONTOUR_RUNTIME_API_VERSION))
-        if backend != "python-bounded":
+        if backend not in ("python-bounded", "micropython-native-viper"):
             raise RuntimeError(
                 "contour bundle mismatch: %s backend is %s, expected "
-                "python-bounded" % (filename, backend))
+                "python-bounded or micropython-native-viper" % (
+                    filename, backend))
     return _CONTOUR_RUNTIME_MODULES
 
 
@@ -3525,7 +3526,7 @@ def _validate_fast_config():
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING45_USB60_20261026":
+            "CARTEST_H750_RING45_OFFLINE_V17_20261027":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -6815,7 +6816,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     capture_fps_counter = _FreshCaptureFPS()
     capture_fps_value = 0.0
     bench_start_us = time.ticks_us()
-    duration_us = None if duration_s is None else int(duration_s) * 1000000
+    bench_start_ms = time.ticks_ms()
+    duration_ms = None if duration_s is None else int(duration_s) * 1000
     current_window = 0
     window_us = config.PERF_WINDOW_MS * 1000
     window_start_us = bench_start_us
@@ -6837,8 +6839,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     gc_low_memory_latched = False
     pending_cycle_start_us = None
 
-    while (duration_us is None or
-           time.ticks_diff(time.ticks_us(), bench_start_us) < duration_us):
+    while (duration_ms is None or
+           time.ticks_diff(time.ticks_ms(), bench_start_ms) < duration_ms):
         cycle_start_us = time.ticks_us()
         # The previous frame's complete cycle ends at this start timestamp.
         # Record it before this frame can move the active send window.
@@ -8205,6 +8207,44 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                       weight_info.get("preview_gain_milli", 0),
                       control_info.get("capture_dt_ms", 0xFFFF),
                       control_info.get("reset_code", 0)))
+            ring_state = ring_info.get("state", "OBSERVE")
+            ring_arc_rejection = ring_info.get("ring_arc_rejection", "NONE")
+            ring_growth_rejected = bool(
+                ring_info.get("growth_ready_but_target_rejected"))
+            if (ring_state != "OBSERVE" or ring_arc_rejection != "NONE" or
+                    ring_growth_rejected):
+                print("V7RING seq=%d st=%s sd=%s arc=%d/%d near=%d/%d "
+                      "gf=%d dx2=%+d path=%s tgt=%d rej=%s/%s" % (
+                          sequence_sent,
+                          ring_state,
+                          ring_info.get("side_name", "NONE"),
+                          ring_info.get("ring_arc_support_rows", 0),
+                          ring_info.get("ring_arc_span_rows", 0),
+                          ring_info.get("ring_near_anchor_rows", 0),
+                          ring_info.get("ring_near_anchor_run", 0),
+                          ring_info.get("ring_arc_growth_frames", 0),
+                          ring_info.get("ring_arc_growth_x2", 0),
+                          ring_info.get("entry_confirmation_path", "NONE"),
+                          1 if ring_info.get("target_valid") else 0,
+                          ring_arc_rejection,
+                          ring_info.get("growth_target_rejection", "NONE")))
+            if single_diagnostic_reason == "AMBIGUOUS_BOTH_SIDES":
+                pair_record = getattr(
+                    single_edge_tracker, "pair_diagnostic_record", None)
+                if isinstance(pair_record, array) and len(pair_record) == 16:
+                    pair_reason = pair_record[0]
+                    pair_reason_names = getattr(
+                        fast_single_edge, "_PAIR_REASON_NAMES", ())
+                    pair_reason_name = "UNK"
+                    if (isinstance(pair_reason_names, tuple) and
+                            isinstance(pair_reason, int) and
+                            0 <= pair_reason < len(pair_reason_names)):
+                        pair_reason_name = pair_reason_names[pair_reason]
+                    print("V7PAIR seq=%d rows=%d span=%d maxdx2=%d "
+                          "left=%d right=%d reason=%d:%s" % (
+                              sequence_sent, pair_record[1], pair_record[2],
+                              pair_record[3], pair_record[6], pair_record[7],
+                              pair_reason, pair_reason_name))
             debug_us = time.ticks_diff(time.ticks_us(), debug_start_us)
             last_debug_ms = debug_now_ms
 
