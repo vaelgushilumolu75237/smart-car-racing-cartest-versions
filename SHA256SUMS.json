@@ -731,7 +731,7 @@
   "tools/build_openmv_ram_preview_probe.py": "c4ded2c7dbd1779e1978b48c95b855134b6a3f3f0f382bfa6397b1942b94cf47",
   "tools/build_openmv_synthetic_marker_probe.py": "c21850071f474dfe14c1138a13df1730a849611b9146a4512d4b7dfb183c9354",
   "tools/build_track_profiles.py": "2840e268f605f30c88c2db10806ffee26672fb5dac8c19511182a0598c2a1fce",
-  "tools/checkpoint_version.py": "07e8e3557c999650f98429c193b79843dd194d004273bc8b01fb36919c139d68",
+  "tools/checkpoint_version.py": "0f163d2ffd41324e08eb79abce8c6b4546ef1751d088b5a7b723b0aa0627b31b",
   "tools/export_openmv_ring_diag.py": "22118d87f0fd7d1e51351e5259eb344eba5e314d5c53db36e9b4ae593e0afc7b",
   "tools/export_run_log.ps1": "d89185b9a574fe99a7f891bff48ec45b20d46c8da851fee8534d25ef0c403ddc",
   "tools/generate_openmv_clipped_midpoint.py": "ef9f8f537e922a0808bccf99a3a4366a3034e6b881eacd638850aa69588574d5",

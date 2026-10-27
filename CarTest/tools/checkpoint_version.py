@@ -1494,8 +1494,11 @@ def main():
         help="Validate and include an explicit OpenMV v5.0.1 native-camera bundle under deliverables/.")
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--hardware-actions", default="none",
-                        choices=("none", "stationary-camera-upload-h743-flash-no-motor-start"),
-                        help="Record completed hardware actions accurately in VERSION.json.")
+                        choices=("none",
+                                 "stationary-camera-upload-h743-flash-no-motor-start",
+                                 "stationary-camera-app-flash-python-upload-no-h743-flash-no-motor-start"),
+                        help=("Record completed hardware actions accurately in VERSION.json; "
+                              "the app/Python option records that H743 was not reflashed."))
     parser.add_argument("--track-profiles", type=Path,
                         help="Validate and include an explicit three-profile H750 delivery under deliverables.")
     args = parser.parse_args()
