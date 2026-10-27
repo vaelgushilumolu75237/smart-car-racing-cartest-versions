@@ -21,7 +21,9 @@ except ImportError:
     from runtime_log_export import inspect_elf
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_NAMES = tuple(BASE_RUNTIME) + ("track_elements.py",)
+RUNTIME_NAMES = tuple(BASE_RUNTIME) + (
+    "track_elements.py", "ring_width_calibration.py", "ring_diagnostics.py",
+    "fast_ring_slope.py")
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 5600, 4400, False),
     ("B_RingBase", "DebugRingBase", 2, 4800, 4000, True),
@@ -204,9 +206,12 @@ def build(source, output, compiler):
         "hardware_acceptance": "pending_manual_road_tests"})
     (output / "README.md").write_text(
         "# H750 camera and three H743 profiles\n\n"
-        "Upload all 20 Python files in OpenMV together; do not upload validation .mpy files.\n"
+        "Upload all 23 Python files in OpenMV together; do not upload validation .mpy files.\n"
         "Flash exactly one H743 ELF. It selects A/B/C through versioned communication.\n"
         "An unknown, stale, or mismatched profile must not start a new Follow session.\n"
+        "B/C require the CRC-verified 45 cm straight calibration and parked width check; A is unchanged.\n"
+        "Run run_ring_width_calibration('/flash/ring45_ground_raw.bin') only at the REPL after stopping the loop; it sends invalid V3/ACK0 frames.\n"
+        "Persist frozen ring history with ring_diag_persist() before removing camera power.\n"
         "A=5.6/4.4 rps, ring off; B=4.8/4.0 rps, ring on; C=5.6/4.4 rps, ring on.\n"
         "Values are wheel-speed targets, not measured body speeds.\n\n"
         "Keep the current H750 vendor firmware. No old H743 camera firmware is included.\n"

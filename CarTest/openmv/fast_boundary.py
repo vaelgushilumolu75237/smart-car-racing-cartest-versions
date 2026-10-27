@@ -166,16 +166,22 @@ def _gate_viper(self) -> int:
 
     for row in range(count):
         output_base = row * output_stride
-        for field in range(output_stride):
-            output[output_base + field] = 0
         record_base = row * row_stride
         if records[record_base] == 0:
+            for field in range(output_stride):
+                output[output_base + field] = 0
             continue
+        # The sample result fields are overwritten when a side has enough
+        # support. Eagerly clear only the accepted and bilateral flags.
+        output[output_base + 3] = 0
+        output[output_base + 7] = 0
+        output[output_base + 8] = 0
 
         # Inline the left and right side measurements here. Calling the Viper
         # helper through the Python bridge twice per row dominated this small
         # bounded gate on OpenMV even though the helper itself was compiled.
         left_ok = 0
+        left_measured = 0
         left_hit = int(records[record_base + 1])
         if left_hit >= 0 and left_hit < total:
             if known[left_hit] != 0 and dark[left_hit] != 0:
@@ -198,6 +204,7 @@ def _gate_viper(self) -> int:
                         left_value2 = value
                     left_sample_count += 1
                 if left_sample_count >= 2:
+                    left_measured = 1
                     if left_sample_count == 2:
                         left_white2 = left_value0 + left_value1
                     else:
@@ -229,8 +236,13 @@ def _gate_viper(self) -> int:
                             left_denominator2 * minimum_fraction_scaled):
                         output[output_base + 3] = 1
                         left_ok = 1
+        if left_measured == 0:
+            output[output_base] = 0
+            output[output_base + 1] = 0
+            output[output_base + 2] = 0
 
         right_ok = 0
+        right_measured = 0
         right_hit = int(records[record_base + 5])
         if right_hit >= 0 and right_hit < total:
             if known[right_hit] != 0 and dark[right_hit] != 0:
@@ -253,6 +265,7 @@ def _gate_viper(self) -> int:
                         right_value2 = value
                     right_sample_count += 1
                 if right_sample_count >= 2:
+                    right_measured = 1
                     if right_sample_count == 2:
                         right_white2 = right_value0 + right_value1
                     else:
@@ -284,6 +297,10 @@ def _gate_viper(self) -> int:
                             right_denominator2 * minimum_fraction_scaled):
                         output[output_base + 7] = 1
                         right_ok = 1
+        if right_measured == 0:
+            output[output_base + 4] = 0
+            output[output_base + 5] = 0
+            output[output_base + 6] = 0
 
         metrics[2] += left_ok
         metrics[3] += right_ok
@@ -841,15 +858,28 @@ class FastBoundaryEvidence:
         support_count = 0
         for row in range(self._current_count):
             output_base = row * _OUTPUT_STRIDE
-            for field in range(_OUTPUT_STRIDE):
-                self._row_output[output_base + field] = 0
             record_base = row * _ROW_STRIDE
             if self._records[record_base] == 0:
+                for field in range(_OUTPUT_STRIDE):
+                    self._row_output[output_base + field] = 0
                 continue
+            # Successful side measurements replace the numeric triplet below;
+            # clear only the flags on the ordinary observed-row path.
+            self._row_output[output_base + 2] = 0
+            self._row_output[output_base + 3] = 0
+            self._row_output[output_base + 6] = 0
+            self._row_output[output_base + 7] = 0
+            self._row_output[output_base + 8] = 0
             left_ok = self._host_measure_side(
                 row, 0, minimum_step_scaled, minimum_fraction_scaled)
+            if self._row_output[output_base + 2] == 0:
+                self._row_output[output_base] = 0
+                self._row_output[output_base + 1] = 0
             right_ok = self._host_measure_side(
                 row, 1, minimum_step_scaled, minimum_fraction_scaled)
+            if self._row_output[output_base + 6] == 0:
+                self._row_output[output_base + 4] = 0
+                self._row_output[output_base + 5] = 0
             metrics[2] += left_ok
             metrics[3] += right_ok
             metrics[4] += self._row_output[output_base + 2]

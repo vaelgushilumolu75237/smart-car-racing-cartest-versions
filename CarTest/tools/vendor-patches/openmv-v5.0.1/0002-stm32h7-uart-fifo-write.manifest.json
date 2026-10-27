@@ -1,0 +1,28 @@
+﻿{
+    "schema_version":  1,
+    "patch_file":  "0002-stm32h7-uart-fifo-write.patch",
+    "patch_sha256":  "8D1649CC9FB74E00B6D1234F6C8A3A62D70B90EBD605053F069B202EC36890FB",
+    "series_position":  2,
+    "applies_after":  {
+                          "patch_file":  "0001-snapshot-preview-control.patch",
+                          "patch_sha256":  "E3A93287D75298664E68068547F9A1F68D15DB0422F0BC08DCC1E7D4D6ADF193"
+                      },
+    "base":  {
+                 "repository":  "https://github.com/openmv/openmv",
+                 "tag":  "v5.0.1",
+                 "openmv_commit":  "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+                 "micropython_commit":  "dd984559aa42841908b78397b7dac32f57da803f"
+             },
+    "base_files_sha256":  {
+                              "lib/micropython/extmod/machine_uart.c":  "EA18B5142A4F19183DCB7583781F78E5F41CCB44938FCD32C849C61FE43A85A3",
+                              "lib/micropython/ports/stm32/machine_uart.c":  "48E0522634FED71EEEA4A5E94E70EBD39FD4E4E8FFF8630E87758F9F7644FEA0",
+                              "lib/micropython/ports/stm32/uart.c":  "DD6DE2DC5556AD5D66C48A95232E8C565A4DEA32C60D8E348E3273C07D4B157D",
+                              "lib/micropython/ports/stm32/uart.h":  "9992A97D1EC5E9868D47B7EA9A37AF4F44040230F04DDF8D7FE9E4C42DFCFBF0"
+                          },
+    "api":  {
+                "marker":  "UART.WRITE_FIFO_API == 1 on STM32H7 only",
+                "write_fifo_max_bytes":  16,
+                "ordinary_write_unchanged":  true,
+                "fifo_txdone":  "reports USART TC state for enabled FIFO-mode UART"
+            }
+}

@@ -41,6 +41,25 @@ def _record_frame(diag, sequence, valid):
         sequence, sequence, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 
+def _ticks_diff(new_tick, old_tick):
+    return new_tick - old_tick
+
+
+def _start_actual_follow(parser, session, tracker, profile_id=1,
+                         reset_sequence=10, keep_sequence=11):
+    profile = reverse_control.pack_profile_state(
+        1, profile_id, reverse_control.PROFILE_SESSION_ACTIVE,
+        session_token=0x1234, mean_forward_wheel_millirev=0)
+    parser.feed(profile, len(profile), 1)
+    controls = (reverse_control.pack_frame(
+        reverse_control.COMMAND_RESET, reset_sequence) +
+        reverse_control.pack_frame(
+            reverse_control.COMMAND_KEEP, keep_sequence))
+    parser.feed(controls, len(controls), 2)
+    return session.observe(
+        parser, tracker, config.BUILD_ID, True, 2, _ticks_diff)
+
+
 class _FreezeSnapshotTracker:
     def __init__(self):
         self.freeze_calls = 0
@@ -358,7 +377,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
             self.assertFalse(main.steering_diag_dump())
         self.assertIn("STEERING_DIAG_DISABLED", output.getvalue())
 
-    def test_initial_keep_discards_precontrol_trace_and_reset_dumps_early(self):
+    def test_startup_keep_does_not_start_session_or_dump_on_reset(self):
         diag = main._SteeringDiagBuffer()
         session = main._SteeringDiagSession(diag)
         parser = reverse_control.ReverseControlParser()
@@ -373,43 +392,48 @@ class SteeringDiagBufferTests(unittest.TestCase):
         keep = reverse_control.pack_frame(
             reverse_control.COMMAND_KEEP, 11)
         parser.feed(keep, len(keep), 2)
-        session.observe(parser, object(), config.BUILD_ID)
-        self.assertTrue(session.session_active)
-        self.assertEqual(diag.count, 0)
+        tracker = _FreezeSnapshotTracker()
+        self.assertIsNone(session.observe(
+            parser, tracker, config.BUILD_ID, True, 2, _ticks_diff))
+        self.assertFalse(session.session_active)
+        self.assertEqual(diag.count, 1)
         self.assertFalse(diag.frozen)
 
+        status = reverse_control.pack_profile_state(
+            1, reverse_control.PROFILE_A,
+            reverse_control.PROFILE_SESSION_ACTIVE,
+            session_token=0x1234)
+        parser.feed(status, len(status), 3)
+        self.assertIsNone(session.observe(
+            parser, tracker, config.BUILD_ID, True, 3, _ticks_diff))
+        self.assertTrue(session.session_active)
+        self.assertEqual(diag.count, 0)
         _record_frame(diag, 2, True)
         output = io.StringIO()
-        tracker = _FreezeSnapshotTracker()
         stop = reverse_control.pack_frame(
             reverse_control.COMMAND_RESET, 12)
         with contextlib.redirect_stdout(output):
             parser.feed(stop, len(stop), 3)
-            session.observe(parser, tracker, config.BUILD_ID)
+            result = session.observe(
+                parser, tracker, config.BUILD_ID, False, 4, _ticks_diff)
             parser.feed(stop, len(stop), 4)
-            session.observe(parser, tracker, config.BUILD_ID)
+            session.observe(parser, tracker, config.BUILD_ID,
+                            False, 5, _ticks_diff)
+        self.assertEqual(result, "REVERSE_RESET")
         self.assertTrue(diag.frozen)
-        self.assertTrue(diag.dumped)
+        self.assertFalse(diag.dumped)
         self.assertEqual(diag.freeze_reason, "REVERSE_RESET")
         self.assertEqual(diag.count, 1)
         self.assertEqual(tracker.freeze_calls, 1)
-        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
-        self.assertIn("\n2,", output.getvalue())
+        self.assertEqual(output.getvalue(), "")
 
     def test_reset_and_keep_consumed_together_finalize_then_rearm(self):
         diag = main._SteeringDiagBuffer()
         session = main._SteeringDiagSession(diag)
         parser = reverse_control.ReverseControlParser()
         tracker = _FreezeSnapshotTracker()
-
-        reset = reverse_control.pack_frame(
-            reverse_control.COMMAND_RESET, 20)
-        keep = reverse_control.pack_frame(
-            reverse_control.COMMAND_KEEP, 21)
-        parser.feed(reset, len(reset), 1)
-        session.observe(parser, tracker, config.BUILD_ID)
-        parser.feed(keep, len(keep), 2)
-        session.observe(parser, tracker, config.BUILD_ID)
+        self.assertIsNone(_start_actual_follow(
+            parser, session, tracker, reset_sequence=20, keep_sequence=21))
         _record_frame(diag, 5, True)
 
         combined = (reverse_control.pack_frame(
@@ -419,8 +443,10 @@ class SteeringDiagBufferTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             parser.feed(combined, len(combined), 3)
             self.assertEqual(parser.last_event, "KEEP")
-            session.observe(parser, tracker, config.BUILD_ID)
-        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+            result = session.observe(
+                parser, tracker, config.BUILD_ID, True, 3, _ticks_diff)
+        self.assertEqual(result, "REVERSE_RESET")
+        self.assertEqual(output.getvalue(), "")
         self.assertEqual(tracker.freeze_calls, 1)
         self.assertTrue(session.session_active)
         self.assertTrue(parser.single_enabled)
@@ -433,14 +459,8 @@ class SteeringDiagBufferTests(unittest.TestCase):
         session = main._SteeringDiagSession(diag)
         parser = reverse_control.ReverseControlParser()
         tracker = _FreezeSnapshotTracker()
-        reset = reverse_control.pack_frame(
-            reverse_control.COMMAND_RESET, 30)
-        keep = reverse_control.pack_frame(
-            reverse_control.COMMAND_KEEP, 31)
-        parser.feed(reset, len(reset), 1)
-        session.observe(parser, tracker, config.BUILD_ID)
-        parser.feed(keep, len(keep), 2)
-        session.observe(parser, tracker, config.BUILD_ID)
+        self.assertIsNone(_start_actual_follow(
+            parser, session, tracker, reset_sequence=30, keep_sequence=31))
 
         for sequence in range(64):
             _record_frame(diag, sequence, True)
@@ -458,9 +478,11 @@ class SteeringDiagBufferTests(unittest.TestCase):
             reverse_control.COMMAND_RESET, 32)
         with contextlib.redirect_stdout(output):
             parser.feed(stop, len(stop), 3)
-            session.observe(parser, tracker, config.BUILD_ID)
-        self.assertTrue(diag.dumped)
-        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+            result = session.observe(
+                parser, tracker, config.BUILD_ID, False, 3, _ticks_diff)
+        self.assertEqual(result, "REVERSE_RESET")
+        self.assertFalse(diag.dumped)
+        self.assertEqual(output.getvalue(), "")
         self.assertEqual(tracker.freeze_calls, 0)
 
     def test_real_main_continues_detection_and_sending_after_diag_freeze(self):
@@ -498,8 +520,11 @@ class SteeringDiagBufferTests(unittest.TestCase):
         def force_preview_candidate(workspace, *_args):
             workspace.info["preview_candidate"] = 400
             workspace.info["preview_valid"] = True
+        active_profile = reverse_control.pack_profile_state(
+            1, reverse_control.PROFILE_A,
+            reverse_control.PROFILE_SESSION_ACTIVE, session_token=1)
         control_frames = [
-            (reverse_control.pack_frame(
+            (active_profile + reverse_control.pack_frame(
                 reverse_control.COMMAND_RESET, 0) + reverse_control.pack_frame(
                     reverse_control.COMMAND_KEEP, 1)),
             b"",
@@ -558,13 +583,13 @@ class SteeringDiagBufferTests(unittest.TestCase):
                           for frame in uart.frames], [1, 0, 1])
         self.assertTrue(diag.frozen)
         self.assertTrue(diag.triggered)
-        self.assertTrue(diag.dumped)
+        self.assertFalse(diag.dumped)
         self.assertEqual(diag.freeze_reason, "REVERSE_RESET")
         self.assertEqual(diag.count, 2)
         self.assertEqual(diag.post_count, 1)
         self.assertEqual(diag.record_errors, 0)
         self.assertEqual(main_harness._SingleEdgeTracker.freeze_calls, 1)
-        self.assertEqual(output.getvalue().count("STEERING_DIAG_BEGIN"), 1)
+        self.assertNotIn("STEERING_DIAG_BEGIN", output.getvalue())
         self.assertGreaterEqual(len(row_weight_outputs), 3)
         self.assertTrue(all(applied == 0 and steering == position
                             for position, _candidate, applied, steering
@@ -796,10 +821,19 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
              "_native_preview_control_api_available",
              "_open_usb_vcp_safely",
              "_road_preview_integer_geometry_viper",
+             # Approved row-weight, preview-marker and codec-guard helpers.
+             "_road_preview_segment_scan_viper",
+             "_draw_preview_marker_pixels_viper",
+             "_preview_marker_image_buffer",
+             "_preview_codec_timeout_valid",
+             "_preview_codec_guard_info",
+             "_preview_codec_guard_diagnostic",
              # Authorized profile/ring route integration is isolated behind
              # these two bounded runtime helpers and covered by main-path
              # protocol/steering tests.
              "_load_track_elements_runtime", "_fill_ring_control_route",
+             "_load_ring_runtime", "run_ring_width_calibration",
+             "_preview_marker_crc8", "_draw_preview_frame_marker",
              # UART FIFO compatibility wrapper is transport-only; the adapter
              # behavior is covered by test_uart_fifo_wrapper.py.
              "_VisionUARTWriter"})
@@ -866,6 +900,10 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "STEERING_CORE_RAW_Y_MAX", "STEERING_CORE_RAW_Y_MIN",
             "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
             "TRACK_PACKAGE_BUILD_ID",
+            # Cached heap sampling policy; these tune GC telemetry cadence only.
+            "PERF_GC_MAX_INTERVAL_FRAMES", "PERF_GC_MIN_FREE_BYTES",
+            "RING_DIAGNOSTICS_ENABLED", "RING_DIAGNOSTICS_PATH",
+            "RING_WIDTH_CALIBRATION_PATH", "RING_WIDTH_CALIBRATION_REQUIRED",
             "VEHICLE_PROFILE_UNKNOWN", "VEHICLE_PROFILE_A",
             "VEHICLE_PROFILE_B", "VEHICLE_PROFILE_C",
             "RING_ENABLED_PROFILE_IDS", "PROFILE_STATE_REVISION",
@@ -904,11 +942,13 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             # Current V2 USB preview configuration, additive to the baseline.
             "SURFACE_PIXEL_SCALE_Y", "USB_PREVIEW_ENABLED",
             "USB_PREVIEW_OVERLAY_MODE", "USB_PREVIEW_QUALITY",
-            "USB_PREVIEW_BUILD_ID",
+            "USB_PREVIEW_BUILD_ID", "PREVIEW_FPS_MARKER_ENABLED",
         }
         changed_assignments = {
             "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",
             "OVERLAY_PERIOD_MS",
+            # Approved V8/V16 heap sampling cadence; keep it fixed at 120.
+            "PERF_GC_PERIOD_FRAMES",
         }
         removed_assignments = {
             "GRAY_MINPOOL_SCALE", "STEERING_FAR_WEIGHT",
@@ -925,6 +965,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
              baseline_assignments.keys()
              if current_assignments[name] != baseline_assignments[name]},
             changed_assignments)
+        self.assertRegex(current_config,
+                         r"(?m)^PERF_GC_PERIOD_FRAMES = 120$")
         for name in current_assignments.keys() & baseline_assignments.keys() - changed_assignments:
             self.assertEqual(current_assignments[name],
                              baseline_assignments[name], name)

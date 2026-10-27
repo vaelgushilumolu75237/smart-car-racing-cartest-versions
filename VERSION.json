@@ -1,7 +1,8 @@
 {
-  "version": "v20261026-h750-benchfix",
-  "status": "software-tested-bench-road-pending",
-  "branch": "experimental/h750-track-profiles",
-  "files": 732,
-  "hardware_actions": "none"
+  "version": "v20261027-ring45-usb60-bench-v16",
+  "status": "stationary-bench-verified-road-pending",
+  "branch": "experimental/ring45-usb60-v16",
+  "files": 803,
+  "hardware_actions": "stationary-camera-upload-h743-flash-no-motor-start",
+  "openmv_native_v501_bundle": "deliverables/OpenMV_Ring45_Native_v16_20261027"
 }

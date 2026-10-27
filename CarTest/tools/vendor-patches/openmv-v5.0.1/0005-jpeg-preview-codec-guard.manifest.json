@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "patch_file": "0005-jpeg-preview-codec-guard.patch",
+  "patch_sha256": "D89B3D70854BA9DEA9215D87F451AD087121416CD846A422E8265D17E577E027",
+  "series_position": 5,
+  "applies_after": {
+    "patch_file": "0004-cartest-path-accel-module.patch",
+    "patch_sha256": "68ACFE9DE1DA89D03DBAF95C373EA0FA549B7D5C5146F8B0C3EFF08D31988524"
+  },
+  "base": {
+    "repository": "https://github.com/openmv/openmv",
+    "tag": "v5.0.1",
+    "openmv_commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+    "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+    "target": "OPENMV4P"
+  },
+  "files": [
+    {
+      "source": "jpeg_preview_guard/overlay/ports/stm32/stm_jpeg.c",
+      "destination": "ports/stm32/stm_jpeg.c",
+      "sha256": "44684B59B86F4387E8F60EEFEF21BA7646E793F4FFFD0C38671FC6EAAF70C2DA"
+    },
+    {
+      "source": "jpeg_preview_guard/overlay/lib/imlib/imlib.h",
+      "destination": "lib/imlib/imlib.h",
+      "sha256": "03D2F49CF4C1D0816B5EEF5107DAC47B1D33748DF43813245BCD293D7F742D9E"
+    },
+    {
+      "source": "jpeg_preview_guard/overlay/ports/stm32/jpeg_preview_guard_cleanup.h",
+      "destination": "ports/stm32/jpeg_preview_guard_cleanup.h",
+      "sha256": "6031F7884C76EB3A9458E095646129F0702D8E2C8C65203FDE510DC417B8F94D"
+    }
+  ],
+  "api": {
+    "get": "jpeg_get_encode_timeout_ms()",
+    "set": "jpeg_set_encode_timeout_ms(uint32_t)",
+    "default_encode_timeout_ms": 1000,
+    "set_range_ms": [
+      1,
+      1000
+    ],
+    "decode_timeout_changed": false,
+    "encode_algorithm_changed": false,
+    "nlr_exceptions_rethrown_after_cleanup": true,
+    "owned_dma_buffers_freed_only_after_hal_abort_confirms_stop": true
+  },
+  "cleanup_limit": {
+    "caller_encode_timeout_ms": 5,
+    "hal_abort_cleanup_hard_bound_ms": null,
+    "nominal_hal_abort_cleanup_may_reach_ms": 1013,
+    "note": "The 5 ms value does not cap synchronous HAL abort cleanup latency."
+  },
+  "hardware_validation": false,
+  "deployment_eligible": false
+}

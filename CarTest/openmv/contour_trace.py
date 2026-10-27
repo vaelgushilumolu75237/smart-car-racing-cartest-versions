@@ -8,6 +8,19 @@ original follower and make no camera or track-width calibration claim.
 from array import array
 import math
 
+try:
+    import micropython
+    _IS_MICROPYTHON = True
+except ImportError:  # Host tests use the same bounded Python reference path.
+    _IS_MICROPYTHON = False
+
+    class _HostMicropython:
+        @staticmethod
+        def viper(function):
+            return function
+
+    micropython = _HostMicropython()
+
 
 WHITE = 255
 UNKNOWN = 125
@@ -131,6 +144,59 @@ def _is_frame_edge(y, x, width, height):
     return y <= 0 or x <= 0 or y >= height - 1 or x >= width - 1
 
 
+@micropython.viper
+def _clear_trace_state_viper(state_position_obj, state_code_obj,
+                             left_rows_obj, right_rows_obj,
+                             state_size: int, height: int) -> int:
+    """Clear the reusable trace table and row summaries in native code."""
+    state_position = ptr32(state_position_obj)
+    state_code = ptr8(state_code_obj)
+    left_rows = ptr16(left_rows_obj)
+    right_rows = ptr16(right_rows_obj)
+    for index in range(state_size):
+        state_position[index] = 0
+        state_code[index] = 0
+    for y in range(height):
+        left_rows[y] = 0
+        right_rows[y] = 0
+    return 0
+
+
+@micropython.viper
+def _state_seen_viper(state_position_obj, state_code_obj, width: int,
+                      state_mask: int, y: int, x: int, direction: int,
+                      error: int, side: int) -> int:
+    """Viper equivalent of the bounded open-addressed state-table lookup."""
+    positions = ptr32(state_position_obj)
+    codes = ptr8(state_code_obj)
+    flat = y * width + x
+    code = ((error + 10) * 4 + direction) * 2 + side
+    stored_code = code + 1
+    stored_position = flat + 1
+    slot = (flat * 131 + code * 17) & state_mask
+    for _probe in range(state_mask + 1):
+        seen_position = positions[slot]
+        if seen_position == 0:
+            positions[slot] = stored_position
+            codes[slot] = stored_code
+            return 0
+        if seen_position == stored_position and codes[slot] == stored_code:
+            return 1
+        slot = (slot + 1) & state_mask
+    return -1
+
+
+@micropython.viper
+def _collides_viper(points_obj, count: int, y: int, x: int) -> int:
+    """Search the opposite boundary's flattened uint16 coordinates."""
+    points = ptr16(points_obj)
+    for point_index in range(count):
+        offset = point_index * 2
+        if points[offset] == y and points[offset + 1] == x:
+            return 1
+    return 0
+
+
 class ContourTraceWorkspace:
     """Reusable fixed-storage tracer. Coordinates are flattened ``(y, x)``."""
 
@@ -212,14 +278,24 @@ class ContourTraceWorkspace:
         self.event_count = 0
         self.left_final_error = 0
         self.right_final_error = 0
-        for index in range(self.height):
-            self.left_row_support[index] = 0
-            self.right_row_support[index] = 0
-        for index in range(len(self._state_position)):
-            self._state_position[index] = 0
-            self._state_code[index] = 0
+        if _IS_MICROPYTHON:
+            _clear_trace_state_viper(
+                self._state_position, self._state_code,
+                self.left_row_support, self.right_row_support,
+                len(self._state_position), self.height)
+        else:
+            for index in range(self.height):
+                self.left_row_support[index] = 0
+                self.right_row_support[index] = 0
+            for index in range(len(self._state_position)):
+                self._state_position[index] = 0
+                self._state_code[index] = 0
 
     def _state_seen(self, y, x, direction, error, side):
+        if _IS_MICROPYTHON:
+            return _state_seen_viper(
+                self._state_position, self._state_code, self.width,
+                self._state_mask, y, x, direction, error, side)
         flat = y * self.width + x
         code = ((error + 10) * 4 + direction) * 2 + side
         stored_code = code + 1
@@ -380,6 +456,8 @@ class ContourTraceWorkspace:
         else:
             points = self.left_points
             count = self.left_count
+        if _IS_MICROPYTHON:
+            return bool(_collides_viper(points, count, y, x))
         for point_index in range(count):
             offset = point_index * 2
             if points[offset] == y and points[offset + 1] == x:

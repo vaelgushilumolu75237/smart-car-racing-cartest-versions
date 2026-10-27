@@ -3,7 +3,9 @@
 import contextlib
 import io
 import importlib.util
+import json
 import sys
+import tempfile
 import types
 import unittest
 from array import array
@@ -249,9 +251,15 @@ class _SingleEdgeTracker:
 
 
 class _ActiveRingElements:
-    def __init__(self, _settings):
+    def __init__(self, _settings, _calibration=None,
+                 require_calibration=True):
         self.min_target_rows = 5
         self.max_cache_gap = 3
+        # This route fixture represents a map and parked check already
+        # validated by the dedicated calibration tests.
+        self.ring_calibration_ready = True
+        self.ring_calibration_check_ready = True
+        self.ring_calibration_reason = "CALIBRATION_READY"
         self.rows = array("i")
         flags = (main.track_elements.TARGET_INFERRED_LEFT |
                  main.track_elements.TARGET_OBSERVED_RIGHT |
@@ -283,7 +291,13 @@ class _FixedElementState:
     RING_CONFIRMED = False
     REASON = "CONFIRMING_ONE_SIDE_LOSS"
 
-    def __init__(self, _settings):
+    def __init__(self, _settings, _calibration=None,
+                 require_calibration=True):
+        # These route fixtures exercise downstream routing after the
+        # calibration contract has passed in its dedicated tests.
+        self.ring_calibration_ready = True
+        self.ring_calibration_check_ready = True
+        self.ring_calibration_reason = "TEST_CALIBRATION_READY"
         self.result = {
             "state": self.STATE,
             "state_id": getattr(main.track_elements, self.STATE_ID_NAME),
@@ -326,8 +340,9 @@ class _CrossStraightElements(_FixedElementState):
     RING_CONFIRMED = False
     REASON = "RING_DISABLED_PROFILE_A"
 
-    def __init__(self, settings):
-        super().__init__(settings)
+    def __init__(self, settings, _calibration=None,
+                 require_calibration=True):
+        super().__init__(settings, _calibration, require_calibration)
         rows = array("i")
         for y in range(settings.SURFACE_ROI_FLOOR_Y, HEIGHT):
             rows.extend((y, 20, 54,
@@ -346,8 +361,21 @@ class _CrossStraightElements(_FixedElementState):
         })
 
 
+class _UnreadyCalibrationElements(_FixedElementState):
+    def __init__(self, settings, _calibration=None,
+                 require_calibration=True):
+        super().__init__(settings, _calibration, require_calibration)
+        self.ring_calibration_ready = False
+        self.ring_calibration_check_ready = False
+        self.ring_calibration_reason = "TEST_NO_CALIBRATION"
+
+
 class _RingSlopeTracker:
-    def __init__(self, _settings, ring_route, slope_hint):
+    def __init__(self, _settings, ring_route, slope_hint,
+                 _calibration=None, require_calibration=True):
+        self.ring_calibration_ready = False
+        self.ring_calibration_check_ready = False
+        self.ring_calibration_reason = "TEST_NO_CALIBRATION"
         self.ring_route = ring_route
         self.slope_hint = slope_hint
         self.ring = {"candidate": None, "state": "IDLE", "side_id": 0,
@@ -412,7 +440,9 @@ class _RingSlopeTracker:
 class FastMainRingSlopeWireTests(unittest.TestCase):
     def _run_profile_element_case(self, element_type, profile_id,
                                   path_type=_PathDetector,
-                                  clock_step_us=100):
+                                  clock_step_us=100,
+                                  fixture_sensor_id=None,
+                                  fixture_mode=False):
         main._load_fast_runtime()
         main._load_singleedge_runtime()
         main._load_track_elements_runtime()
@@ -424,6 +454,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 11, profile_id, main.reverse_control.PROFILE_SESSION_ACTIVE,
                 session_token=1)))
         fake_uart = _UART(fake_time, rx_data=profile_bytes)
+        fake_sensor = _Sensor()
         output = io.StringIO()
         cache_commits = []
 
@@ -432,7 +463,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 cache_commits.append(args)
 
         with patch.object(main, "_configure_gray_sensor", return_value=1), \
-                patch.object(main, "sensor", _Sensor()), \
+                patch.object(main, "sensor", fake_sensor), \
                 patch.object(main, "time", fake_time), \
                 patch.object(main.fast_gray, "FastGrayMasks", _GrayBuilder), \
                 patch.object(main.fast_path, "FastPathDetector", path_type), \
@@ -452,7 +483,15 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 patch.object(config, "DEBUG_ENABLED", True), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
                 contextlib.redirect_stdout(output):
-            main._main_fast(duration_s=1)
+            if fixture_mode:
+                main._main_fast(
+                    duration_s=1, frame_source=fake_sensor,
+                    uart_sink=fake_uart,
+                    fixture_sensor_id=fixture_sensor_id)
+            else:
+                main._main_fast(
+                    duration_s=1,
+                    fixture_sensor_id=fixture_sensor_id)
         self.assertEqual(len(fake_uart.frames), 1)
         return fake_uart.frames[0], output.getvalue(), cache_commits
 
@@ -781,8 +820,9 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_TRACK_PROFILES_V1_20261025 "
-            "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state",
+            "TRACK_BUILD=CARTEST_H750_RING45_USB60_20261026 "
+            "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
+            "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
         self.assertEqual(cache_commits, [])
         self.assertEqual(len(weighted_routes), 1)
@@ -841,6 +881,250 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertIn("wctrl=37.0", log)
         self.assertIn("pos_weighted=-63", log)
         self.assertEqual(cache_commits, [])
+
+    def test_ring_calibration_gate_blocks_only_profiles_b_and_c(self):
+        frame_a, _log_a, _cache_a = self._run_profile_element_case(
+            _UnreadyCalibrationElements, config.VEHICLE_PROFILE_A)
+        self.assertEqual(frame_a[11], config.VEHICLE_PROFILE_A)
+        self.assertEqual(frame_a[6] & vision_protocol.FLAG_VALID,
+                         vision_protocol.FLAG_VALID)
+
+        for profile_id in (config.VEHICLE_PROFILE_B,
+                           config.VEHICLE_PROFILE_C):
+            with self.subTest(profile_id=profile_id):
+                frame, log, _cache = self._run_profile_element_case(
+                    _UnreadyCalibrationElements, profile_id)
+                self.assertEqual(frame[11], 0)
+                self.assertEqual(frame[6] & vision_protocol.FLAG_VALID, 0)
+                self.assertIn("RING_CALIBRATION_REQUIRED", log)
+
+        self.assertFalse(main._ring_calibration_gate_blocked(
+            config.VEHICLE_PROFILE_A, False))
+        self.assertTrue(main._ring_calibration_gate_blocked(
+            config.VEHICLE_PROFILE_B, False))
+        self.assertTrue(main._ring_calibration_gate_blocked(
+            config.VEHICLE_PROFILE_C, False))
+        self.assertFalse(main._ring_calibration_gate_blocked(
+            config.VEHICLE_PROFILE_B, True))
+        self.assertFalse(main._ring_calibration_gate_blocked(
+            config.VEHICLE_PROFILE_C, True))
+
+    def test_fixture_sensor_identity_is_explicit_and_validated(self):
+        main._load_ring_runtime()
+        captured_calibrations = []
+
+        class _CapturingActiveElements(_ActiveRingElements):
+            def __init__(self, settings, calibration=None,
+                         require_calibration=True):
+                captured_calibrations.append(calibration)
+                super().__init__(settings, calibration,
+                                 require_calibration)
+
+        calibration = object()
+        with patch.object(
+                main.ring_width_calibration.RingWidthCalibration, "load",
+                return_value=calibration):
+            _frame, log, _cache = self._run_profile_element_case(
+                _CapturingActiveElements, config.VEHICLE_PROFILE_B,
+                fixture_sensor_id=0x1324, fixture_mode=True)
+        self.assertEqual(captured_calibrations, [calibration])
+        self.assertIn("sensor_id=0x1324", log)
+
+        _frame, ordinary_fixture_log, _cache = \
+            self._run_profile_element_case(
+                _ActiveRingElements, config.VEHICLE_PROFILE_A,
+                fixture_mode=True)
+        self.assertIn("sensor_id=unavailable", ordinary_fixture_log)
+
+        invalid_fixture_ids = (
+            (True, TypeError), ("0x1324", TypeError),
+            (0x1325, ValueError),
+        )
+        for sensor_id, error_type in invalid_fixture_ids:
+            with self.subTest(sensor_id=sensor_id):
+                with self.assertRaises(error_type):
+                    main._main_fast(
+                        frame_source=object(), uart_sink=object(),
+                        fixture_sensor_id=sensor_id)
+
+        with patch.object(main, "_configure_gray_sensor") as configure:
+            with self.assertRaisesRegex(
+                    ValueError, "only valid in fixture mode"):
+                main._main_fast(duration_s=0, fixture_sensor_id=0x1324)
+            configure.assert_not_called()
+
+    def test_ground_replay_accepts_descending_rows_and_actual_sidecar(self):
+        main._load_fast_runtime()
+        main._load_singleedge_runtime()
+        main._load_ring_runtime()
+        project_dir = OPENMV_DIR.parent
+        ground_path = (project_dir / "logs" / "ring45-usb60-20261026" /
+                       "ground-calibration" / "ring45_ground_raw.bin")
+        manifest_path = ground_path.with_suffix(".json")
+        self.assertTrue(ground_path.is_file())
+        self.assertTrue(manifest_path.is_file())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        rows = array("i")
+        for y in range(59, 7, -1):
+            if y in (9, 10):
+                continue
+            depth = 59 - y
+            left = 13 + (depth * 16 + 25) // 51
+            right = 73 - (depth * 14 + 25) // 51
+            rows.extend((y, left, right, 7))
+        self.assertEqual(len(rows) // 4, 50)
+        self.assertEqual(tuple(rows[:8]), (59, 13, 73, 7, 58, 13, 73, 7))
+        self.assertEqual(tuple(rows[-12:]), (
+            12, 28, 60, 7, 11, 28, 60, 7, 8, 29, 59, 7))
+
+        class _CalibrationGrayBuilder:
+            def __init__(self, _settings):
+                self.mask_info = {
+                    "road_mask": bytearray(WIDTH * HEIGHT),
+                    "edge_mask": bytearray(WIDTH * HEIGHT),
+                    "known_region": bytearray(WIDTH * HEIGHT),
+                    "luma": bytearray(WIDTH * HEIGHT),
+                }
+
+            def build(self, _image):
+                return self.mask_info
+
+        class _DescendingRowsDetector:
+            def __init__(self, _settings):
+                self.result = {
+                    "valid": True, "reason": "OK", "scene": "ROAD",
+                    "selected_row_ints": rows,
+                    "selected_row_count": len(rows) // 4,
+                    "selected_row_stride": 4,
+                    "topology_evidence": {
+                        "reason": "OK", "complete": True,
+                        "ambiguous": False, "island_evidence": False,
+                        "branch_evidence": False,
+                    },
+                }
+
+            def detect(self, _mask_info):
+                return self.result
+
+        class _CalibrationBoundary:
+            def __init__(self, _settings):
+                pass
+
+            @staticmethod
+            def gate_fast_path_candidate(candidate, *_args):
+                return candidate
+
+        fake_time = _Time(step_us=10)
+        fake_uart = _UART(fake_time, stop_after=1000)
+        fake_sensor = _Sensor()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "ring_width_calibration.json"
+            stdout = io.StringIO()
+            with patch.object(main, "_configure_gray_sensor",
+                              return_value=0x1324), \
+                    patch.object(main, "sensor", fake_sensor), \
+                    patch.object(main, "time", fake_time), \
+                    patch.object(main.fast_gray, "FastGrayMasks",
+                                 _CalibrationGrayBuilder), \
+                    patch.object(main.fast_path, "FastPathDetector",
+                                 _DescendingRowsDetector), \
+                    patch.object(main.fast_boundary, "FastBoundaryEvidence",
+                                 _CalibrationBoundary), \
+                    patch.object(main.pyb, "UART", return_value=fake_uart,
+                                 create=True), \
+                    patch.object(
+                        main, "_validate_selected_fast_boundary",
+                        side_effect=lambda selection, _road, _validator: (
+                            selection,
+                            {"valid": True, "kind": "ROAD"},
+                            {"valid": True})), \
+                    patch.object(config, "RING_WIDTH_CALIBRATION_PATH",
+                                 str(output_path)), \
+                    contextlib.redirect_stdout(stdout):
+                result = main.run_ring_width_calibration(
+                    str(ground_path))
+
+            self.assertTrue(result["ready"], result)
+            self.assertEqual(result["reason"], "CALIBRATION_READY")
+            self.assertEqual(result["accepted_frames"], 64)
+            self.assertEqual(result["attempted_frames"], manifest["frames"])
+            self.assertEqual(result["raw_crc32"], manifest["raw_crc32"])
+            self.assertEqual(len(result["reject_reasons"]), 16)
+            self.assertIn("INVALID_ROW_GEOMETRY", result["reject_reasons"])
+            self.assertEqual(
+                result["reject_counts"][
+                    result["reject_reasons"].index("INVALID_ROW_GEOMETRY")],
+                0)
+            self.assertEqual(
+                result["first_rejection"]["row_prefix"],
+                (59, 13, 73, 7, 58, 13, 73, 7))
+            self.assertLess(len(repr(result)), 1200)
+            loaded = main.ring_width_calibration.RingWidthCalibration.load(
+                str(output_path))
+            self.assertTrue(loaded.ready, loaded.reason)
+            self.assertEqual(loaded.width_cells[40],
+                             result["reference_width_cells"])
+            self.assertEqual(len(fake_uart.frames), manifest["frames"])
+            self.assertTrue(all(
+                frame[2] == vision_protocol.VERSION_V3 and frame[11] == 0
+                for frame in fake_uart.frames))
+            log = stdout.getvalue()
+            self.assertIn("reason=CALIBRATION_READY", log)
+            self.assertIn("INVALID_ROW_GEOMETRY", repr(result["reject_reasons"]))
+            self.assertLess(len(log.splitlines()[-1]), 320)
+
+    def test_preview_marker_is_opt_in_gray_crc_and_draws_before_flush(self):
+        class _MarkerImage:
+            def __init__(self, events=None):
+                self.calls = []
+                self.events = events
+
+            def draw_rectangle(self, rect, color, fill=False):
+                call = (tuple(rect), color, fill)
+                self.calls.append(call)
+                if self.events is not None:
+                    self.events.append(("marker", call))
+
+        self.assertFalse(config.PREVIEW_FPS_MARKER_ENABLED)
+        image = _MarkerImage()
+        self.assertFalse(main._draw_preview_frame_marker(image, 0x123456))
+        self.assertEqual(image.calls, [])
+
+        sequence = 0x123456
+        gray = sequence ^ (sequence >> 1)
+        crc = 0
+        for byte_value in gray.to_bytes(3, "little"):
+            crc ^= byte_value
+            for _ in range(8):
+                crc = (((crc << 1) ^ 0x07) & 0xFF
+                       if crc & 0x80 else (crc << 1) & 0xFF)
+        expected_colors = [
+            255 if ((gray >> bit) & 1) else 0 for bit in range(24)]
+        expected_colors.extend(
+            255 if ((crc >> bit) & 1) else 0 for bit in range(8))
+        with patch.object(config, "PREVIEW_FPS_MARKER_ENABLED", True):
+            self.assertTrue(main._draw_preview_frame_marker(image, sequence))
+        self.assertEqual(len(image.calls), 32)
+        self.assertEqual([call[1] for call in image.calls], expected_colors)
+        self.assertTrue(all(call[2] for call in image.calls))
+        self.assertEqual(image.calls[0][0], (4, 4, 4, 4))
+        self.assertEqual(image.calls[-1][0], (159, 4, 4, 4))
+
+        events = []
+        preview_image = _MarkerImage(events)
+        fake_time = _Time(step_us=1)
+        overlay = main._V7OverlayState(0)
+        with patch.object(config, "PREVIEW_FPS_MARKER_ENABLED", True), \
+                patch.object(config, "OVERLAY_ENABLED", False), \
+                patch.object(main, "time", fake_time):
+            main._render_v7_preview_frame(
+                preview_image, {}, {}, {}, None, False, 0, 0, 0, 0.0,
+                overlay, 0, flush_func=lambda: events.append(("flush", None)),
+                preview_sequence=sequence)
+        self.assertEqual(len(preview_image.calls), 32)
+        self.assertEqual(events[-1][0], "flush")
+        self.assertTrue(all(event[0] == "marker" for event in events[:-1]))
 
     def test_ring_target_uses_the_existing_weight_path_without_legacy_loader(self):
         rows = array("i")

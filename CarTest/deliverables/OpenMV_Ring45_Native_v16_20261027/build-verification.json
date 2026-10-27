@@ -1,0 +1,278 @@
+{
+  "artifact_class": "PRIVATE_OPENMV4P_FULL_CLEAN_BUILD_NOT_HARDWARE_VALIDATED",
+  "deployment_eligible": false,
+  "hardware_touched": false,
+  "flash_performed": false,
+  "source_commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+  "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+  "target": "OPENMV4P / STM32H743xx",
+  "build": {
+    "directory": "Q:\\l",
+    "initial_file_count": 0,
+    "jobs": 4,
+    "omv_enable_bl": 0,
+    "python": "R:\\openmv-build-tools\\bin\\python3",
+    "micropython_mpycross": "R:\\mpy-cross-1.28.0\\mpy-cross.exe",
+    "sdk_dir": "R:\\openmv-sdk-version-check-only",
+    "runtime_object_count": 787,
+    "dependency_file_count": 531,
+    "module_objects": [
+      "lib/micropython/modules/py_cartest_accel.o",
+      "lib/micropython/modules/cartest_accel_core.o",
+      "lib/micropython/modules/py_cartest_path_accel.o",
+      "lib/micropython/modules/cartest_path_accel_core.o"
+    ],
+    "exit_code": 0
+  },
+  "patch_series": [
+    {
+      "file": "0001-snapshot-preview-control.patch",
+      "sha256": "E3A93287D75298664E68068547F9A1F68D15DB0422F0BC08DCC1E7D4D6ADF193"
+    },
+    {
+      "file": "0002-stm32h7-uart-fifo-write.patch",
+      "sha256": "8D1649CC9FB74E00B6D1234F6C8A3A62D70B90EBD605053F069B202EC36890FB"
+    },
+    {
+      "file": "0003-cartest-accel-module.patch",
+      "sha256": "D534F87231DFE87D4B200A3D8AA794367C506512485815D51E3B30757418D4F4"
+    },
+    {
+      "file": "0004-cartest-path-accel-module.patch",
+      "sha256": "68ACFE9DE1DA89D03DBAF95C373EA0FA549B7D5C5146F8B0C3EFF08D31988524"
+    },
+    {
+      "file": "0005-jpeg-preview-codec-guard.patch",
+      "sha256": "D89B3D70854BA9DEA9215D87F451AD087121416CD846A422E8265D17E577E027"
+    }
+  ],
+  "module_sources": {
+    "cartest_accel_core.c": {
+      "sha256": "572D9377437F9F67FE765B98A02B5C138D752651C6D96F604F85173CA277DDD2",
+      "q_tree_sha256": "572D9377437F9F67FE765B98A02B5C138D752651C6D96F604F85173CA277DDD2"
+    },
+    "cartest_accel_core.h": {
+      "sha256": "A26463AFFA48F604D91C4AB2BC4214B63148CC4019C925C3A3E1FCDF0CBDD19D",
+      "q_tree_sha256": "A26463AFFA48F604D91C4AB2BC4214B63148CC4019C925C3A3E1FCDF0CBDD19D"
+    },
+    "py_cartest_accel.c": {
+      "sha256": "5D8C16AD3E3568DCAFA2D8D063E0839F5BF6B2D2995D7C88850F61394863C864",
+      "q_tree_sha256": "5D8C16AD3E3568DCAFA2D8D063E0839F5BF6B2D2995D7C88850F61394863C864"
+    },
+    "cartest_path_accel_core.c": {
+      "sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1",
+      "q_tree_sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1"
+    },
+    "cartest_path_accel_core.h": {
+      "sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237",
+      "q_tree_sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237"
+    },
+    "py_cartest_path_accel.c": {
+      "sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78",
+      "q_tree_sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78"
+    }
+  },
+  "jpeg_guard_overlay_sources": {
+    "ports/stm32/stm_jpeg.c": {
+      "sha256": "44684B59B86F4387E8F60EEFEF21BA7646E793F4FFFD0C38671FC6EAAF70C2DA",
+      "q_tree_sha256": "44684B59B86F4387E8F60EEFEF21BA7646E793F4FFFD0C38671FC6EAAF70C2DA"
+    },
+    "lib/imlib/imlib.h": {
+      "sha256": "03D2F49CF4C1D0816B5EEF5107DAC47B1D33748DF43813245BCD293D7F742D9E",
+      "q_tree_sha256": "03D2F49CF4C1D0816B5EEF5107DAC47B1D33748DF43813245BCD293D7F742D9E"
+    },
+    "ports/stm32/jpeg_preview_guard_cleanup.h": {
+      "sha256": "6031F7884C76EB3A9458E095646129F0702D8E2C8C65203FDE510DC417B8F94D",
+      "q_tree_sha256": "6031F7884C76EB3A9458E095646129F0702D8E2C8C65203FDE510DC417B8F94D"
+    }
+  },
+  "runtime_python_sources": [
+    {
+      "file": "adaptive_detector.py",
+      "sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+      "mpy_sha256": "a1c15089766dabc1c71f86b85c33e2ddf298852289176d34ffd2a097abb380ae",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "boundary_evidence.py",
+      "sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+      "mpy_sha256": "8231ab3a1e6753ba50ca4b75a040548bb7d9fd4ebef9d6004d017cd090d3895c",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "config.py",
+      "sha256": "218BAC336CC71835253CEC8E45D8C9B0220552243EE555FB55AFB34DDC9B4536",
+      "mpy_sha256": "2ef9cd61121c474bb2ec2a9eb681cf4d9c716ff1f98ae8edfadcb22cd8b833ea",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "contour_route.py",
+      "sha256": "D37A20CFDB5C05CD8862F88F2C42705BD8447F5A0924A6120471E64A5A71D931",
+      "mpy_sha256": "828c16097c0eef56d7d4a18d8830954d37d8b03e9313b713c8983c8f22966c75",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "contour_trace.py",
+      "sha256": "824212E5D1C71C49EC8A82340C6400FC41994AE50368A014A8CE3C347BEAAC2F",
+      "mpy_sha256": "72471ae8fea97c758b0f11e759fd155cf4c006c3416c5ba58990c835c6c53406",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_boundary.py",
+      "sha256": "0DC92340247B4C18489CD1D6B082AFA92671D6084AE2B99878C26F5DDD75CF65",
+      "mpy_sha256": "e964887f3f01c8e8d39891d2b2378a0b9fb7be8b22f4d6f9c77329f636a97a7a",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_gray.py",
+      "sha256": "E3DB6EA36000B5254B35BDF6308AC009A14919831937F2C1CDA1D735C0CD2589",
+      "mpy_sha256": "8938b074d0017e18c7fa79b4af5e4ede63a3bcd2699b6fca850f2fa526fd9cb0",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_path.py",
+      "sha256": "26A27F3916C9F436F0672D10AEDEE521B2D20134356336BD9EEEABAC3A35854C",
+      "mpy_sha256": "2444f3afe8ec33ec29299dba011f7b24bf6cffc6517e6f25b8ad0aaa7d67a9de",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_ring_slope.py",
+      "sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6",
+      "mpy_sha256": "fa42747166e3cd0e3a776667208d27fc6d12cafcd85d2b37f6ce8c7f0b06b34f",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_single_edge.py",
+      "sha256": "45DA22C13AB2C96B3CEDD05F96FA59FBB4DF6D93F9C24E121A3992DA1740FF5A",
+      "mpy_sha256": "a496c74b368535eadc3e97fcaba1407026313dfb13a72f2425fc07be75e8c54c",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_topology.py",
+      "sha256": "572BC3FC30E24462184237006D717E8F7C5C6E078CE478EB97FF8AA41E5C49DC",
+      "mpy_sha256": "fe43542c900df7d90215e34f0290038a22592ac3a4ab1e628d5f6ac02b9d824a",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "grayscale_adapter.py",
+      "sha256": "E108654BE97F092E80D7A1D0B224C990725C994CA04D1D49F63F5B332E977000",
+      "mpy_sha256": "85854a08f06e990ae4b3ca7181edc3bc92b51b447936ff49c57c03fc5f509f2c",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "line_detector.py",
+      "sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+      "mpy_sha256": "b66939762c349a05a69bd0c002dac7844ff81f2841c4dd7134f1119bce7399a3",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "main.py",
+      "sha256": "CE189B1148B39F9CB421AEA2E26B246E217C03F9CE10FDFF5DD03939EC6033AF",
+      "mpy_sha256": "542fe4f4217248c3fa4613a968e71792ebaf9865552ad390a5499cc29cf662f6",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "reverse_control.py",
+      "sha256": "16D7E2DBFC5D1C05FA7E6EBA6FCF284683482D7E065D7607BB98A64824D49047",
+      "mpy_sha256": "64a6f7881e82d1356227393d67925c2850836fbfeb2748cb5c60096e76cbb24c",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "ring_diagnostics.py",
+      "sha256": "5102D852D94672A00CCF40D95082C0D97D09CF18EFC82F10725E15C707E4480B",
+      "mpy_sha256": "9971868e1b80aebbdeca6f1b6718aedf1a7a96da8692864b72cb57ded774cca6",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "ring_width_calibration.py",
+      "sha256": "9D5489242EDF92E846128C71D77697EC757ECE69B551C62457A827F9676A5E5F",
+      "mpy_sha256": "27ddee4ca042666c7def7887027649f6657c9da77fa3205542de4aefeee77fdd",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "road_detector.py",
+      "sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+      "mpy_sha256": "e163fbc30492bbe27441d34c9700b22fafbb4ea373032d436697663820add906",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "source_selector.py",
+      "sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+      "mpy_sha256": "bb9eb2fa70831565241b909ccb6a93e218a3c8a766ca1c789c929484922726fd",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "surface_detector.py",
+      "sha256": "3639D6FCE71B5EA5902864D094FF6CCD75E7DD07A31D0A2E1C6FA8995E7B00CF",
+      "mpy_sha256": "ebc2600c7032d6467bfd8d466e7015cfb9e3274fd492c59adbb286463fde2e3a",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "thresholding.py",
+      "sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+      "mpy_sha256": "c80444b3d9d0ad9ee00b2e4aa97d3930a72fab7b942670ab45db963d53c2e8d2",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "track_elements.py",
+      "sha256": "7C646C8ABEB405DEE379A2A411959E6191E2EAB83CF55C6A213B43C4FB9BAA9B",
+      "mpy_sha256": "4162037dec94d81e934662e6199284e9aa4fe848b46fcd378e3e3483f3127685",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "vision_protocol.py",
+      "sha256": "9CD25D975E4BAFE86A1E6FE07EB85E3E18FE6F6B758E9A985226F004B5CBD43B",
+      "mpy_sha256": "ffb313888623af47d4d60080ccabc3c7345d196707e2d618500f82c3f2489920",
+      "compile_exit_code": 0
+    }
+  ],
+  "generated_qstrs": [
+    "cartest_accel",
+    "API_VERSION",
+    "api_version",
+    "region_segments",
+    "internal_component",
+    "HEAP_STATS_API",
+    "heap_stats",
+    "PREVIEW_CODEC_GUARD_API",
+    "jpeg_encode_timeout_ms",
+    "cartest_path_accel",
+    "extract_rows",
+    "connect_rows",
+    "WRITE_FIFO_API",
+    "write_fifo",
+    "fifo_txdone"
+  ],
+  "vectors": {
+    "app_vector_base": "0x08040000",
+    "bin_vector_msp": "0x00010000",
+    "bin_vector_reset": "0x08040299",
+    "elf_entry": "0x08040299",
+    "app_load_vaddr": "0x08040000"
+  },
+  "artifacts": {
+    "firmware.bin": {
+      "bytes": 1741964,
+      "sha256": "BAA2B1DE63A2DB71416DA23321C1A628CFD634E3AEC20F16C508E793A156326C"
+    },
+    "firmware.elf": {
+      "bytes": 11235604,
+      "sha256": "8E63AB10772179B793DB00EED2ACBEAF7DF03718C1853D939640ECE086EE0447"
+    },
+    "qstrdefs.generated.h": {
+      "bytes": 118871,
+      "sha256": "749AF41337980F25681FE81A85F4C05BAC604BEC78D6AD436CD2E400667ABB60"
+    }
+  },
+  "verification": {
+    "fresh_empty_build_directory": true,
+    "full_qstr_generation": true,
+    "app_only_vectors_at_08040000": true,
+    "hal_abort_cleanup_hard_bound_ms": null,
+    "nominal_hal_abort_cleanup_may_reach_ms": 1013,
+    "caller_encode_timeout_ms": 5,
+    "hardware_validation": false,
+    "make_exit_code": 0,
+    "qstr_file_sha256": "749AF41337980F25681FE81A85F4C05BAC604BEC78D6AD436CD2E400667ABB60"
+  }
+}

@@ -38,6 +38,13 @@ except ImportError:
 import config
 import vision_protocol
 
+try:
+    import cartest_accel
+except Exception:
+    # The native module is optional.  The existing gc.mem_free/mem_alloc
+    # fallback remains the source of truth when it is absent or incompatible.
+    cartest_accel = None
+
 class _FreshCaptureFPS:
     """Count successful capture intervals in wrap-safe 1 s windows."""
     WINDOW_MS = 1000
@@ -154,6 +161,100 @@ def _road_preview_int32_array_valid(values):
     # omit typecode and view metadata rely on that producer contract plus the
     # physical-width and integer-sample checks above.
     return True
+
+
+@micropython.viper
+def _road_preview_segment_scan_viper(
+        valid_rows_object, row_y_object, floor_y: int, height: int,
+        band_low: int, band_high: int, gap_limit: int,
+        output_object) -> int:
+    """Find the unique reference-containing preview segment.
+
+    This is the typed equivalent of the bounded scan formerly performed by
+    ``_compute_road_preview``.  It writes status, selected start/end, row
+    count, and matching-segment count to a preallocated int array.  The
+    Python path remains the fallback for unusual host buffers or non-integer
+    configuration values.
+    """
+    if (floor_y < 0 or height <= 0 or height > 60 or
+            floor_y >= height or gap_limit < 0):
+        return -1
+    valid_rows = ptr8(valid_rows_object)
+    row_y = ptr32(row_y_object)
+    output = ptr32(output_object)
+    selected_start_y = -1
+    selected_end_y = -1
+    selected_rows = 0
+    matching_segments = 0
+    segment_start_y = -1
+    segment_end_y = -1
+    segment_rows = 0
+    segment_contains_reference = 0
+    previous_y = -1
+    slot = floor_y
+    while slot < height:
+        if valid_rows[slot] == 0:
+            slot += 1
+            continue
+        current_y = row_y[slot]
+        if (segment_start_y >= 0 and
+                current_y - previous_y > gap_limit):
+            if segment_contains_reference != 0:
+                matching_segments += 1
+                if matching_segments > 1:
+                    output[0] = -1
+                    output[1] = -1
+                    output[2] = -1
+                    output[3] = -1
+                    output[4] = matching_segments
+                    return -1
+                selected_start_y = segment_start_y
+                selected_end_y = segment_end_y
+                selected_rows = segment_rows
+            segment_start_y = current_y
+            segment_rows = 1
+            segment_contains_reference = (
+                1 if band_low <= current_y <= band_high else 0)
+        elif segment_start_y < 0:
+            segment_start_y = current_y
+            segment_rows = 1
+            segment_contains_reference = (
+                1 if band_low <= current_y <= band_high else 0)
+        else:
+            segment_rows += 1
+            if band_low <= current_y <= band_high:
+                segment_contains_reference = 1
+        segment_end_y = current_y
+        previous_y = current_y
+        slot += 1
+
+    if segment_start_y >= 0 and segment_contains_reference != 0:
+        matching_segments += 1
+        if matching_segments > 1:
+            output[0] = -1
+            output[1] = -1
+            output[2] = -1
+            output[3] = -1
+            output[4] = matching_segments
+            return -1
+        selected_start_y = segment_start_y
+        selected_end_y = segment_end_y
+        selected_rows = segment_rows
+
+    if selected_start_y < 0:
+        output[0] = 0
+        output[1] = -1
+        output[2] = -1
+        output[3] = 0
+        output[4] = matching_segments
+        return 0
+
+    output[0] = 1
+    output[1] = selected_start_y
+    output[2] = selected_end_y
+    output[3] = selected_rows
+    output[4] = matching_segments
+    return 1
 
 
 @micropython.viper
@@ -647,6 +748,10 @@ reverse_control = None
 track_elements = None
 contour_route = None
 contour_trace = None
+ring_width_calibration = None
+ring_diagnostics = None
+_RING_DIAGNOSTICS = None
+_RING_DIAG_SESSION = None
 
 
 class _LazyAdaptiveDetector:
@@ -678,7 +783,8 @@ V7_BUILD_ID = "CARTEST_OPENMV_VISION_V1_20261006"
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 REVERSE_CONTROL_RUNTIME_API_VERSION = 2
 CONTOUR_RUNTIME_API_VERSION = 1
-TRACK_ELEMENTS_RUNTIME_API_VERSION = 1
+TRACK_ELEMENTS_RUNTIME_API_VERSION = 2
+RING_WIDTH_CALIBRATION_RUNTIME_API_VERSION = 1
 CACHED_WIDTH_CONTROL_PROFILE_BUILD_IDS = tuple(
     config.STEERING_CONTROL_PROFILE_BUILD_IDS)
 CACHED_WIDTH_BUILD_ID = dict(
@@ -1275,7 +1381,7 @@ def _make_steering_diag(enabled):
 
 
 class _SteeringDiagSession:
-    """Finalize trace data from accepted RESET/KEEP session transitions."""
+    """Track only a fresh, recognized H743 Follow session for diagnostics."""
 
     def __init__(self, diagnostic_buffer):
         self.diagnostic_buffer = diagnostic_buffer
@@ -1283,39 +1389,51 @@ class _SteeringDiagSession:
         self.last_accepted_keeps = 0
         self.session_active = False
 
-    def observe(self, parser, tracker, build_id):
+    def observe(self, parser, tracker, build_id, reverse_fresh=False,
+                now_ms=None, ticks_diff=None):
         accepted_resets = int(parser.accepted_resets)
-        accepted_keeps = int(parser.accepted_keeps)
         reset_changed = accepted_resets != self.last_accepted_resets
-        keep_changed = accepted_keeps != self.last_accepted_keeps
-
-        # RESET is also sent at startup and on faults. Only a session that
-        # accepted KEEP represents a started control session worth finalizing.
-        if reset_changed:
-            if self.session_active:
-                diagnostic = self.diagnostic_buffer
-                if diagnostic is not None and diagnostic.count > 0:
-                    if not diagnostic.frozen:
-                        diagnostic.freeze("REVERSE_RESET")
-                        freeze_snapshot = getattr(
-                            tracker, "freeze_diagnostic_snapshot", None)
-                        if callable(freeze_snapshot):
-                            freeze_snapshot()
-                    diagnostic.dump_once(build_id)
-                self.session_active = False
-
-        # accepted_resets is checked before accepted_keeps so a concatenated
-        # RESET+KEEP finalizes the old capture before preparing the new one.
-        if keep_changed and parser.single_enabled:
+        accepted_keeps = int(parser.accepted_keeps)
+        self.last_accepted_keeps = accepted_keeps
+        profile_id = 0
+        profile_fresh = False
+        if now_ms is not None and callable(ticks_diff):
+            try:
+                profile_id = parser.profile_ack(now_ms, ticks_diff)
+                profile_fresh = profile_id in (1, 2, 3)
+            except Exception:
+                profile_id = 0
+                profile_fresh = False
+        actual_follow = bool(
+            reverse_fresh and parser.single_enabled and profile_fresh and
+            parser.profile_session_active and parser.session_token != 0)
+        stop_reason = None
+        if self.session_active and reset_changed:
+            stop_reason = "REVERSE_RESET"
+        elif (self.session_active and profile_fresh and
+              not parser.profile_session_active):
+            stop_reason = "PROFILE_INACTIVE"
+        if stop_reason is not None:
             diagnostic = self.diagnostic_buffer
-            if diagnostic is not None and (
-                    not self.session_active or diagnostic.dumped):
+            if diagnostic is not None and not diagnostic.frozen:
+                if diagnostic.count > 0:
+                    diagnostic.freeze(stop_reason)
+                    freeze_snapshot = getattr(
+                        tracker, "freeze_diagnostic_snapshot", None)
+                    if callable(freeze_snapshot):
+                        freeze_snapshot()
+                else:
+                    diagnostic.rearm()
+            self.session_active = False
+
+        if actual_follow and not self.session_active:
+            diagnostic = self.diagnostic_buffer
+            if diagnostic is not None:
                 diagnostic.rearm()
             self.session_active = True
 
         self.last_accepted_resets = accepted_resets
-        self.last_accepted_keeps = accepted_keeps
-        return True
+        return stop_reason
 
 
 def _ticks_period_ms(time_module):
@@ -1345,6 +1463,12 @@ def _steering_diag_source_code(source):
     return 0
 
 
+def _ring_calibration_gate_blocked(profile_id, calibration_passed):
+    """Keep ring calibration gating limited to the two ring profiles."""
+    return bool(profile_id in config.RING_ENABLED_PROFILE_IDS and
+                not calibration_passed)
+
+
 _STEERING_DIAG = _make_steering_diag(
     getattr(config, "STEERING_DIAG_ENABLED", False))
 _STEERING_DIAG_TICKS_PERIOD_MS = (
@@ -1367,6 +1491,116 @@ def steering_diag_rearm():
         return False
     _STEERING_DIAG.rearm()
     return True
+
+
+def ring_diag_freeze(reason="EXPLICIT_STOP"):
+    """Freeze ring history after the camera loop has stopped at the REPL."""
+    diagnostic = _RING_DIAGNOSTICS
+    if diagnostic is None:
+        print("RING_DIAG_DISABLED build=%s" % config.TRACK_PACKAGE_BUILD_ID)
+        return False
+    if diagnostic.frozen:
+        return True
+    return diagnostic.freeze(reason)
+
+
+def ring_diag_dump():
+    """Print only the bounded ring-history summary after stopping the loop."""
+    diagnostic = _RING_DIAGNOSTICS
+    if diagnostic is None:
+        print("RING_DIAG_DISABLED build=%s" % config.TRACK_PACKAGE_BUILD_ID)
+        return False
+    if not diagnostic.frozen:
+        print("RING_DIAG_NOT_FROZEN build=%s" %
+              config.TRACK_PACKAGE_BUILD_ID)
+        return False
+    for line in diagnostic.summary_lines(config.TRACK_PACKAGE_BUILD_ID):
+        print(line)
+    return True
+
+
+def ring_diag_persist():
+    """Retry one frozen run using a new numbered file before power removal."""
+    diagnostic = _RING_DIAGNOSTICS
+    if diagnostic is None:
+        print("RING_DIAG_DISABLED build=%s" % config.TRACK_PACKAGE_BUILD_ID)
+        return False
+    if not diagnostic.frozen:
+        print("RING_DIAG_NOT_FROZEN build=%s" %
+              config.TRACK_PACKAGE_BUILD_ID)
+        return False
+    if diagnostic.persisted:
+        return True
+    try:
+        path = diagnostic.save_next(
+            config.RING_DIAGNOSTICS_PATH,
+            config.TRACK_PACKAGE_BUILD_ID)
+    except Exception as exc:
+        session = _RING_DIAG_SESSION
+        if session is not None:
+            session.blocked = True
+        print("RING_DIAG_PERSIST_FAILED error=%s:%s" % (
+            type(exc).__name__, str(exc)))
+        return False
+    session = _RING_DIAG_SESSION
+    if session is not None:
+        session.last_saved_path = path
+        session.blocked = False
+    print("RING_DIAG_PERSISTED path=%s episodes=%d crc32=1" % (
+        path, diagnostic.episode_count))
+    return True
+
+
+class _RingDiagnosticsSession:
+    """Gate recording and persistence on real Follow start/stop edges."""
+
+    def __init__(self, diagnostic, base_path, build_id):
+        self.diagnostic = diagnostic
+        self.base_path = base_path
+        self.build_id = build_id
+        self.active = False
+        self.blocked = False
+        self.last_saved_path = None
+        self.last_error = ""
+
+    def observe(self, now_ms, sequence, profile_id, active_follow,
+                observation_valid, selection, tracker_result, stop_reason,
+                ticks_diff=None):
+        diagnostic = self.diagnostic
+        if diagnostic is None or self.blocked:
+            return False
+        if active_follow and not self.active:
+            if diagnostic.frozen:
+                if not diagnostic.persisted or not diagnostic.rearm():
+                    self.blocked = True
+                    return False
+            try:
+                diagnostic.begin_session(now_ms, ticks_diff)
+            except Exception as exc:
+                self.blocked = True
+                self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
+                return False
+            self.active = True
+        if not self.active:
+            return False
+        diagnostic.record_frame(
+            now_ms, sequence, profile_id, active_follow,
+            observation_valid, selection, tracker_result, ticks_diff)
+        if stop_reason is None:
+            return True
+        diagnostic.freeze(stop_reason)
+        self.active = False
+        try:
+            path = diagnostic.save_next(self.base_path, self.build_id)
+        except Exception as exc:
+            self.blocked = True
+            self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
+            print("RING_DIAG_PERSIST_FAILED error=%s" % self.last_error)
+            return False
+        self.last_saved_path = path
+        print("RING_DIAG_PERSISTED path=%s episodes=%d crc32=1" % (
+            path, diagnostic.episode_count))
+        return True
 
 
 # SINGLE_EDGE_EXT_DIAG_BEGIN
@@ -1513,6 +1747,31 @@ def _load_track_elements_runtime():
                 getattr(track_elements, "RUNTIME_API_VERSION", None),
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
     return track_elements
+
+
+def _load_ring_runtime():
+    """Load the bounded width-calibration and stopped-run diagnostic files."""
+    global ring_width_calibration, ring_diagnostics
+    try:
+        if ring_width_calibration is None:
+            ring_width_calibration = __import__("ring_width_calibration")
+        if ring_diagnostics is None:
+            ring_diagnostics = __import__("ring_diagnostics")
+    except ImportError as exc:
+        raise ImportError(
+            "ring runtime bundle is incomplete (%s); install matching "
+            "ring_width_calibration.py and ring_diagnostics.py" % exc)
+    if getattr(ring_width_calibration, "RUNTIME_API_VERSION", None) != \
+            RING_WIDTH_CALIBRATION_RUNTIME_API_VERSION:
+        raise RuntimeError(
+            "ring runtime bundle mismatch: ring_width_calibration.py API "
+            "is %s, expected %d" % (
+                getattr(ring_width_calibration, "RUNTIME_API_VERSION", None),
+                RING_WIDTH_CALIBRATION_RUNTIME_API_VERSION))
+    if not callable(getattr(ring_diagnostics, "RingDiagnostics", None)):
+        raise RuntimeError(
+            "ring runtime bundle mismatch: ring_diagnostics.py API is missing")
+    return ring_width_calibration, ring_diagnostics
 
 
 class _FreshObservationFilter:
@@ -2092,6 +2351,10 @@ class _FastRowWeightWorkspace:
         self._preview_geometry_distances_owner = None
         self._preview_geometry_output_owner = None
         self._preview_geometry_arrays_valid = False
+        self._preview_segment = array("i", [0] * 5)
+        self._preview_segment_y_owner = None
+        self._preview_segment_output_owner = None
+        self._preview_segment_arrays_valid = False
         self.info = {
             "valid": False, "reason": "NOT_RUN", "source": "NONE",
             "center_x": None, "raw_error": 0,
@@ -2113,6 +2376,7 @@ class _FastRowWeightWorkspace:
             "preview_gain_milli": 0, "preview_applied": 0,
         }
 
+    @micropython.native
     def _prepare_weight_kernel(self, weights_q, height):
         """Cache only immutable, bounded integer weights for the Viper loop."""
         if type(weights_q) is not tuple or height > len(self._weight_q):
@@ -2207,47 +2471,88 @@ class _FastRowWeightWorkspace:
         selected_end_y = -1
         selected_rows = 0
         matching_segments = 0
-        segment_start_y = -1
-        segment_end_y = -1
-        segment_rows = 0
-        segment_contains_reference = False
-        previous_y = -1
-        for slot in range(self._PREVIEW_FLOOR_Y, len(self._preview_y)):
-            if not valid_rows[slot]:
-                continue
-            row_y = self._preview_y[slot]
-            if (segment_start_y >= 0 and
-                    row_y - previous_y > gap_limit):
-                if segment_contains_reference:
-                    matching_segments += 1
-                    if matching_segments > 1:
-                        return
-                    selected_start_y = segment_start_y
-                    selected_end_y = segment_end_y
-                    selected_rows = segment_rows
-                segment_start_y = row_y
-                segment_rows = 1
-                segment_contains_reference = (
-                    band_low <= row_y <= band_high)
-            elif segment_start_y < 0:
-                segment_start_y = row_y
-                segment_rows = 1
-                segment_contains_reference = (
-                    band_low <= row_y <= band_high)
-            else:
-                segment_rows += 1
-                if band_low <= row_y <= band_high:
-                    segment_contains_reference = True
-            segment_end_y = row_y
-            previous_y = row_y
+        segment_scan_used = False
+        preview_height = len(self._preview_y)
+        # A short producer buffer is an invalid route input. Reject it before
+        # either the typed kernel or the Python fallback indexes past it.
+        if len(valid_rows) < preview_height:
+            return
+        if (_NATIVE_ACCELERATION_ENABLED and
+                type(reference_y) is int and type(band_low) is int and
+                type(band_high) is int and type(gap_limit) is int and
+                isinstance(valid_rows, bytearray) and
+                type(self._preview_y) is array and
+                0 < preview_height <= 60 and
+                self._PREVIEW_FLOOR_Y >= 0 and
+                self._PREVIEW_FLOOR_Y < preview_height and
+                type(self._preview_segment) is array and
+                len(self._preview_segment) == 5):
+            owners_match = (
+                self._preview_y is self._preview_segment_y_owner and
+                self._preview_segment is self._preview_segment_output_owner)
+            if not owners_match:
+                self._preview_segment_y_owner = self._preview_y
+                self._preview_segment_output_owner = self._preview_segment
+                self._preview_segment_arrays_valid = (
+                    _road_preview_int32_array_valid(self._preview_y) and
+                    _road_preview_int32_array_valid(self._preview_segment))
+            if self._preview_segment_arrays_valid:
+                _road_preview_segment_scan_viper(
+                    valid_rows, self._preview_y, self._PREVIEW_FLOOR_Y,
+                    len(self._preview_y), band_low, band_high, gap_limit,
+                    self._preview_segment)
+                segment_status = self._preview_segment[0]
+                segment_scan_used = True
+                if segment_status < 0:
+                    return
+                if segment_status > 0:
+                    selected_start_y = self._preview_segment[1]
+                    selected_end_y = self._preview_segment[2]
+                    selected_rows = self._preview_segment[3]
+                    matching_segments = self._preview_segment[4]
 
-        if segment_start_y >= 0 and segment_contains_reference:
-            matching_segments += 1
-            if matching_segments > 1:
-                return
-            selected_start_y = segment_start_y
-            selected_end_y = segment_end_y
-            selected_rows = segment_rows
+        if not segment_scan_used:
+            segment_start_y = -1
+            segment_end_y = -1
+            segment_rows = 0
+            segment_contains_reference = False
+            previous_y = -1
+            for slot in range(self._PREVIEW_FLOOR_Y, len(self._preview_y)):
+                if not valid_rows[slot]:
+                    continue
+                row_y = self._preview_y[slot]
+                if (segment_start_y >= 0 and
+                        row_y - previous_y > gap_limit):
+                    if segment_contains_reference:
+                        matching_segments += 1
+                        if matching_segments > 1:
+                            return
+                        selected_start_y = segment_start_y
+                        selected_end_y = segment_end_y
+                        selected_rows = segment_rows
+                    segment_start_y = row_y
+                    segment_rows = 1
+                    segment_contains_reference = (
+                        band_low <= row_y <= band_high)
+                elif segment_start_y < 0:
+                    segment_start_y = row_y
+                    segment_rows = 1
+                    segment_contains_reference = (
+                        band_low <= row_y <= band_high)
+                else:
+                    segment_rows += 1
+                    if band_low <= row_y <= band_high:
+                        segment_contains_reference = True
+                segment_end_y = row_y
+                previous_y = row_y
+
+            if segment_start_y >= 0 and segment_contains_reference:
+                matching_segments += 1
+                if matching_segments > 1:
+                    return
+                selected_start_y = segment_start_y
+                selected_end_y = segment_end_y
+                selected_rows = segment_rows
 
         if selected_start_y < 0:
             return
@@ -2510,7 +2815,9 @@ class _FastRowWeightWorkspace:
         core_count = 0
         core_min_y = height
         core_max_y = -1
-        road_params = getattr(settings, "ROAD_PARAMS", {})
+        # Avoid allocating a throwaway default dict on every frame; the None
+        # fallback preserves the same missing-config reference_y=40 behavior.
+        road_params = getattr(settings, "ROAD_PARAMS", None)
         reference_y = (road_params.get("ROAD_REFERENCE_Y", 40)
                        if isinstance(road_params, dict) else 40)
         best_reference_index = -1
@@ -3199,6 +3506,7 @@ def _validate_v6_runtime_apis():
 def _validate_v7_runtime_apis():
     _load_fast_runtime()
     _load_track_elements_runtime()
+    _load_ring_runtime()
     for filename, module in _V7_RUNTIME_MODULES:
         version = getattr(module, "RUNTIME_API_VERSION", None)
         if version != V7_RUNTIME_API_VERSION:
@@ -3217,8 +3525,17 @@ def _validate_fast_config():
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_TRACK_PROFILES_V1_20261025":
+            "CARTEST_H750_RING45_USB60_20261026":
         raise ValueError("V7 track package identity is missing or mismatched")
+    if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
+        raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
+    if getattr(config, "RING_WIDTH_CALIBRATION_REQUIRED", None) is not True:
+        raise ValueError("V7 requires the parked ring-width calibration gate")
+    for path_name in ("RING_WIDTH_CALIBRATION_PATH",
+                      "RING_DIAGNOSTICS_PATH"):
+        value = getattr(config, path_name, None)
+        if not isinstance(value, str) or not value:
+            raise ValueError("V7 %s must be a non-empty path" % path_name)
     control_profile = getattr(config, "STEERING_CONTROL_PROFILE", None)
     if control_profile not in (
             "no_pd", "pd", "pd_preview", "geometry_perf_only",
@@ -3285,6 +3602,9 @@ def _validate_fast_config():
     usb_preview_enabled = getattr(config, "USB_PREVIEW_ENABLED", None)
     if not isinstance(usb_preview_enabled, bool):
         raise ValueError("USB_PREVIEW_ENABLED must be bool")
+    if not isinstance(getattr(
+            config, "PREVIEW_FPS_MARKER_ENABLED", None), bool):
+        raise ValueError("PREVIEW_FPS_MARKER_ENABLED must be bool")
     usb_preview_quality = getattr(config, "USB_PREVIEW_QUALITY", None)
     if (not isinstance(usb_preview_quality, int) or
             isinstance(usb_preview_quality, bool) or
@@ -3381,6 +3701,16 @@ def _validate_fast_config():
     if (not isinstance(gc_period, int) or isinstance(gc_period, bool) or
             gc_period < 1 or gc_period > 1000):
         raise ValueError("V7 PERF_GC_PERIOD_FRAMES must be in 1..1000")
+    gc_max_interval = getattr(
+        config, "PERF_GC_MAX_INTERVAL_FRAMES", None)
+    if (not isinstance(gc_max_interval, int) or
+            isinstance(gc_max_interval, bool) or
+            gc_max_interval < 1 or gc_max_interval > 120):
+        raise ValueError("V7 GC max interval must be in 1..120 frames")
+    gc_min_free = getattr(config, "PERF_GC_MIN_FREE_BYTES", None)
+    if (not isinstance(gc_min_free, int) or isinstance(gc_min_free, bool) or
+            gc_min_free < 1024 * 1024):
+        raise ValueError("V7 GC minimum free heap must be at least 1 MiB")
     reserve = getattr(config, "V7_UART_WRITE_RESERVE_US", None)
     if (not isinstance(reserve, int) or isinstance(reserve, bool) or
             reserve < config.UART_TIMEOUT_MS * 1000 or
@@ -3448,6 +3778,392 @@ def _configure_gray_sensor(sensor_module, fast=False):
     sensor_module.skip_frames(time=config.GRAY_SENSOR_WARMUP_MS)
     sensor_module.skip_frames(time=200)
     return sensor_id
+
+
+def run_ring_width_calibration(raw_capture_path=None):
+    """Manually build the private 45 cm ring-width map while stopped.
+
+    With no path, collect fresh frames only after three fresh B/C profile
+    status samples confirm no Follow lease and an unchanged wheel counter.
+    ``raw_capture_path`` replays a CRC-verified R45R ground recording through
+    the same camera image buffer and detector. Both modes transmit only
+    invalid V3 frames with profile ACK 0. The JSON calibration is atomically
+    saved only after 64 accepted stable frames pass all geometry checks.
+    """
+    _validate_fast_config()
+    calibration_type = ring_width_calibration.RingWidthCalibration
+    collector = calibration_type()
+    expected_sensor_id = ring_width_calibration.SENSOR_ID
+    sensor_id = _configure_gray_sensor(sensor, fast=True)
+    if sensor_id != expected_sensor_id:
+        result = {
+            "ready": False, "reason": "SENSOR_ID_MISMATCH",
+            "sensor_id": sensor_id,
+        }
+        print("RING_WIDTH_CALIBRATION ready=0 reason=%s sensor_id=%s" % (
+            result["reason"], str(sensor_id)))
+        return result
+
+    raw_file = None
+    raw_frame_count = None
+    raw_expected_crc = None
+    raw_crc = 0
+    first_error = None
+    rejection_names = (
+        "PARKED_PROFILE_UNAVAILABLE", "ROAD_PATH_INVALID",
+        "TOPOLOGY_NOT_CLEAR", "BOUNDARY_REJECTED",
+        "REFERENCE_REJECTED", "BILATERAL_ROWS_MISSING",
+        "WAITING_FOR_STABLE_STRAIGHT", "INSUFFICIENT_BILATERAL_ROWS",
+        "WIDTH_OUT_OF_RANGE", "BAD_STRAIGHT_FIT", "ROW_GAP_TOO_LARGE",
+        "INVALID_ROW_SHAPE", "INVALID_ROW_GEOMETRY",
+        "COLLECTION_TIMEOUT", "COLLECTION_ERROR",
+        "OTHER_CALIBRATION_REJECTION",
+    )
+    rejection_counts = array("i", [0] * len(rejection_names))
+    attempted_frames = 0
+    first_rejection = [None]
+
+    def _reason_index(reason):
+        if reason == "INVALID_ROW_SHAPE":
+            return 11
+        if reason == "INVALID_ROW_GEOMETRY":
+            return 12
+        if reason == "COLLECTION_TIMEOUT":
+            return 13
+        if reason == "COLLECTION_ERROR":
+            return 14
+        if reason == "WAITING_FOR_STABLE_STRAIGHT":
+            return 6
+        if reason == "INSUFFICIENT_BILATERAL_ROWS":
+            return 7
+        if reason == "WIDTH_OUT_OF_RANGE":
+            return 8
+        if reason == "BAD_STRAIGHT_FIT":
+            return 9
+        if reason == "ROW_GAP_TOO_LARGE":
+            return 10
+        return 15
+
+    def _reject(index, reason=None, rows=None, count=0, stride=0):
+        if reason is not None:
+            index = _reason_index(reason)
+        if 0 <= index < len(rejection_counts):
+            rejection_counts[index] += 1
+        if first_rejection[0] is None:
+            prefix = array("i")
+            if rows is not None:
+                try:
+                    limit = min(len(rows), 8)
+                    for row_index in range(limit):
+                        prefix.append(int(rows[row_index]))
+                except (TypeError, ValueError, IndexError):
+                    prefix = array("i")
+            first_rejection[0] = {
+                "attempt": attempted_frames,
+                "reason": rejection_names[index]
+                if 0 <= index < len(rejection_names) else "UNKNOWN",
+                "source_reason": (str(reason)[:40]
+                                  if reason is not None else ""),
+                "row_count": count,
+                "row_stride": stride,
+                "row_prefix": tuple(prefix),
+            }
+
+    def _rejection_summary():
+        summary = {
+            "reject_reasons": rejection_names,
+            "reject_counts": tuple(rejection_counts),
+        }
+        if first_rejection[0] is not None:
+            summary["first_rejection"] = first_rejection[0]
+        return summary
+
+    def _compact_result(ready, reason, finalize_reason=None,
+                        valid_rows=None, reference_width_cells=None):
+        summary = {
+            "ready": bool(ready), "reason": reason,
+            "accepted_frames": collector.accepted_frames,
+            "attempted_frames": attempted_frames,
+            "first_error": first_error,
+        }
+        if finalize_reason is not None:
+            summary["finalize_reason"] = finalize_reason
+        if valid_rows is not None:
+            summary["valid_rows"] = valid_rows
+        if reference_width_cells is not None:
+            summary["reference_width_cells"] = reference_width_cells
+        if raw_capture_path is not None and raw_crc == raw_expected_crc:
+            summary["raw_crc32"] = raw_crc
+        summary.update(_rejection_summary())
+        return summary
+
+    def _print_summary(summary):
+        first = summary.get("first_rejection")
+        if first is None:
+            first_text = "NONE"
+        else:
+            first_text = "%s@%d rows=%d/%d prefix=%s" % (
+                first["reason"], first["attempt"], first["row_count"],
+                first["row_stride"], str(first["row_prefix"]))
+        print("RING_WIDTH_CALIBRATION ready=%d reason=%s accepted=%d/%d "
+              "attempted=%d first=%s rejects=%s error=%s path=%s" % (
+                  1 if summary.get("ready") else 0,
+                  summary.get("reason", "UNKNOWN"),
+                  summary.get("accepted_frames", 0),
+                  ring_width_calibration.REQUIRED_FRAMES,
+                  summary.get("attempted_frames", 0), first_text,
+                  str(summary.get("reject_counts", ())),
+                  str(summary.get("first_error"))[:128],
+                  str(summary.get("path", ""))))
+
+    mode = "LIVE"
+    try:
+        if raw_capture_path is not None:
+            mode = "GROUND_R45R_REPLAY"
+            raw_file = open(raw_capture_path, "rb")
+            header = bytearray(12)
+            if raw_file.readinto(header) != len(header):
+                raise ValueError("raw capture header is truncated")
+            if header[0:4] != b"R45R":
+                raise ValueError("raw capture magic mismatch")
+            raw_width = header[4] | (header[5] << 8)
+            raw_height = header[6] | (header[7] << 8)
+            raw_frame_count = header[8] | (header[9] << 8)
+            raw_frame_bytes = header[10] | (header[11] << 8)
+            if (raw_width != 320 or raw_height != 120 or
+                    raw_frame_bytes != 320 * 120 or
+                    raw_frame_count < ring_width_calibration.REQUIRED_FRAMES or
+                    raw_frame_count > ring_width_calibration.MAX_ATTEMPTS):
+                raise ValueError("raw capture geometry or frame count mismatch")
+            manifest_path = str(raw_capture_path)
+            if manifest_path.endswith(".bin"):
+                manifest_path = manifest_path[:-4] + ".json"
+            try:
+                import ujson as raw_json
+            except ImportError:
+                import json as raw_json
+            with open(manifest_path, "r") as manifest_file:
+                manifest = raw_json.loads(manifest_file.read())
+            if (manifest.get("wheel_state") != "on_ground_user_confirmed" or
+                    manifest.get("purpose") !=
+                    "stationary45cmstraight_ground_geometry" or
+                    manifest.get("sensor_id") != expected_sensor_id or
+                    manifest.get("width") != 320 or
+                    manifest.get("height") != 120 or
+                    manifest.get("frames") != raw_frame_count or
+                    manifest.get("bytes_per_frame") != raw_frame_bytes or
+                    manifest.get("crop") != [0, 60, 320, 120]):
+                raise ValueError("raw capture manifest is not the ground setup")
+            raw_expected_crc = manifest.get("raw_crc32")
+            if (isinstance(raw_expected_crc, bool) or
+                    not isinstance(raw_expected_crc, int) or
+                    raw_expected_crc < 0 or raw_expected_crc > 0xFFFFFFFF):
+                raise ValueError("raw capture manifest CRC is invalid")
+            expected_file_size = 12 + raw_frame_count * raw_frame_bytes
+            raw_file.seek(0, 2)
+            if raw_file.tell() != expected_file_size:
+                raise ValueError("raw capture length does not match its header")
+            raw_file.seek(12)
+
+        uart = _VisionUARTWriter(pyb.UART(
+            config.UART_ID, config.UART_BAUDRATE,
+            bits=config.UART_BITS, parity=None,
+            stop=config.UART_STOP_BITS,
+            timeout=config.UART_TIMEOUT_MS,
+            timeout_char=config.UART_CHAR_TIMEOUT_MS))
+        reverse_parser = reverse_control.ReverseControlParser(
+            reverse_control.DEFAULT_TIMEOUT_MS,
+            config.PROFILE_STATE_TIMEOUT_MS)
+        reverse_buffer = bytearray(reverse_control.MAX_FEED_BYTES)
+        reverse_drain_state = array("i", [0])
+        packet = bytearray(vision_protocol.FRAME_SIZE)
+        sequence = 0
+        last_profile_sequence = None
+        last_profile_id = None
+        last_profile_token = None
+        last_wheel_position = None
+        stationary_status_frames = 0
+        gray_builder = fast_gray.FastGrayMasks(config)
+        path_detector = fast_path.FastPathDetector(config)
+        boundary_validator = fast_boundary.FastBoundaryEvidence(config)
+
+        # ``bytearray()`` is a by-reference framebuffer view in the pinned
+        # camera firmware. Reusing this one image avoids retaining 96 frames.
+        img = sensor.snapshot()
+        if (img.width() != 320 or img.height() != 120):
+            raise ValueError("calibration image must be exactly 320x120")
+        image_bytes = img.bytearray()
+        if len(image_bytes) != 320 * 120:
+            raise ValueError("calibration framebuffer is not 38400 bytes")
+        attempts = (raw_frame_count if raw_capture_path is not None else
+                    ring_width_calibration.MAX_ATTEMPTS)
+
+        print("RING_WIDTH_CALIBRATION_BEGIN mode=%s sensor=0x%04X "
+              "crop=(0,60,320,120) grid=80x60 frames=%d ack=0" % (
+                  mode, sensor_id, attempts))
+        for attempt in range(attempts):
+            attempted_frames = attempt + 1
+            vision_protocol.pack_into_v3(
+                packet, sequence, 0, 0, 0, 0, 0, 0, 0)
+            written = uart.write(packet)
+            if written != len(packet):
+                raise OSError("invalid V3 frame write %s/16" % str(written))
+            sequence = (sequence + 1) & 0xFFFF
+            now_ms = time.ticks_ms()
+            reverse_fresh = _service_reverse_control(
+                uart, reverse_parser, reverse_buffer, reverse_drain_state,
+                now_ms, time.ticks_diff)
+            profile_id = reverse_parser.profile_ack(
+                now_ms, time.ticks_diff)
+            parked = raw_capture_path is not None
+            if raw_capture_path is None:
+                profile_sequence = getattr(
+                    reverse_parser, "_profile_last_sequence", None)
+                profile_token = reverse_parser.session_token
+                wheel_position = reverse_parser.mean_forward_wheel_millirev
+                if (profile_id not in config.RING_ENABLED_PROFILE_IDS or
+                        reverse_parser.profile_session_active):
+                    stationary_status_frames = 0
+                    last_profile_sequence = None
+                    last_profile_id = None
+                    last_profile_token = None
+                    last_wheel_position = None
+                elif profile_sequence != last_profile_sequence:
+                    if (profile_id == last_profile_id and
+                            profile_token == last_profile_token and
+                            wheel_position == last_wheel_position):
+                        stationary_status_frames += 1
+                    else:
+                        stationary_status_frames = 1
+                    last_profile_sequence = profile_sequence
+                    last_profile_id = profile_id
+                    last_profile_token = profile_token
+                    last_wheel_position = wheel_position
+                parked = stationary_status_frames >= 3
+
+            if raw_capture_path is not None:
+                received = raw_file.readinto(image_bytes)
+                if received != len(image_bytes):
+                    raise ValueError("raw capture frame %d is truncated" %
+                                     attempt)
+                try:
+                    import binascii as raw_binascii
+                    raw_crc = raw_binascii.crc32(image_bytes, raw_crc)
+                except (ImportError, TypeError):
+                    # The deployed MicroPython binascii API supports an
+                    # incremental seed; hosts use the same API.
+                    raise RuntimeError("incremental CRC32 is unavailable")
+            else:
+                img = sensor.snapshot()
+                if img.width() != 320 or img.height() != 120:
+                    raise ValueError("calibration frame is not exactly 320x120")
+                image_bytes = img.bytearray()
+
+            if collector.collection_complete:
+                if raw_capture_path is None:
+                    break
+                # Replay still reads every recorded frame into the streaming
+                # CRC before the calibration file can be published.
+                continue
+            if not parked:
+                _reject(0)
+                continue
+            if raw_capture_path is not None:
+                # A ground-confirmed manifest is the stationary evidence for
+                # this replay; live profile state still receives ACK 0 above.
+                pass
+            elif reverse_parser.profile_session_active:
+                _reject(0)
+                continue
+
+            mask_info = gray_builder.build(img)
+            road_result = path_detector.detect(mask_info)
+            topology = road_result.get("topology_evidence") or {}
+            if not road_result.get("valid"):
+                _reject(1)
+                continue
+            if (topology.get("reason") != "OK" or
+                    not topology.get("complete") or
+                    topology.get("ambiguous") or
+                    topology.get("island_evidence") or
+                    topology.get("branch_evidence")):
+                _reject(2)
+                continue
+            boundary_validator.gate_fast_path_candidate(
+                road_result, mask_info.get("luma"),
+                mask_info.get("edge_mask"), mask_info.get("road_mask"),
+                mask_info.get("known_region"), config)
+            if not road_result.get("valid"):
+                _reject(3)
+                continue
+            selection = {
+                "valid": True, "source": "road", "result": road_result,
+                "reason": road_result.get("reason", "OK"),
+            }
+            selection, reference, boundary_reference = \
+                _validate_selected_fast_boundary(
+                    selection, road_result, boundary_validator)
+            if not selection.get("valid") or reference is None:
+                _reject(4)
+                continue
+            approved = _approved_bilateral_cache_candidate(
+                selection, road_result, boundary_reference, mask_info)
+            if approved is None:
+                _reject(5)
+                continue
+            rows = road_result.get("selected_row_ints")
+            count = road_result.get("selected_row_count", 0)
+            stride = road_result.get("selected_row_stride", 0)
+            accepted = collector.accept_rows(rows, count, stride)
+            if not accepted:
+                reason = collector.reason
+                _reject(0, reason, rows, count, stride)
+
+            if (raw_capture_path is None and
+                    collector.collection_complete):
+                break
+
+        if (raw_capture_path is not None and
+                raw_crc != raw_expected_crc):
+            raise ValueError("raw capture CRC mismatch")
+        if not collector.collection_complete:
+            finalized = collector.finalize()
+            result = _compact_result(
+                False, "COLLECTION_INCOMPLETE",
+                finalize_reason=finalized.get("reason", "NOT_COMPLETE"))
+            _print_summary(result)
+            return result
+
+        finalized = collector.finalize()
+        if not finalized.get("ready"):
+            result = _compact_result(
+                False, finalized.get("reason", "FINALIZE_FAILED"))
+            _print_summary(result)
+            return result
+        collector.save(config.RING_WIDTH_CALIBRATION_PATH)
+        loaded = calibration_type.load(config.RING_WIDTH_CALIBRATION_PATH)
+        if not loaded.ready:
+            raise ValueError("saved calibration failed reload: %s" %
+                             loaded.reason)
+        result = _compact_result(
+            True, "CALIBRATION_READY", valid_rows=loaded.valid_rows,
+            reference_width_cells=loaded.width_cells[
+                ring_width_calibration.REFERENCE_Y])
+        result["path"] = config.RING_WIDTH_CALIBRATION_PATH
+        _print_summary(result)
+        return result
+    except Exception as exc:
+        first_error = "%s:%s" % (type(exc).__name__, str(exc))
+        _reject(14, "COLLECTION_ERROR")
+        result = _compact_result(False, "COLLECTION_ERROR")
+        _print_summary(result)
+        return result
+    finally:
+        if raw_file is not None:
+            try:
+                raw_file.close()
+            except Exception:
+                pass
 
 
 def _surface_pixel(point):
@@ -4530,6 +5246,83 @@ _ROAD_OVERLAY_PACKED_CACHE = [None, -1, False]
 
 
 @micropython.native
+def _preview_marker_crc8(gray_value):
+    """CRC-8/ATM over the three little-endian bytes of a Gray frame ID."""
+    crc = 0
+    for byte_index in range(3):
+        crc ^= (gray_value >> (byte_index * 8)) & 0xFF
+        for _bit_index in range(8):
+            if crc & 0x80:
+                crc = ((crc << 1) ^ 0x07) & 0xFF
+            else:
+                crc = (crc << 1) & 0xFF
+    return crc
+
+
+@micropython.viper
+def _draw_preview_marker_pixels_viper(buffer_object, width: int,
+                                      gray_value: int,
+                                      checksum: int) -> int:
+    """Write the fixed 32-cell marker into a validated grayscale buffer."""
+    pixels = ptr8(buffer_object)
+    cell = 0
+    while cell < 32:
+        bit = 0
+        if cell < 24:
+            bit = (gray_value >> cell) & 1
+        else:
+            bit = (checksum >> (cell - 24)) & 1
+        color = 0
+        if bit:
+            color = 255
+        x = 4 + (cell * 5)
+        row = 0
+        while row < 4:
+            offset = ((4 + row) * width) + x
+            pixels[offset] = color
+            pixels[offset + 1] = color
+            pixels[offset + 2] = color
+            pixels[offset + 3] = color
+            row += 1
+        cell += 1
+    return 1
+
+
+def _preview_marker_image_buffer(img):
+    """Return only a full sensor-sized GRAYSCALE image's writable byte view."""
+    format_reader = getattr(img, "format", None)
+    width_reader = getattr(img, "width", None)
+    height_reader = getattr(img, "height", None)
+    buffer_reader = getattr(img, "bytearray", None)
+    if (not callable(format_reader) or not callable(width_reader) or
+            not callable(height_reader) or not callable(buffer_reader)):
+        raise ValueError("preview marker requires an OpenMV Image")
+    if format_reader() != sensor.GRAYSCALE:
+        raise ValueError("preview marker requires GRAYSCALE format")
+    width = width_reader()
+    height = height_reader()
+    if width != 320 or height != 120:
+        raise ValueError("preview marker requires the full 320x120 frame")
+    pixels = buffer_reader()
+    if not isinstance(pixels, bytearray) or len(pixels) != width * height:
+        raise ValueError("preview marker requires a full writable image buffer")
+    return pixels, width
+
+
+def _draw_preview_frame_marker(img, sequence):
+    """Draw the opt-in 24-bit Gray ID plus CRC-8 preview watermark."""
+    if (not getattr(config, "PREVIEW_FPS_MARKER_ENABLED", False) or
+            img is None or sequence is None):
+        return False
+    frame_id = int(sequence) & 0xFFFFFF
+    gray_value = (frame_id ^ (frame_id >> 1)) & 0xFFFFFF
+    checksum = _preview_marker_crc8(gray_value)
+    pixels, width = _preview_marker_image_buffer(img)
+    return bool(_draw_preview_marker_pixels_viper(
+        pixels, width, gray_value, checksum))
+
+
+@micropython.native
 def _draw_gray_result(img, selection, surface_result, road_result,
                       reference, valid, raw_ctrl, filtered_error,
                       processing_ms, fps, text_cache=None,
@@ -4868,31 +5661,115 @@ def _usb_vcp_is_connected(usb_vcp):
         return False
 
 
+@micropython.native
+def _preview_codec_timeout_valid(value):
+    return (isinstance(value, int) and not isinstance(value, bool) and
+            1 <= value <= 1000)
+
+
+@micropython.native
+def _preview_codec_guard_info():
+    """Return (setter, status, current_ms) for the optional codec guard."""
+    if cartest_accel is None:
+        return None, "missing-extension", None
+    try:
+        marker_present = hasattr(cartest_accel, "PREVIEW_CODEC_GUARD_API")
+        timeout_present = hasattr(cartest_accel, "jpeg_encode_timeout_ms")
+        if not marker_present and not timeout_present:
+            return None, "missing-optional-guard", None
+        if not marker_present or not timeout_present:
+            return None, "incomplete-guard-api", None
+        api_marker = getattr(cartest_accel, "PREVIEW_CODEC_GUARD_API", None)
+        timeout_api = getattr(cartest_accel, "jpeg_encode_timeout_ms", None)
+        if (not isinstance(api_marker, int) or isinstance(api_marker, bool) or
+                api_marker != 1 or not callable(timeout_api)):
+            return None, "extension-without-guard-api", None
+        current_ms = timeout_api()
+        if not _preview_codec_timeout_valid(current_ms):
+            return None, "invalid-timeout-value", None
+        return timeout_api, "available", current_ms
+    except Exception:
+        return None, "guard-api-error", None
+
+
+def _preview_codec_guard_diagnostic():
+    _timeout_api, status, current_ms = _preview_codec_guard_info()
+    if status == "available":
+        return ("USB_PREVIEW_CODEC_GUARD capable=1 current_ms=%d "
+                "encode_budget_ms=5" % current_ms)
+    legacy = "1" if status in (
+        "missing-extension", "missing-optional-guard") else "0"
+    return ("USB_PREVIEW_CODEC_GUARD capable=0 reason=%s "
+            "legacy_fallback=%s" % (status, legacy))
+
+
 def _publish_current_usb_preview_jpeg(img, usb_vcp, quality):
     """Publish only the current 320x120 frame as a copied full-size JPEG."""
     started = time.ticks_us()
     jpeg = None
     published = False
     failed = False
+    timeout_api = None
+    old_timeout_ms = None
+    restore_timeout = False
+    pending_keyboard_interrupt = False
     try:
-        if not _usb_vcp_is_connected(usb_vcp):
-            return time.ticks_diff(time.ticks_us(), started), False, False
-        if (img is None or img.width() != config.IMAGE_WIDTH or
-                img.height() != config.IMAGE_HEIGHT):
-            return time.ticks_diff(time.ticks_us(), started), False, True
-        jpeg = img.to_jpeg(x_scale=1.0, y_scale=1.0,
-                           quality=quality, copy=True)
-        if jpeg is None:
-            return time.ticks_diff(time.ticks_us(), started), False, True
-        # A cable disconnect during encoding must not flush the old image.
-        if not _usb_vcp_is_connected(usb_vcp):
-            return time.ticks_diff(time.ticks_us(), started), False, False
-        jpeg.flush()
-        published = True
+        if _usb_vcp_is_connected(usb_vcp):
+            if (img is None or img.width() != config.IMAGE_WIDTH or
+                    img.height() != config.IMAGE_HEIGHT):
+                failed = True
+            else:
+                if cartest_accel is not None:
+                    timeout_api, guard_status, old_timeout_ms = (
+                        _preview_codec_guard_info())
+                    if guard_status == "missing-optional-guard":
+                        # A pre-guard cartest_accel module is supported. The
+                        # JPEG guard is optional, so preserve its old preview.
+                        timeout_api = None
+                    elif guard_status != "available":
+                        # An installed but incompatible extension must not
+                        # silently take the unbounded legacy encode path.
+                        failed = True
+                    if guard_status == "available":
+                        # Mark restoration necessary before calling the setter:
+                        # even a malformed extension may mutate and then fail.
+                        restore_timeout = True
+                        previous_timeout_ms = timeout_api(5)
+                        if (not _preview_codec_timeout_valid(previous_timeout_ms)
+                                or previous_timeout_ms != old_timeout_ms):
+                            failed = True
+                if not failed:
+                    jpeg = img.to_jpeg(x_scale=1.0, y_scale=1.0,
+                                       quality=quality, copy=True)
+                    if jpeg is None:
+                        failed = True
+                    elif _usb_vcp_is_connected(usb_vcp):
+                        # A cable disconnect during encoding must not flush the
+                        # old image.
+                        jpeg.flush()
+                        published = True
+    except KeyboardInterrupt:
+        pending_keyboard_interrupt = True
+        raise
     except Exception:
         failed = True
     finally:
+        if restore_timeout:
+            try:
+                previous_timeout_ms = timeout_api(old_timeout_ms)
+                if (not _preview_codec_timeout_valid(previous_timeout_ms) or
+                        previous_timeout_ms != 5):
+                    if not pending_keyboard_interrupt:
+                        failed = True
+            except KeyboardInterrupt:
+                if not pending_keyboard_interrupt:
+                    raise
+            except Exception:
+                if not pending_keyboard_interrupt:
+                    failed = True
         jpeg = None
+        if failed:
+            published = False
     return (time.ticks_diff(time.ticks_us(), started), published, failed)
 
 
@@ -4992,7 +5869,7 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
                              processing_ms, fps, overlay_state, now_ms,
                              flush_func=None, weight_info=None,
                              contour_trace_info=None, contour_used=False,
-                             draw_enabled=True):
+                             draw_enabled=True, preview_sequence=None):
     """Draw every captured frame, refresh details at the configured interval, then flush it.
 
     This runs only after detection and the observation UART write. The flush
@@ -5046,6 +5923,11 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
              if overlay_state.status_bitmap_ready else None))
         overlay_state.draw_us = time.ticks_diff(
             time.ticks_us(), draw_start_us)
+    if config.PREVIEW_FPS_MARKER_ENABLED and draw_enabled:
+        marker_start_us = time.ticks_us()
+        _draw_preview_frame_marker(img, preview_sequence)
+        overlay_state.draw_us += time.ticks_diff(
+            time.ticks_us(), marker_start_us)
     if flush_func is None:
         flush_func = sensor.flush
     flush_start_us = time.ticks_us()
@@ -5128,7 +6010,7 @@ _V7_PERF_STAGES = (
     "capture", "masks", "path_topology", "contour", "boundary", "ring",
     "row_weight",
     "reference_filter",
-    "pack_uart", "capture_to_send", "diag_trace", "overlay",
+    "pack_uart", "capture_to_send", "diag_trace", "ring_diag", "overlay",
     "preview_flush", "debug",
     "summary_log", "gc", "total_cycle",
 )
@@ -5574,14 +6456,25 @@ class _VisionUARTWriter:
         return self._fifo_txdone()
 
 
-def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
+def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
+               fixture_sensor_id=None):
     """Process every frame through the V2 path, with optional RAM fixtures.
 
     Supplying either fixture requires both: this keeps runtime benchmarks off
     the physical camera and H743 UART while exercising the production path.
     """
+    global _RING_DIAGNOSTICS, _RING_DIAG_SESSION
     _validate_fast_config()
     fixture_mode = frame_source is not None or uart_sink is not None
+    if fixture_sensor_id is not None:
+        if not fixture_mode:
+            raise ValueError(
+                "fixture_sensor_id is only valid in fixture mode")
+        if (isinstance(fixture_sensor_id, bool) or
+                not isinstance(fixture_sensor_id, int)):
+            raise TypeError("fixture_sensor_id must be an integer sensor ID")
+        if fixture_sensor_id != ring_width_calibration.SENSOR_ID:
+            raise ValueError("fixture_sensor_id must identify sensor 0x1324")
     native_preview_api = False
     usb_vcp = None
     fixture_usb_vcp_provided = False
@@ -5596,12 +6489,11 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         if (not callable(getattr(uart_sink, "any", None)) or
                 not callable(getattr(uart_sink, "readinto", None))):
             raise TypeError("uart_sink must provide any() and readinto()")
-        sensor_id = None
+        sensor_id = fixture_sensor_id
         preview_flush = getattr(frame_source, "flush", None)
         if not callable(preview_flush):
             preview_flush = _noop_preview_flush
     if fixture_mode:
-        sensor_id = None
         native_preview_api = _is_native_usb_preview_source(frame_source)
         if native_preview_api:
             preview_source = frame_source
@@ -5729,6 +6621,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
           "rate=unverified" % (
               config.USB_PREVIEW_BUILD_ID, config.USB_PREVIEW_QUALITY,
               preview_state, config.USB_PREVIEW_OVERLAY_MODE))
+    print(_preview_codec_guard_diagnostic())
 
     if fixture_mode:
         uart = uart_sink
@@ -5751,7 +6644,41 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     position_pd = _FastPositionPD(config)
     adaptive_preview = _FastAdaptivePreview(config)
     speed_stage = _FastSpeedStage(config)
-    element_tracker = track_elements.TrackElementsTracker(config)
+    ring_calibration = ring_width_calibration.RingWidthCalibration.load(
+        config.RING_WIDTH_CALIBRATION_PATH)
+    sensor_identity_valid = ((fixture_mode and fixture_sensor_id is None) or
+                             sensor_id == ring_width_calibration.SENSOR_ID)
+    calibration_for_tracker = (ring_calibration
+                               if sensor_identity_valid else None)
+    element_tracker = track_elements.TrackElementsTracker(
+        config, calibration_for_tracker,
+        require_calibration=config.RING_WIDTH_CALIBRATION_REQUIRED)
+    ring_calibration_passed = bool(
+        element_tracker.ring_calibration_ready and
+        element_tracker.ring_calibration_check_ready)
+    ring_stationary_status_frames = 0
+    ring_stationary_last_profile_sequence = None
+    ring_stationary_last_profile_id = None
+    ring_stationary_last_profile_token = None
+    ring_stationary_last_wheel_position = None
+    ring_calibration_last_eligible = False
+    _RING_DIAGNOSTICS = (
+        ring_diagnostics.RingDiagnostics()
+        if config.RING_DIAGNOSTICS_ENABLED else None)
+    _RING_DIAG_SESSION = (
+        _RingDiagnosticsSession(
+            _RING_DIAGNOSTICS, config.RING_DIAGNOSTICS_PATH,
+            config.TRACK_PACKAGE_BUILD_ID)
+        if _RING_DIAGNOSTICS is not None else None)
+    calibration_status = (
+        element_tracker.ring_calibration_reason
+        if sensor_identity_valid else "SENSOR_ID_MISMATCH")
+    print("RING_WIDTH_GATE map=%s check=%s required=%d "
+          "diagnostics=%d" % (
+              calibration_status,
+              "READY" if ring_calibration_passed else "PARKED_CHECK_REQUIRED",
+              1 if config.RING_WIDTH_CALIBRATION_REQUIRED else 0,
+              1 if _RING_DIAGNOSTICS is not None else 0))
     element_result = element_tracker.result
     element_input_row_status = getattr(
         single_edge_tracker, "_row_status", None)
@@ -5827,6 +6754,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     profile_generation = reverse_parser.profile_generation
     last_capture_end_ms = None
     sequence = 0
+    preview_frame_id = -1
+    ring_stop_reason = None
     tx_error_count = 0
     last_tx_result = "none"
     last_debug_ms = time.ticks_ms()
@@ -5880,6 +6809,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         "scene": "UNKNOWN", "sections": (), "target": None,
     }
     frame_count = 0
+    gc_period_frames = config.PERF_GC_PERIOD_FRAMES
+    if gc_period_frames > config.PERF_GC_MAX_INTERVAL_FRAMES:
+        gc_period_frames = config.PERF_GC_MAX_INTERVAL_FRAMES
     capture_fps_counter = _FreshCaptureFPS()
     capture_fps_value = 0.0
     bench_start_us = time.ticks_us()
@@ -5890,6 +6822,19 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
     perf = _V7PerfWindow()
     summary_queue = _V7SummaryQueue()
     last_heap_sample_ms = None
+    heap_free_fn = None
+    heap_alloc_fn = None
+    heap_stats_fn = None
+    if cartest_accel is not None:
+        try:
+            if getattr(cartest_accel, "HEAP_STATS_API", 0) == 1:
+                candidate_heap_stats = getattr(cartest_accel, "heap_stats", None)
+                if callable(candidate_heap_stats):
+                    heap_stats_fn = candidate_heap_stats
+        except Exception:
+            heap_stats_fn = None
+    gc_cached_free_bytes = -1
+    gc_low_memory_latched = False
     pending_cycle_start_us = None
 
     while (duration_us is None or
@@ -5930,6 +6875,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                     previous_reference_x = None
             raise
         capture_end_us = time.ticks_us()
+        preview_frame_id = (preview_frame_id + 1) & 0xFFFFFF
         single_edge_tracker.begin_frame()
         capture_us = time.ticks_diff(capture_end_us, capture_start_us)
         capture_end_ms = time.ticks_ms()
@@ -5950,8 +6896,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         reverse_fresh = _service_reverse_control(
             uart, reverse_parser, reverse_input_buffer, reverse_drain_state,
             capture_end_ms, time.ticks_diff)
-        steering_diag_session.observe(
-            reverse_parser, single_edge_tracker, config.BUILD_ID)
+        ring_stop_reason = steering_diag_session.observe(
+            reverse_parser, single_edge_tracker, config.BUILD_ID,
+            reverse_fresh, capture_end_ms, time.ticks_diff)
         control_session_changed = (
             reverse_parser.generation != reverse_generation)
         profile_session_changed = (
@@ -6256,6 +7203,50 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                        if normal_cache_commit_allowed else 0)
         candidate_tracks = (road_result.get("candidate_tracks", 0)
                             if normal_cache_commit_allowed else 0)
+        if not ring_calibration_passed:
+            profile_sequence = getattr(
+                reverse_parser, "_profile_last_sequence", None)
+            profile_token = reverse_parser.session_token
+            wheel_position = reverse_parser.mean_forward_wheel_millirev
+            parked_profile = bool(
+                profile_id in config.RING_ENABLED_PROFILE_IDS and
+                not reverse_parser.profile_session_active)
+            if parked_profile and profile_sequence is not None:
+                if profile_sequence != ring_stationary_last_profile_sequence:
+                    if (profile_id == ring_stationary_last_profile_id and
+                            profile_token == ring_stationary_last_profile_token and
+                            wheel_position == ring_stationary_last_wheel_position):
+                        ring_stationary_status_frames += 1
+                    else:
+                        ring_stationary_status_frames = 1
+                    ring_stationary_last_profile_sequence = profile_sequence
+                    ring_stationary_last_profile_id = profile_id
+                    ring_stationary_last_profile_token = profile_token
+                    ring_stationary_last_wheel_position = wheel_position
+            else:
+                ring_stationary_status_frames = 0
+                ring_stationary_last_profile_sequence = None
+                ring_stationary_last_profile_id = None
+                ring_stationary_last_profile_token = None
+                ring_stationary_last_wheel_position = None
+            calibration_rows_eligible = bool(
+                element_tracker.ring_calibration_ready and
+                ring_stationary_status_frames >= 3 and parked_profile and
+                not capture_interrupted and normal_cache_commit_allowed and
+                road_rows is not None and road_count > 0 and road_stride == 4 and
+                road_result.get("valid") and topology.get("reason") == "OK" and
+                topology.get("complete") and not topology.get("ambiguous") and
+                not topology.get("island_evidence") and
+                not topology.get("branch_evidence"))
+            if calibration_rows_eligible:
+                element_tracker.observe_ring_calibration(
+                    road_rows, road_count, road_stride)
+                ring_calibration_last_eligible = True
+                if element_tracker.ring_calibration_check_ready:
+                    ring_calibration_passed = True
+            elif ring_calibration_last_eligible:
+                element_tracker.reset_ring_calibration_check("PARKED_GATE")
+                ring_calibration_last_eligible = False
         single_rows_fresh = bool(getattr(
             single_edge_tracker, "_frame_scan_done", False))
         ring_start_us = time.ticks_us()
@@ -6626,6 +7617,45 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         reverse_parser.poll(profile_check_ms, time.ticks_diff)
         profile_ack = reverse_parser.profile_ack(
             profile_check_ms, time.ticks_diff)
+        ring_calibration_gate_blocked = _ring_calibration_gate_blocked(
+            profile_id, ring_calibration_passed)
+        if ring_calibration_gate_blocked:
+            profile_ack = config.VEHICLE_PROFILE_UNKNOWN
+            if valid:
+                selection["rejected_source"] = selection.get("source", "NONE")
+                selection["valid"] = False
+                selection["quality"] = 0
+                selection["lateral_error"] = 0
+                selection["reason"] = "RING_CALIBRATION_REQUIRED"
+                selection["source"] = "NONE"
+                selection["result"] = None
+                reference = None
+            valid = False
+            raw_valid = False
+            raw_error = 0
+            filtered_error = 0
+            quality = 0
+            final_control = 0
+            preview_applied = 0
+            curve_phase = 0
+            slowdown_request_permille = 0
+            observation_filter.reset()
+            position_pd.reset("RING_CALIBRATION_GATE")
+            adaptive_preview.reset()
+            speed_stage.lifecycle_event("RESET")
+            control_info["position_p"] = 0
+            control_info["derivative_d"] = 0
+            control_info["pd_output"] = 0
+            control_info["preview_applied"] = 0
+            control_info["preview_state"] = 0
+            control_info["reset_code"] = _CONTROL_RESET_CODES[
+                "DISABLED"]
+            weight_info["position_p"] = 0
+            weight_info["derivative_d"] = 0
+            weight_info["preview_applied"] = 0
+            weight_info["pd_error"] = 0
+            weight_info["steering_error"] = 0
+            weight_info["heading_contribution"] = 0
         if (element_route_selected and
                 (not reverse_parser.single_enabled or
                  not reverse_parser.profile_session_active or
@@ -6807,6 +7837,22 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             diag_trace_us = time.ticks_diff(
                 time.ticks_us(), diag_trace_start_us)
         # STEERING_DIAG_TRACE_END
+        ring_diag_us = 0
+        if _RING_DIAG_SESSION is not None:
+            ring_diag_start_us = time.ticks_us()
+            active_follow = bool(
+                reverse_fresh and reverse_parser.single_enabled and
+                profile_id in (config.VEHICLE_PROFILE_A,
+                               config.VEHICLE_PROFILE_B,
+                               config.VEHICLE_PROFILE_C) and
+                reverse_parser.profile_session_active and
+                reverse_parser.session_token != 0)
+            _RING_DIAG_SESSION.observe(
+                capture_end_ms, sequence, profile_id, active_follow,
+                bool(valid and full_write), selection, element_result,
+                ring_stop_reason, time.ticks_diff)
+            ring_diag_us = time.ticks_diff(
+                time.ticks_us(), ring_diag_start_us)
         sequence_sent = sequence
         sequence = (sequence + 1) & 0xFFFF
         if write_error is not None:
@@ -6840,19 +7886,49 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                   single_candidate.get("valid")):
                 single_edge_tracker.commit_single(single_candidate)
 
+        heap_sample_us = 0
         heap_sample_now_ms = time.ticks_ms()
         if (last_heap_sample_ms is None or
                 time.ticks_diff(heap_sample_now_ms,
                                 last_heap_sample_ms) >= 1000):
+            heap_sample_start_us = time.ticks_us()
             last_heap_sample_ms = heap_sample_now_ms
-            heap_free_fn = getattr(gc, "mem_free", None)
-            heap_alloc_fn = getattr(gc, "mem_alloc", None)
-            if callable(heap_free_fn) and callable(heap_alloc_fn):
+            gc_cached_free_bytes = -1
+            gc_heap_sample_ok = False
+            if callable(heap_stats_fn):
                 try:
-                    perf.record_heap(int(heap_free_fn()),
-                                     int(heap_alloc_fn()))
+                    heap_values = heap_stats_fn()
+                    if (isinstance(heap_values, tuple) and
+                            len(heap_values) == 2 and
+                            isinstance(heap_values[0], int) and
+                            not isinstance(heap_values[0], bool) and
+                            isinstance(heap_values[1], int) and
+                            not isinstance(heap_values[1], bool) and
+                            heap_values[0] >= 0 and heap_values[1] >= 0):
+                        gc_cached_free_bytes = int(heap_values[0])
+                        gc_alloc_bytes = int(heap_values[1])
+                        gc_heap_sample_ok = True
                 except Exception:
-                    pass
+                    gc_heap_sample_ok = False
+            if not gc_heap_sample_ok:
+                # Keep the original two-call firmware path for absent,
+                # incompatible, malformed, or failing optional extensions.
+                try:
+                    heap_free_fn = getattr(gc, "mem_free", None)
+                    heap_alloc_fn = getattr(gc, "mem_alloc", None)
+                    if callable(heap_free_fn):
+                        gc_cached_free_bytes = int(heap_free_fn())
+                        gc_heap_sample_ok = True
+                    if gc_heap_sample_ok and callable(heap_alloc_fn):
+                        gc_alloc_bytes = int(heap_alloc_fn())
+                    else:
+                        gc_heap_sample_ok = False
+                except Exception:
+                    gc_heap_sample_ok = False
+            if gc_heap_sample_ok:
+                perf.record_heap(gc_cached_free_bytes, gc_alloc_bytes)
+            heap_sample_us = time.ticks_diff(
+                time.ticks_us(), heap_sample_start_us)
 
         window_start_us, windows_advanced = _advance_v7_perf_window(
             send_end_us, window_start_us, window_us)
@@ -6919,7 +7995,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                 contour_trace_info=(contour_trace_info
                                     if contour_selected else None),
                 contour_used=contour_selected, flush_func=preview_flush,
-                draw_enabled=fallback_draw_enabled)
+                draw_enabled=fallback_draw_enabled,
+                preview_sequence=preview_frame_id)
             overlay_us = overlay_state.draw_us
             preview_flush_us = overlay_state.flush_us
             if fixture_without_usb_vcp:
@@ -6956,7 +8033,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
                     contour_trace_info=(contour_trace_info
                                         if contour_selected else None),
                     contour_used=contour_selected,
-                    flush_func=preview_source.flush)
+                    flush_func=preview_source.flush,
+                    preview_sequence=preview_frame_id)
                 overlay_us = overlay_state.draw_us
                 preview_flush_us = overlay_state.flush_us
                 current_usb_preview_state = preview_source.last_state
@@ -7130,12 +8208,22 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
             debug_us = time.ticks_diff(time.ticks_us(), debug_start_us)
             last_debug_ms = debug_now_ms
 
-        gc_us = 0
+        # The heap threshold is a sampled soft trigger. Automatic GC remains
+        # enabled to handle allocations between the once-per-second samples.
+        gc_low_memory_now = (
+            gc_cached_free_bytes >= 0 and
+            gc_cached_free_bytes < config.PERF_GC_MIN_FREE_BYTES)
+        if not gc_low_memory_now:
+            gc_low_memory_latched = False
+        # Include the rare heap read/record work in the existing GC stage.
+        gc_us = heap_sample_us
         frame_count += 1
-        if frame_count % config.PERF_GC_PERIOD_FRAMES == 0:
+        if (frame_count % gc_period_frames == 0 or
+                (gc_low_memory_now and not gc_low_memory_latched)):
             gc_start_us = time.ticks_us()
             gc.collect()
-            gc_us = time.ticks_diff(time.ticks_us(), gc_start_us)
+            gc_us += time.ticks_diff(time.ticks_us(), gc_start_us)
+            gc_low_memory_latched = gc_low_memory_now
 
         perf.record("capture", capture_us)
         perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
@@ -7150,6 +8238,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None):
         perf.record("pack_uart", pack_uart_us)
         perf.record("capture_to_send", capture_to_send_us)
         perf.record("diag_trace", diag_trace_us)
+        perf.record("ring_diag", ring_diag_us)
         perf.record("overlay", overlay_us)
         perf.record("preview_flush", preview_flush_us)
         perf.record("debug", debug_us)

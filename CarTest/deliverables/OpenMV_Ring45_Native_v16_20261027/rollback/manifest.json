@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "target": "OPENMV4P",
+  "provenance": "confirmed-current-j-image",
+  "files_sha256": {
+    "firmware.bin": "1E471194F0C9B44239AADF70288103DABCCD840B6B884C65827B04A5B33087B7",
+    "firmware.elf": "E5371B12CF716AF54E264D50EAF67D931A89E363313A7E571906AEFB19BA86FD"
+  }
+}

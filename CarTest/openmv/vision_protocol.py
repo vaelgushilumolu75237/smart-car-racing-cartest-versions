@@ -18,12 +18,33 @@ CURVE_PHASE_TURN = 2
 CURVE_PHASE_EXIT = 3
 MAX_SLOWDOWN_REQUEST_PERMILLE = 1000
 
+try:
+    import micropython
+except ImportError:  # CPython host tests
+    class _HostMicroPython:
+        @staticmethod
+        def native(function):
+            return function
 
+    micropython = _HostMicroPython()
+
+# CRC-16/CCITT-FALSE nibble table, computed for the 0x1021 polynomial.
+# Kept as a fixed tuple so the runtime CRC path allocates no table or buffers.
+_CRC16_NIBBLE_TABLE = (
+    0x0000, 0x1021, 0x2042, 0x3063,
+    0x4084, 0x50A5, 0x60C6, 0x70E7,
+    0x8108, 0x9129, 0xA14A, 0xB16B,
+    0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
+)
+
+
+@micropython.native
 def _require_int(value, name):
     if not isinstance(value, int):
         raise TypeError(name + " must be an integer")
 
 
+@micropython.native
 def _check_frame(sequence, valid, confidence, lateral_error, slope_hint,
                  curve_phase, slowdown_request_permille):
     _require_int(sequence, "sequence")
@@ -55,37 +76,40 @@ def _check_frame(sequence, valid, confidence, lateral_error, slope_hint,
         raise ValueError("invalid frames must zero every observation/control field")
 
 
+@micropython.native
 def _crc16_ccitt_false_range(data, start, end):
+    table = _CRC16_NIBBLE_TABLE
     crc = 0xFFFF
     for index in range(start, end):
         crc ^= data[index] << 8
-        for _ in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
+        crc = ((crc << 4) ^
+               table[(crc >> 12) & 0x0F]) & 0xFFFF
+        crc = ((crc << 4) ^
+               table[(crc >> 12) & 0x0F]) & 0xFFFF
     return crc
 
 
+@micropython.native
 def crc16_ccitt_false(data):
     """Return CRC-16/CCITT-FALSE for an iterable of byte values."""
     if data is None:
         raise TypeError("data must be a byte sequence")
 
+    table = _CRC16_NIBBLE_TABLE
     crc = 0xFFFF
     for value in data:
         _require_int(value, "data byte")
         if value < 0 or value > 0xFF:
             raise ValueError("data byte must be in 0..255")
         crc ^= value << 8
-        for _ in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
+        crc = ((crc << 4) ^
+               table[(crc >> 12) & 0x0F]) & 0xFFFF
+        crc = ((crc << 4) ^
+               table[(crc >> 12) & 0x0F]) & 0xFFFF
     return crc
 
 
+@micropython.native
 def pack_into(out, sequence, valid, confidence, lateral_error,
               slope_hint=0, curve_phase=0,
               slowdown_request_permille=0):
@@ -107,6 +131,7 @@ def pack_into(out, sequence, valid, confidence, lateral_error,
         curve_phase, slowdown_request_permille, VERSION, 0)
 
 
+@micropython.native
 def _pack_into_version(out, sequence, valid, confidence, lateral_error,
                        slope_hint, curve_phase,
                        slowdown_request_permille, version, profile_ack):
@@ -189,3 +214,4 @@ def pack_v3(sequence, valid, confidence, lateral_error, slope_hint=0,
     return pack_frame_v3(
         sequence, valid, confidence, lateral_error, slope_hint, curve_phase,
         slowdown_request_permille, profile_ack)
+

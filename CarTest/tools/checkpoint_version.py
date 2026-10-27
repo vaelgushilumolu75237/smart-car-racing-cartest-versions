@@ -1489,6 +1489,9 @@ def main():
     parser.add_argument(
         "--include-openmv-uart-fifo-firmware", action="store_true",
         help="Validate and include the pinned OpenMV UART FIFO firmware delivery.")
+    parser.add_argument(
+        "--openmv-native-v501", type=Path, metavar="DELIVERABLES_SUBDIR",
+        help="Validate and include an explicit OpenMV v5.0.1 native-camera bundle under deliverables/.")
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--hardware-actions", default="none",
                         choices=("none", "stationary-camera-upload-h743-flash-no-motor-start"),
@@ -1524,6 +1527,14 @@ def main():
         openmv_usb60_candidate_files = select_openmv_usb60_candidate(source, args.status)
     openmv_uart_fifo_firmware_files = select_openmv_uart_fifo_firmware(
         source, args.include_openmv_uart_fifo_firmware)
+    openmv_native_v501_files = []
+    if args.openmv_native_v501 is not None:
+        try:
+            from .verify_native_camera_v501_delivery import verify_native_camera_v501_delivery
+        except ImportError:
+            from verify_native_camera_v501_delivery import verify_native_camera_v501_delivery
+        openmv_native_v501_files = verify_native_camera_v501_delivery(
+            source, args.openmv_native_v501)
     track_profile_files = []
     if args.track_profiles is not None:
         try:
@@ -1581,6 +1592,8 @@ def main():
         copy_allowlisted_file(source, target, name)
     for name in openmv_uart_fifo_firmware_files:
         copy_allowlisted_file(source, target, name)
+    for name in openmv_native_v501_files:
+        copy_allowlisted_file(source, target, name)
     for name in track_profile_files:
         copy_allowlisted_file(source, target, name)
     for profile in profile_names:
@@ -1592,9 +1605,12 @@ def main():
                 hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in sorted(target.rglob("*")) if p.is_file()}
     (STORE / "SHA256SUMS.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    (STORE / "VERSION.json").write_text(json.dumps({"version": args.version,
-        "status": args.status, "branch": args.branch, "files": len(manifest),
-        "hardware_actions": args.hardware_actions}, indent=2) + "\n", encoding="utf-8")
+    version_info = {"version": args.version, "status": args.status,
+        "branch": args.branch, "files": len(manifest),
+        "hardware_actions": args.hardware_actions}
+    if args.openmv_native_v501 is not None:
+        version_info["openmv_native_v501_bundle"] = args.openmv_native_v501.as_posix()
+    (STORE / "VERSION.json").write_text(json.dumps(version_info, indent=2) + "\n", encoding="utf-8")
     (STORE / "README.md").write_text("# CarTest version checkpoints\n\n"
         "H743 source, OpenMV upload files, and paired ELF checkpoints.\n\n"
         "Select a tag to restore a complete version. Experimental versions are not vehicle acceptance.\n"

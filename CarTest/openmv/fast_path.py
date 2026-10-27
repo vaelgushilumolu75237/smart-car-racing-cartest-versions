@@ -35,6 +35,49 @@ except ImportError:  # Host tests only; OpenMV provides the real module.
 from fast_topology import FastTopologyGuard
 
 
+_PATH_ACCEL_UNRESOLVED = object()
+_PATH_ACCEL = _PATH_ACCEL_UNRESOLVED
+
+
+def _path_accel_backend():
+    """Load the optional exact C path kernels without changing Viper fallback."""
+    global _PATH_ACCEL
+    if _PATH_ACCEL is _PATH_ACCEL_UNRESOLVED:
+        try:
+            module = __import__("cartest_path_accel")
+        except ImportError:
+            module = None
+        if (module is not None and
+                getattr(module, "API_VERSION", None) != 1):
+            module = None
+        if (module is not None and
+                (not callable(getattr(module, "extract_rows", None)) or
+                 not callable(getattr(module, "connect_rows", None)))):
+            module = None
+        _PATH_ACCEL = module
+    return _PATH_ACCEL
+
+
+def _path_accel_supported(detector, module):
+    """Use C only for the fixed geometry and bounded kernel settings."""
+    return bool(module is not None and detector.width == 80 and
+                detector.height == 60 and detector.floor_y >= 0 and
+                detector.floor_y < detector.height and
+                detector.max_per_row >= 1 and detector.max_per_row <= 8 and
+                detector.row_count == detector.height - detector.floor_y and
+                detector.min_width >= 8 and detector.min_width <= 70 and
+                detector.max_width >= detector.min_width and
+                detector.max_width <= 70 and detector.max_gap >= 0 and
+                detector.max_gap <= 2 and detector.max_width_change >= 1 and
+                detector.max_width_change <= 70 and
+                detector.max_slope_milli >= 0 and
+                detector.max_slope_milli <= 80000 and
+                detector.link_tolerance_milli >= 0 and
+                detector.link_tolerance_milli <= 80000 and
+                detector.reference_y_milli >= 0 and
+                detector.reference_y_milli < 60000)
+
+
 _DEFAULTS = {
     "SURFACE_GRID_WIDTH": 80,
     "SURFACE_GRID_HEIGHT": 60,
@@ -839,9 +882,26 @@ class FastPathDetector:
         self._current_road = mask_info["road_mask"]
         self._current_edge = mask_info["edge_mask"]
         self._current_known = mask_info["known_region"]
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            return module.extract_rows(
+                self._current_luma, self._current_road,
+                self._current_edge, self._current_known,
+                self._counts, self._candidate_data,
+                self.width, self.height, self.floor_y,
+                self.min_width, self.max_width, self.max_per_row)
         return _extract_viper(self)
 
     def _connect_all(self):
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            return module.connect_rows(
+                self._counts, self._candidate_data, self._state_data,
+                self.width, self.height, self.floor_y,
+                self.max_gap, self.max_width_change,
+                self.max_slope_milli, self.link_tolerance_milli,
+                self.reference_y_milli, self.max_per_row,
+                self.state_capacity)
         return _connect_viper(self)
 
     def _select_best(self):
@@ -1013,11 +1073,29 @@ class FastPathDetector:
         self._current_road = road
         self._current_edge = edge
         self._current_known = known
-        if _extract_viper(self) < 0:
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            extract_status = module.extract_rows(
+                luma, road, edge, known, self._counts,
+                self._candidate_data, self.width, self.height,
+                self.floor_y, self.min_width, self.max_width,
+                self.max_per_row)
+        else:
+            extract_status = _extract_viper(self)
+        if extract_status < 0:
             rows = self._rows() if mask_info.get("debug") else ()
             return self._fail("ROW_CANDIDATE_OVERFLOW", rows,
                               "AMBIGUOUS_CANDIDATE")
-        _connect_viper(self)
+        if _path_accel_supported(self, module):
+            module.connect_rows(
+                self._counts, self._candidate_data, self._state_data,
+                self.width, self.height, self.floor_y,
+                self.max_gap, self.max_width_change,
+                self.max_slope_milli, self.link_tolerance_milli,
+                self.reference_y_milli, self.max_per_row,
+                self.state_capacity)
+        else:
+            _connect_viper(self)
         select_status = _select_viper(self)
         if select_status == 2:
             rows = self._rows() if mask_info.get("debug") else ()

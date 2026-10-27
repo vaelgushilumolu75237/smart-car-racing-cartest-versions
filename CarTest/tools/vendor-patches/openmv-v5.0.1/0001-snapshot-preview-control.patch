@@ -1,0 +1,63 @@
+diff --git a/modules/py_csi_ng.c b/modules/py_csi_ng.c
+index dcf8545..597bf6a 100644
+--- a/modules/py_csi_ng.c
++++ b/modules/py_csi_ng.c
+@@ -193,12 +193,13 @@ static mp_obj_t py_csi_flush(mp_obj_t self_in) {
+ static MP_DEFINE_CONST_FUN_OBJ_1(py_csi_flush_obj, py_csi_flush);
+ 
+ static mp_obj_t py_csi_snapshot(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+-    enum { ARG_time, ARG_frames, ARG_blocking, ARG_image };
++    enum { ARG_time, ARG_frames, ARG_blocking, ARG_image, ARG_preview };
+     static const mp_arg_t allowed_args[] = {
+         { MP_QSTR_time, MP_ARG_INT | MP_ARG_KW_ONLY, {.u_int = -1} },
+         { MP_QSTR_frames, MP_ARG_INT | MP_ARG_KW_ONLY, {.u_int = -1} },
+         { MP_QSTR_blocking, MP_ARG_BOOL | MP_ARG_KW_ONLY,  {.u_bool = true} },
+         { MP_QSTR_image, MP_ARG_OBJ | MP_ARG_KW_ONLY,  {.u_rom_obj = MP_ROM_NONE} },
++        { MP_QSTR_preview, MP_ARG_BOOL | MP_ARG_KW_ONLY, {.u_bool = true} },
+     };
+ 
+     py_csi_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+@@ -206,6 +207,10 @@ static mp_obj_t py_csi_snapshot(size_t n_args, const mp_obj_t *pos_args, mp_map_
+     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+ 
+     uint32_t flags = 0;
++    if (!args[ARG_preview].u_bool) {
++        flags |= OMV_CSI_FLAG_NO_UPDATE;
++    }
++
+     image_t image = {0};
+     mp_int_t time = args[ARG_time].u_int;
+     mp_int_t frames = args[ARG_frames].u_int;
+@@ -1483,6 +1488,7 @@ MP_DEFINE_CONST_OBJ_TYPE(
+ 
+ static const mp_rom_map_elem_t globals_dict_table[] = {
+     { MP_ROM_QSTR(MP_QSTR___name__),        MP_ROM_QSTR(MP_QSTR_csi) },
++    { MP_ROM_QSTR(MP_QSTR_PREVIEW_CONTROL_API), MP_ROM_INT(1) },
+     { MP_ROM_QSTR(MP_QSTR_CSI),             MP_ROM_PTR(&py_csi_type) },
+     { MP_ROM_QSTR(MP_QSTR_devices),         MP_ROM_PTR(&py_csi_devices_obj) },
+ 
+diff --git a/scripts/libraries/sensor.py b/scripts/libraries/sensor.py
+index b6e1716..78bb083 100644
+--- a/scripts/libraries/sensor.py
++++ b/scripts/libraries/sensor.py
+@@ -39,6 +39,9 @@ print(
+ # if it was not detected.
+ _csi = csi.CSI()
+ 
++# Nonzero only when snapshot(preview=...) is supported by the CSI binding.
++PREVIEW_CONTROL_API = csi.PREVIEW_CONTROL_API
++
+ # The last framesize passed to set_framesize(), for get_framesize().
+ _framesize = None
+ 
+@@ -74,7 +77,9 @@ def flush():
+ 
+ 
+ def snapshot(*args, **kwargs):
+-    return _csi.snapshot()
++    # Preserve the legacy wrapper's ignored arguments while forwarding the
++    # opt-in preview selector used by scripts that process then flush JPEG.
++    return _csi.snapshot(preview=kwargs.get("preview", True))
+ 
+ 
+ def skip_frames(*args, **kwargs):

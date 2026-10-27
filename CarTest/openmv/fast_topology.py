@@ -62,6 +62,31 @@ except ImportError:
     uint = int
 
 
+# Optional native backend. Keep the established compiler/backend flags above
+# intact: this describes only the additional topology C module.
+NATIVE_ACCEL_API = 1
+NATIVE_ACCEL_API_VERSION = 0
+NATIVE_ACCEL_BACKEND = "viper-module-unavailable"
+_NATIVE_ACCEL = None
+try:
+    import cartest_accel as _cartest_accel_module
+except ImportError:
+    _cartest_accel_module = None
+else:
+    NATIVE_ACCEL_API_VERSION = getattr(
+        _cartest_accel_module, "API_VERSION", 0)
+    if NATIVE_ACCEL_API_VERSION != NATIVE_ACCEL_API:
+        NATIVE_ACCEL_BACKEND = "viper-api-mismatch"
+    elif (not callable(getattr(_cartest_accel_module,
+                               "region_segments", None)) or
+          not callable(getattr(_cartest_accel_module,
+                               "internal_component", None))):
+        NATIVE_ACCEL_BACKEND = "viper-methods-incomplete"
+    else:
+        _NATIVE_ACCEL = _cartest_accel_module
+        NATIVE_ACCEL_BACKEND = "cartest_accel-api1"
+
+
 @micropython.viper
 def _region_segments_viper(self, floor: int) -> int:
     """Validate rows and record contiguous fully-known bands.
@@ -578,6 +603,48 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                     x = seed_right + 1
             start_x += 1
     return 0
+
+
+def _region_segments_dispatch(self, floor):
+    native = _NATIVE_ACCEL
+    if native is not None and self.width == 80 and self.height == 60:
+        # Do not catch native validation exceptions: the calling main loop must
+        # fail closed instead of retrying with a less defensive kernel.
+        return native.region_segments(
+            self._current_mask,
+            self._current_known,
+            self._current_rows,
+            floor,
+            self._trusted_rows,
+            self._segment_starts,
+            self._segment_ends,
+            self._segment_count_buffer)
+    if _IS_MICROPYTHON:
+        return _region_segments_viper(self, floor)
+    return self._region_segments_host(floor)
+
+
+def _internal_component_dispatch(self, floor, band_end):
+    native = _NATIVE_ACCEL
+    if native is not None and self.width == 80 and self.height == 60:
+        # The native binding validates all exact buffer types, lengths, and
+        # settings before entering C. Any rejection propagates to main.
+        return native.internal_component(
+            self._current_mask,
+            self._visited,
+            self._visit_epoch,
+            self._queue,
+            floor,
+            band_end,
+            self._queue_capacity,
+            self.component_min_area,
+            self.component_max_area,
+            self.component_min_extent,
+            self.component_max_extent,
+            self.hole_min_area)
+    if _IS_MICROPYTHON:
+        return _internal_component_viper(self, floor, band_end)
+    return self._internal_component_runs_host(floor, band_end)
 
 
 def _value(settings, name, default):
@@ -1114,11 +1181,12 @@ class FastTopologyGuard:
         self._current_known = known_region
         self._current_rows = row_counts
         self._current_floor = floor
-        if _IS_MICROPYTHON:
-            complete = _region_segments_viper(self, floor)
+        use_native_accel = (
+            _NATIVE_ACCEL is not None and
+            self.width == 80 and self.height == 60)
+        complete = _region_segments_dispatch(self, floor)
+        if _IS_MICROPYTHON or use_native_accel:
             self._trusted_row_count = self._segment_count_buffer[1]
-        else:
-            complete = self._region_segments_host(floor)
         if complete == -2:
             self._segment_count_buffer[0] = 0
             return self._set_result(False, False, "UNKNOWN_REGION",
@@ -1130,7 +1198,7 @@ class FastTopologyGuard:
             return self._set_result(False, False, "UNKNOWN_REGION",
                                     ambiguous=True)
 
-        if not _IS_MICROPYTHON:
+        if not _IS_MICROPYTHON and not use_native_accel:
             for y in range(floor, self.height):
                 if self._trusted_rows[y]:
                     self._trusted_row_count += 1
@@ -1145,12 +1213,8 @@ class FastTopologyGuard:
                 return self._set_result(False, False, "KERNEL_BOUNDS")
             self._current_floor = segment_floor
             self._current_band_end = segment_end
-            if _IS_MICROPYTHON:
-                segment_island = _internal_component_viper(
-                    self, segment_floor, segment_end)
-            else:
-                segment_island = self._internal_component_runs_host(
-                    segment_floor, segment_end)
+            segment_island = _internal_component_dispatch(
+                self, segment_floor, segment_end)
             if segment_island < 0:
                 return self._set_result(False, False, "KERNEL_BOUNDS")
             if segment_island:

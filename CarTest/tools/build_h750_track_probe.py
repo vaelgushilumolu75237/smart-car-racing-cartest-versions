@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Generate a RAM-only, fail-closed H750 camera full-loop probe script.
 
-The generated script imports the explicit 20-file production runtime already
-staged on the camera. It captures real 320x120 sensor frames, injects a
-synthetic reverse lease for camera observer coverage, and writes only invalid
-V3/ACK0 packets through synchronous UART.write. It is not a Follow acceptance
-test and does not flash, upload, write camera storage, or start the vehicle.
+The generated script imports the explicit 23-file production runtime already
+staged on the camera. It captures real 320x120 sensor frames through the native
+preview source, enables the production Gray/CRC8 frame marker for visible
+cadence checks, injects a synthetic parked B/C profile preamble followed by
+an active lease after ten parked profile samples, and writes only CRC-correct
+invalid V3/ACK0 packets through the production UART writer by default. The
+optional synchronous mode preserves the earlier UART.write comparison. It
+verifies the landed ring-width map and its production startup check. It is not
+a Follow acceptance test and does not flash, upload, write camera storage, or
+start the vehicle.
 """
 
 from __future__ import annotations
@@ -24,8 +29,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OPENMV_ROOT = PROJECT_ROOT / "openmv"
 DEFAULT_OUTPUT_ROOT = (PROJECT_ROOT / "logs" /
                        "h750-track-probe-20261025" / "stagedbench")
-INACTIVE_EXTRA_MODULES = {"fast_ring_slope.py"}
 PROFILE_IDS = {"B": 2, "C": 3}
+EXPECTED_RUNTIME_MODULE_COUNT = 23
+PARKED_PROFILE_STATUS_FRAMES = 10
 RUN_SECONDS = 35
 REPORT_LINE_MAX_UTF8_BYTES = 850
 REPORT_STATS_PER_LINE = 8
@@ -34,7 +40,13 @@ REPORT_CRC_TAIL_MAX_UTF8_BYTES = 96
 
 STAT_NAMES = (
     "sensor_snapshots",
-    "sensor_flushes",
+    "native_preview_source_verified",
+    "preview_marker_enabled",
+    "native_preview_active_frames",
+    "native_preview_headless_frames",
+    "native_preview_flush_calls",
+    "native_preview_publish_successes",
+    "native_preview_publish_failures",
     "computed_packets",
     "computed_v3_packets",
     "computed_crc_valid_packets",
@@ -45,17 +57,28 @@ STAT_NAMES = (
     "computed_other_ack_packets",
     "invalid_wire_attempts",
     "invalid_wire_frames",
-    "invalid_wire_full_writes",
-    "invalid_wire_short_writes",
+    "invalid_wire_full_accepts",
+    "invalid_wire_short_accepts",
     "invalid_wire_errors",
     "invalid_wire_crc_valid_frames",
     "invalid_wire_forced_invalid_frames",
     "invalid_wire_ack_zero_frames",
+    "invalid_wire_fifo_queued_frames",
+    "invalid_wire_sync_fallback_frames",
+    "invalid_wire_sync_baseline_frames",
+    "invalid_wire_fifo_txdone_checks",
+    "invalid_wire_fifo_txdone_true",
+    "invalid_wire_fifo_txdone_false",
+    "invalid_wire_fifo_txdone_errors",
     "real_uart_rx_discarded_bytes",
     "real_uart_rx_discard_reads",
     "synthetic_reset_frames",
     "synthetic_keep_frames",
     "synthetic_profile_frames",
+    "synthetic_inactive_profile_frames",
+    "synthetic_active_profile_frames",
+    "sensor_identity_verified",
+    "landed_calibration_ready",
     "usb_connection_polls",
     "usb_disconnected_polls",
     "main_stdout_calls_suppressed",
@@ -65,9 +88,35 @@ STAT_NAMES = (
 )
 STAT_INDEX = {name: index for index, name in enumerate(STAT_NAMES)}
 
+CALIBRATION_PROOF_HELPER = r'''def _verify_calibration_probe_proof(stats, stat_index):
+    if stats[stat_index["sensor_identity_verified"]] != 1:
+        raise RuntimeError("probe did not verify the real camera sensor identity")
+    if stats[stat_index["native_preview_source_verified"]] != 1:
+        raise RuntimeError("probe did not verify the native preview source")
+    if stats[stat_index["preview_marker_enabled"]] != 1:
+        raise RuntimeError("probe did not enable the visible frame marker")
+    if stats[stat_index["landed_calibration_ready"]] != 1:
+        raise RuntimeError("landed ring-width calibration is not ready")
+    if stats[stat_index["synthetic_inactive_profile_frames"]] < 10:
+        raise RuntimeError("probe did not send ten inactive profile states")
+    if stats[stat_index["synthetic_active_profile_frames"]] < 1:
+        raise RuntimeError("probe did not transition to an active profile")
+    if stats[stat_index["computed_expected_ack_packets"]] == 0:
+        raise RuntimeError(
+            "parked calibration startup check did not unlock the active profile")
+    snapshots = stats[stat_index["sensor_snapshots"]]
+    preview_states = (
+        stats[stat_index["native_preview_active_frames"]] +
+        stats[stat_index["native_preview_headless_frames"]])
+    if snapshots == 0 or preview_states != snapshots:
+        raise RuntimeError("native preview capture state accounting is incomplete")
+    return True
+'''
+
 RUNTIME_IMPORT_HELPERS = r'''_CAMERA_ROOT = __CAMERA_ROOT__
 _RUNTIME_MODULES = __RUNTIME_NAMES__
 _MODULE_HASHES = __MODULE_HASHES__
+_EXPECTED_RUNTIME_MODULE_COUNT = __EXPECTED_RUNTIME_MODULE_COUNT__
 
 
 def _sha256_hex(digest):
@@ -123,17 +172,31 @@ _verify_loaded_module_paths()
 
 # This code is inserted verbatim into the MicroPython runner and is also
 # executed by host tests. Keep it free of imports, annotations and f-strings.
-WIRE_HELPERS = r'''@micropython.native
-def _crc16_ccitt_false(data, start, end):
+# Reuse the production Viper CRC's 16-entry table instead of doing 112 Python
+# bit iterations twice per frame (computed packet check + invalid repack).
+WIRE_HELPERS = r'''_CRC16_NIBBLE_TABLE_ARRAY = (
+    main._SteeringDiagBuffer._CRC16_NIBBLE_TABLE_ARRAY)
+
+
+@micropython.viper
+def _crc16_ccitt_false_viper(data_object, start: int, end: int,
+                             table_object) -> int:
+    data = ptr8(data_object)
+    table = ptr16(table_object)
     crc = 0xFFFF
-    for index in range(start, end):
-        crc ^= int(data[index]) << 8
-        for _bit in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
+    index = start
+    while index < end:
+        crc = crc ^ (data[index] << 8)
+        crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
+        crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
+        index += 1
     return crc
+
+
+@micropython.native
+def _crc16_ccitt_false(data, start, end):
+    return _crc16_ccitt_false_viper(
+        data, start, end, _CRC16_NIBBLE_TABLE_ARRAY)
 
 
 @micropython.native
@@ -188,6 +251,8 @@ def _pack_invalid_v3(out, sequence):
 
 SYNTHETIC_REVERSE_HELPER = r'''class _SyntheticReverseInput:
     """Independent V1/V2 lease source; live UART RX is drained and discarded."""
+    PARKED_PROFILE_STATUS_FRAMES = 10
+
     def __init__(self, physical_uart, reverse_module, time_module,
                  stats, stat_index, profile_id, sequence_seed=0xFFFE):
         self.physical_uart = physical_uart
@@ -203,6 +268,7 @@ SYNTHETIC_REVERSE_HELPER = r'''class _SyntheticReverseInput:
         self.reset_pending = True
         self.control_sequence = 0
         self.profile_sequence = sequence_seed & 0xFFFF
+        self.profile_status_frames_sent = 0
         now = self.time.ticks_ms()
         self.next_keep_ms = self.time.ticks_add(now, 50)
         self.next_profile_ms = now
@@ -259,15 +325,20 @@ SYNTHETIC_REVERSE_HELPER = r'''class _SyntheticReverseInput:
             self._increment("synthetic_keep_frames")
 
         if self.time.ticks_diff(now, self.next_profile_ms) >= 0:
+            active = (self.profile_status_frames_sent >=
+                      self.PARKED_PROFILE_STATUS_FRAMES)
             self._append(self.reverse.pack_profile_state(
                 self.profile_sequence, self.profile_id,
-                flags=self.reverse.PROFILE_SESSION_ACTIVE,
+                flags=(self.reverse.PROFILE_SESSION_ACTIVE if active else 0),
                 revision=self.reverse.PROFILE_REVISION,
-                session_token=1,
+                session_token=(1 if active else 0),
                 mean_forward_wheel_millirev=0))
             self.profile_sequence = (self.profile_sequence + 1) & 0xFFFF
             self.next_profile_ms = self.time.ticks_add(now, 100)
+            self.profile_status_frames_sent += 1
             self._increment("synthetic_profile_frames")
+            self._increment("synthetic_active_profile_frames" if active else
+                            "synthetic_inactive_profile_frames")
 
     def any(self):
         self._discard_live_rx()
@@ -290,15 +361,23 @@ SYNTHETIC_REVERSE_HELPER = r'''class _SyntheticReverseInput:
 '''
 
 SAFE_UART_HELPER = r'''class _SafeInvalidUART:
-    """Real synchronous UART writer, but every transmitted frame is invalid."""
+    """Send only invalid ACK0 frames through the selected real UART path."""
     WIRE_SEQUENCE_SEED = 0xB000
 
-    def __init__(self, physical_uart, synthetic_input, profile_id):
+    def __init__(self, physical_uart, synthetic_input, profile_id,
+                 uart_mode):
+        if uart_mode not in ("production", "synchronous"):
+            raise ValueError("uart mode must be production or synchronous")
         self.physical_uart = physical_uart
         self.synthetic_input = synthetic_input
         self.profile_id = profile_id
+        self.uart_mode = uart_mode
+        self.writer = (main._VisionUARTWriter(physical_uart)
+                       if uart_mode == "production" else None)
         self.wire_sequence = self.WIRE_SEQUENCE_SEED
         self.wire_buffer = bytearray(16)
+        self._finished = False
+        self._txdone_result = None
 
     def write(self, computed_packet):
         _stats[_STAT_INDEX["computed_packets"]] += 1
@@ -331,16 +410,56 @@ SAFE_UART_HELPER = r'''class _SafeInvalidUART:
             _stats[_STAT_INDEX["invalid_wire_forced_invalid_frames"]] += 1
             _stats[_STAT_INDEX["invalid_wire_ack_zero_frames"]] += 1
         try:
-            # Deliberately bypass _VisionUARTWriter/FIFO APIs.
-            written = self.physical_uart.write(self.wire_buffer)
+            if self.uart_mode == "synchronous":
+                written = self.physical_uart.write(self.wire_buffer)
+                _stats[_STAT_INDEX[
+                    "invalid_wire_sync_baseline_frames"]] += 1
+            else:
+                written = self.writer.write(self.wire_buffer)
+                if self.writer.mode == self.writer.FIFO_QUEUED:
+                    _stats[_STAT_INDEX[
+                        "invalid_wire_fifo_queued_frames"]] += 1
+                elif self.writer.mode == self.writer.SYNCHRONOUS_FALLBACK:
+                    _stats[_STAT_INDEX[
+                        "invalid_wire_sync_fallback_frames"]] += 1
+                else:
+                    raise RuntimeError("unknown production UART writer mode")
         except Exception:
             _stats[_STAT_INDEX["invalid_wire_errors"]] += 1
             raise
         if type(written) is int and written == len(self.wire_buffer):
-            _stats[_STAT_INDEX["invalid_wire_full_writes"]] += 1
+            _stats[_STAT_INDEX["invalid_wire_full_accepts"]] += 1
         else:
-            _stats[_STAT_INDEX["invalid_wire_short_writes"]] += 1
+            _stats[_STAT_INDEX["invalid_wire_short_accepts"]] += 1
         return written
+
+    def finish(self):
+        """Check queued transmit completion once, outside the frame loop."""
+        if self._finished:
+            return self._txdone_result
+        self._finished = True
+        if (self.writer is None or
+                self.writer.mode != self.writer.FIFO_QUEUED):
+            return None
+        _stats[_STAT_INDEX["invalid_wire_fifo_txdone_checks"]] += 1
+        try:
+            txdone = self.writer.fifo_txdone()
+        except Exception:
+            _stats[_STAT_INDEX[
+                "invalid_wire_fifo_txdone_errors"]] += 1
+            self._txdone_result = "ERROR"
+            return self._txdone_result
+        if txdone is True:
+            _stats[_STAT_INDEX["invalid_wire_fifo_txdone_true"]] += 1
+            self._txdone_result = True
+            return self._txdone_result
+        if txdone is False:
+            _stats[_STAT_INDEX["invalid_wire_fifo_txdone_false"]] += 1
+            self._txdone_result = False
+            return self._txdone_result
+        _stats[_STAT_INDEX["invalid_wire_fifo_txdone_errors"]] += 1
+        self._txdone_result = "INVALID_RESULT"
+        return self._txdone_result
 
     def any(self):
         return self.synthetic_input.any()
@@ -358,10 +477,13 @@ WINDOW_HELPERS = r'''class _BoundedWindowTable:
         "heap_alloc_max", "heap_free_last", "heap_alloc_last",
         "attempted_by_loop")
     EXTRA_NAMES = (
-        "sensor_snapshots", "computed_valid_flag_packets",
-        "invalid_wire_frames", "invalid_wire_full_writes",
-        "real_uart_rx_discarded_bytes", "synthetic_keep_frames",
-        "synthetic_profile_frames", "usb_disconnected_polls")
+        "sensor_snapshots",
+        "invalid_wire_frames", "invalid_wire_full_accepts",
+        "synthetic_keep_frames", "synthetic_profile_frames",
+        "native_preview_active_frames", "native_preview_headless_frames",
+        "native_preview_flush_calls",
+        "native_preview_publish_successes",
+        "native_preview_publish_failures")
 
     def __init__(self, stages, stats, stat_index):
         self.stages = tuple(stages)
@@ -458,22 +580,46 @@ def _validate_report_lines(lines, stat_count, stage_count):
     if len(lines) > line_limit:
         raise RuntimeError("probe report line count exceeds fixed bound")
     for line in lines:
-        if len(line.encode("utf-8")) > _REPORT_LINE_MAX_UTF8_BYTES:
-            raise RuntimeError("probe report line exceeds 850 UTF-8 bytes")
+        line_bytes = len(line.encode("utf-8"))
+        if line_bytes > _REPORT_LINE_MAX_UTF8_BYTES:
+            raise RuntimeError(
+                "probe report line exceeds 850 UTF-8 bytes: %d (%s)" % (
+                    line_bytes, line[:64]))
     return lines
 
 
 def _build_report_lines(profile_label, profile_id, stats, stat_names,
                         windows, window_ms, module_count, error_text,
-                        usb_seen_disconnected):
+                        usb_seen_disconnected, uart_mode="production"):
+    stat_index = {name: index for index, name in enumerate(stat_names)}
+    if error_text:
+        while len(error_text.encode("utf-8")) > 96:
+            error_text = error_text[:-1]
+    if stats[stat_index["invalid_wire_fifo_txdone_true"]]:
+        txdone_result = "true"
+    elif stats[stat_index["invalid_wire_fifo_txdone_false"]]:
+        txdone_result = "false"
+    elif stats[stat_index["invalid_wire_fifo_txdone_errors"]]:
+        txdone_result = "error"
+    else:
+        txdone_result = "not_checked"
     lines = [("H750_TRACK_PROBE scope=real_sensor+synthetic_reverse+"
               "invalid_real_uart production_valid_control=0 "
               "full_follow_acceptance=0 profile=%s/%d duration_s=35 "
-              "sensor=320x120 modules=%d synthetic_session_active=1 "
+              "sensor=320x120 modules=%d profile_sequence=10parked_then_active "
+              "preview_source=native marker=gray24crc8_opt_in "
               "token=1 odometry_millirev=0 wire=V3-invalid-ACK0 "
-              "sync_uart_write=1 probe_wrapper=crc_inspect+invalid_repack "
+              "uart_mode=%s fifo_queued=%d sync_fallback=%d "
+              "sync_baseline=%d fifo_txdone=%s txdone_checks=%d "
+              "probe_wrapper=viper_crc_inspect+invalid_repack "
               "cdc_detached_observed=%d error=%s" % (
                   profile_label, profile_id, module_count,
+                  uart_mode,
+                  stats[stat_index["invalid_wire_fifo_queued_frames"]],
+                  stats[stat_index["invalid_wire_sync_fallback_frames"]],
+                  stats[stat_index["invalid_wire_sync_baseline_frames"]],
+                  txdone_result,
+                  stats[stat_index["invalid_wire_fifo_txdone_checks"]],
                   1 if usb_seen_disconnected else 0,
                   error_text if error_text else "none"))]
     stats_per_line = _REPORT_STATS_PER_LINE
@@ -540,6 +686,7 @@ def render_window_helpers() -> str:
 
 PROBE_BODY = r'''_PROFILE_ID = __PROFILE_ID__
 _PROFILE_LABEL = "__PROFILE_LABEL__"
+_UART_MODE = "__UART_MODE__"
 _RUN_ID = 20261025
 _RUN_SECONDS = 35
 _MAX_RECONNECT_WAIT_MS = 120000
@@ -557,34 +704,34 @@ _usb_seen_disconnected = False
 _report_dumped = False
 
 
-class _RealSensorSource:
+class _RealSensorSource(main._NativeUSBPreviewSource):
     name = "H750_REAL_SENSOR_320X120"
+    USB_PREVIEW_SOURCE_API = 1
 
-    def __init__(self, sensor_module, usb_vcp):
-        self.sensor = sensor_module
-        self.usb_vcp = usb_vcp
-        self._image = None
-        self._last_usb_poll_ms = None
+    def __init__(self, sensor_module, usb_vcp, enabled, quality):
+        main._NativeUSBPreviewSource.__init__(
+            self, sensor_module, usb_vcp, enabled, quality)
 
     def snapshot(self):
-        image = self.sensor.snapshot()
-        self._image = image
+        global _usb_seen_disconnected
+        image = main._NativeUSBPreviewSource.snapshot(self)
         _stats[_STAT_INDEX["sensor_snapshots"]] += 1
+        _stats[_STAT_INDEX["usb_connection_polls"]] += 1
+        if self.frame_preview_active:
+            _stats[_STAT_INDEX["native_preview_active_frames"]] += 1
+        else:
+            _usb_seen_disconnected = True
+            _stats[_STAT_INDEX["native_preview_headless_frames"]] += 1
+            _stats[_STAT_INDEX["usb_disconnected_polls"]] += 1
         return image
 
     def flush(self):
-        global _usb_seen_disconnected
-        self.sensor.flush()
-        _stats[_STAT_INDEX["sensor_flushes"]] += 1
-        now = time.ticks_ms()
-        if (self._last_usb_poll_ms is None or
-                time.ticks_diff(now, self._last_usb_poll_ms) >= 1000):
-            self._last_usb_poll_ms = now
-            _stats[_STAT_INDEX["usb_connection_polls"]] += 1
-            if not self.usb_vcp.isconnected():
-                _usb_seen_disconnected = True
-                _stats[_STAT_INDEX["usb_disconnected_polls"]] += 1
-        self._image = None
+        main._NativeUSBPreviewSource.flush(self)
+        _stats[_STAT_INDEX["native_preview_flush_calls"]] += 1
+        if self.last_state == "NATIVE_ACTIVE":
+            _stats[_STAT_INDEX["native_preview_publish_successes"]] += 1
+        elif self.last_state == "NATIVE_ERROR":
+            _stats[_STAT_INDEX["native_preview_publish_failures"]] += 1
 
 
 def _record_window(perf, run_id, window_index, attempted, queue=None):
@@ -616,7 +763,7 @@ def _dump_h750_track_probe_report():
     lines = _build_report_lines(
         _PROFILE_LABEL, _PROFILE_ID, _stats, _STAT_NAMES, _windows,
         config.PERF_WINDOW_MS, len(_RUNTIME_MODULES), _error_text,
-        _usb_seen_disconnected)
+        _usb_seen_disconnected, _UART_MODE)
     payload = ("\n".join(lines) + "\n").encode("utf-8")
     checksum = _crc32_iso_hdlc(payload)
     for line in lines:
@@ -646,28 +793,56 @@ try:
         raise ValueError("probe profile must be B or C")
     if config.IMAGE_WIDTH != 320 or config.IMAGE_HEIGHT != 120:
         raise RuntimeError("probe requires the production 320x120 crop")
-    if len(_RUNTIME_MODULES) != 20:
-        raise RuntimeError("probe requires the explicit 20-module runtime")
-    if not callable(getattr(sensor, "flush", None)):
-        raise RuntimeError("factory sensor.flush() is required")
+    if len(_RUNTIME_MODULES) != _EXPECTED_RUNTIME_MODULE_COUNT:
+        raise RuntimeError("probe requires the explicit 23-module runtime")
+    if config.RING_WIDTH_CALIBRATION_REQUIRED is not True:
+        raise RuntimeError("probe requires production ring calibration gating")
+    if not callable(getattr(main, "_NativeUSBPreviewSource", None)):
+        raise RuntimeError("production native USB preview source is missing")
+    if not callable(getattr(main, "_native_preview_control_api_available", None)):
+        raise RuntimeError("native preview control API check is missing")
+    if not main._native_preview_control_api_available():
+        raise RuntimeError("native preview firmware API markers are missing")
+    if config.USB_PREVIEW_ENABLED is not True:
+        raise RuntimeError("native preview probe requires USB preview enabled")
+    if type(config.PREVIEW_FPS_MARKER_ENABLED) is not bool:
+        raise RuntimeError("visible frame marker setting must be bool")
     _probe_usb = pyb.USB_VCP()
     if not callable(getattr(_probe_usb, "isconnected", None)):
         raise RuntimeError("USB_VCP.isconnected() is required for bounded output")
 
-    # This order is intentional: configure the real sensor before the wrapper
-    # can make its first sensor.snapshot() call in _main_fast.
-    main._configure_gray_sensor(sensor, fast=True)
+    # Configure and identify the actual sensor before fixture mode starts.
+    # _main_fast receives this measured ID through its explicit fixture API so
+    # fixture mode cannot bypass the production calibration sensor check.
+    _probe_sensor_id = main._configure_gray_sensor(sensor, fast=True)
+    if (isinstance(_probe_sensor_id, bool) or
+            not isinstance(_probe_sensor_id, int) or
+            _probe_sensor_id != main.ring_width_calibration.SENSOR_ID):
+        raise RuntimeError("probe camera sensor identity mismatch")
+    _stats[_STAT_INDEX["sensor_identity_verified"]] = 1
+    _landed_calibration = (
+        main.ring_width_calibration.RingWidthCalibration.load(
+            config.RING_WIDTH_CALIBRATION_PATH))
+    if not _landed_calibration.ready:
+        raise RuntimeError("landed ring calibration not ready: " +
+                           str(_landed_calibration.reason))
+    _stats[_STAT_INDEX["landed_calibration_ready"]] = 1
     _probe_uart = pyb.UART(
         config.UART_ID, config.UART_BAUDRATE, bits=config.UART_BITS,
         parity=None, stop=config.UART_STOP_BITS,
         timeout=config.UART_TIMEOUT_MS,
         timeout_char=config.UART_CHAR_TIMEOUT_MS)
-    _probe_source = _RealSensorSource(sensor, _probe_usb)
+    _probe_source = _RealSensorSource(
+        sensor, _probe_usb, config.USB_PREVIEW_ENABLED,
+        config.USB_PREVIEW_QUALITY)
+    if not main._is_native_usb_preview_source(_probe_source):
+        raise RuntimeError("probe source did not satisfy native preview API")
+    _stats[_STAT_INDEX["native_preview_source_verified"]] = 1
     _synthetic_input = _SyntheticReverseInput(
         _probe_uart, reverse_control, time, _stats, _STAT_INDEX,
         _PROFILE_ID)
     _probe_sink = _SafeInvalidUART(
-        _probe_uart, _synthetic_input, _PROFILE_ID)
+        _probe_uart, _synthetic_input, _PROFILE_ID, _UART_MODE)
     _windows = _BoundedWindowTable(
         main._V7_PERF_STAGES, _stats, _STAT_INDEX)
 
@@ -675,22 +850,31 @@ try:
     _had_print = hasattr(main, "print")
     _original_summary = main._print_v7_summary
     _original_queue = main._V7SummaryQueue
+    _original_marker_setting = config.PREVIEW_FPS_MARKER_ENABLED
     main.print = _suppress_main_stdout
     main._print_v7_summary = _record_window
     main._V7SummaryQueue = _NoSummaryQueue
+    # The normal application leaves this opt-in diagnostic disabled. Enable
+    # the actual production marker renderer for this visible-cadence probe.
+    config.PREVIEW_FPS_MARKER_ENABLED = True
+    _stats[_STAT_INDEX["preview_marker_enabled"]] = 1
     try:
         main._main_fast(
             duration_s=_RUN_SECONDS,
             run_id=_RUN_ID,
             frame_source=_probe_source,
-            uart_sink=_probe_sink)
+            uart_sink=_probe_sink,
+            fixture_sensor_id=_probe_sensor_id)
     finally:
+        _probe_sink.finish()
+        config.PREVIEW_FPS_MARKER_ENABLED = _original_marker_setting
         main._print_v7_summary = _original_summary
         main._V7SummaryQueue = _original_queue
         if _had_print:
             main.print = _original_print
         elif hasattr(main, "print"):
             del main.print
+    _verify_calibration_probe_proof(_stats, _STAT_INDEX)
 except Exception as _exc:
     _error_text = type(_exc).__name__ + ":" + str(_exc)
     if len(_error_text) > 96:
@@ -700,7 +884,9 @@ finally:
         "profile": _PROFILE_LABEL,
         "profile_id": _PROFILE_ID,
         "duration_s": _RUN_SECONDS,
-        "scope": "real_sensor+synthetic_reverse+invalid_real_uart",
+        "scope": "real_sensor+native_usb_preview+synthetic_reverse+invalid_real_uart",
+        "preview_source_api": 1,
+        "preview_marker": "gray24crc8_opt_in",
         "production_valid_control": False,
         "stats": _stats,
         "stat_names": _STAT_NAMES,
@@ -730,7 +916,11 @@ finally:
 
 
 def verify_runtime_root(runtime_root: Path) -> dict[str, str]:
-    """Check the explicit active module set; ignore only inactive slope file."""
+    """Check the exact explicit 23-module production runtime allowlist."""
+    if len(RUNTIME_NAMES) != EXPECTED_RUNTIME_MODULE_COUNT:
+        raise ValueError(
+            "production runtime allowlist has %d modules; expected %d" % (
+                len(RUNTIME_NAMES), EXPECTED_RUNTIME_MODULE_COUNT))
     runtime_root = Path(runtime_root)
     if not runtime_root.is_dir():
         raise FileNotFoundError("runtime directory not found: %s" % runtime_root)
@@ -740,12 +930,11 @@ def verify_runtime_root(runtime_root: Path) -> dict[str, str]:
                if not (runtime_root / name).is_file()]
     if missing:
         raise FileNotFoundError("runtime files missing: " + ", ".join(missing))
-    allowed = expected | INACTIVE_EXTRA_MODULES
-    if actual_py != expected and actual_py != allowed:
+    if actual_py != expected:
         raise ValueError(
-            "runtime directory must contain the exact 20-module allowlist "
-            "(only inactive fast_ring_slope.py may be extra); "
+            "runtime directory must contain the exact %d-module allowlist; "
             "missing=%r extra=%r" % (
+                EXPECTED_RUNTIME_MODULE_COUNT,
                 sorted(expected - actual_py), sorted(actual_py - expected)))
     return {name: hashlib.sha256(
         (runtime_root / name).read_bytes()).hexdigest()
@@ -778,11 +967,14 @@ def _camera_root_argument(value: str) -> str:
 
 def build_probe_source(runtime_root: Path = OPENMV_ROOT,
                        profile: str = "B",
-                       camera_root: str | None = None) -> str:
+                       camera_root: str | None = None,
+                       uart_mode: str = "production") -> str:
     """Build a small runner; production module source is never embedded."""
     profile = str(profile).upper()
     if profile not in PROFILE_IDS:
         raise ValueError("profile must be B or C")
+    if uart_mode not in ("production", "synchronous"):
+        raise ValueError("uart_mode must be production or synchronous")
     if camera_root is None:
         raise ValueError("camera_root is required for fail-closed imports")
     camera_root = validate_camera_root(camera_root)
@@ -790,10 +982,13 @@ def build_probe_source(runtime_root: Path = OPENMV_ROOT,
     import_helpers = (RUNTIME_IMPORT_HELPERS
                       .replace("__CAMERA_ROOT__", repr(camera_root))
                       .replace("__RUNTIME_NAMES__", repr(tuple(RUNTIME_NAMES)))
+                      .replace("__EXPECTED_RUNTIME_MODULE_COUNT__",
+                               str(EXPECTED_RUNTIME_MODULE_COUNT))
                       .replace("__MODULE_HASHES__", repr(module_hashes)))
     body = (PROBE_BODY
             .replace("__PROFILE_ID__", str(PROFILE_IDS[profile]))
             .replace("__PROFILE_LABEL__", profile)
+            .replace("__UART_MODE__", uart_mode)
             .replace("__STAT_NAMES__", repr(STAT_NAMES))
             .replace("__STAT_INDEX__", repr(STAT_INDEX)))
     source = "\n".join((
@@ -804,6 +999,7 @@ def build_probe_source(runtime_root: Path = OPENMV_ROOT,
         "import pyb, sensor, uhashlib, micropython",
         import_helpers.rstrip(),
         RUNTIME_IMPORT_BOOTSTRAP.rstrip(),
+        CALIBRATION_PROOF_HELPER.rstrip(),
         WIRE_HELPERS.rstrip(),
         SYNTHETIC_REVERSE_HELPER.rstrip(),
         SAFE_UART_HELPER.rstrip(),
@@ -819,8 +1015,12 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("B", "C"), default="B",
                         help="synthetic camera profile lease (default B)")
+    parser.add_argument("--uart-mode", choices=("production", "synchronous"),
+                        default="production",
+                        help=("production uses main._VisionUARTWriter; "
+                              "synchronous selects the direct UART.write baseline"))
     parser.add_argument("--runtime-root", type=Path, default=OPENMV_ROOT,
-                        help="exact staged 20-module OpenMV runtime directory")
+                        help="exact staged 23-module OpenMV runtime directory")
     parser.add_argument("--camera-root", required=True,
                         type=_camera_root_argument,
                         help="explicit POSIX import directory on camera, below /flash")
@@ -829,9 +1029,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     hashes = verify_runtime_root(args.runtime_root)
     source = build_probe_source(args.runtime_root, args.profile,
-                                args.camera_root)
-    output = args.output or (DEFAULT_OUTPUT_ROOT /
-                             ("h750-track-probe-%s.py" % args.profile))
+                                args.camera_root, args.uart_mode)
+    output_name = "h750-track-probe-%s.py" % args.profile
+    if args.uart_mode == "synchronous":
+        output_name = "h750-track-probe-%s-synchronous.py" % args.profile
+    output = args.output or (DEFAULT_OUTPUT_ROOT / output_name)
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     source_bytes = source.encode("utf-8")
@@ -844,8 +1046,10 @@ def main(argv=None) -> int:
     print("runtime_source_hashes=")
     for name in RUNTIME_NAMES:
         print("  %s %s" % (name, hashes[name]))
-    print("scope=real_sensor+synthetic_reverse+invalid_real_uart; "
-          "production_valid_control=0; no upload/flash/vehicle start")
+    print("scope=real_sensor+native_usb_preview+synthetic_reverse+"
+          "invalid_real_uart; uart_mode=%s; marker=gray24crc8_opt_in; "
+          "production_valid_control=0; no upload/flash/vehicle start" %
+          args.uart_mode)
     return 0
 
 

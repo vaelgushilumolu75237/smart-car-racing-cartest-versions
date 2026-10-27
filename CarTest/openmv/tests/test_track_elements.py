@@ -29,9 +29,9 @@ class TrackElementsHarness:
             "TRACK_ELEMENTS_MIN_STABLE_FRAMES": 3,
             "TRACK_ELEMENTS_MIN_DROP_FRAMES": 2,
             "TRACK_ELEMENTS_EXIT_DROP_FRAMES": 2,
-            "TRACK_ELEMENTS_EXIT_CONFIRM_FRAMES": 2,
+            "TRACK_ELEMENTS_EXIT_CONFIRM_FRAMES": 3,
             "TRACK_ELEMENTS_EXIT_REPAIR_FRAMES": 2,
-            "TRACK_ELEMENTS_REACQUIRE_FRAMES": 2,
+            "TRACK_ELEMENTS_REACQUIRE_FRAMES": 3,
             "TRACK_ELEMENTS_MIN_SIDE_SUPPORT": 5,
             "TRACK_ELEMENTS_MIN_SIDE_CONTIGUOUS": 4,
             "TRACK_ELEMENTS_MAX_ACTIVE_FRAMES": 40,
@@ -40,7 +40,7 @@ class TrackElementsHarness:
         }
         if settings:
             base.update(settings)
-        self.tracker = te.TrackElementsTracker(base)
+        self.tracker = te.TrackElementsTracker(base, require_calibration=False)
         self.cache_valid = bytearray(60)
         self.cache_width = array("i", [0] * 60)
         self.cache_left2 = array("i", [0] * 60)
@@ -174,6 +174,34 @@ class TrackElementsHarness:
 
 
 class TrackElementsTests(unittest.TestCase):
+    def test_inactive_publish_refreshes_derived_outputs_after_fast_clear(self):
+        h = TrackElementsHarness()
+        result = h.complete_left_ring()
+        self.assertTrue(result["ring_confirmed"])
+
+        # These values are derived by _publish/_sync_ring_diagnostic. Poison
+        # them to prove an inactive early return still refreshes the public
+        # view after _clear_frame_output stops redundantly assigning them.
+        result["candidate"] = True
+        result["ring_confirmed"] = True
+        result["control_eligible"] = True
+        result["target_side_name"] = "RIGHT"
+        result["ring_diagnostic_reason"] = "STALE"
+        result["ring_arc_support_rows"] = 99
+        result["ring_exit_residual_x2"] = 99
+        result["state_elapsed_ms"] = 999
+
+        result = h.frame(active=False)
+        self.assertEqual(result["reason"], "SESSION_INACTIVE")
+        self.assertFalse(result["candidate"])
+        self.assertFalse(result["ring_confirmed"])
+        self.assertFalse(result["control_eligible"])
+        self.assertEqual(result["target_side_name"], "NONE")
+        self.assertEqual(result["ring_diagnostic_reason"], "NONE")
+        self.assertEqual(result["ring_arc_support_rows"], 0)
+        self.assertEqual(result["ring_exit_residual_x2"], -1)
+        self.assertEqual(result["state_elapsed_ms"], 300)
+
     def test_left_and_right_ring_sequences_are_mirrored(self):
         left = TrackElementsHarness()
         left_result = left.complete_left_ring()
@@ -188,6 +216,74 @@ class TrackElementsTests(unittest.TestCase):
         self.assertTrue(right_result["ring_confirmed"])
         self.assertTrue(right_result["control_eligible"])
         self.assertEqual(right_result["side"], te.SIDE_RIGHT)
+
+    def test_entry_dropout_single_scan_preserves_mirrored_guards(self):
+        straight = TrackElementsHarness()
+        straight.prime()
+        self.assertEqual(straight.tracker._find_entry_dropout_side(),
+                         te.SIDE_NONE)
+        self.assertEqual(straight.tracker._ring_diag_arc_rows, 0)
+        self.assertGreaterEqual(straight.tracker._ring_diag_anchor_rows,
+                                straight.tracker.min_near_support)
+
+        left = TrackElementsHarness()
+        left.prime()
+        for y in range(left.FLOOR, 48):
+            left.tracker._current_status[y] = 0
+        self.assertEqual(left.tracker._find_entry_dropout_side(),
+                         te.SIDE_LEFT)
+        self.assertEqual(left.tracker._ring_diag_arc_rows, 40)
+        self.assertGreaterEqual(left.tracker._ring_diag_anchor_rows,
+                                left.tracker.min_near_support)
+
+        right = TrackElementsHarness()
+        right.prime()
+        for y in range(right.FLOOR, 48):
+            right.tracker._current_status[right.HEIGHT + y] = 0
+        self.assertEqual(right.tracker._find_entry_dropout_side(),
+                         te.SIDE_RIGHT)
+        self.assertEqual(right.tracker._ring_diag_arc_rows, 40)
+
+        # A long missing count split into runs shorter than four rows is not
+        # enough to qualify; the near opposite-edge anchor remains present.
+        split = TrackElementsHarness()
+        split.prime()
+        for y in range(split.FLOOR, 48):
+            split.tracker._current_status[y] = 0
+            split.tracker._baseline_row_valid[y] = 1 if y % 2 == 0 else 0
+        self.assertEqual(split.tracker._find_entry_dropout_side(),
+                         te.SIDE_NONE)
+        self.assertEqual(split.tracker._ring_diag_arc_rows, 0)
+
+        # Simultaneous mirrored drops remain ambiguous even with both anchors.
+        both = TrackElementsHarness()
+        both.prime()
+        for y in range(both.FLOOR, 48):
+            both.tracker._current_status[y] = 0
+            both.tracker._current_status[both.HEIGHT + y] = 0
+        self.assertEqual(both.tracker._find_entry_dropout_side(),
+                         te.SIDE_NONE)
+        self.assertEqual(both.tracker._ring_diag_arc_rows, 0)
+        self.assertEqual(both.tracker._ring_diag_anchor_rows, 0)
+
+    def test_entry_dropout_scan_detects_inner_only_outward_motion(self):
+        left = TrackElementsHarness()
+        left.prime()
+        for y in range(20, 32):
+            left.tracker._current_edge2[y] += left.tracker.reappear_shift2
+        self.assertEqual(left.tracker._find_entry_dropout_side(),
+                         te.SIDE_LEFT)
+        self.assertEqual(left.tracker._ring_diag_arc_rows, 12)
+
+        right = TrackElementsHarness()
+        right.prime()
+        for y in range(20, 32):
+            index = right.HEIGHT + y
+            right.tracker._current_edge2[index] -= \
+                right.tracker.reappear_shift2
+        self.assertEqual(right.tracker._find_entry_dropout_side(),
+                         te.SIDE_RIGHT)
+        self.assertEqual(right.tracker._ring_diag_arc_rows, 12)
 
     def test_locked_ring_side_uses_frozen_width_even_when_both_edges_show(self):
         h = TrackElementsHarness()
@@ -232,6 +328,156 @@ class TrackElementsTests(unittest.TestCase):
                               raw_side=te.SIDE_LEFT)
         self.assertEqual(result["state"], "OBSERVE")
         self.assertFalse(result["candidate"])
+
+    def test_bilateral_road_arc_is_not_vetoed_and_s_curve_stays_rejected(self):
+        bilateral = TrackElementsHarness()
+        bilateral.prime()
+        result = bilateral.frame(left=30, right=55)
+        self.assertTrue(result["candidate"])
+        self.assertTrue(bilateral.tracker._current_road)
+        bilateral.frame(left=30, right=55)
+        for left in (33, 30, 27):
+            result = bilateral.frame(left=left, right=55)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertTrue(result["ring_confirmed"])
+
+        s_curve = TrackElementsHarness()
+        s_curve.prime()
+        s_curve.lose(te.SIDE_LEFT)
+        s_curve.lose(te.SIDE_LEFT)
+        for left, right in ((30, 60), (33, 63), (30, 60), (27, 57)):
+            result = s_curve.frame(left=left, right=right)
+        self.assertNotEqual(result["state"], "INSIDE")
+        self.assertFalse(result["ring_confirmed"])
+
+    def test_branch_during_entry_aborts_candidate(self):
+        h = TrackElementsHarness()
+        h.prime()
+        h.lose(te.SIDE_LEFT)
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,
+                         topology={"reason": "OK", "complete": True,
+                                   "branch_evidence": True})
+        self.assertNotEqual(result["state"], "INSIDE")
+        self.assertFalse(result["ring_confirmed"])
+
+    def test_production_ring_requires_calibration_and_three_frame_self_check(self):
+        class Calibration:
+            ready = True
+            reason = "CALIBRATION_READY"
+            width_valid = bytearray([0] * 8 + [1] * 52)
+            width_cells = array("i", [0] * 8 + [31] * 52)
+
+        tracker = te.TrackElementsTracker({}, Calibration(), True)
+        rows = array("i")
+        for y in range(59, 7, -1):
+            rows.extend((y, 25, 55, 7))
+        self.assertFalse(tracker.observe_ring_calibration(rows, 52, 4))
+        self.assertEqual(tracker.result["ring_calibration_check_frames"], 1)
+        self.assertFalse(tracker.observe_ring_calibration(rows, 52, 4))
+        self.assertTrue(tracker.observe_ring_calibration(rows, 52, 4))
+        self.assertTrue(tracker.result["ring_calibration_check_ready"])
+        self.assertEqual(
+            tracker.result["ring_calibration_median_error_permille"], 0)
+        self.assertEqual(tracker.result["ring_diagnostic_stride"], 14)
+
+        self.assertFalse(tracker.reset_ring_calibration_check("PARKED_GATE"))
+        self.assertTrue(tracker.ring_calibration_check_ready)
+        invalid = array("i", rows)
+        invalid[3] = 0
+        self.assertTrue(tracker.observe_ring_calibration(invalid, 52, 4))
+        self.assertTrue(tracker.ring_calibration_check_ready)
+
+    def test_startup_calibration_accepts_descending_unique_rows_and_rejects_duplicates(self):
+        class Calibration:
+            ready = True
+            reason = "CALIBRATION_READY"
+            width_valid = bytearray([0] * 8 + [1] * 52)
+            width_cells = array("i", [0] * 8 + [31] * 52)
+
+        tracker = te.TrackElementsTracker({}, Calibration(), True)
+        descending = array("i")
+        for y in range(59, 7, -1):
+            descending.extend((y, 25, 55, 7))
+        for _ in range(3):
+            tracker.observe_ring_calibration(descending, 52, 4)
+        self.assertTrue(tracker.ring_calibration_check_ready)
+
+        duplicate_tracker = te.TrackElementsTracker({}, Calibration(), True)
+        duplicate = array("i", descending)
+        duplicate[4] = duplicate[0]
+        self.assertFalse(duplicate_tracker.observe_ring_calibration(
+            duplicate, 52, 4))
+        self.assertEqual(duplicate_tracker.result[
+            "ring_calibration_check_reason"], "INVALID_ROW_GEOMETRY")
+
+    def test_partial_calibration_map_needs_reference_and_near_chain(self):
+        class PartialCalibration:
+            ready = True
+            reason = "CALIBRATION_READY"
+            width_valid = bytearray([0] * 20 + [1] * 40)
+            width_cells = array("i", [0] * 20 + [31] * 40)
+
+        tracker = te.TrackElementsTracker({}, PartialCalibration(), True)
+        self.assertTrue(tracker.ring_calibration_ready)
+        rows = array("i")
+        for y in range(8, 60):
+            rows.extend((y, 25, 55, 7))
+        for _ in range(3):
+            tracker.observe_ring_calibration(rows, 52, 4)
+        self.assertTrue(tracker.ring_calibration_check_ready)
+
+        class MissingReference:
+            ready = True
+            reason = "CALIBRATION_READY"
+            width_valid = bytearray([0] * 60)
+            width_cells = array("i", [0] * 60)
+
+        for y in list(range(8, 36)) + list(range(48, 60)):
+            MissingReference.width_valid[y] = 1
+            MissingReference.width_cells[y] = 31
+        missing = te.TrackElementsTracker({}, MissingReference(), True)
+        self.assertFalse(missing.ring_calibration_ready)
+        self.assertEqual(missing.ring_calibration_reason,
+                         "REFERENCE_WIDTH_UNAVAILABLE")
+
+    def test_calibrated_target_uses_map_and_rejects_out_of_fov_synthetic_edge(self):
+        class Calibration:
+            ready = True
+            reason = "CALIBRATION_READY"
+            width_valid = bytearray([0] * 8 + [1] * 52)
+            width_cells = array("i", [0] * 8 + [32] * 52)
+
+        h = TrackElementsHarness()
+        h.prime()
+        h.tracker.set_ring_calibration(Calibration(), True)
+        rows = array("i")
+        for y in range(8, 60):
+            rows.extend((y, 25, 55, 7))
+        for _ in range(3):
+            h.tracker.observe_ring_calibration(rows, 52, 4)
+        h.lose(te.SIDE_LEFT)
+        h.lose(te.SIDE_LEFT)
+        for left in (30, 33, 30):
+            h.frame(left=left, right=55)
+        wide_mask = h.mask(
+            left_by_y=lambda y: 27, right_by_y=lambda y: 58)
+        result = h.frame(left=27, right=55, mask_info=wide_mask)
+        self.assertEqual(result["state"], "INSIDE")
+        self.assertTrue(result["control_eligible"])
+        self.assertEqual(result["ring_width_source"],
+                         "CALIBRATED_45CM_ROW_MAP")
+        self.assertTrue(result["target_rows"][3] &
+                        te.TARGET_WIDTH_FROM_CALIBRATION)
+        self.assertEqual(result["target_rows"][2], 58)
+        self.assertTrue(all(h.cache_width[y] == 31 for y in range(8, 60)))
+
+        clipped_mask = h.mask(
+            left_by_y=lambda y: 60, right_by_y=lambda y: 79)
+        result = h.frame(road_accepted=False, raw_side=te.SIDE_LEFT,
+                         left=60, right=79, mask_info=clipped_mask)
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+        self.assertEqual(result["target_count"], 0)
 
     def test_one_frame_dropout_recovery_never_confirms_ring(self):
         h = TrackElementsHarness()
@@ -360,50 +606,52 @@ class TrackElementsTests(unittest.TestCase):
         for y in range(8, 60):
             h.cache_width[y] = 35
         live_width_before_exit = list(h.cache_width)
-        result = h.lose(te.SIDE_LEFT)
+        result = h.lose(te.SIDE_RIGHT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
         self.assertTrue(result["exit_experimental"])
         self.assertEqual(result["side"], te.SIDE_LEFT)
-        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
-        self.assertTrue(result["target_valid"])
-        self.assertTrue(result["control_eligible"])
-        self.assertEqual(result["target_rows"][3], (
-            te.TARGET_OBSERVED_RIGHT | te.TARGET_INFERRED_LEFT |
-            te.TARGET_WIDTH_FROM_CACHE))
-        self.assertEqual(result["target_rows"][1:3], array("i", [25, 55]))
+        self.assertEqual(result["target_side"], te.SIDE_NONE)
+        self.assertFalse(result["target_valid"])
+        self.assertFalse(result["control_eligible"])
+
         self.assertEqual(list(h.cache_width), live_width_before_exit)
-        for _ in range(2):
+        for _ in range(3):
             result = h.frame(left=25, right=55)
+        self.assertEqual(result["ring_exit_fit_rows"], 52)
+        self.assertGreaterEqual(result["ring_exit_span_rows"], 12)
+        self.assertLessEqual(result["ring_exit_residual_x2"], 4)
         self.assertEqual(result["state"], "EXIT_REPAIR")
         self.assertTrue(result["exit_experimental"])
         self.assertEqual(result["side"], te.SIDE_LEFT)
         self.assertEqual(result["target_side"], te.SIDE_RIGHT)
         self.assertTrue(result["target_valid"])
         self.assertTrue(result["control_eligible"])
-        for _ in range(2):
-            result = h.frame(left=25, right=55)
+        result = h.frame(left=25, right=55)
         self.assertEqual(result["state"], "REACQUIRE")
         self.assertTrue(result["exit_reobserved"])
+        for _ in range(2):
+            result = h.frame(left=25, right=55)
+        self.assertEqual(result["state"], "OBSERVE")
         self.assertFalse(h.tracker._ring_cache_frozen)
 
         mirror = TrackElementsHarness()
         mirror.complete_right_ring()
-        result = mirror.lose(te.SIDE_RIGHT)
+        result = mirror.lose(te.SIDE_LEFT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
         self.assertEqual(result["side"], te.SIDE_RIGHT)
-        self.assertEqual(result["target_side"], te.SIDE_LEFT)
+        self.assertEqual(result["target_side"], te.SIDE_NONE)
+        self.assertFalse(result["target_valid"])
+        for _ in range(3):
+            result = mirror.frame(left=25, right=55)
+        self.assertEqual(result["state"], "EXIT_REPAIR")
         self.assertTrue(result["target_valid"])
-        self.assertEqual(result["target_rows"][3], (
-            te.TARGET_OBSERVED_LEFT | te.TARGET_INFERRED_RIGHT |
-            te.TARGET_WIDTH_FROM_CACHE))
-        self.assertEqual(result["target_rows"][1:3], array("i", [25, 55]))
 
     def test_exit_route_fails_closed_without_opposite_support_or_corridor(self):
         h = TrackElementsHarness()
         h.complete_left_ring()
-        result = h.lose(te.SIDE_LEFT)
+        result = h.lose(te.SIDE_RIGHT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
-        self.assertTrue(result["target_valid"])
+        self.assertFalse(result["target_valid"])
 
         # Only the locked ring side is visible now; exit guidance needs the
         # opposite real edge, so no target may be published.
@@ -423,6 +671,18 @@ class TrackElementsTests(unittest.TestCase):
         self.assertEqual(result["target_side"], te.SIDE_NONE)
         self.assertFalse(result["target_valid"])
         self.assertFalse(result["control_eligible"])
+
+    def test_exit_fit_residual_over_two_cells_does_not_confirm(self):
+        h = TrackElementsHarness()
+        h.complete_left_ring()
+        result = h.lose(te.SIDE_RIGHT)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        for _ in range(3):
+            result = h.frame(left=25, right=58)
+        self.assertEqual(result["state"], "EXIT_CONFIRM")
+        self.assertEqual(result["ring_exit_fit_rows"], 0)
+        self.assertGreater(result["ring_exit_residual_x2"], 4)
+        self.assertFalse(result["exit_reobserved"])
 
     def test_confirmed_ring_allows_island_only_with_clear_inner_corridor(self):
         h = TrackElementsHarness()

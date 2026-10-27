@@ -48,7 +48,8 @@ else:
 
 WIDTH = 80
 HEIGHT = 60
-RUNTIME_API_VERSION = 1
+RING_REFERENCE_Y = 40
+RUNTIME_API_VERSION = 2
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -75,6 +76,16 @@ TARGET_OBSERVED_RIGHT = 2
 TARGET_INFERRED_LEFT = 4
 TARGET_INFERRED_RIGHT = 8
 TARGET_WIDTH_FROM_CACHE = 16
+TARGET_WIDTH_FROM_CALIBRATION = 32
+
+RING_DIAG_STRIDE = 14
+
+_RING_DIAG_REASON_NAMES = (
+    "NONE", "CALIBRATION_REQUIRED", "BASELINE_NOT_READY", "INPUT_INVALID",
+    "TOPOLOGY_UNCLEAR", "NO_RING_DROPOUT", "DROPOUT_CANDIDATE",
+    "DROPOUT_CONFIRMED", "ARC_WAIT", "ARC_CONFIRMED", "EXIT_WAIT",
+    "EXIT_FIT", "NORMAL_REACQUIRE",
+)
 
 EVENT_ENTRY_CANDIDATE = 1
 EVENT_RING_CONFIRMED = 2
@@ -390,6 +401,106 @@ def _measure_side_support_viper(status_object, edge_object, output_object,
 
 
 @micropython.viper
+def _measure_entry_dropout_viper(status_object, edge_object,
+                                 baseline_valid_object,
+                                 baseline_left_object, baseline_right_object,
+                                 output_object, height: int, floor_y: int,
+                                 near_rows: int, reappear_shift2: int,
+                                 opposite_tolerance2: int) -> int:
+    """Measure both mirrored entry-drop candidates in one bounded scan."""
+    status = ptr8(status_object)
+    edges = ptr32(edge_object)
+    baseline_valid = ptr8(baseline_valid_object)
+    baseline_left = ptr32(baseline_left_object)
+    baseline_right = ptr32(baseline_right_object)
+    output = ptr32(output_object)
+    output[0] = 0
+    output[1] = 0
+    output[2] = 0
+    output[3] = 0
+    output[4] = 0
+    output[5] = 0
+
+    left_run = 0
+    left_longest = 0
+    left_missing = 0
+    right_run = 0
+    right_longest = 0
+    right_missing = 0
+    y = floor_y
+    while y < 48:
+        if baseline_valid[y] == 0:
+            left_run = 0
+            right_run = 0
+        else:
+            left_lost = status[y] != 1
+            left_moved = False
+            if not left_lost and status[height + y] == 1:
+                outward = edges[y] - baseline_left[y]
+                outer_delta = edges[height + y] - baseline_right[y]
+                if outer_delta < 0:
+                    outer_delta = -outer_delta
+                if (outward >= reappear_shift2 and
+                        outer_delta <= opposite_tolerance2):
+                    left_moved = True
+            if left_lost or left_moved:
+                left_run += 1
+                left_missing += 1
+                if left_run > left_longest:
+                    left_longest = left_run
+            else:
+                left_run = 0
+
+            right_lost = status[height + y] != 1
+            right_moved = False
+            if not right_lost and status[y] == 1:
+                outward = baseline_right[y] - edges[height + y]
+                outer_delta = edges[y] - baseline_left[y]
+                if outer_delta < 0:
+                    outer_delta = -outer_delta
+                if (outward >= reappear_shift2 and
+                        outer_delta <= opposite_tolerance2):
+                    right_moved = True
+            if right_lost or right_moved:
+                right_run += 1
+                right_missing += 1
+                if right_run > right_longest:
+                    right_longest = right_run
+            else:
+                right_run = 0
+        y += 1
+
+    near_start = height - near_rows
+    if near_start < floor_y:
+        near_start = floor_y
+    left_anchor = 0
+    right_anchor = 0
+    y = near_start
+    while y < height:
+        if (baseline_valid[y] != 0 and status[height + y] == 1):
+            delta = edges[height + y] - baseline_right[y]
+            if delta < 0:
+                delta = -delta
+            if delta <= opposite_tolerance2:
+                left_anchor += 1
+        if baseline_valid[y] != 0 and status[y] == 1:
+            delta = edges[y] - baseline_left[y]
+            if delta < 0:
+                delta = -delta
+            if delta <= opposite_tolerance2:
+                right_anchor += 1
+        y += 1
+
+    output[0] = left_missing
+    output[1] = left_longest
+    output[2] = left_anchor
+    output[3] = right_missing
+    output[4] = right_longest
+    output[5] = right_anchor
+    return 0
+
+
+@micropython.viper
 def _clear_rows_viper(status_object, edge_object, contrast_object,
                       seen_object) -> int:
     status = ptr8(status_object)
@@ -476,7 +587,8 @@ class TrackElementsTracker:
     single-edge result rows are intentionally not accepted by this API.
     """
 
-    def __init__(self, settings=None):
+    def __init__(self, settings=None, calibration=None,
+                 require_calibration=True):
         self.width = int(_setting(settings, "SURFACE_GRID_WIDTH", WIDTH))
         self.height = int(_setting(settings, "SURFACE_GRID_HEIGHT", HEIGHT))
         if self.width != WIDTH or self.height != HEIGHT:
@@ -574,6 +686,7 @@ class TrackElementsTracker:
         self._current_edge2 = array("i", [0] * (2 * self.height))
         self._current_contrast = array("i", [0] * (2 * self.height))
         self._side_summary = array("i", [0] * 10)
+        self._entry_dropout_summary = array("i", [0] * 6)
         self._row_seen = bytearray(self.height)
         self._cross_open_rows = bytearray(self.height)
         self._cross_sample_valid = bytearray(self.height)
@@ -586,6 +699,35 @@ class TrackElementsTracker:
         self._ring_width = array("i", [0] * self.height)
         self._ring_nearest_y = array("i", [-1] * self.height)
         self._ring_cache_frozen = False
+        self._ring_width_calibrated = False
+        self.require_calibration = bool(require_calibration)
+        if self.require_calibration:
+            self.exit_confirm_frames = 3
+            self.reacquire_frames = 3
+        self._calibration_source = None
+        self._calibration_width_valid = None
+        self._calibration_width_cells = None
+        self._calibration_ready = False
+        self._calibration_reason = "NO_CALIBRATION"
+        self._cal_check_prev_valid = bytearray(self.height)
+        self._cal_check_prev_width = array("i", [0] * self.height)
+        self._cal_check_valid = bytearray(self.height)
+        self._cal_check_width = array("i", [0] * self.height)
+        self._cal_check_error = array("i", [0] * self.height)
+        self._cal_check_stable_frames = 0
+        self._cal_check_ready = False
+        self._cal_check_reason = "NOT_CHECKED"
+        self._cal_check_support_rows = 0
+        self._cal_check_span_rows = 0
+        self._cal_check_median_error_permille = -1
+        self._ring_diag = array("i", [0] * RING_DIAG_STRIDE)
+        self._ring_diag_arc_rows = 0
+        self._ring_diag_anchor_rows = 0
+        self._ring_diag_arc_span = 0
+        self._ring_diag_exit_rows = 0
+        self._ring_diag_exit_span = 0
+        self._ring_diag_exit_residual = -1
+        self._ring_diag_reason_code = 0
         self._scratch_left = array("i", [0] * self.height)
         self._scratch_right = array("i", [0] * self.height)
         self._scratch_y = array("i", [0] * self.height)
@@ -659,6 +801,24 @@ class TrackElementsTracker:
             "mean_forward_wheel_millirev": None,
             "millirev_delta": None,
             "millirev_guard_enabled": False,
+            "ring_calibration_ready": False,
+            "ring_calibration_reason": "NO_CALIBRATION",
+            "ring_calibration_check_ready": False,
+            "ring_calibration_check_reason": "NOT_CHECKED",
+            "ring_calibration_check_frames": 0,
+            "ring_calibration_support_rows": 0,
+            "ring_calibration_span_rows": 0,
+            "ring_calibration_median_error_permille": -1,
+            "ring_diagnostic_record": self._ring_diag,
+            "ring_diagnostic_stride": RING_DIAG_STRIDE,
+            "ring_diagnostic_reason": "NONE",
+            "ring_arc_support_rows": 0,
+            "ring_arc_span_rows": 0,
+            "ring_near_anchor_rows": 0,
+            "ring_exit_fit_rows": 0,
+            "ring_exit_span_rows": 0,
+            "ring_exit_residual_x2": -1,
+            "ring_width_source": "NONE",
         }
 
         self._identity_set = False
@@ -689,6 +849,9 @@ class TrackElementsTracker:
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
+        self._baseline_row_valid = bytearray(self.height)
+        self._baseline_left_by_y2 = array("i", [-1] * self.height)
+        self._baseline_right_by_y2 = array("i", [-1] * self.height)
         self._ring_cache_frozen = False
         self._release_ring_width()
         self._drop_count = 0
@@ -721,6 +884,8 @@ class TrackElementsTracker:
         self._reference_left_y = -1
         self._reference_right_y = -1
         self._last_reject = REJECT_NONE
+        if calibration is not None:
+            self.set_ring_calibration(calibration, require_calibration)
 
     @staticmethod
     def _bounded_setting(settings, name, default, minimum, maximum):
@@ -734,6 +899,296 @@ class TrackElementsTracker:
     def result(self):
         """Return the single reusable result dictionary."""
         return self._result
+
+    @property
+    def ring_calibration_ready(self):
+        return self._calibration_ready
+
+    @property
+    def ring_calibration_reason(self):
+        return self._calibration_reason
+
+    @property
+    def ring_calibration_check_ready(self):
+        return self._cal_check_ready
+
+    def set_ring_calibration(self, calibration, require_calibration=True):
+        """Install a validated calibration map and reset its startup check.
+
+        ``calibration`` may be a ``RingWidthCalibration`` instance or the
+        dictionary returned by its ``finalize()`` method. This setter keeps
+        the map separate from the ordinary per-session width cache.
+        """
+        self.require_calibration = bool(require_calibration)
+        if self.require_calibration:
+            self.exit_confirm_frames = 3
+            self.reacquire_frames = 3
+        self._calibration_source = calibration
+        if isinstance(calibration, dict):
+            ready = calibration.get("ready", calibration.get(
+                "calibration_ready", False))
+            reason = calibration.get("reason", calibration.get(
+                "calibration_reason", "INVALID_CALIBRATION"))
+            valid = calibration.get("width_valid", calibration.get(
+                "width_valid60"))
+            widths = calibration.get("width_cells", calibration.get(
+                "width_cells60"))
+        else:
+            ready = getattr(calibration, "ready", getattr(
+                calibration, "calibration_ready", False))
+            reason = getattr(calibration, "reason", getattr(
+                calibration, "calibration_reason", "INVALID_CALIBRATION"))
+            valid = getattr(calibration, "width_valid", getattr(
+                calibration, "width_valid60", None))
+            widths = getattr(calibration, "width_cells", getattr(
+                calibration, "width_cells60", None))
+        map_ok = False
+        support_reason = "INVALID_CALIBRATION"
+        try:
+            if (bool(ready) and len(valid) == self.height and
+                    len(widths) == self.height and
+                    self.reference_y == RING_REFERENCE_Y):
+                map_ok = True
+                support = 0
+                min_y = self.height
+                max_y = -1
+                near_rows = 0
+                near_run = 0
+                max_near_run = 0
+                nearest_reference = self.height
+                for y in range(self.floor_y, self.height):
+                    flag = int(valid[y])
+                    width = int(widths[y])
+                    if flag not in (0, 1) or (flag and
+                            (width < 8 or width > 70)) or (not flag and width):
+                        map_ok = False
+                        break
+                    if flag:
+                        support += 1
+                        if y < min_y:
+                            min_y = y
+                        if y > max_y:
+                            max_y = y
+                        delta = abs(y - RING_REFERENCE_Y)
+                        if delta < nearest_reference:
+                            nearest_reference = delta
+                    if y >= self.height - 12:
+                        if flag:
+                            near_rows += 1
+                            near_run += 1
+                            if near_run > max_near_run:
+                                max_near_run = near_run
+                        else:
+                            near_run = 0
+                if map_ok and (support < 12 or max_y - min_y < 20):
+                    map_ok = False
+                    support_reason = "INSUFFICIENT_CALIBRATION_CHAIN"
+                if map_ok and nearest_reference > 3:
+                    map_ok = False
+                    support_reason = "REFERENCE_WIDTH_UNAVAILABLE"
+                if map_ok and (near_rows < 5 or max_near_run < 4):
+                    map_ok = False
+                    support_reason = "NEAR_WIDTH_SUPPORT_INSUFFICIENT"
+            elif self.reference_y != RING_REFERENCE_Y:
+                support_reason = "REFERENCE_ROW_MISMATCH"
+        except (TypeError, AttributeError, IndexError):
+            map_ok = False
+        self._calibration_ready = map_ok
+        if map_ok:
+            self._calibration_reason = "CALIBRATION_READY"
+        elif support_reason != "INVALID_CALIBRATION":
+            self._calibration_reason = support_reason
+        else:
+            self._calibration_reason = (
+                "INVALID_CALIBRATION" if str(reason) ==
+                "CALIBRATION_READY" else str(reason))
+        self._calibration_width_valid = valid if map_ok else None
+        self._calibration_width_cells = widths if map_ok else None
+        self._cal_check_stable_frames = 0
+        self._cal_check_ready = False
+        self._cal_check_reason = ("WAITING_FOR_CALIBRATION" if map_ok else
+                                  self._calibration_reason)
+        self._cal_check_support_rows = 0
+        self._cal_check_span_rows = 0
+        self._cal_check_median_error_permille = -1
+        for y in range(self.height):
+            self._cal_check_prev_valid[y] = 0
+            self._cal_check_prev_width[y] = 0
+        if hasattr(self, "_result"):
+            self._sync_calibration_result()
+        return map_ok
+
+    def reset_ring_calibration_check(self, reason="PARKED_GATE"):
+        """Reset only an incomplete startup width check after an ineligible frame.
+
+        A passed check is sticky until a new calibration object is installed.
+        This method does not touch route, ring, or ordinary width-cache state.
+        """
+        if self._cal_check_ready:
+            return False
+        self._cal_check_stable_frames = 0
+        self._cal_check_ready = False
+        self._cal_check_reason = str(reason)
+        self._cal_check_support_rows = 0
+        self._cal_check_span_rows = 0
+        self._cal_check_median_error_permille = -1
+        for y in range(self.height):
+            self._cal_check_prev_valid[y] = 0
+            self._cal_check_prev_width[y] = 0
+            self._cal_check_valid[y] = 0
+            self._cal_check_width[y] = 0
+        self._sync_calibration_result()
+        return True
+
+    def observe_ring_calibration(self, rows, count, stride):
+        """Check one parked, accepted bilateral width profile against map.
+
+        The caller is responsible for calling this only on fresh, accepted
+        road rows while the car is stationary and topology is clear. Records
+        are ``[y,left_x,right_x,flags]`` and width is inclusive.
+        """
+        if not self._calibration_ready:
+            self._cal_check_ready = False
+            self._cal_check_stable_frames = 0
+            self._cal_check_reason = self._calibration_reason
+            self._cal_check_support_rows = 0
+            self._cal_check_span_rows = 0
+            self._cal_check_median_error_permille = -1
+            self._sync_calibration_result()
+            return False
+        if self._cal_check_ready:
+            return True
+        for y in range(self.height):
+            self._cal_check_valid[y] = 0
+            self._cal_check_width[y] = 0
+            self._cal_check_error[y] = 0
+        if (not _is_int(count) or count < self.min_near_support or
+                count > self.height or not _is_int(stride) or stride < 4):
+            return self._calibration_check_failed("INVALID_ROW_SHAPE")
+        try:
+            if rows is None or len(rows) < count * stride:
+                return self._calibration_check_failed("INVALID_ROW_SHAPE")
+        except (TypeError, AttributeError):
+            return self._calibration_check_failed("INVALID_ROW_SHAPE")
+        support = 0
+        min_y = self.height
+        max_y = -1
+        offset = 0
+        index = 0
+        while index < count:
+            y = rows[offset]
+            left = rows[offset + 1]
+            right = rows[offset + 2]
+            flags = rows[offset + 3]
+            if (not _is_int(y) or not _is_int(left) or
+                    not _is_int(right) or not _is_int(flags) or
+                    (flags & 7) != 7 or y < self.floor_y or
+                    y >= self.height or self._cal_check_error[y] != 0 or
+                    left < 0 or right >= self.width or right <= left):
+                return self._calibration_check_failed("INVALID_ROW_GEOMETRY")
+            # Use the error scratch array as a row-indexed duplicate bitmap
+            # while consuming arbitrary producer order. It is packed with
+            # calibration errors only after the entire row set is validated.
+            self._cal_check_error[y] = -1
+            calibrated = int(self._calibration_width_cells[y])
+            measured = right - left + 1
+            if (self._calibration_width_valid[y] and
+                    calibrated >= 8 and calibrated <= 70):
+                self._cal_check_valid[y] = 1
+                self._cal_check_width[y] = measured
+                support += 1
+                if y < min_y:
+                    min_y = y
+                if y > max_y:
+                    max_y = y
+            index += 1
+            offset += stride
+        span = max_y - min_y if support else 0
+        self._cal_check_support_rows = support
+        self._cal_check_span_rows = span
+        if support < 5 or span < 6:
+            return self._calibration_check_failed("CHECK_SUPPORT_INSUFFICIENT")
+        ordered = self._cal_check_error
+        error_index = 0
+        y = self.floor_y
+        while y < self.height:
+            if self._cal_check_valid[y]:
+                calibrated = int(self._calibration_width_cells[y])
+                measured = int(self._cal_check_width[y])
+                ordered[error_index] = (
+                    abs(measured - calibrated) * 1000 // calibrated)
+                error_index += 1
+            y += 1
+        index = 1
+        while index < support:
+            value = ordered[index]
+            at = index
+            while at > 0 and ordered[at - 1] > value:
+                ordered[at] = ordered[at - 1]
+                at -= 1
+            ordered[at] = value
+            index += 1
+        median_error = int(ordered[support // 2])
+        self._cal_check_median_error_permille = median_error
+        if median_error > 200:
+            return self._calibration_check_failed("WIDTH_MISMATCH")
+
+        common = 0
+        deltas = self._cal_check_error
+        for y in range(self.floor_y, self.height):
+            if self._cal_check_valid[y] and self._cal_check_prev_valid[y]:
+                deltas[common] = abs(
+                    self._cal_check_width[y] - self._cal_check_prev_width[y])
+                common += 1
+        stable = False
+        if common >= 5:
+            index = 1
+            while index < common:
+                value = deltas[index]
+                at = index
+                while at > 0 and deltas[at - 1] > value:
+                    deltas[at] = deltas[at - 1]
+                    at -= 1
+                deltas[at] = value
+                index += 1
+            stable = deltas[common // 2] <= 1 and deltas[common - 1] <= 2
+        for y in range(self.height):
+            self._cal_check_prev_valid[y] = self._cal_check_valid[y]
+            self._cal_check_prev_width[y] = self._cal_check_width[y]
+        if stable:
+            self._cal_check_stable_frames += 1
+        else:
+            self._cal_check_stable_frames = 1
+        self._cal_check_ready = self._cal_check_stable_frames >= 3
+        self._cal_check_reason = ("STARTUP_CHECK_READY" if
+                                  self._cal_check_ready else
+                                  "WAITING_FOR_STABLE_WIDTH_PROFILE")
+        self._sync_calibration_result()
+        return self._cal_check_ready
+
+    def _calibration_check_failed(self, reason):
+        self._cal_check_stable_frames = 0
+        self._cal_check_ready = False
+        self._cal_check_reason = reason
+        for y in range(self.height):
+            self._cal_check_prev_valid[y] = self._cal_check_valid[y]
+            self._cal_check_prev_width[y] = self._cal_check_width[y]
+        self._sync_calibration_result()
+        return False
+
+    def _sync_calibration_result(self):
+        result = self._result
+        if result is None:
+            return
+        result["ring_calibration_ready"] = self._calibration_ready
+        result["ring_calibration_reason"] = self._calibration_reason
+        result["ring_calibration_check_ready"] = self._cal_check_ready
+        result["ring_calibration_check_reason"] = self._cal_check_reason
+        result["ring_calibration_check_frames"] = self._cal_check_stable_frames
+        result["ring_calibration_support_rows"] = self._cal_check_support_rows
+        result["ring_calibration_span_rows"] = self._cal_check_span_rows
+        result["ring_calibration_median_error_permille"] = \
+            self._cal_check_median_error_permille
 
     def reset(self, reason="EXPLICIT_RESET"):
         """Clear temporal state, fixed counters, events, and output rows."""
@@ -763,6 +1218,7 @@ class TrackElementsTracker:
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
+        self._clear_baseline_rows()
         self._ring_cache_frozen = False
         self._release_ring_width()
         self._drop_count = 0
@@ -937,7 +1393,7 @@ class TrackElementsTracker:
             if (self._state == STATE_INSIDE and
                     not inside_target_attempted):
                 self._build_target_rows(mask_info, topology, self._side)
-            elif self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR):
+            elif self._state == STATE_EXIT_REPAIR:
                 exit_target_side = (SIDE_RIGHT if self._side == SIDE_LEFT else
                                     SIDE_LEFT)
                 if self._result["target_side"] == SIDE_NONE:
@@ -950,13 +1406,8 @@ class TrackElementsTracker:
         _clear_rows_viper(self._current_status, self._current_edge2,
                           self._current_contrast, self._row_seen)
 
-    def _clear_frame_output(self):
+    def _clear_target_output(self):
         result = self._result
-        previous_target_count = int(result["target_count"])
-        previous_cross_count = int(result["cross_route_count"])
-        result["candidate"] = False
-        result["ring_confirmed"] = False
-        result["control_eligible"] = False
         result["target_valid"] = False
         result["target_count"] = 0
         result["target_side"] = SIDE_NONE
@@ -967,8 +1418,35 @@ class TrackElementsTracker:
         result["target_lateral_error"] = 0
         result["observed_rows"] = 0
         result["inferred_rows"] = 0
+
+    def _clear_baseline_rows(self):
+        for y in range(self.height):
+            self._baseline_row_valid[y] = 0
+            self._baseline_left_by_y2[y] = -1
+            self._baseline_right_by_y2[y] = -1
+
+    def _clear_frame_output(self):
+        result = self._result
+        previous_target_count = int(result["target_count"])
+        previous_cross_count = int(result["cross_route_count"])
+        result["target_valid"] = False
+        result["target_count"] = 0
+        result["target_side"] = SIDE_NONE
+        result["target_left2"] = 0
+        result["target_right2"] = 0
+        result["target_center2"] = 0
+        result["target_lateral_error"] = 0
+        result["observed_rows"] = 0
+        result["inferred_rows"] = 0
         result["exit_experimental"] = False
         result["exit_reobserved"] = False
+        self._ring_diag_arc_rows = 0
+        self._ring_diag_anchor_rows = 0
+        self._ring_diag_arc_span = 0
+        self._ring_diag_exit_rows = 0
+        self._ring_diag_exit_span = 0
+        self._ring_diag_exit_residual = -1
+        self._ring_diag_reason_code = 0
         result["cross_candidate"] = False
         result["cross_confirmed"] = False
         result["cross_suppress_slowdown"] = False
@@ -990,15 +1468,16 @@ class TrackElementsTracker:
         result["cross_open_segments"] = 0
         result["cross_candidate_tracks"] = 0
         result["reject_reason"] = "NONE"
-        result["state_elapsed_ms"] = 0
-        target_limit = previous_target_count * TARGET_ROW_STRIDE
-        if target_limit > len(self._target_rows):
-            target_limit = len(self._target_rows)
-        _clear_i32_prefix_viper(self._target_rows, target_limit)
-        cross_limit = previous_cross_count * TARGET_ROW_STRIDE
-        if cross_limit > len(self._cross_route_rows):
-            cross_limit = len(self._cross_route_rows)
-        _clear_i32_prefix_viper(self._cross_route_rows, cross_limit)
+        if previous_target_count > 0:
+            target_limit = previous_target_count * TARGET_ROW_STRIDE
+            if target_limit > len(self._target_rows):
+                target_limit = len(self._target_rows)
+            _clear_i32_prefix_viper(self._target_rows, target_limit)
+        if previous_cross_count > 0:
+            cross_limit = previous_cross_count * TARGET_ROW_STRIDE
+            if cross_limit > len(self._cross_route_rows):
+                cross_limit = len(self._cross_route_rows)
+            _clear_i32_prefix_viper(self._cross_route_rows, cross_limit)
 
     def _update_odom(self, value):
         valid = (_is_int(value) and value >= 0 and value <= 0xffffffff)
@@ -1037,6 +1516,7 @@ class TrackElementsTracker:
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
+        self._clear_baseline_rows()
         self._release_ring_width()
         self._drop_count = 0
         self._reappear_count = 0
@@ -1135,6 +1615,11 @@ class TrackElementsTracker:
     def _update_stable_baseline(self, road_ok, cache_ok, topology):
         if self._state not in (STATE_OBSERVE, STATE_REACQUIRE):
             return
+        if self._state == STATE_OBSERVE and self._baseline_ready:
+            # Keep the first stable straight profile as the arc reference.
+            # Updating it every frame would follow ordinary turns and erase
+            # the geometric change the ring observer needs to measure.
+            return
         if not road_ok:
             # Keep the last fresh, accepted bilateral baseline while the
             # current frame is a raw single-edge observation. That is the
@@ -1165,7 +1650,23 @@ class TrackElementsTracker:
                 self._baseline_left2 = left2
                 self._baseline_right2 = right2
                 self._baseline_y = ref_y
-                if self._stable_count >= self.min_stable_frames:
+                baseline_rows = 0
+                for y in range(self.floor_y, self.height):
+                    self._baseline_row_valid[y] = 0
+                    self._baseline_left_by_y2[y] = -1
+                    self._baseline_right_by_y2[y] = -1
+                    if (self._current_status[y] == 1 and
+                            self._current_status[self.height + y] == 1):
+                        row_left2 = int(self._current_edge2[y])
+                        row_right2 = int(
+                            self._current_edge2[self.height + y])
+                        if row_left2 < row_right2:
+                            self._baseline_row_valid[y] = 1
+                            self._baseline_left_by_y2[y] = row_left2
+                            self._baseline_right_by_y2[y] = row_right2
+                            baseline_rows += 1
+                if (self._stable_count >= self.min_stable_frames and
+                        baseline_rows >= self.min_target_rows):
                     self._baseline_ready = True
 
     def _topology_clear(self, topology):
@@ -1196,10 +1697,150 @@ class TrackElementsTracker:
             return False
         return abs(edge2 - baseline2) <= self.opposite_position_tolerance2
 
+    def _entry_dropout_evidence(self, ring_side):
+        """Return one side's status from the shared mirrored row scan."""
+        if ring_side not in (SIDE_LEFT, SIDE_RIGHT):
+            return 0, 0
+        self._measure_entry_dropout()
+        summary = self._entry_dropout_summary
+        if ring_side == SIDE_LEFT:
+            missing = summary[0]
+            longest = summary[1]
+            anchor_rows = summary[2]
+        else:
+            missing = summary[3]
+            longest = summary[4]
+            anchor_rows = summary[5]
+        accepted = int(longest >= 4 and missing >= 4 and
+                       anchor_rows >= self.min_near_support)
+        if accepted:
+            self._ring_diag_arc_rows = missing
+            self._ring_diag_anchor_rows = anchor_rows
+        return accepted, missing, anchor_rows
+
+    def _find_entry_dropout_side(self):
+        self._measure_entry_dropout()
+        summary = self._entry_dropout_summary
+        left_missing = summary[0]
+        left_longest = summary[1]
+        left_anchor = summary[2]
+        right_missing = summary[3]
+        right_longest = summary[4]
+        right_anchor = summary[5]
+        left_ok = (left_longest >= 4 and left_missing >= 4 and
+                   left_anchor >= self.min_near_support)
+        right_ok = (right_longest >= 4 and right_missing >= 4 and
+                    right_anchor >= self.min_near_support)
+        if left_ok and right_ok:
+            self._ring_diag_arc_rows = 0
+            self._ring_diag_anchor_rows = 0
+            return SIDE_NONE
+        if left_ok:
+            self._ring_diag_arc_rows = left_missing
+            self._ring_diag_anchor_rows = left_anchor
+            return SIDE_LEFT
+        if right_ok:
+            self._ring_diag_arc_rows = right_missing
+            self._ring_diag_anchor_rows = right_anchor
+            return SIDE_RIGHT
+        self._ring_diag_arc_rows = 0
+        self._ring_diag_anchor_rows = max(left_anchor, right_anchor)
+        return SIDE_NONE
+
+    def _measure_entry_dropout(self):
+        _measure_entry_dropout_viper(
+            self._current_status, self._current_edge2,
+            self._baseline_row_valid, self._baseline_left_by_y2,
+            self._baseline_right_by_y2, self._entry_dropout_summary,
+            self.height, self.floor_y, self.near_rows,
+            self.reappear_shift2, self.opposite_position_tolerance2)
+
+    def _entry_arc_profile(self, ring_side):
+        """Measure one real inner-edge arc without averaging edge centers."""
+        if ring_side not in (SIDE_LEFT, SIDE_RIGHT):
+            return 0, 0, 0, 0, 0
+        inner_base = ring_side * self.height
+        outer_side = SIDE_RIGHT if ring_side == SIDE_LEFT else SIDE_LEFT
+        outer_base = outer_side * self.height
+        outward_rows = 0
+        outer_anchor_rows = 0
+        run = 0
+        max_run = 0
+        first_y = -1
+        last_y = -1
+        peak = 0
+        peak_edge2 = 0
+        for y in range(self.floor_y, 48):
+            if (not self._baseline_row_valid[y] or
+                    self._current_status[inner_base + y] != 1 or
+                    self._current_status[outer_base + y] != 1):
+                run = 0
+                continue
+            inner_baseline = int(
+                self._baseline_left_by_y2[y] if ring_side == SIDE_LEFT else
+                self._baseline_right_by_y2[y])
+            outer_baseline = int(
+                self._baseline_right_by_y2[y] if ring_side == SIDE_LEFT else
+                self._baseline_left_by_y2[y])
+            inner_edge = int(self._current_edge2[inner_base + y])
+            outer_edge = int(self._current_edge2[outer_base + y])
+            if abs(outer_edge - outer_baseline) > \
+                    self.opposite_position_tolerance2:
+                run = 0
+                continue
+            outer_anchor_rows += 1
+            outward = (inner_edge - inner_baseline if ring_side == SIDE_LEFT
+                       else inner_baseline - inner_edge)
+            minimum_outward = (self.reappear_shift2 if
+                               self._reappear_count == 0 else 1)
+            if outward < minimum_outward:
+                run = 0
+                continue
+            outward_rows += 1
+            run += 1
+            if first_y < 0:
+                first_y = y
+            last_y = y
+            if run > max_run:
+                max_run = run
+            if outward > peak:
+                peak = outward
+                peak_edge2 = inner_edge
+        span = last_y - first_y if first_y >= 0 else 0
+        near_anchor = 0
+        for y in range(max(self.floor_y, self.height - self.near_rows),
+                        self.height):
+            baseline = int(
+                self._baseline_right_by_y2[y] if outer_side == SIDE_RIGHT else
+                self._baseline_left_by_y2[y])
+            if (self._baseline_row_valid[y] and
+                    self._current_status[outer_base + y] == 1 and
+                    abs(int(self._current_edge2[outer_base + y]) - baseline) <=
+                    self.opposite_position_tolerance2):
+                near_anchor += 1
+        self._ring_diag_arc_rows = outward_rows
+        self._ring_diag_anchor_rows = near_anchor
+        if (outward_rows < 5 or max_run < 4 or span < 6 or
+                near_anchor < self.min_near_support):
+            return outward_rows, peak, peak_edge2, span, 0
+        return outward_rows, peak, peak_edge2, span, 1
+
     def _freeze_ring_width(self):
-        cache_valid = self._active_cache_valid
-        cache_width = self._active_cache_width
-        if cache_valid is None or cache_width is None:
+        calibrated = bool(self._calibration_ready and
+                          self._calibration_width_valid is not None and
+                          self._calibration_width_cells is not None)
+        if self.require_calibration:
+            if not calibrated or not self._cal_check_ready:
+                return False
+            source_valid = self._calibration_width_valid
+            source_width = self._calibration_width_cells
+        elif calibrated:
+            source_valid = self._calibration_width_valid
+            source_width = self._calibration_width_cells
+        else:
+            source_valid = self._active_cache_valid
+            source_width = self._active_cache_width
+        if source_valid is None or source_width is None:
             return False
         valid = self._ring_width_valid
         widths = self._ring_width
@@ -1212,8 +1853,8 @@ class TrackElementsTracker:
             valid[y] = 0
             widths[y] = 0
             nearest[y] = -1
-            if cache_valid[y] != 0:
-                width = int(cache_width[y])
+            if source_valid[y] != 0:
+                width = int(source_width[y])
                 if 8 <= width <= 70:
                     valid[y] = 1
                     widths[y] = width
@@ -1236,10 +1877,17 @@ class TrackElementsTracker:
             self._release_ring_width()
             return False
         self._ring_cache_frozen = True
+        self._ring_width_calibrated = calibrated
+        self._result["ring_width_source"] = (
+            "CALIBRATED_45CM_ROW_MAP" if calibrated else
+            "FIXTURE_CACHE_ONLY")
         return True
 
     def _release_ring_width(self):
         self._ring_cache_frozen = False
+        self._ring_width_calibrated = False
+        if hasattr(self, "_result"):
+            self._result["ring_width_source"] = "NONE"
         for y in range(self.height):
             self._ring_width_valid[y] = 0
             self._ring_width[y] = 0
@@ -1251,53 +1899,53 @@ class TrackElementsTracker:
 
     def _observe_for_entry(self, now_ms, topology, cache_ok):
         self._reason = "OBSERVING"
-        if not (self._baseline_ready and cache_ok):
+        if self.require_calibration and not (
+                self._calibration_ready and self._cal_check_ready):
+            self._ring_diag_reason_code = 1
+            self._reason = "RING_CALIBRATION_NOT_READY"
             return
-        if self._current_road:
+        if not (self._baseline_ready and cache_ok):
+            self._ring_diag_reason_code = 2
+            self._reason = "OBSERVING"
             return
         if not self._current_valid:
+            self._ring_diag_reason_code = 3
             self._reject(REJECT_SINGLE_ROWS_STALE)
+            self._reason = "ROW_INPUT_INVALID"
             return
         if (self._near_left_ambiguous or self._near_right_ambiguous or
                 self._topology_branch(topology) or
                 not self._topology_clear(topology)):
+            self._ring_diag_reason_code = 4
             self._reject(REJECT_TOPOLOGY_AMBIGUOUS)
             self._reason = "TOPOLOGY_NOT_CLEAR"
             return
 
-        left_missing = (
-            self._near_left_rows <= self.max_missing_side_rows and
-            self._near_right_rows >= self.min_side_support and
-            self._near_right_run >= self.min_side_contiguous and
-            self._near_right_ambiguous == 0 and
-            self._opposite_matches_baseline(SIDE_LEFT))
-        right_missing = (
-            self._near_right_rows <= self.max_missing_side_rows and
-            self._near_left_rows >= self.min_side_support and
-            self._near_left_run >= self.min_side_contiguous and
-            self._near_left_ambiguous == 0 and
-            self._opposite_matches_baseline(SIDE_RIGHT))
-        # A validated bilateral road row set cannot also represent a missing
-        # side. This path is reachable only for fresh raw one-sided evidence.
-        if not self._current_road and (left_missing or right_missing):
-            self._side = SIDE_LEFT if left_missing else SIDE_RIGHT
-            if not self._freeze_ring_width():
-                self._side = SIDE_NONE
-                self._reject(REJECT_CACHE_INVALID)
-                self._reason = "NO_FROZEN_WIDTH_PROFILE"
-                return
-            self._ring_odom_start_valid = self._current_odom_valid
-            self._ring_odom_start = (self._current_odom if
-                                     self._current_odom_valid else None)
-            self._drop_count = 1
-            self._state = STATE_ENTRY_CONFIRM
-            self._reason = "ONE_SIDE_LOST_CANDIDATE"
-            self._state_start_ms = int(now_ms)
-            self._state_frames = 0
-            self._record_event(EVENT_ENTRY_CANDIDATE,
-                               REJECT_SIDE_SUPPORT,
-                               self._baseline_left2 if self._side == SIDE_LEFT
-                               else self._baseline_right2, now_ms)
+        side = self._find_entry_dropout_side()
+        if side == SIDE_NONE:
+            self._ring_diag_reason_code = 5
+            self._reason = "NO_MIDFAR_DROPOUT_WITH_NEAR_ANCHOR"
+            return
+        self._side = side
+        if not self._freeze_ring_width():
+            self._side = SIDE_NONE
+            self._reject(REJECT_CACHE_INVALID)
+            self._reason = "NO_FROZEN_CALIBRATED_WIDTH_PROFILE"
+            self._ring_diag_reason_code = 1
+            return
+        self._ring_odom_start_valid = self._current_odom_valid
+        self._ring_odom_start = (self._current_odom if
+                                 self._current_odom_valid else None)
+        self._drop_count = 1
+        self._state = STATE_ENTRY_CONFIRM
+        self._reason = "ONE_SIDE_LOST_CANDIDATE"
+        self._ring_diag_reason_code = 6
+        self._state_start_ms = int(now_ms)
+        self._state_frames = 0
+        self._record_event(EVENT_ENTRY_CANDIDATE,
+                           REJECT_SIDE_SUPPORT,
+                           self._baseline_left2 if self._side == SIDE_LEFT
+                           else self._baseline_right2, now_ms)
 
     def _confirm_entry_drop(self, now_ms, topology):
         self._reason = "CONFIRMING_ONE_SIDE_LOSS"
@@ -1308,26 +1956,15 @@ class TrackElementsTracker:
             self._abort("ENTRY_TOPOLOGY_AMBIGUOUS", now_ms,
                         REJECT_TOPOLOGY_AMBIGUOUS)
             return
-        if self._side == SIDE_LEFT:
-            missing = self._near_left_rows <= self.max_missing_side_rows
-            other_ok = (self._near_right_rows >= self.min_side_support and
-                        self._near_right_run >= self.min_side_contiguous and
-                        self._near_right_ambiguous == 0 and
-                        self._opposite_matches_baseline(SIDE_LEFT))
-        else:
-            missing = self._near_right_rows <= self.max_missing_side_rows
-            other_ok = (self._near_left_rows >= self.min_side_support and
-                        self._near_left_run >= self.min_side_contiguous and
-                        self._near_left_ambiguous == 0 and
-                        self._opposite_matches_baseline(SIDE_RIGHT))
-        if missing and other_ok:
+        missing, missing_rows, anchor_rows = \
+            self._entry_dropout_evidence(self._side)
+        self._ring_diag_arc_rows = missing_rows
+        self._ring_diag_anchor_rows = anchor_rows
+        if missing:
             self._drop_count += 1
             if self._drop_count >= self.min_drop_frames:
                 self._set_state(STATE_ENTER, "DROPOUT_CONFIRMED", now_ms)
-            return
-        if not other_ok:
-            self._abort("OPPOSITE_SIDE_UNSTABLE", now_ms,
-                        REJECT_SIDE_SUPPORT)
+                self._ring_diag_reason_code = 7
             return
         # Reappearance without the required ring motion is an ordinary
         # recovery from a one-frame detector miss.
@@ -1343,60 +1980,32 @@ class TrackElementsTracker:
             self._abort("ENTRY_TOPOLOGY_AMBIGUOUS", now_ms,
                         REJECT_TOPOLOGY_AMBIGUOUS)
             return
-        if self._side == SIDE_LEFT:
-            other_ok = (self._near_right_rows >= self.min_side_support and
-                        self._near_right_run >= self.min_side_contiguous and
-                        self._near_right_ambiguous == 0 and
-                        self._opposite_matches_baseline(SIDE_LEFT))
-            edge2 = self._reference_left2
-            edge_y = self._reference_left_y
-            base2 = self._baseline_left2
-            direction = 1
-        else:
-            other_ok = (self._near_left_rows >= self.min_side_support and
-                        self._near_left_run >= self.min_side_contiguous and
-                        self._near_left_ambiguous == 0 and
-                        self._opposite_matches_baseline(SIDE_RIGHT))
-            edge2 = self._reference_right2
-            edge_y = self._reference_right_y
-            base2 = self._baseline_right2
-            direction = -1
-        if not other_ok:
-            self._abort("OPPOSITE_SIDE_UNSTABLE", now_ms,
-                        REJECT_SIDE_SUPPORT)
-            return
-        if edge_y < 0:
+        rows, outward, edge2, span, arc_ok = self._entry_arc_profile(
+            self._side)
+        self._ring_diag_arc_rows = rows
+        self._ring_diag_arc_span = span
+        self._ring_diag_reason_code = 8
+        if not arc_ok:
             self._reject(REJECT_SIDE_SUPPORT)
             return
-
-        outward = (edge2 - base2 if direction > 0 else base2 - edge2)
         if self._reappear_count == 0:
-            if outward < self.reappear_shift2:
-                self._reject(REJECT_RING_SEQUENCE)
-                return
             self._reappear_count = 1
-            self._extreme_x2 = edge2
+            self._extreme_x2 = outward
             self._reverse_count = 0
             return
 
-        if direction > 0:
-            if edge2 > self._extreme_x2:
-                self._extreme_x2 = edge2
-                self._reverse_count = 0
-                return
-            reversal = self._extreme_x2 - edge2
-        else:
-            if edge2 < self._extreme_x2:
-                self._extreme_x2 = edge2
-                self._reverse_count = 0
-                return
-            reversal = edge2 - self._extreme_x2
+        if outward > self._extreme_x2:
+            self._extreme_x2 = outward
+            self._reverse_count = 0
+            return
+        reversal = self._extreme_x2 - outward
         if reversal >= self.peak_reversal2:
             self._reverse_count += 1
         else:
             self._reverse_count = 0
         if self._reverse_count >= self.peak_confirm_frames:
             self._set_state(STATE_INSIDE, "RING_ARC_CONFIRMED", now_ms)
+            self._ring_diag_reason_code = 9
             self._record_event(EVENT_RING_CONFIRMED, REJECT_NONE, edge2,
                                now_ms)
 
@@ -1425,75 +2034,150 @@ class TrackElementsTracker:
             return bool(route_ok and self._result["target_valid"])
         return True
 
-    def _stable_exit_frame(self, topology, cache_ok):
-        if not (self._current_road and self._current_valid and cache_ok and
-                self._topology_clear(topology)):
+    def _ring_boundary_dropout(self, missing_side, anchor_side):
+        base = missing_side * self.height
+        longest = 0
+        run = 0
+        missing_rows = 0
+        for y in range(self.floor_y, 48):
+            if not self._baseline_row_valid[y]:
+                run = 0
+                continue
+            if self._current_status[base + y] != 1:
+                run += 1
+                missing_rows += 1
+                if run > longest:
+                    longest = run
+            else:
+                run = 0
+        anchor_base = anchor_side * self.height
+        anchor_rows = 0
+        for y in range(self.height - self.near_rows, self.height):
+            baseline = int(
+                self._baseline_left_by_y2[y] if anchor_side == SIDE_LEFT else
+                self._baseline_right_by_y2[y])
+            if (self._baseline_row_valid[y] and
+                    self._current_status[anchor_base + y] == 1 and
+                    abs(int(self._current_edge2[anchor_base + y]) - baseline) <=
+                    self.opposite_position_tolerance2):
+                anchor_rows += 1
+        return (missing_rows >= 4 and longest >= 4 and
+                anchor_rows >= self.min_near_support,
+                missing_rows, anchor_rows)
+
+    def _exit_profile_fit(self, topology):
+        if (not self._current_valid or not self._topology_clear(topology) or
+                self._side not in (SIDE_LEFT, SIDE_RIGHT)):
             return False
-        if (self._near_left_rows < self.min_near_support or
+        actual_side = SIDE_RIGHT if self._side == SIDE_LEFT else SIDE_LEFT
+        base = actual_side * self.height
+        rows = 0
+        run = 0
+        longest = 0
+        min_y = self.height
+        max_y = -1
+        max_residual = 0
+        for y in range(self.floor_y, self.height):
+            if (not self._baseline_row_valid[y] or
+                    self._current_status[base + y] != 1):
+                run = 0
+                continue
+            baseline = int(
+                self._baseline_right_by_y2[y] if actual_side == SIDE_RIGHT
+                else self._baseline_left_by_y2[y])
+            residual = abs(int(self._current_edge2[base + y]) - baseline)
+            if residual > max_residual:
+                max_residual = residual
+            if residual > 4:
+                run = 0
+                continue
+            rows += 1
+            run += 1
+            if run > longest:
+                longest = run
+            if y < min_y:
+                min_y = y
+            if y > max_y:
+                max_y = y
+        span = max_y - min_y if rows else 0
+        self._ring_diag_exit_rows = rows
+        self._ring_diag_exit_span = span
+        self._ring_diag_exit_residual = max_residual
+        if rows < 8 or longest < 8 or span < 12 or max_residual > 4:
+            return False
+        return True
+
+    def _stable_exit_frame(self, topology, cache_ok):
+        return self._exit_profile_fit(topology)
+
+    def _paired_aligned_frame(self, topology):
+        if (not self._current_road or not self._current_valid or
+                not self._topology_clear(topology) or
+                self._near_left_rows < self.min_near_support or
                 self._near_right_rows < self.min_near_support or
                 self._near_left_run < self.min_near_contiguous or
                 self._near_right_run < self.min_near_contiguous or
                 self._near_left_ambiguous or self._near_right_ambiguous):
             return False
-        ref_y = self._reference_left_y
-        if (ref_y < 0 or ref_y != self._reference_right_y or
-                ref_y != self._baseline_y):
-            return False
-        current_left2 = int(self._current_edge2[ref_y])
-        current_right2 = int(self._current_edge2[self.height + ref_y])
-        if current_left2 >= current_right2:
-            return False
-        cache_y = int(self._ring_nearest_y[ref_y])
-        if cache_y < 0 or abs(cache_y - ref_y) > self.max_cache_gap:
-            return False
-        measured_width = (current_right2 - current_left2) // 2
-        cached_width = int(self._ring_width[cache_y])
-        if abs(measured_width - cached_width) > self.exit_width_tolerance:
-            return False
-        measured_center2 = current_left2 + current_right2
-        baseline_center2 = self._baseline_left2 + self._baseline_right2
-        return abs(measured_center2 - baseline_center2) <= \
-            self.exit_center_tolerance2
+        rows = 0
+        min_y = self.height
+        max_y = -1
+        for y in range(self.floor_y, self.height):
+            if (not self._baseline_row_valid[y] or
+                    self._current_status[y] != 1 or
+                    self._current_status[self.height + y] != 1):
+                continue
+            left2 = int(self._current_edge2[y])
+            right2 = int(self._current_edge2[self.height + y])
+            if (left2 >= right2 or
+                    abs(left2 - self._baseline_left_by_y2[y]) > 4 or
+                    abs(right2 - self._baseline_right_by_y2[y]) > 4):
+                continue
+            if self._calibration_ready:
+                width = int(self._calibration_width_cells[y])
+                measured = (right2 - left2) // 2
+                if width < 8 or abs(measured - width) * 5 > width:
+                    continue
+            rows += 1
+            if y < min_y:
+                min_y = y
+            if y > max_y:
+                max_y = y
+        return rows >= 8 and max_y - min_y >= 12
 
     def _observe_inside_exit(self, now_ms, topology, cache_ok, route_ok):
         self._reason = "RING_INSIDE_EXIT_UNOBSERVED"
+        self._ring_diag_reason_code = 10
         if not self._ring_topology_safe(topology, route_ok):
             self._reject(REJECT_TOPOLOGY_AMBIGUOUS)
             return
         if not self._current_valid:
             self._reject(REJECT_SINGLE_ROWS_STALE)
             return
-        if self._side == SIDE_LEFT:
-            missing = self._near_left_rows <= self.max_missing_side_rows
-            opposite_ok = (
-                self._near_right_rows >= self.min_side_support and
-                self._near_right_run >= self.min_side_contiguous and
-                self._near_right_ambiguous == 0 and
-                self._opposite_matches_baseline(SIDE_LEFT))
-        else:
-            missing = self._near_right_rows <= self.max_missing_side_rows
-            opposite_ok = (
-                self._near_left_rows >= self.min_side_support and
-                self._near_left_run >= self.min_side_contiguous and
-                self._near_left_ambiguous == 0 and
-                self._opposite_matches_baseline(SIDE_RIGHT))
-        if missing and opposite_ok:
-            if self._exit_side not in (SIDE_NONE, self._side):
+        actual_exit_side = (SIDE_RIGHT if self._side == SIDE_LEFT else
+                            SIDE_LEFT)
+        missing, missing_rows, anchor_rows = self._ring_boundary_dropout(
+            actual_exit_side, self._side)
+        self._ring_diag_arc_rows = missing_rows
+        self._ring_diag_anchor_rows = anchor_rows
+        if missing:
+            if self._exit_side not in (SIDE_NONE, actual_exit_side):
                 self._exit_drop_count = 0
-            self._exit_side = self._side
+            self._exit_side = actual_exit_side
             self._exit_drop_count += 1
             if self._exit_drop_count >= self.exit_drop_frames:
                 self._set_state(STATE_EXIT_CONFIRM,
-                                "EXIT_SIDE_DROPOUT_OBSERVED", now_ms)
+                                "EXIT_OPPOSITE_SIDE_DROPOUT_OBSERVED", now_ms)
                 self._exit_reappear_count = 0
                 self._result["exit_experimental"] = True
+                self._ring_diag_reason_code = 10
+                self._clear_target_output()
             return
-        # The exit experiment starts only after a fresh, sustained loss of the
-        # locked ring edge while the opposite edge remains at its baseline.
         self._exit_drop_count = 0
 
     def _confirm_exit(self, now_ms, topology, cache_ok):
         self._reason = "EXIT_EXPERIMENTAL_CONFIRM"
+        self._ring_diag_reason_code = 11
         self._result["exit_experimental"] = True
         if self._stable_exit_frame(topology, cache_ok):
             self._exit_reappear_count += 1
@@ -1502,6 +2186,7 @@ class TrackElementsTracker:
                                 "EXIT_REOBSERVED_REPAIR_PENDING", now_ms)
                 self._repair_count = 0
                 self._result["exit_experimental"] = True
+                self._ring_diag_reason_code = 11
         else:
             self._exit_reappear_count = 0
             self._result["exit_experimental"] = True
@@ -1509,27 +2194,19 @@ class TrackElementsTracker:
     def _repair_exit(self, now_ms, topology, cache_ok):
         self._reason = "EXIT_EXPERIMENTAL_REOBSERVATION"
         self._result["exit_experimental"] = True
-        if self._stable_exit_frame(topology, cache_ok):
-            self._repair_count += 1
-            if self._repair_count >= self.exit_repair_frames:
-                self._set_state(STATE_REACQUIRE,
-                                "EXIT_VISUALLY_REOBSERVED", now_ms)
-                self._record_event(EVENT_EXIT_REOBSERVED,
-                                   REJECT_NONE, 0, now_ms)
-                self._result["exit_experimental"] = True
-                self._result["exit_reobserved"] = True
-        else:
-            self._set_state(STATE_INSIDE, "EXIT_REOBSERVATION_LOST", now_ms)
-            self._repair_count = 0
+        self._ring_diag_reason_code = 11
+        if self._paired_aligned_frame(topology):
+            self._set_state(STATE_REACQUIRE,
+                            "EXIT_VISUALLY_REOBSERVED", now_ms)
+            self._reacquire_count = 1
+            self._record_event(EVENT_EXIT_REOBSERVED, REJECT_NONE, 0, now_ms)
+            self._result["exit_experimental"] = True
+            self._result["exit_reobserved"] = True
 
     def _reacquire(self, now_ms, topology, cache_ok):
         self._reason = "WAITING_FOR_NORMAL_ROAD_REACQUIRE"
-        if (self._current_road and self._current_valid and cache_ok and
-                self._topology_clear(topology) and
-                self._near_left_rows >= self.min_near_support and
-                self._near_right_rows >= self.min_near_support and
-                self._near_left_run >= self.min_near_contiguous and
-                self._near_right_run >= self.min_near_contiguous):
+        self._ring_diag_reason_code = 12
+        if self._paired_aligned_frame(topology):
             self._reacquire_count += 1
             if self._reacquire_count >= self.reacquire_frames:
                 self._reset_to_observe("NORMAL_ROAD_REACQUIRED", now_ms)
@@ -1547,6 +2224,7 @@ class TrackElementsTracker:
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
+        self._clear_baseline_rows()
         self._release_ring_width()
         self._drop_count = 0
         self._reappear_count = 0
@@ -1581,6 +2259,7 @@ class TrackElementsTracker:
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
+        self._clear_baseline_rows()
         self._release_ring_width()
         self._drop_count = 0
         self._reappear_count = 0
@@ -1625,10 +2304,16 @@ class TrackElementsTracker:
         count = 0
         near_observed = 0
         inferred = 0
+        width_source_flag = (TARGET_WIDTH_FROM_CALIBRATION
+                             if self._calibration_ready else
+                             TARGET_WIDTH_FROM_CACHE)
         near_start = max(self.floor_y, self.height - self.near_rows)
         status = self._current_status
         edge2 = self._current_edge2
         for y in range(self.floor_y, self.height):
+            if (self._ring_width_calibrated and
+                    not self._ring_width_valid[y]):
+                continue
             nearest_y = int(self._ring_nearest_y[y])
             if (nearest_y < 0 or abs(nearest_y - y) > self.max_cache_gap):
                 continue
@@ -1641,14 +2326,14 @@ class TrackElementsTracker:
                 left2 = int(edge2[y])
                 right2 = left2 + 2 * width
                 flags = (TARGET_OBSERVED_LEFT | TARGET_INFERRED_RIGHT |
-                         TARGET_WIDTH_FROM_CACHE)
+                         width_source_flag)
             else:
                 if status[self.height + y] != 1:
                     continue
                 right2 = int(edge2[self.height + y])
                 left2 = right2 - 2 * width
                 flags = (TARGET_OBSERVED_RIGHT | TARGET_INFERRED_LEFT |
-                         TARGET_WIDTH_FROM_CACHE)
+                         width_source_flag)
             if (left2 < -1 or right2 > (self.width - 1) * 2 + 1 or
                     left2 >= right2):
                 continue
@@ -2136,4 +2821,66 @@ class TrackElementsTracker:
         if elapsed < 0:
             elapsed = 0
         result["state_elapsed_ms"] = elapsed
+        self._sync_ring_diagnostic()
+
+    def _sync_ring_diagnostic(self):
+        result = self._result
+        reason_code = self._ring_diag_reason_code
+        if reason_code < 0 or reason_code >= len(_RING_DIAG_REASON_NAMES):
+            reason_code = 0
+        result["ring_diagnostic_reason"] = \
+            _RING_DIAG_REASON_NAMES[reason_code]
+        result["ring_arc_support_rows"] = self._ring_diag_arc_rows
+        result["ring_arc_span_rows"] = self._ring_diag_arc_span
+        result["ring_near_anchor_rows"] = self._ring_diag_anchor_rows
+        result["ring_exit_fit_rows"] = self._ring_diag_exit_rows
+        result["ring_exit_span_rows"] = self._ring_diag_exit_span
+        result["ring_exit_residual_x2"] = self._ring_diag_exit_residual
+        record = self._ring_diag
+        record[0] = reason_code
+        record[1] = self._state
+        record[2] = self._side
+        record[3] = 1 if self._calibration_ready else 0
+        record[4] = self._calibration_reason_code()
+        record[5] = 1 if self._cal_check_ready else 0
+        record[6] = self._cal_check_reason_code()
+        record[7] = self._cal_check_stable_frames
+        record[8] = self._cal_check_support_rows
+        record[9] = self._cal_check_span_rows
+        record[10] = self._cal_check_median_error_permille
+        record[11] = self._ring_diag_arc_rows
+        record[12] = self._ring_diag_anchor_rows
+        record[13] = self._ring_diag_exit_rows
+
+    def _calibration_reason_code(self):
+        reason = self._calibration_reason
+        if reason == "CALIBRATION_READY":
+            return 0
+        if reason in ("NO_CALIBRATION", "INVALID_CALIBRATION"):
+            return 1
+        if reason == "FILE_NOT_FOUND":
+            return 2
+        if reason == "CRC_MISMATCH":
+            return 3
+        if reason == "GEOMETRY_MISMATCH":
+            return 4
+        return 5
+
+    def _cal_check_reason_code(self):
+        reason = self._cal_check_reason
+        if reason == "STARTUP_CHECK_READY":
+            return 0
+        if reason == "NOT_CHECKED":
+            return 1
+        if reason == "WAITING_FOR_CALIBRATION":
+            return 2
+        if reason == "CHECK_SUPPORT_INSUFFICIENT":
+            return 3
+        if reason == "WIDTH_MISMATCH":
+            return 4
+        if reason == "WAITING_FOR_STABLE_WIDTH_PROFILE":
+            return 5
+        if reason == "PARKED_GATE":
+            return 7
+        return 6
 

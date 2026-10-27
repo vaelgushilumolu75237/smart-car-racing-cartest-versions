@@ -15,7 +15,9 @@ SEND_PERIOD_MS = 50
 # the explicit historical V4 entry and is not a V7 send gate.
 PERF_WINDOW_MS = 10000
 PERF_WINDOW_HISTOGRAM_MS = 1
-PERF_GC_PERIOD_FRAMES = 30
+PERF_GC_PERIOD_FRAMES = 120
+PERF_GC_MAX_INTERVAL_FRAMES = 120
+PERF_GC_MIN_FREE_BYTES = 1024 * 1024
 V7_UART_WRITE_RESERVE_US = 22000  # UART 20 ms timeout plus 2 ms guard.
 DEBUG_ENABLED = True
 # Keep grayscale frames unmodified for calibration by setting this False.
@@ -25,6 +27,9 @@ USB_PREVIEW_ENABLED = True
 USB_PREVIEW_QUALITY = 10
 USB_PREVIEW_OVERLAY_MODE = "compact"
 USB_PREVIEW_BUILD_ID = "OPENMV_USB60_CANDIDATE_20261024"
+# Enable only for opt-in visible-IDE cadence measurements. The marker is
+# drawn after perception and control have consumed the grayscale frame.
+PREVIEW_FPS_MARKER_ENABLED = False
 OVERLAY_PERIOD_MS = 200  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
@@ -42,7 +47,7 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_TRACK_PROFILES_V1_20261025"
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING45_USB60_20261026"
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.
@@ -87,6 +92,10 @@ TRACK_ELEMENTS_CROSS_CENTER_TOLERANCE_X2 = 6
 TRACK_ELEMENTS_CROSS_WIDTH_TOLERANCE_CELLS = 6
 
 STEERING_DIAG_ENABLED = True
+RING_DIAGNOSTICS_ENABLED = True
+RING_DIAGNOSTICS_PATH = "ring_diagnostics.bin"
+RING_WIDTH_CALIBRATION_PATH = "ring_width_calibration.json"
+RING_WIDTH_CALIBRATION_REQUIRED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
