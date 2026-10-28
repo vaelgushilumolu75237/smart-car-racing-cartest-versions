@@ -21,6 +21,11 @@ import zlib
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
+try:
+    from . import camera_uart_diag_reader as camera_reader
+except ImportError:
+    import camera_uart_diag_reader as camera_reader
+
 import runtime_log_export as exporter
 
 
@@ -60,8 +65,20 @@ PROFILE_STATE_SYMBOLS = (
     "car_camera_profile_ack_age_ms", "car_camera_profile_mismatch_count",
     "car_session_odom_valid_samples", "car_session_odom_invalid_samples",
 )
+PE7_MOTOR_SYMBOLS = (
+    "car_pe7_raw_high", "car_pe7_high_stable", "car_pe7_low_stable",
+    "car_button_state", "car_button_armed", "car_button_press_event_count",
+    "car_button_stop_generation", "car_start_pending", "car_drive_allowed",
+    "car_run_block_reason", "car_follow_session_active",
+    "car_follow_startup_qualified", "car_follow_output_phase",
+    "car_follow_left_command_permille", "car_follow_right_command_permille",
+    "car_servo_frame_ready", "car_motor_hardware_lock_reason",
+    "car_pe7_sample_count", "car_pe7_last_sample_ms",
+    "car_pe7_sample_gap_max_ms", "car_motor_pwm_ccr2", "car_motor_pwm_ccr3",
+    "car_motor_pwm_ccer", "car_motor_pwm_enabled",
+)
 SCALAR_SYMBOLS = (REQUIRED_SCALAR_SYMBOLS + HOLD_SNAPSHOT_SYMBOLS +
-                  RECEIVE_RATE_SYMBOLS + PROFILE_STATE_SYMBOLS)
+                  RECEIVE_RATE_SYMBOLS + PROFILE_STATE_SYMBOLS + PE7_MOTOR_SYMBOLS)
 SIGNED_SCALAR_SYMBOLS = {"car_vision_hold_snapshot_error_norm"}
 SCALAR_SIZE = 4
 MAX_SCALAR_READ_SIZE = 8192
@@ -248,7 +265,13 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
             "interpretation": "signed_int32_twos_complement" if name in SIGNED_SCALAR_SYMBOLS else "uint32_little_endian",
         }
 
+    camera_plan = _optional_ram_snapshot_plan(
+        symbols, sections, camera_reader.SYMBOL, ".bss", camera_reader.SIZE,
+        D1_SRAM_START, D1_SRAM_END)
+    camera_plan["read_from_scalar_region"] = bool(camera_plan["available"])
     present_symbols = [item for item in planned_symbols.values() if item["available"]]
+    if camera_plan["available"]:
+        present_symbols.append(camera_plan)
     symbol_start = min(item["address_u32"] for item in present_symbols)
     symbol_end = max(item["address_u32"] + item["size"]
                      for item in present_symbols)
@@ -382,6 +405,8 @@ def build_plan(elf_path: str | Path) -> Dict[str, Any]:
         "optional_hold_snapshot_symbols": list(HOLD_SNAPSHOT_SYMBOLS),
         "optional_receive_rate_symbols": list(RECEIVE_RATE_SYMBOLS),
         "optional_profile_state_symbols": list(PROFILE_STATE_SYMBOLS),
+        "optional_pe7_motor_symbols": list(PE7_MOTOR_SYMBOLS),
+        "camera_uart_diagnostics": camera_plan,
         "scalar_symbols": planned_symbols,
         "scalar_read": {
             "address": _hex(symbol_start),
@@ -1173,6 +1198,18 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         scalars[name] = value
     scalars["car_mode_name"] = exporter.MODE_NAMES.get(scalars["car_mode"], "unknown")
     scalars["car_fault_name"] = exporter.FAULT_NAMES.get(scalars["car_fault"], "unknown")
+    button_state = scalars.get("car_button_state")
+    scalars["car_button_state_name"] = (
+        {0: "WAIT_HIGH", 1: "WAIT_LOW", 2: "RUNNING"}.get(button_state, "unknown")
+        if button_state is not None else "unavailable_legacy_elf")
+    camera_plan = plan["camera_uart_diagnostics"]
+    camera_diagnostics = {"available": False, "status": "unsupported_elf",
+                          "fresh": False, "records": []}
+    if camera_plan["available"]:
+        camera_offset = camera_plan["address_u32"] - read_start
+        camera_diagnostics = camera_reader.decode_camera_uart_snapshot(
+            scalar_raw[camera_offset:camera_offset + camera_reader.SIZE],
+            scalars["car_main_loop_heartbeat_ms"])
     scalars["iwdg_reset_flag_in_rcc_rsr"] = bool(
         scalars["car_init_rcc_rsr_reset_snapshot"] & RCC_RSR_IWDG1RSTF_MASK)
     scalars["rcc_rsr_iwdg1rstf_mask"] = _hex(RCC_RSR_IWDG1RSTF_MASK)
@@ -1327,6 +1364,9 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
     warnings = list(header["warnings"]) + list(header_after["warnings"]) + consistency_warnings
     warnings.extend(diagnostic_warnings)
     warnings.extend(speed_pi_warnings)
+    if camera_diagnostics["available"] and not camera_diagnostics["fresh"]:
+        warnings.append("Camera UART diagnostics are %s; cached records are not current camera state."
+                        % camera_diagnostics["status"])
     if ackermann_snapshot is not None and not ackermann_snapshot["valid"]:
         warnings.append("ACK1 coordination snapshot is {}: {}".format(
             ackermann_snapshot["status"], "; ".join(ackermann_snapshot["issues"])))
@@ -1370,6 +1410,7 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
         "reads": {
             "flash_rom_descriptor": plan["descriptor_read"],
             "scalar_region": plan["scalar_read"],
+            "camera_uart_diagnostics": camera_plan,
             "runtime_log_header": plan["header_read"],
             "runtime_log_header_after": plan["header_read"],
             "runtime_diagnostic_snapshot": plan["runtime_diagnostic_snapshot"],
@@ -1380,6 +1421,7 @@ def decode_snapshot(elf_path: str | Path, scalar_path: str | Path,
             "runtime_log_record_area_read": False,
         },
         "scalars": scalars,
+        "camera_uart_diagnostics": camera_diagnostics,
         "runtime_log_header": header,
         "runtime_log_header_after": header_after,
         "runtime_diagnostic_snapshot": diagnostic,

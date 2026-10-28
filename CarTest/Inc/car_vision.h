@@ -2,6 +2,7 @@
 #define CARTEST_CAR_VISION_H
 
 #include "commissioning.h"
+#include "camera_diag.h"
 #include "vision_protocol.h"
 
 #ifdef __cplusplus
@@ -47,6 +48,11 @@ typedef struct {
     uint8_t partial_active;
     uint8_t last_received_protocol_version;
     uint8_t last_protocol_status;
+    uint32_t diagnostic_last_sequence_ms;
+    uint16_t diagnostic_last_sequence;
+    uint8_t diagnostic_sequence_seen;
+    uint8_t diagnostic_discard_until_sync;
+    uint8_t diagnostic_discard_remaining;
 } car_vision_rx_t;
 
 void car_vision_rx_init(car_vision_rx_t *rx);

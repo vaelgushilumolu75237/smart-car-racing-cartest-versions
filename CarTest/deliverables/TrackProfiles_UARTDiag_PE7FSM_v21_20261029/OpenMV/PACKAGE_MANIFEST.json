@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "f4bc5abb01a51b11dd1715d9ac23d9ba4a4e2df815c8e4fe5983546cad62476a",
+      "source_sha256": "4b3a722301efc15ebadba3a6eb12ec65533cf5c9ee7fb7e3535a3226e72749bf",
       "exit_code": 0,
-      "mpy_sha256": "e1aa5449681d25812852615d46585ba9775d9b009b79e0eef186bd63f89aeb05"
+      "mpy_sha256": "8dab598d9177b932db2531317853dd723af6ac37ec29e502c36b257917f5ec3d"
     },
     {
       "file": "contour_route.py",
@@ -107,15 +107,15 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "d4c62761fbe2824f9691699b83ccd6018aecb400afdbbf1f51c2a741ada689cb",
+      "source_sha256": "1edecf7b41514302be82a73325241f1c541e6f76347b2b7a98eedd64c29ae16c",
       "exit_code": 0,
-      "mpy_sha256": "41c23b581b69196f0626ecac7250302e290be7c442137ea90f669ddd6d5b36ac"
+      "mpy_sha256": "e19d0c6855a7dead24e733bf0ba0a3ecf0b6aa5c6cf0eb4152290d3f26d6fe6b"
     },
     {
       "file": "reverse_control.py",
-      "source_sha256": "16d7e2dbfc5d1c05fa7e6eba6fcf284683482d7e065d7607bb98a64824d49047",
+      "source_sha256": "a8ced2ee5c67ef5d0b4394b57372b5d12dbda9b40b5081207d49d25368efd1d1",
       "exit_code": 0,
-      "mpy_sha256": "cfcea0915992e10dff2ddd227510383d1357fc2f1c20b91c4104bba67a9a6fe2"
+      "mpy_sha256": "dfd85c1002b11ef9acc4dd2a2d8c2848d4cb8f98c38ce5c3174de0956732ddc3"
     },
     {
       "file": "road_detector.py",
@@ -143,9 +143,9 @@
     },
     {
       "file": "vision_protocol.py",
-      "source_sha256": "9cd25d975e4bafe86a1e6fe07eb85e3e18fe6f6b758e9a985226f004b5cbd43b",
+      "source_sha256": "30a5269ae9f5af96b66dacbc76798c0dc299031ba34ee56ec8487bc795a50fc1",
       "exit_code": 0,
-      "mpy_sha256": "0e0815f8f9601e566642a75dd67646a4fffb5e8f5255aa0b865f014231145855"
+      "mpy_sha256": "c2c174796e1d6b1a1ef2982f7733fbb1a69b785b889a7a01ffe5238c3b214170"
     },
     {
       "file": "track_elements.py",
@@ -173,10 +173,11 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "delivery_version": "v20-pe7-level-run-stop-debounce",
-  "camera_runtime_source": "unchanged-v17",
+  "version": "v20261029-camera-diag-pe7-fsm-v21",
   "candidate_only": true,
   "hardware_validation": false,
   "deployment_eligible": false,
-  "board_fps_verified": false
+  "board_fps_verified": false,
+  "paired_h743_required": true,
+  "camera_diagnostic_build_code": "0x20261029"
 }

@@ -99,6 +99,13 @@ void reject_candidate(vp_parser* parser, vp_status status,
     realign(parser);
 }
 
+void consume_bad_diagnostic_candidate(vp_parser* parser,
+                                     vp_status status) {
+    parser->last_status = static_cast<uint8_t>(status);
+    parser->last_received_version = VP_VERSION_D1;
+    parser->length = 0u;
+}
+
 }  // namespace
 
 uint16_t vp_crc16_ccitt_false(const uint8_t* data, uint8_t length) {
@@ -128,7 +135,8 @@ vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame) {
     if (in == 0 || frame == 0) return VP_STATUS_BAD_ARGUMENT;
     if (in[0] != VP_SYNC_BYTE_0 || in[1] != VP_SYNC_BYTE_1)
         return VP_STATUS_BAD_HEADER;
-    if (in[2] != VP_VERSION_V2 && in[2] != VP_VERSION_V3)
+    if (in[2] != VP_VERSION_V2 && in[2] != VP_VERSION_V3 &&
+        in[2] != VP_VERSION_D1)
         return VP_STATUS_VERSION_MISMATCH;
     if (in[3] != VP_PAYLOAD_LENGTH ||
         (in[2] == VP_VERSION_V2 && in[11] != 0u) ||
@@ -144,6 +152,12 @@ vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame) {
     candidate.version = in[2];
     candidate.sequence = static_cast<uint16_t>(in[4]) |
                          (static_cast<uint16_t>(in[5]) << 8);
+    if (in[2] == VP_VERSION_D1) {
+        for (uint8_t i = 0u; i < VP_PAYLOAD_LENGTH; ++i)
+            candidate.diagnostic_payload[i] = in[6u + i];
+        *frame = candidate;
+        return VP_STATUS_FRAME;
+    }
     candidate.flags = in[6];
     candidate.confidence = in[7];
     candidate.lateral_error = decode_i16(in[8], in[9]);
@@ -201,12 +215,14 @@ uint8_t vp_parser_feed(vp_parser* parser, uint8_t byte, vp_frame* out) {
     /* Report an old/unknown frame as soon as its version byte is available. */
     if (parser->length == 3u &&
         parser->buffer[2] != VP_VERSION_V2 &&
-        parser->buffer[2] != VP_VERSION_V3) {
+        parser->buffer[2] != VP_VERSION_V3 &&
+        parser->buffer[2] != VP_VERSION_D1) {
         reject_candidate(parser, VP_STATUS_VERSION_MISMATCH,
                          parser->buffer[2]);
         return 0u;
     }
-    if (parser->length == 4u && parser->buffer[3] != VP_PAYLOAD_LENGTH) {
+    if (parser->length == 4u && parser->buffer[3] != VP_PAYLOAD_LENGTH &&
+        parser->buffer[2] != VP_VERSION_D1) {
         reject_candidate(parser, VP_STATUS_BAD_HEADER, parser->buffer[2]);
         return 0u;
     }
@@ -226,7 +242,12 @@ uint8_t vp_parser_feed(vp_parser* parser, uint8_t byte, vp_frame* out) {
         return 1u;
     }
 
-    reject_candidate(parser, status, parser->buffer[2]);
+    if (parser->buffer[2] == VP_VERSION_D1) {
+        /* D1 has a fixed 16-byte extent. Do not rescan its payload as control. */
+        consume_bad_diagnostic_candidate(parser, status);
+    } else {
+        reject_candidate(parser, status, parser->buffer[2]);
+    }
     return 0u;
 }
 

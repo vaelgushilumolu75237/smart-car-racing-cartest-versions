@@ -26,7 +26,9 @@ PROFILE_A = 1
 PROFILE_B = 2
 PROFILE_C = 3
 PROFILE_SESSION_ACTIVE = 0x01
-PROFILE_FLAGS_MASK = PROFILE_SESSION_ACTIVE
+PROFILE_DIAGNOSTICS_SUPPORTED = 0x02
+PROFILE_FLAGS_MASK = (PROFILE_SESSION_ACTIVE |
+                      PROFILE_DIAGNOSTICS_SUPPORTED)
 PROFILE_REVISION = 1
 
 
@@ -176,6 +178,13 @@ class ReverseControlParser:
                     self.profile_id in (PROFILE_A, PROFILE_B, PROFILE_C) and
                     (self.profile_flags & PROFILE_SESSION_ACTIVE))
 
+    def control_is_fresh(self, now_ms, ticks_diff):
+        """Return true only while a valid RESET/KEEP control lease is fresh."""
+        if not self.single_enabled or self._last_ms is None:
+            return False
+        age_ms = ticks_diff(now_ms, self._last_ms)
+        return 0 <= age_ms < self.timeout_ms
+
     def _bump_generation(self):
         self.generation = (self.generation + 1) & 0x7FFFFFFF
 
@@ -255,6 +264,14 @@ class ReverseControlParser:
             return False
         age_ms = ticks_diff(now_ms, self._profile_last_ms)
         return 0 <= age_ms < self.profile_timeout_ms
+
+    def profile_diagnostics_enabled(self, now_ms, ticks_diff):
+        """Require a fresh recognized revision-1 profile and capability bit."""
+        return bool(
+            self.profile_is_fresh(now_ms, ticks_diff) and
+            self.profile_revision == PROFILE_REVISION and
+            self.profile_id in (PROFILE_A, PROFILE_B, PROFILE_C) and
+            (self.profile_flags & PROFILE_DIAGNOSTICS_SUPPORTED))
 
     def profile_ack(self, now_ms, ticks_diff):
         """Return A/B/C only for a fresh revision-1 recognized profile."""
@@ -459,7 +476,8 @@ class ReverseControlParser:
 __all__ = (
     "COMMAND_KEEP", "COMMAND_RESET", "DEFAULT_TIMEOUT_MS", "FRAME_SIZE",
     "MAX_FEED_BYTES", "MAX_FRAME_SIZE", "PROFILE_A", "PROFILE_B",
-    "PROFILE_C", "PROFILE_FLAGS_MASK", "PROFILE_FRAME_SIZE",
+    "PROFILE_C", "PROFILE_DIAGNOSTICS_SUPPORTED", "PROFILE_FLAGS_MASK",
+    "PROFILE_FRAME_SIZE",
     "PROFILE_REVISION", "PROFILE_SESSION_ACTIVE", "PROFILE_TIMEOUT_MS",
     "PROFILE_UNKNOWN", "PROFILE_VERSION", "RUNTIME_API_VERSION",
     "ReverseControlParser", "crc16_ccitt_false", "pack_frame",

@@ -9,8 +9,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": false,
       "ring_outer_target_millirps": null,
-      "build_id": "19dce0e73d7f3d3f2d9c2b3a5d0e2fb4",
-      "elf_sha256": "617ee85ffd49289d723d85c1bc68710075044a04094051bf52d54cba92f2fb0b",
+      "build_id": "4820de71275c8db6b4d16e5067503d55",
+      "elf_sha256": "b0495c1e4bdd4d808435bfcf10328e4f9a0a657b366fe901d71b5e18ca95aaef",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -23,8 +23,8 @@
       "curve_outer_target_millirps": 4000,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4000,
-      "build_id": "13609c8f8f51f66020d73b75e74a1044",
-      "elf_sha256": "996570a8ba938efda6c67d2967bfebb2089f56c38f59b8da703bc3366c5fce74",
+      "build_id": "0dfb5a4183226588ce9ba5355ef0cd46",
+      "elf_sha256": "f2455e7c4403c205f180df480fc13baccc1dc4618c5c48ac6353d56e17e901f6",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -37,8 +37,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4400,
-      "build_id": "41729333fe5806cdac488c09fc15f241",
-      "elf_sha256": "453bd845948f4345db50c1ac3c0c2b4f4edc768b88e543e0dcadb834b19451e6",
+      "build_id": "b3def83883647971a675f43a2ccd2b11",
+      "elf_sha256": "e4cf160a9d93dd758ffccdafd507b9a9fb9acd70c7e7ddd38dcff6abbefd615c",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -47,5 +47,7 @@
   "forward_wire": "V3/16-byte/profile-ack",
   "reverse_state_wire": "V2/20-byte/revision1",
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
-  "hardware_acceptance": "pending_manual_road_tests"
+  "hardware_acceptance": "pending_manual_road_tests",
+  "camera_diagnostic_wire": "D1/16-byte/1Hz-capability-negotiated",
+  "paired_h743_openmv_update_required": true
 }

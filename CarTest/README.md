@@ -1,6 +1,6 @@
 # CarTest：H743 车载工程
 
-2026-10-29: PE7 level-control candidate (low stable 20ms = RUN; first high = immediate STOP; high stable 20ms rearms). User requested switch-only change with debounce. See [implementation and validation](docs/PE7-LEVEL-RUN-STOP-20261029.md). No H743 flash performed.
+2026-10-29: v21 paired candidate: PE7 WAIT_HIGH/WAIT_LOW/RUNNING at 1ms with immediate high-level stop, plus compact camera UART diagnostics readable through ST-Link. See [implementation and validation](docs/PE7-THREE-STATE-1MS-20261029.md). Hardware, road and 60FPS acceptance pending; no automatic flash/upload/start.
 
 
 ## 2026-10-26 当前配套版本

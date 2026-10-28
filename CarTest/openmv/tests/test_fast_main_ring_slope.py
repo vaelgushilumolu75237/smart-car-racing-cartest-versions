@@ -749,6 +749,111 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                         vision_protocol.crc16_ccitt_false(frame[2:10]),
                         int.from_bytes(frame[10:12], "little"))
 
+    def test_sideband_keeps_primary_send_timing_and_enters_total_cycle(self):
+        main._load_fast_runtime()
+        main._load_singleedge_runtime()
+        main._load_track_elements_runtime()
+        main._load_ring_runtime()
+        fake_time = _Time(step_us=100)
+        fifo_case = getattr(self, "_fifo_timing_case", False)
+        profile_bytes = (
+            bytes(main.reverse_control.pack_frame(0, 100)) +
+            bytes(main.reverse_control.pack_frame(1, 101)) +
+            bytes(main.reverse_control.pack_profile_state(
+                11, main.reverse_control.PROFILE_A,
+                main.reverse_control.PROFILE_SESSION_ACTIVE |
+                main.reverse_control.PROFILE_DIAGNOSTICS_SUPPORTED,
+                session_token=1)))
+
+        class _TimedUART(_UART):
+            def __init__(self):
+                super().__init__(fake_time, stop_after=999,
+                                 rx_data=profile_bytes)
+                self.primary_completion_us = None
+                self.mode = ("FIFO_QUEUED" if fifo_case else
+                             "SYNCHRONOUS_FALLBACK")
+
+            def fifo_txdone(self):
+                return (self.primary_completion_us is not None and
+                        fake_time.us - self.primary_completion_us >= 1400)
+
+            def write(self, frame):
+                self.frames.append(bytes(frame))
+                if frame[2] == vision_protocol.VERSION_V3:
+                    fake_time.us += 500
+                    self.primary_completion_us = fake_time.us
+                elif frame[2] == vision_protocol.VERSION_DIAGNOSTIC:
+                    # Model a long synchronous sideband write that still fits
+                    # the prechecked budget but ends the one-second fixture.
+                    fake_time.us = 1100000
+                return len(frame)
+
+        fake_uart = _TimedUART()
+        captured_perf = {}
+        original_record = main._V7PerfWindow.record
+
+        def capture_perf(perf, stage, elapsed_us):
+            if stage in ("pack_uart", "capture_to_send", "total_cycle"):
+                captured_perf[stage] = elapsed_us
+            return original_record(perf, stage, elapsed_us)
+
+        diagnostic_instances = []
+        diagnostic_class = main._VisionUARTWriter.CameraDiagnostics
+        original_diagnostic_init = diagnostic_class.__init__
+
+        def capture_diagnostic_instance(instance, build_code):
+            original_diagnostic_init(instance, build_code)
+            diagnostic_instances.append(instance)
+
+        output = io.StringIO()
+        def existing_gc_work():
+            # Let queued primary bytes drain in existing work, without a UART
+            # wait. An immediate post-primary D1 hook cannot pass this test.
+            fake_time.us += 2000
+
+        with patch.object(main, "time", fake_time), \
+                patch.object(main.fast_gray, "FastGrayMasks", _GrayBuilder), \
+                patch.object(main.fast_path, "FastPathDetector",
+                             _PathDetector), \
+                patch.object(main.fast_boundary, "FastBoundaryEvidence",
+                             _BoundaryValidator), \
+                patch.object(main.fast_single_edge,
+                             "FastSingleEdgeTracker", _SingleEdgeTracker), \
+                patch.object(main, "_validate_selected_fast_boundary",
+                             side_effect=lambda selection, _road, _validator: (
+                                 selection,
+                                 {"x": 50.0, "y": 40.0, "kind": "ROAD"},
+                                 {"valid": True, "reason": "TEST_VALID"})), \
+                patch.object(main._V7PerfWindow, "record", capture_perf), \
+                patch.object(diagnostic_class, "__init__",
+                             capture_diagnostic_instance), \
+                patch.object(config, "DEBUG_ENABLED", True), \
+                patch.object(config, "OVERLAY_ENABLED", False), \
+                patch.object(config, "RING_DIAGNOSTICS_ENABLED", False), \
+                patch.object(config, "PERF_GC_PERIOD_FRAMES", 1), \
+                patch.object(main.gc, "collect", existing_gc_work), \
+                contextlib.redirect_stdout(output):
+            main._main_fast(
+                duration_s=1, frame_source=_Sensor(), uart_sink=fake_uart)
+
+        self.assertEqual([frame[2] for frame in fake_uart.frames],
+                         [vision_protocol.VERSION_V3,
+                          vision_protocol.VERSION_DIAGNOSTIC])
+        self.assertIsNotNone(fake_uart.primary_completion_us)
+        self.assertLess(captured_perf["capture_to_send"], 200000)
+        self.assertLess(captured_perf["pack_uart"], 100000)
+        self.assertGreater(
+            diagnostic_instances[0].last_sideband_elapsed_us, 900000)
+        self.assertGreater(captured_perf["total_cycle"],
+                           diagnostic_instances[0].last_sideband_elapsed_us)
+
+    def test_fifo_sideband_uses_late_idle_opportunity_without_waiting(self):
+        self._fifo_timing_case = True
+        try:
+            self.test_sideband_keeps_primary_send_timing_and_enters_total_cycle()
+        finally:
+            del self._fifo_timing_case
+
     def test_ordinary_profiles_keep_road_authority_with_preview(self):
         fixture = _ordinary_band_fixture(1, "straight")
         frames, log = self._run_fixture_sequence(

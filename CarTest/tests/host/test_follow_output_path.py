@@ -198,10 +198,12 @@ typedef struct {
     uint8_t stale_fault;
 } car_vision_rx_t;
 
+enum { CAR_MANUAL_BUTTON_WAIT_HIGH=0, CAR_MANUAL_BUTTON_WAIT_LOW=1, CAR_MANUAL_BUTTON_RUNNING=2 };
 typedef struct {
     uint8_t run_request;
     uint8_t stop_pending;
     uint8_t raw_high;
+    unsigned state;
 } car_manual_button_t;
 
 static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms);
@@ -485,6 +487,7 @@ static void reset_mock(uint32_t caller)
     car_control_state.follow_output_duty_permille = 80u;
     car_control_state.follow_servo_target_us = 1520u;
     manual_run_button.run_request = 1u;
+    manual_run_button.state = CAR_MANUAL_BUTTON_RUNNING;
     servo_safety_io.marker = 1u;
 }
 static void start_existing_motor_outputs(uint16_t left, uint16_t right)
@@ -906,23 +909,25 @@ static void case_hold_expired(uint32_t caller, uint8_t transport_expired)
 
 static void case_normal_raw_release(uint32_t caller)
 {
+    /* Model the state published by the real 1ms sampler on first high. */
     reset_mock(caller); ++cases_run;
-    manual_run_button.raw_high = 1u; /* normal release edge, still request=1 */
-    manual_run_button.run_request = 1u;
+    manual_run_button.raw_high = 1u;
+    manual_run_button.state = CAR_MANUAL_BUTTON_WAIT_HIGH;
+    manual_run_button.run_request = 0u;
+    manual_run_button.stop_pending = 1u;
     EXTI->PR1 = APP_SWITCH_GPIO_PIN;
     pe7_high = 1u;
     start_existing_motor_outputs(80u, 80u); start_existing_servo(1520u);
     servo_apply();
     prepare_follow_motor_targets(mock_now_ms);
-    motor_apply(); expect_primask("normal_raw_release", caller);
-    expect_u32("normal_raw_release", "request_still_active", 1u,
+    motor_apply(); expect_primask("sampled_high_stop", caller);
+    expect_u32("sampled_high_stop", "request_cleared", 0u,
                manual_run_button.run_request);
-    expect_u32("normal_raw_release", "no_stop_pending", 0u,
-               manual_run_button.stop_pending);
-    expect_u32("normal_raw_release", "motor_remains_active", 1u,
+    expect_u32("sampled_high_stop", "motor_stopped", 0u,
                motor_outputs_active);
-    expect_u32("normal_raw_release", "no_motor_stop", 0u,
-               motor_stop_calls);
+    expect_u32("sampled_high_stop", "pwm_zero", 0u,
+               TIM3->CCR2 + TIM3->CCR3);
+    expect_u32("sampled_high_stop", "channels_disabled", 0u, TIM3->CCER);
 }
 
 static void case_manual_stop(uint32_t caller, uint8_t stop_pending)
@@ -1163,6 +1168,7 @@ static void case_hold_deadline_2000ms(uint32_t caller)
     car_control_state.vision_last_frame_alive_ms = mock_now_ms - 249u;
     car_control_state.manual_run_request = 1u;
     manual_run_button.run_request = 1u;
+    manual_run_button.state = CAR_MANUAL_BUTTON_RUNNING;
     follow_output_state.command_left_permille = 100u;
     follow_output_state.command_right_permille = 100u;
     start_existing_motor_outputs(100u, 100u);

@@ -262,10 +262,42 @@ class ReverseControlTests(unittest.TestCase):
         self.assertTrue(parser.single_enabled)
 
         bad_flags = bytearray(reverse_control.pack_profile_state(
-            11, reverse_control.PROFILE_C, 0x80))
+            11, reverse_control.PROFILE_C, 0x04))
         parser.feed(bad_flags, len(bad_flags), 5)
         self.assertEqual(parser.last_profile_event, "BAD_PROFILE_FLAGS")
         self.assertTrue(parser.single_enabled)
+
+    def test_diagnostics_capability_is_independent_of_follow_session_bit(self):
+        parser = reverse_control.ReverseControlParser()
+        diff = lambda now, then: now - then
+        flags = reverse_control.PROFILE_SESSION_ACTIVE
+        active = reverse_control.pack_profile_state(
+            1, reverse_control.PROFILE_B, flags, session_token=9)
+        parser.feed(active, len(active), 10)
+        self.assertTrue(parser.profile_session_active)
+        self.assertTrue(parser.ring_profile_enabled(10, diff))
+        profile_generation = parser.profile_generation
+
+        with_capability = reverse_control.pack_profile_state(
+            2, reverse_control.PROFILE_B,
+            flags | reverse_control.PROFILE_DIAGNOSTICS_SUPPORTED,
+            session_token=9)
+        parser.feed(with_capability, len(with_capability), 15)
+        self.assertEqual(parser.profile_generation, profile_generation)
+        self.assertTrue(parser.profile_session_active)
+        self.assertTrue(parser.profile_diagnostics_enabled(15, diff))
+        self.assertEqual(parser.profile_ack(15, diff),
+                         reverse_control.PROFILE_B)
+        self.assertFalse(parser.profile_diagnostics_enabled(270, diff))
+
+        inactive = reverse_control.pack_profile_state(
+            3, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_DIAGNOSTICS_SUPPORTED,
+            session_token=9)
+        parser.feed(inactive, len(inactive), 20)
+        self.assertFalse(parser.profile_session_active)
+        self.assertFalse(parser.ring_profile_enabled(20, diff))
+        self.assertTrue(parser.profile_diagnostics_enabled(20, diff))
 
     def test_unknown_profile_revision_and_inactive_session_fail_closed(self):
         parser = reverse_control.ReverseControlParser()

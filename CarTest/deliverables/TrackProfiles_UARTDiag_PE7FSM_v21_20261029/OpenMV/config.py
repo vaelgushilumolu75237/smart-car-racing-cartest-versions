@@ -58,6 +58,9 @@ VEHICLE_PROFILE_C = 3  # Ring enabled, faster speed profile.
 RING_ENABLED_PROFILE_IDS = (VEHICLE_PROFILE_B, VEHICLE_PROFILE_C)
 PROFILE_STATE_REVISION = 1
 PROFILE_STATE_TIMEOUT_MS = 250
+CAMERA_UART_DIAG_ENABLED = True
+CAMERA_UART_DIAG_INTERVAL_MS = 1000
+CAMERA_UART_DIAG_BUILD_CODE = 0x20261029
 
 # Bounded element-tracker settings. These conservative software defaults are
 # adjustable; they are not thresholds calibrated against a recorded track run.

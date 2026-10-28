@@ -568,12 +568,48 @@ try {
     $ackError = if ($ack -and $ack.error_class) { $ack.error_class } else { 'none' }
     Write-Output ("Status: {0}; logVersion={1}; CPU logger={2}, header={3}, enabled={4}, CPU count={5}, header count={6}, start events={7}, start token={8}; heartbeat_ms={9}; mode={10}, fault={11}, iwdgReset={12}; holdSnapshot={13}; activeProgress={14}; ACK1={15}/{16}" -f $decoded.status_class, $version, $diagState, $state, $enabled, $diagCount, $count, $starts, $startToken, $heartbeat, $mode, $fault, $resetFlag, $snapshot, $decoded.observing_active_progress, $ackStatus, $ackError)
     Write-Output ("Target probe={0}; requested SWD={1} kHz; requested SWD rate reported by probe={2} kHz; shared={3}; CSV created={4}" -f $script:SelectedProbeSN, $ConnectionFrequencyKhz, $script:ActualFrequencyKhz, [bool]$script:SharedConnectionValue, $decoded.csv_created)
+    if ($decoded.scalars.PSObject.Properties.Name -contains 'car_button_state_name') {
+        $pe7Status = $decoded.scalars
+        Write-Output ("PE7: GPIO_high={0}; FSM={1}; RUN_request={2}; start_pending={3}; starts={4}; stops={5}; 1ms_samples={6}; sample_max_gap_ms={7}" -f $pe7Status.car_pe7_raw_high, $pe7Status.car_button_state_name, $pe7Status.car_manual_run_request, $pe7Status.car_start_pending, $pe7Status.car_button_start_event_count, $pe7Status.car_button_stop_generation, $pe7Status.car_pe7_sample_count, $pe7Status.car_pe7_sample_gap_max_ms)
+        Write-Output ("Motor gates: block_reason={0}; drive_allowed={1}; hardware_lock={2}; servo_first_frame={3}; startup_qualified={4}; PWM_enabled={5}; TIM3_CCR2={6}; TIM3_CCR3={7}; TIM3_CCER={8}" -f $pe7Status.car_run_block_reason, $pe7Status.car_drive_allowed, $pe7Status.car_motor_hardware_lock_reason, $pe7Status.car_servo_frame_ready, $pe7Status.car_follow_startup_qualified, $pe7Status.car_motor_pwm_enabled, $pe7Status.car_motor_pwm_ccr2, $pe7Status.car_motor_pwm_ccr3, $pe7Status.car_motor_pwm_ccer)
+    }
     if ($decoded.status_class -in @('neverstarted', 'legacy_idle')) { Write-Output 'IDLE: no run records are available; this status tool does not create a CSV.' }
     if ($decoded.status_class -in @('active', 'legacy_active')) { Write-Output 'ACTIVE: the logger is still recording; wait for the vehicle stop path to freeze the log before export.' }
     if ($decoded.status_class -eq 'frozen') { Write-Output 'FROZEN: CPU snapshot and stable runtime-log header agree on state, count, and session.' }
     if ($decoded.status_class -eq 'inconsistent' -or $decoded.status_class -eq 'legacy_inconsistent') { Write-Output 'INCONSISTENT: the bounded header/snapshot comparison did not settle; retain diagnostics and do not export.' }
     if ($decoded.runtime_diagnostic_snapshot -and $decoded.runtime_diagnostic_snapshot.start_events -gt 0 -and $decoded.runtime_diagnostic_snapshot.start_token -eq 0) { Write-Output 'PE7 start events were seen, but the logger has not consumed a start token.' }
     if ($decoded.runtime_diagnostic_snapshot -and -not $decoded.runtime_diagnostic_snapshot.log_enabled) { Write-Output 'Runtime logger is disabled in this firmware build.' }
+    if ($decoded.PSObject.Properties.Name -contains 'camera_uart_diagnostics') {
+        $camera = $decoded.camera_uart_diagnostics
+        if ($camera.available) {
+            Write-Output ("Camera UART diagnostics: status={0}; fresh={1}; source=camera records cached by H743 (not full text logs)" -f $camera.status, $camera.fresh)
+            if ($camera.PSObject.Properties.Name -contains 'error') {
+                Write-Output ("Camera diagnostic validation: {0}" -f $camera.error)
+            }
+            if ($camera.PSObject.Properties.Name -contains 'latest_status' -and $camera.latest_status) {
+                $cs = $camera.latest_status
+                Write-Output ("Camera status: age_ms={0}; map={1}; parked_check={2}; gate_blocked={3}; observation={4}; reverse={5}; profile_raw={6}; ACK_actually_sent={7}; valid_actually_sent={8}" -f $cs.age_ms, $cs.calibration_reason, $cs.parked_check_passed, $cs.calibration_gate_blocked, $cs.observation_reason, $cs.reverse_reason, $cs.raw_profile_ack, $cs.actual_transmitted_ack, $cs.actual_observation_valid)
+            }
+            if ($camera.PSObject.Properties.Name -contains 'latest_counters' -and $camera.latest_counters) {
+                $cc = $camera.latest_counters
+                Write-Output ("Camera counters: age_ms={0}; vision_tx_errors={1}; detector_errors={2}; reverse_rejects={3}; saturated={4}" -f $cc.age_ms, $cc.vision_tx_errors, $cc.detector_errors, $cc.reverse_rejects, $cc.saturated)
+            }
+            if ($camera.PSObject.Properties.Name -contains 'latest_identity' -and $camera.latest_identity) {
+                Write-Output ("Camera diagnostic build marker: {0}; this marker does not verify the complete camera source bundle." -f $camera.latest_identity.build_code)
+            }
+            foreach ($record in @($camera.records)) {
+                if ($record.kind -eq 'status') {
+                    Write-Output ("Camera record seq={0} at_h743_ms={1} age_ms={2}: map={3}, observation={4}, ACK={5}->{6}, valid={7}" -f $record.diagnostic_sequence, $record.arrival_ms, $record.age_ms, $record.calibration_reason, $record.observation_reason, $record.raw_profile_ack, $record.actual_transmitted_ack, $record.actual_observation_valid)
+                } elseif ($record.kind -eq 'counters') {
+                    Write-Output ("Camera record seq={0} at_h743_ms={1} age_ms={2}: txerr={3}, deterr={4}, reverse_rejects={5}" -f $record.diagnostic_sequence, $record.arrival_ms, $record.age_ms, $record.vision_tx_errors, $record.detector_errors, $record.reverse_rejects)
+                } elseif ($record.kind -eq 'identity') {
+                    Write-Output ("Camera record seq={0} at_h743_ms={1} age_ms={2}: diagnostic_build={3}" -f $record.diagnostic_sequence, $record.arrival_ms, $record.age_ms, $record.build_code)
+                }
+            }
+        } else {
+            Write-Output 'Camera UART diagnostics: unsupported by selected ELF; camera state is unavailable through this snapshot.'
+        }
+    }
     if ($decoded.speed_pi_diagnostic_snapshot) {
         $pi = $decoded.speed_pi_diagnostic_snapshot
         Write-Output ("Speed PI: type={0}; status={1}; token={2} (matches runtime token={3}); target_mRPS={4}/{5}; measured_mRPS={6}/{7}; nominal_FF={8}/{9}; requested={10}/{11}; applied={12}/{13}; upper-cap_ms={14}/{15}; active={16}; frozen={17}; hold={18}" -f $pi.pi_type_name, $pi.status_name, $pi.start_token, $pi.start_token_matches_runtime_diagnostic, $pi.target_left_millirps, $pi.target_right_millirps, $pi.measured_left_millirps, $pi.measured_right_millirps, $pi.nominal_ff_left_permille, $pi.nominal_ff_right_permille, $pi.requested_left_permille, $pi.requested_right_permille, $pi.applied_left_permille, $pi.applied_right_permille, $pi.saturation_left_ms, $pi.saturation_right_ms, $pi.active, $pi.frozen, $pi.hold_active)

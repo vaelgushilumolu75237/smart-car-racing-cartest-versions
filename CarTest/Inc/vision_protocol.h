@@ -14,6 +14,7 @@ extern "C" {
 #define VP_VERSION_V2 2u
 #define VP_VERSION_V3 3u
 #define VP_VERSION_V1 1u
+#define VP_VERSION_D1 0xD1u
 #define VP_PAYLOAD_LENGTH 8u
 #define VP_FLAG_VALID 0x01u
 #define VP_FLAG_SLOPE_HINT 0x02u
@@ -53,6 +54,8 @@ typedef struct {
     /* Appended so legacy positional initializers retain their field order. */
     uint8_t version;
     uint8_t profile_ack;
+    /* Diagnostic-only D1 payload; never interpreted as a control observation. */
+    uint8_t diagnostic_payload[VP_PAYLOAD_LENGTH];
 } vp_frame;
 
 /* The parser owns this fixed-size storage; it performs no allocation. */

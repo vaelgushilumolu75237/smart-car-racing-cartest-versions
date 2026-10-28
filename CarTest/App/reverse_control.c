@@ -112,6 +112,27 @@ void car_reverse_profile_state_encode(
     frame[19] = (uint8_t)(crc >> 8u);
 }
 
+static void car_reverse_profile_state_encode_production(
+    uint16_t sequence,
+    uint8_t profile_id,
+    uint8_t session_active,
+    uint32_t session_token,
+    uint32_t mean_forward_wheel_millirev,
+    uint8_t frame[CAR_REVERSE_PROFILE_STATE_FRAME_SIZE])
+{
+    uint16_t crc;
+    car_reverse_profile_state_encode(
+        sequence, profile_id, session_active, session_token,
+        mean_forward_wheel_millirev, frame);
+    if (frame == 0) {
+        return;
+    }
+    frame[7] |= CAR_REVERSE_PROFILE_CAP_CAMERA_DIAGNOSTICS;
+    crc = car_reverse_control_crc16(frame, 18u);
+    frame[18] = (uint8_t)(crc & 0xFFu);
+    frame[19] = (uint8_t)(crc >> 8u);
+}
+
 void car_reverse_control_set_profile_state(
     car_reverse_control_tx_t *tx,
     uint8_t profile_id,
@@ -260,8 +281,9 @@ uint8_t car_reverse_control_next_byte_paired(
 
     if (tx->profile_state_enabled != 0u &&
         time_due(now_ms, tx->profile_next_due_ms) != 0u) {
-        car_reverse_profile_state_encode(
-            tx->profile_sequence, tx->profile_id, tx->profile_flags,
+        car_reverse_profile_state_encode_production(
+            tx->profile_sequence, tx->profile_id,
+            (uint8_t)(tx->profile_flags & 0x01u),
             tx->profile_session_token,
             tx->profile_mean_forward_wheel_millirev,
             tx->profile_frame);

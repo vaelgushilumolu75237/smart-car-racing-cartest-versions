@@ -5,6 +5,7 @@ SYNC_BYTE_0 = 0xA5
 SYNC_BYTE_1 = 0x5A
 VERSION = 2
 VERSION_V3 = 3
+VERSION_DIAGNOSTIC = 0xD1
 PAYLOAD_LENGTH = 8
 FLAG_VALID = 0x01
 FLAG_SLOPE_HINT = 0x02
@@ -17,6 +18,9 @@ CURVE_PHASE_CANDIDATE = 1
 CURVE_PHASE_TURN = 2
 CURVE_PHASE_EXIT = 3
 MAX_SLOWDOWN_REQUEST_PERMILLE = 1000
+DIAGNOSTIC_STATUS = 1
+DIAGNOSTIC_COUNTERS = 2
+DIAGNOSTIC_IDENTITY = 3
 
 try:
     import micropython
@@ -181,6 +185,46 @@ def pack_into_v3(out, sequence, valid, confidence, lateral_error,
     return _pack_into_version(
         out, sequence, valid, confidence, lateral_error, slope_hint,
         curve_phase, slowdown_request_permille, VERSION_V3, profile_ack)
+
+
+@micropython.native
+def pack_diagnostic_into(out, sequence, kind, value1, value2, value3,
+                         value4, value5, value6, value7):
+    """Pack a diagnostic-only D1 record into a caller-owned 16-byte buffer.
+
+    The eight payload values are passed separately so the production caller
+    can reuse one packet without constructing a per-record payload object.
+    The D1 frame uses the same A5 5A, length, sequence, and CRC layout as V3.
+    """
+    if not isinstance(out, bytearray):
+        raise TypeError("out must be a writable bytearray")
+    if len(out) < FRAME_SIZE:
+        raise ValueError("out must contain at least 16 bytes")
+    if (isinstance(sequence, bool) or not isinstance(sequence, int) or
+            sequence < 0 or sequence > 0xFFFF):
+        raise ValueError("sequence must be in 0..65535")
+    if (isinstance(kind, bool) or not isinstance(kind, int) or
+            kind < 0 or kind > 0xFF):
+        raise ValueError("kind must be in 0..255")
+
+    out[0] = SYNC_BYTE_0
+    out[1] = SYNC_BYTE_1
+    out[2] = VERSION_DIAGNOSTIC
+    out[3] = PAYLOAD_LENGTH
+    out[4] = sequence & 0xFF
+    out[5] = (sequence >> 8) & 0xFF
+    out[6] = kind
+    out[7] = value1
+    out[8] = value2
+    out[9] = value3
+    out[10] = value4
+    out[11] = value5
+    out[12] = value6
+    out[13] = value7
+    crc = _crc16_ccitt_false_range(out, 2, 14)
+    out[14] = crc & 0xFF
+    out[15] = (crc >> 8) & 0xFF
+    return out
 
 
 def pack_frame(sequence, valid, confidence, lateral_error, slope_hint=0,

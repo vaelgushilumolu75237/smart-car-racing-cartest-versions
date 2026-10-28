@@ -295,6 +295,10 @@ volatile uint32_t car_drive_allowed;
 volatile uint32_t car_pe7_raw_high;
 volatile uint32_t car_pe7_high_stable;
 volatile uint32_t car_pe7_low_stable;
+volatile uint32_t car_button_state;
+volatile uint32_t car_pe7_sample_count;
+volatile uint32_t car_pe7_last_sample_ms;
+volatile uint32_t car_pe7_sample_gap_max_ms;
 volatile uint32_t car_vision_valid;
 volatile uint32_t car_vision_timeout;
 volatile uint32_t car_vision_confidence;
@@ -450,6 +454,10 @@ volatile uint32_t car_motor_left_in1_output_permille;
 volatile uint32_t car_motor_left_in2_output_permille;
 volatile uint32_t car_motor_right_in1_output_permille;
 volatile uint32_t car_motor_right_in2_output_permille;
+volatile uint32_t car_motor_pwm_ccr2;
+volatile uint32_t car_motor_pwm_ccr3;
+volatile uint32_t car_motor_pwm_ccer;
+volatile uint32_t car_motor_pwm_enabled;
 volatile uint32_t car_bench_ready;
 volatile uint32_t car_bench_max_applied_duty_permille;
 volatile uint32_t car_main_loop_heartbeat_ms;
@@ -571,6 +579,8 @@ static uint8_t reverse_keep_notified;
 static uint8_t reverse_manual_stop_holdoff;
 static uint8_t follow_ramp_started;
 static uint8_t iwdg_started;
+static volatile uint8_t manual_button_gpio_ready;
+static uint8_t manual_button_have_sample;
 static car_manual_button_t manual_run_button;
 static uint32_t manual_stop_consumed_generation;
 
@@ -631,14 +641,14 @@ static void service_physical_profile_operation(const car_inputs_t *inputs);
 static void publish_encoder_hardware_snapshot(void);
 static motor_applied_channels_t motor_applied_channels_snapshot(void);
 static void publish_motor_channel_debug_snapshot(void);
-static void publish_debug_snapshot(uint8_t pe7_raw_high,
-                                   const car_inputs_t *inputs);
+static void publish_debug_snapshot(const car_inputs_t *inputs);
 static void protected_uart_error_note(uint32_t status);
 static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
 static uint16_t vision_rx_snapshot(uint32_t *now_ms);
 static uint8_t pe7_is_high(void);
-static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
-                                                       uint32_t now_ms);
+static car_manual_button_event_t manual_button_tick_sample(uint32_t now_ms);
+static car_manual_button_event_t manual_button_stop_on_high_sample(
+    uint8_t raw_high, uint32_t now_ms);
 static void cancel_manual_request_on_fault(void);
 static void consume_manual_stop_request(const car_inputs_t *inputs);
 static void apply_manual_stop_effects(uint32_t effects);
@@ -1332,8 +1342,14 @@ void SysTick_Handler(void)
     uint8_t follow_active;
     uint8_t bench_active;
     uint8_t steering_active;
+    car_manual_button_event_t button_event =
+        CAR_MANUAL_BUTTON_EVENT_NONE;
     HAL_IncTick();
     now_ms = HAL_GetTick();
+    if (manual_button_gpio_ready != 0u &&
+        app_config.follow_mode_compiled != 0u) {
+        button_event = manual_button_tick_sample(now_ms);
+    }
     follow_active = app_config.follow_mode_compiled != 0u &&
         (manual_run_button.run_request != 0u ||
          car_control_state.follow_session_active != 0u ||
@@ -1348,7 +1364,10 @@ void SysTick_Handler(void)
     if (follow_active != 0u) {
         if (manual_run_button.run_request == 0u ||
             manual_run_button.stop_pending != 0u) {
-            emergency_stop_hardware();
+            if (button_event != CAR_MANUAL_BUTTON_EVENT_STOP &&
+                button_event != CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_FAULT) {
+                emergency_stop_hardware();
+            }
         } else if ((uint32_t)(now_ms - car_main_loop_heartbeat_ms) >=
                    APP_MAIN_LOOP_GAP_LIMIT_MS) {
             protected_fast_stop_note(CAR_FAULT_LOOP_GAP);
@@ -1698,8 +1717,7 @@ static HAL_StatusTypeDef switch_init(void)
     __HAL_RCC_GPIOE_CLK_ENABLE();
     __HAL_RCC_SYSCFG_CLK_ENABLE();
     gpio.Pin = APP_SWITCH_GPIO_PIN;
-    gpio.Mode = app_config.follow_mode_compiled != 0u
-                    ? GPIO_MODE_IT_RISING_FALLING : GPIO_MODE_IT_RISING;
+    gpio.Mode = GPIO_MODE_IT_RISING;
     gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOE, &gpio);
@@ -1843,29 +1861,74 @@ static void note_applied_output_snapshot(void)
             ? applied_motor_follow_right_permille : 0u);
 }
 
-static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
-                                                       uint32_t now_ms)
+static void manual_button_publish_live_locked(uint8_t raw_high)
+{
+    car_pe7_raw_high = raw_high;
+    car_button_state = (uint32_t)manual_run_button.state;
+    car_manual_run_request = manual_run_button.run_request;
+    car_button_press_event_count = manual_run_button.press_event_count;
+    car_button_start_event_count = manual_run_button.start_event_count;
+    car_button_stop_generation = manual_run_button.stop_generation;
+    car_button_armed = manual_run_button.armed;
+}
+
+static car_manual_button_event_t manual_button_tick_sample(uint32_t now_ms)
 {
     uint32_t primask;
-    car_manual_button_event_t event = CAR_MANUAL_BUTTON_EVENT_NONE;
+    uint32_t sample_gap_ms = 0u;
+    uint8_t raw_high;
+    car_manual_button_event_t event;
 
-    if (app_config.follow_mode_compiled == 0u) {
-        return event;
+    if (manual_button_gpio_ready == 0u ||
+        app_config.follow_mode_compiled == 0u) {
+        return CAR_MANUAL_BUTTON_EVENT_NONE;
     }
 
     primask = __get_PRIMASK();
     __disable_irq();
-    event = car_manual_button_poll_high(&manual_run_button, raw_high, now_ms);
-    if (raw_high == 0u) {
-        event = car_manual_button_note_low_edge(
-            &manual_run_button, raw_high,
-            car_control_state.fault_latched);
+    raw_high = pe7_is_high();
+    event = car_manual_button_tick_1ms(
+        &manual_run_button, raw_high,
+        car_control_state.fault_latched, now_ms);
+    if (manual_button_have_sample != 0u) {
+        sample_gap_ms = (uint32_t)(now_ms - car_pe7_last_sample_ms);
+        if (sample_gap_ms > car_pe7_sample_gap_max_ms) {
+            car_pe7_sample_gap_max_ms = sample_gap_ms;
+        }
     }
+    car_pe7_last_sample_ms = now_ms;
+    ++car_pe7_sample_count;
+    manual_button_have_sample = 1u;
+    manual_button_publish_live_locked(raw_high);
+    __set_PRIMASK(primask);
+
+    if (event == CAR_MANUAL_BUTTON_EVENT_STOP ||
+        event == CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_FAULT) {
+        emergency_stop_hardware();
+    }
+    return event;
+}
+
+static car_manual_button_event_t manual_button_stop_on_high_sample(
+    uint8_t raw_high,
+    uint32_t now_ms)
+{
+    uint32_t primask;
+    car_manual_button_event_t event;
+
+    if (manual_button_gpio_ready == 0u ||
+        app_config.follow_mode_compiled == 0u || raw_high == 0u) {
+        return CAR_MANUAL_BUTTON_EVENT_NONE;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    event = car_manual_button_stop_on_high(
+        &manual_run_button, raw_high, now_ms);
+    manual_button_publish_live_locked(raw_high);
     __set_PRIMASK(primask);
 
     if (event == CAR_MANUAL_BUTTON_EVENT_STOP) {
-        /* Motors stop immediately; the existing servo path finishes its
-           queued pulse before disabling PA8. Main consumes the full state. */
         emergency_stop_hardware();
     }
     return event;
@@ -2061,8 +2124,7 @@ static void flush_uart_and_parser(void)
     }
     if (session_active != 0u && pending_switch_release != 0u &&
         app_config.follow_mode_compiled == 0u && pe7_is_high() != 0u) {
-        /* Bench retains its released-high stop. Follow consumes only a
-           debounced low-edge toggle; an EXTI pending bit is not a stop. */
+        /* Bench keeps its released-high stop; Follow handles PE7 separately. */
         car_control_note_switch_release_isr(&car_control_state);
     }
     /* Clear an old NVIC request before flushing the peripheral. A new byte
@@ -2255,7 +2317,8 @@ static uint8_t motor_output_guard(
         return 0u;
     }
     if (follow_mode != 0u) {
-        if (manual_run_button.run_request == 0u ||
+        if (manual_run_button.state != CAR_MANUAL_BUTTON_RUNNING ||
+            manual_run_button.run_request == 0u ||
             manual_run_button.stop_pending != 0u) {
             return 0u;
         }
@@ -2264,7 +2327,7 @@ static uint8_t motor_output_guard(
             if (active_session != 0u && pe7_is_high() != 0u) {
                 car_control_note_switch_release_isr(&car_control_state);
             }
-            /* Bench release edges remain fail-safe; Follow uses low toggles. */
+            /* Bench release edges remain fail-safe in this non-Follow path. */
             return 0u;
         }
         if (pe7_is_high() != 0u) {
@@ -3410,11 +3473,16 @@ static void publish_motor_channel_debug_snapshot(void)
     car_motor_left_in2_output_permille = channels.left_in2_permille;
     car_motor_right_in1_output_permille = channels.right_in1_permille;
     car_motor_right_in2_output_permille = channels.right_in2_permille;
+    car_motor_pwm_ccr2 = TIM3->CCR2;
+    car_motor_pwm_ccr3 = TIM3->CCR3;
+    car_motor_pwm_ccer = TIM3->CCER;
+    car_motor_pwm_enabled =
+        (TIM3->CR1 & TIM_CR1_CEN) != 0u &&
+        (TIM3->CCER & APP_MOTOR_CHANNEL_MASK) != 0u ? 1u : 0u;
     __set_PRIMASK(primask);
 }
 
-static void publish_debug_snapshot(uint8_t raw_high,
-                                   const car_inputs_t *inputs)
+static void publish_debug_snapshot(const car_inputs_t *inputs)
 {
     car_run_block_reason_input_t block_reason = {0};
     uint32_t snapshot_now_ms = HAL_GetTick();
@@ -3426,7 +3494,6 @@ static void publish_debug_snapshot(uint8_t raw_high,
 #else
     car_drive_allowed = 0u;
 #endif
-    car_pe7_raw_high = raw_high;
     car_pe7_high_stable = switch_debounce.stable_valid != 0u &&
                           switch_debounce.stable_level != 0u;
     car_pe7_low_stable = switch_debounce.stable_valid != 0u &&
@@ -3472,6 +3539,7 @@ static void publish_debug_snapshot(uint8_t raw_high,
     car_auto_recovery_count = car_control_state.auto_recovery_count;
     car_follow_session_active = car_control_state.follow_session_active;
     car_steering_session_active = car_control_state.steering_session_active;
+    car_button_state = (uint32_t)manual_run_button.state;
     car_manual_run_request = manual_run_button.run_request;
     car_button_press_event_count = manual_run_button.press_event_count;
     car_button_start_event_count = manual_run_button.start_event_count;
@@ -4175,6 +4243,11 @@ int main(void)
     car_init_error = (uint32_t)CAR_INIT_ERROR_NONE;
     previous_loop_ms = HAL_GetTick();
     car_main_loop_heartbeat_ms = previous_loop_ms;
+    car_pe7_sample_count = 0u;
+    car_pe7_last_sample_ms = previous_loop_ms;
+    car_pe7_sample_gap_max_ms = 0u;
+    manual_button_have_sample = 0u;
+    manual_button_gpio_ready = 1u;
     for (;;) {
         uint8_t follow_start_event = 0u;
 #if CARTEST_RUNTIME_LOG_ENABLED
@@ -4183,7 +4256,6 @@ int main(void)
         enforce_motor_hardware_lock();
         now_ms = HAL_GetTick();
         raw_high = pe7_is_high();
-        (void)manual_button_sample(raw_high, now_ms);
         if (app_config.follow_mode_compiled != 0u &&
             manual_run_button.start_pending != 0u) {
             uint32_t primask = __get_PRIMASK();
@@ -4284,7 +4356,6 @@ int main(void)
             flush_uart_and_parser();
         }
         raw_high = pe7_is_high();
-        (void)manual_button_sample(raw_high, HAL_GetTick());
         inputs = make_inputs(HAL_GetTick(), raw_high, loop_gap_fault);
         service_physical_profile_operation(&inputs);
         service_command_mailbox(&inputs);
@@ -4300,7 +4371,6 @@ int main(void)
         car_vision_rx_poll(&car_vision_rx, &car_control_state, &app_config,
                            rx_head_snapshot, now_ms, raw_high);
         raw_high = pe7_is_high();
-        (void)manual_button_sample(raw_high, now_ms);
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
         consume_fast_stop_latch();
         cancel_manual_request_on_fault();
@@ -4330,7 +4400,8 @@ int main(void)
             /* Rebuild the inputs while the ISR button/fast-stop state is
                stable; the earlier loop snapshot may predate a physical stop. */
             inputs = make_inputs(HAL_GetTick(), pe7_is_high(), loop_gap_fault);
-            if (manual_run_button.run_request != 0u &&
+            if (manual_run_button.state == CAR_MANUAL_BUTTON_RUNNING &&
+                manual_run_button.run_request != 0u &&
                 manual_run_button.stop_pending == 0u &&
                 manual_run_button.start_pending == 0u) {
                 manual_start_accepted =
@@ -4374,7 +4445,7 @@ int main(void)
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
         ackermann_snapshot_update(HAL_GetTick());
 #endif
-        publish_debug_snapshot(raw_high, &inputs);
+        publish_debug_snapshot(&inputs);
 #if CARTEST_RUNTIME_LOG_ENABLED
         runtime_log_publish_sample(HAL_GetTick(), runtime_log_start_kind);
 #endif
@@ -4416,7 +4487,11 @@ void EXTI9_5_IRQHandler(void)
     if ((EXTI->PR1 & APP_SWITCH_GPIO_PIN) != 0u) {
         EXTI->PR1 = APP_SWITCH_GPIO_PIN;
         if (app_config.follow_mode_compiled != 0u) {
-            (void)manual_button_sample(pe7_is_high(), HAL_GetTick());
+            const uint8_t raw_high = pe7_is_high();
+            if (raw_high != 0u) {
+                (void)manual_button_stop_on_high_sample(
+                    raw_high, HAL_GetTick());
+            }
         } else if (app_config.debug_steering_mode_compiled == 0u &&
                    (car_control_state.mode == CAR_MODE_BENCH_RUNNING ||
                     (motor_outputs_active != 0u &&

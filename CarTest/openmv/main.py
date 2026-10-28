@@ -6456,6 +6456,287 @@ class _VisionUARTWriter:
             return None
         return self._fifo_txdone()
 
+    class CameraDiagnostics:
+        """Rate-limited D1 sideband sender with isolated error accounting."""
+
+        def __init__(self, build_code):
+            self.packet = bytearray(vision_protocol.FRAME_SIZE)
+            self.build_code = build_code
+            self.sequence = 0
+            self.last_attempt_ms = None
+            self.capability_was_fresh = False
+            self.identity_sent = False
+            self.last_status_signature_valid = False
+            self.last_status_flags = 0
+            self.last_calibration_code = 0
+            self.last_observation_code = 0
+            self.last_reverse_code = 0
+            self.last_profile_nibbles = 0
+            self.next_kind = _CAMERA_DIAG_STATUS
+            self.status_since_counters = 0
+            self._attempt_ready = False
+            self.last_sideband_elapsed_us = 0
+            self.errors = 0
+
+        def _record_error(self):
+            if self.errors < 0xFFFF:
+                self.errors += 1
+
+        def _write(self, uart, kind, value1, value2, value3, value4,
+                   value5, value6, value7):
+            sequence = self.sequence
+            self.sequence = (sequence + 1) & 0xFFFF
+            vision_protocol.pack_diagnostic_into(
+                self.packet, sequence, kind, value1, value2, value3, value4,
+                value5, value6, value7)
+            try:
+                written = uart.write(self.packet)
+            except Exception:
+                self._record_error()
+                return False
+            if written != vision_protocol.FRAME_SIZE:
+                self._record_error()
+                return False
+            return True
+
+        def observe_capability(self, enabled):
+            """Remember loss and reacquisition of the fresh H743 capability."""
+            if not enabled:
+                self.capability_was_fresh = False
+                return
+            if not self.capability_was_fresh:
+                self.identity_sent = False
+                self.last_status_signature_valid = False
+                self.next_kind = _CAMERA_DIAG_STATUS
+                self.status_since_counters = 0
+            self.capability_was_fresh = True
+
+        def begin_attempt(self, uart, now_ms, ticks_diff, interval_ms,
+                          enabled, primary_full_write, primary_late,
+                          remaining_us, uart_mode=None):
+            """Cheap eligibility gate, run before preparing record fields."""
+            self._attempt_ready = False
+            self.observe_capability(enabled)
+            if not enabled:
+                return False
+            if interval_ms < 1000:
+                interval_ms = 1000
+            if not primary_full_write or primary_late:
+                return False
+            if self.last_attempt_ms is not None:
+                age_ms = ticks_diff(now_ms, self.last_attempt_ms)
+                if age_ms < interval_ms:
+                    return False
+
+            mode = (getattr(uart, "mode", None) if uart_mode is None else
+                    uart_mode)
+            if mode == _VisionUARTWriter.FIFO_QUEUED:
+                if remaining_us < _CAMERA_DIAG_FIFO_RESERVE_US:
+                    return False
+                try:
+                    if not uart.fifo_txdone():
+                        return False
+                except Exception:
+                    self.last_attempt_ms = now_ms
+                    self._record_error()
+                    return False
+            elif (mode == _VisionUARTWriter.SYNCHRONOUS_FALLBACK or
+                  mode == "SINK"):
+                if remaining_us < _CAMERA_DIAG_SYNC_RESERVE_US:
+                    return False
+            else:
+                return False
+
+            self.last_attempt_ms = now_ms
+            self._attempt_ready = True
+            return True
+
+        def send_prepared(self, uart, status_flags, calibration_code,
+                          observation_code, reverse_code, raw_profile_ack,
+                          outgoing_profile_ack, vision_sequence,
+                          vision_tx_errors, detector_errors,
+                          reverse_rejects):
+            """Write one record after ``begin_attempt`` accepted the cycle."""
+            if not self._attempt_ready:
+                return False
+            self._attempt_ready = False
+            if not self.identity_sent:
+                build_code = self.build_code
+                sent = self._write(
+                    uart, _CAMERA_DIAG_IDENTITY, 1,
+                    build_code & 0xFF, (build_code >> 8) & 0xFF,
+                    (build_code >> 16) & 0xFF, (build_code >> 24) & 0xFF,
+                    1, 0)
+                if sent:
+                    self.identity_sent = True
+                    self.next_kind = _CAMERA_DIAG_STATUS
+                return sent
+
+            if raw_profile_ack < 0 or raw_profile_ack > 3:
+                raw_profile_ack = 0
+            if outgoing_profile_ack < 0 or outgoing_profile_ack > 3:
+                outgoing_profile_ack = 0
+            profile_nibbles = (raw_profile_ack << 4) | outgoing_profile_ack
+            kind = self.next_kind
+            state_changed = bool(
+                not self.last_status_signature_valid or
+                self.last_status_flags != status_flags or
+                self.last_calibration_code != calibration_code or
+                self.last_observation_code != observation_code or
+                self.last_reverse_code != reverse_code or
+                self.last_profile_nibbles != profile_nibbles)
+            if state_changed and self.next_kind == _CAMERA_DIAG_COUNTERS:
+                if self.status_since_counters >= 2:
+                    kind = _CAMERA_DIAG_COUNTERS
+                else:
+                    kind = _CAMERA_DIAG_STATUS
+            elif state_changed:
+                kind = _CAMERA_DIAG_STATUS
+
+            if kind == _CAMERA_DIAG_STATUS:
+                sent = self._write(
+                    uart, kind, status_flags, calibration_code,
+                    observation_code, reverse_code, profile_nibbles,
+                    vision_sequence & 0xFF, (vision_sequence >> 8) & 0xFF)
+                if sent:
+                    if self.status_since_counters < 2:
+                        self.status_since_counters += 1
+                    self.last_status_signature_valid = True
+                    self.last_status_flags = status_flags
+                    self.last_calibration_code = calibration_code
+                    self.last_observation_code = observation_code
+                    self.last_reverse_code = reverse_code
+                    self.last_profile_nibbles = profile_nibbles
+                    self.next_kind = _CAMERA_DIAG_COUNTERS
+                return sent
+
+            saturated = 0
+            if vision_tx_errors < 0:
+                vision_tx_errors = 0
+            elif vision_tx_errors > 0xFFFF:
+                vision_tx_errors = 0xFFFF
+                saturated = 1
+            if detector_errors < 0:
+                detector_errors = 0
+            elif detector_errors > 0xFFFF:
+                detector_errors = 0xFFFF
+                saturated = 1
+            if reverse_rejects < 0:
+                reverse_rejects = 0
+            elif reverse_rejects > 0xFFFF:
+                reverse_rejects = 0xFFFF
+                saturated = 1
+            sent = self._write(
+                uart, _CAMERA_DIAG_COUNTERS, saturated,
+                vision_tx_errors & 0xFF, (vision_tx_errors >> 8) & 0xFF,
+                detector_errors & 0xFF, (detector_errors >> 8) & 0xFF,
+                reverse_rejects & 0xFF, (reverse_rejects >> 8) & 0xFF)
+            if sent:
+                self.next_kind = _CAMERA_DIAG_STATUS
+                self.status_since_counters = 0
+            return sent
+
+        def send_after_primary(self, uart, now_ms, ticks_diff, interval_ms,
+                               enabled, primary_full_write, primary_late,
+                               remaining_us, status_flags, calibration_code,
+                               observation_code, reverse_code, raw_profile_ack,
+                               outgoing_profile_ack, vision_sequence,
+                               vision_tx_errors, detector_errors,
+                               reverse_rejects):
+            """Combined test-friendly gate and sender entry point."""
+            if not self.begin_attempt(
+                    uart, now_ms, ticks_diff, interval_ms, enabled,
+                    primary_full_write, primary_late, remaining_us,
+                    getattr(uart, "mode", None)):
+                return False
+            return self.send_prepared(
+                uart, status_flags, calibration_code, observation_code,
+                reverse_code, raw_profile_ack, outgoing_profile_ack,
+                vision_sequence, vision_tx_errors, detector_errors,
+                reverse_rejects)
+
+        @staticmethod
+        def calibration_code(reason, sensor_identity_valid):
+            if not sensor_identity_valid:
+                return 6
+            if reason == "CALIBRATION_READY":
+                return 1
+            if reason == "FILE_NOT_FOUND":
+                return 2
+            if reason == "CRC_MISMATCH":
+                return 3
+            if reason == "GEOMETRY_MISMATCH":
+                return 4
+            if reason in ("INVALID_CALIBRATION_DATA", "INVALID_FILE"):
+                return 5
+            if reason == "SENSOR_ID_MISMATCH":
+                return 6
+            if reason == "NO_CALIBRATION":
+                return 7
+            if reason in (
+                    "INSUFFICIENT_SUPPORT",
+                    "INSUFFICIENT_CALIBRATION_CHAIN",
+                    "REFERENCE_WIDTH_UNAVAILABLE",
+                    "NEAR_WIDTH_SUPPORT_INSUFFICIENT"):
+                return 8
+            if reason is None or reason == "UNKNOWN":
+                return 0
+            return 9
+
+        @staticmethod
+        def observation_code(reason, detector_error, primary_valid,
+                             selection_source):
+            if primary_valid:
+                return 1
+            if detector_error is not None or reason == "DETECTOR_EXCEPTION":
+                return 3
+            if reason == "RING_CALIBRATION_REQUIRED":
+                return 2
+            if reason == "FRAME_BUDGET":
+                return 4
+            if reason in ("NO_ROUTE", "NO_SUPPORTED_ROUTE"):
+                return 5
+            if reason in ("ELEMENT_SESSION_LEASE_EXPIRED", "SESSION_EXPIRED"):
+                return 6
+            if selection_source == "NONE":
+                return 5
+            if reason is None or reason == "UNKNOWN":
+                return 0
+            return 7
+
+        @staticmethod
+        def reverse_code(reason):
+            if reason == "STARTUP":
+                return 0
+            if reason == "RESET":
+                return 1
+            if reason in ("KEEP", "DUPLICATE_KEEP"):
+                return 2
+            if reason == "CONTROL_TIMEOUT":
+                return 3
+            if reason == "KEEP_WITHOUT_RESET":
+                return 4
+            if reason in ("UART_ERROR", "RX_ERROR", "RX_OVERFLOW",
+                          "OBSERVATION_UART_ERROR", "REVERSE_UART_ERROR"):
+                return 5
+            if reason in ("BAD_VERSION", "BAD_COMMAND", "BAD_CRC",
+                          "SEQUENCE_ROLLBACK", "PROFILE_SEQUENCE_ROLLBACK",
+                          "BAD_PROFILE_TYPE", "BAD_PROFILE_CRC",
+                          "BAD_PROFILE_FLAGS", "PROFILE_PARTIAL_TIMEOUT"):
+                return 6
+            if reason is None:
+                return 0
+            return 7
+
+
+_CAMERA_DIAG_STATUS = 1
+_CAMERA_DIAG_COUNTERS = 2
+_CAMERA_DIAG_IDENTITY = 3
+_CAMERA_DIAG_FIFO_RESERVE_US = 1000
+# Synchronous UART.write can block; 16 bytes at 115200/8N1 occupy 1.39 ms
+# nominally. The reserve adds margin; actual hardware overhead is unverified.
+_CAMERA_DIAG_SYNC_RESERVE_US = 22000
+
 
 def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                fixture_sensor_id=None):
@@ -6749,6 +7030,32 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         "comparison": {}, "boundary_source": "CROSS_STRAIGHT",
     }
     packet = bytearray(vision_protocol.FRAME_SIZE)
+    camera_diagnostics = (
+        _VisionUARTWriter.CameraDiagnostics(config.CAMERA_UART_DIAG_BUILD_CODE)
+        if config.CAMERA_UART_DIAG_ENABLED else None)
+    camera_diag_capability_check = getattr(
+        reverse_parser, "profile_diagnostics_enabled", None)
+    camera_diag_profile_ack = getattr(reverse_parser, "profile_ack", None)
+    camera_diag_profile_fresh = getattr(reverse_parser, "profile_is_fresh", None)
+    camera_diag_control_fresh = getattr(reverse_parser, "control_is_fresh", None)
+    camera_diag_observe = (None if camera_diagnostics is None else
+                           camera_diagnostics.observe_capability)
+    camera_diag_begin = (None if camera_diagnostics is None else
+                         camera_diagnostics.begin_attempt)
+    camera_diag_send = (None if camera_diagnostics is None else
+                        camera_diagnostics.send_prepared)
+    camera_diag_calibration_code = (
+        None if camera_diagnostics is None else
+        _VisionUARTWriter.CameraDiagnostics.calibration_code)
+    camera_diag_observation_code = (
+        None if camera_diagnostics is None else
+        _VisionUARTWriter.CameraDiagnostics.observation_code)
+    camera_diag_reverse_code = (
+        None if camera_diagnostics is None else
+        _VisionUARTWriter.CameraDiagnostics.reverse_code)
+    camera_diag_interval_ms = config.CAMERA_UART_DIAG_INTERVAL_MS
+    if camera_diag_interval_ms < 1000:
+        camera_diag_interval_ms = 1000
     reverse_input_buffer = bytearray(reverse_control.MAX_FEED_BYTES)
     reverse_drain_state = array("i", [0])
     reverse_generation = reverse_parser.generation
@@ -6901,6 +7208,12 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_stop_reason = steering_diag_session.observe(
             reverse_parser, single_edge_tracker, config.BUILD_ID,
             reverse_fresh, capture_end_ms, time.ticks_diff)
+        if camera_diag_observe is not None:
+            capability_fresh = bool(
+                callable(camera_diag_capability_check) and
+                camera_diag_capability_check(capture_end_ms,
+                                             time.ticks_diff))
+            camera_diag_observe(capability_fresh)
         control_session_changed = (
             reverse_parser.generation != reverse_generation)
         profile_session_changed = (
@@ -7780,13 +8093,16 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         except Exception as exc:
             write_error = "%s:%s" % (type(exc).__name__, exc)
             last_tx_result = "ERROR"
+        # Preserve the primary V3 completion timestamp. D1 work is sideband
+        # and total_cycle accounts for it separately after this point.
         send_end_us = time.ticks_us()
+        send_end_ms = time.ticks_ms()
         pack_uart_us = time.ticks_diff(send_end_us, pack_start_us)
-        capture_to_send_us = time.ticks_diff(send_end_us, cycle_start_us)
+        capture_to_send_us = time.ticks_diff(
+            send_end_us, cycle_start_us)
         # STEERING_DIAG_TRACE_BEGIN
         diag_trace_us = 0
         if _STEERING_DIAG is not None and write_attempts:
-            send_end_ms = time.ticks_ms()
             diag_trace_start_us = time.ticks_us()
             try:
                 diag_source = selection.get("source", "NONE")
@@ -8284,6 +8600,74 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         perf.record("debug", debug_us)
         perf.record("summary_log", summary_log_us)
         perf.record("gc", gc_us)
+        # The primary FIFO drains during existing overlay/debug/GC work.
+        # Probe once here; never wait, replace a V3, or delay its completion.
+        if (camera_diag_begin is not None and full_write and
+                not late_invalid):
+            diag_start_us = None
+            try:
+                diag_now_ms = time.ticks_ms()
+                capability_fresh = bool(
+                    callable(camera_diag_capability_check) and
+                    camera_diag_capability_check(
+                        diag_now_ms, time.ticks_diff))
+                camera_diag_observe(capability_fresh)
+                elapsed_us = time.ticks_diff(
+                    time.ticks_us(), cycle_start_us)
+                remaining_us = (
+                    config.SURFACE_FRAME_BUDGET_MS * 1000 - elapsed_us)
+                if camera_diag_begin(
+                        uart, diag_now_ms, time.ticks_diff,
+                        camera_diag_interval_ms,
+                        capability_fresh, full_write, late_invalid,
+                        remaining_us, uart_tx_mode):
+                    diag_start_us = time.ticks_us()
+                    raw_profile_ack = camera_diag_profile_ack(
+                        diag_now_ms, time.ticks_diff)
+                    profile_fresh = bool(
+                        raw_profile_ack != config.VEHICLE_PROFILE_UNKNOWN and
+                        callable(camera_diag_profile_fresh) and
+                        camera_diag_profile_fresh(
+                            diag_now_ms, time.ticks_diff))
+                    reverse_keep_fresh = bool(
+                        callable(camera_diag_control_fresh) and
+                        camera_diag_control_fresh(
+                            diag_now_ms, time.ticks_diff))
+                    status_flags = (
+                        (1 if element_tracker.ring_calibration_ready else 0) |
+                        (2 if ring_calibration_passed else 0) |
+                        (4 if reverse_keep_fresh else 0) |
+                        (8 if profile_fresh else 0) |
+                        (16 if _ring_calibration_gate_blocked(
+                            raw_profile_ack, ring_calibration_passed) else 0) |
+                        (32 if packet[6] & vision_protocol.FLAG_VALID else 0) |
+                        (64 if uart_tx_mode == "FIFO_QUEUED" else 0))
+                    calibration_code = camera_diag_calibration_code(
+                        ring_calibration.reason, sensor_identity_valid)
+                    observation_code = camera_diag_observation_code(
+                        selection.get("reason"), detector_error,
+                        bool(packet[6] & vision_protocol.FLAG_VALID),
+                        selection.get("source", "NONE"))
+                    reverse_code = camera_diag_reverse_code(
+                        reverse_parser.last_event)
+                    reverse_rejects = (
+                        reverse_parser.rejected_frames +
+                        reverse_parser.rejected_profile_states)
+                    camera_diag_send(
+                        uart, status_flags, calibration_code,
+                        observation_code, reverse_code, raw_profile_ack,
+                        packet[11], sequence_sent, tx_error_count,
+                        detector_error_count, reverse_rejects)
+                    diag_end_us = time.ticks_us()
+                    camera_diagnostics.last_sideband_elapsed_us = time.ticks_diff(
+                        diag_end_us, diag_start_us)
+            except Exception:
+                # Sideband diagnostics are isolated from primary control state.
+                if diag_start_us is not None:
+                    camera_diagnostics.last_sideband_elapsed_us = time.ticks_diff(
+                        time.ticks_us(), diag_start_us)
+                camera_diagnostics._record_error()
+
         # Defer total_cycle until the next iteration's start so its duration
         # includes all stage recording and loop overhead. The final iteration
         # is closed at the run boundary below.
