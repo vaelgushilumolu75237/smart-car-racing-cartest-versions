@@ -616,7 +616,7 @@ car_inputs_t make_inputs(uint32_t now_ms, bool switch_high)
     inputs.pe7_low_stable = switch_high ? 0u : 1u;
     /* Legacy controller tests model one already-consumed low press while the
        line is held low. Dedicated button tests exercise the production
-       high-20ms rearm / low-edge toggle helper and release-does-not-stop. */
+       stable-high rearm, low RUN request, and immediate high STOP helper. */
     inputs.manual_run_request = switch_high ? 0u : 1u;
     inputs.manual_button_startup_release_confirmed = switch_high ? 1u : 0u;
     return inputs;
@@ -2441,8 +2441,21 @@ void test_default_boot_and_switch_do_not_drive()
     CHECK_EQ("all default motor outputs remain zero", control.bench_output_duty_permille, 0u);
 }
 
-void test_manual_run_button_toggle_lifecycle()
+void test_manual_run_button_maintained_switch()
 {
+    const auto sample = [](car_manual_button_t *button,
+                           uint8_t raw_high,
+                           uint32_t now_ms,
+                           uint8_t hard_fault_latched = 0u) {
+        car_manual_button_event_t event =
+            car_manual_button_poll_high(button, raw_high, now_ms);
+        if (raw_high == 0u) {
+            event = car_manual_button_note_low_edge(
+                button, raw_high, hard_fault_latched);
+        }
+        return event;
+    };
+
     car_manual_button_t button{};
     car_manual_button_init(&button, 0u, 0u);
     CHECK_EQ("power-up held-low is not armed", button.armed, 0u);
@@ -2450,59 +2463,184 @@ void test_manual_run_button_toggle_lifecycle()
              button.run_request, 0u);
     CHECK_EQ("power-up held-low has not confirmed release",
              button.startup_release_confirmed, 0u);
+    CHECK_EQ("held-low startup never requests RUN",
+             sample(&button, 0u, 1u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("startup low dwell cannot start before high rearm",
+             sample(&button, 0u, 25u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("startup held-low remains disarmed", button.armed, 0u);
+    CHECK_EQ("startup low may qualify without creating a request",
+             button.low_qualified, 1u);
 
-    car_manual_button_poll_high(&button, 1u, 10u);
-    car_manual_button_poll_high(&button, 1u, 29u);
+    CHECK_EQ("first high sample begins startup release tracking",
+             sample(&button, 1u, 30u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("19 ms startup high does not yet arm the switch",
+             sample(&button, 1u, 49u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
     CHECK_EQ("19 ms high is below the rearm boundary", button.armed, 0u);
-    car_manual_button_poll_high(&button, 1u, 30u);
+    CHECK_EQ("20 ms startup high completes arming",
+             sample(&button, 1u, 50u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
     CHECK_EQ("20 ms high arms the first press", button.armed, 1u);
     CHECK_EQ("20 ms high confirms startup release",
              button.startup_release_confirmed, 1u);
 
-    CHECK_EQ("first low toggles the manual request on",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
-             CAR_MANUAL_BUTTON_EVENT_START);
-    CHECK_EQ("start event latches request", button.run_request, 1u);
-    CHECK_EQ("start event is separately consumable", button.start_pending, 1u);
-    CHECK_EQ("long low cannot retrigger the same press",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    CHECK_EQ("first low sample only begins the RUN qualification interval",
+             sample(&button, 0u, 51u),
              CAR_MANUAL_BUTTON_EVENT_NONE);
-    car_manual_button_start_consumed(&button);
-    car_manual_button_poll_high(&button, 1u, 31u);
-    car_manual_button_poll_high(&button, 1u, 50u);
-    CHECK_EQ("release does not clear the run request", button.run_request, 1u);
-    CHECK_EQ("19 ms release does not rearm a second press", button.armed, 0u);
-    car_manual_button_poll_high(&button, 1u, 51u);
-    CHECK_EQ("20 ms release rearms the next press", button.armed, 1u);
+    CHECK_EQ("sub-20 ms low bounce does not start",
+             sample(&button, 0u, 69u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("low remains unqualified at 19 ms", button.low_qualified, 0u);
+    CHECK_EQ("high bounce resets the low qualification interval",
+             sample(&button, 1u, 70u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("high bounce clears low qualification", button.low_qualified, 0u);
+    CHECK_EQ("interrupted low starts a new qualification interval",
+             sample(&button, 0u, 71u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("new low dwell is not yet qualified at 19 ms",
+             sample(&button, 0u, 90u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("second sub-20 ms low still cannot start", button.run_request, 0u);
+    CHECK_EQ("continuous low reaches the 20 ms qualification boundary",
+             sample(&button, 0u, 91u),
+             CAR_MANUAL_BUTTON_EVENT_START);
+    CHECK_EQ("low RUN event latches request", button.run_request, 1u);
+    CHECK_EQ("low RUN event is separately consumable", button.start_pending, 1u);
+    CHECK_EQ("accepted RUN consumes low qualification", button.low_qualified, 0u);
+    CHECK_EQ("held low cannot retrigger RUN",
+             sample(&button, 0u, 92u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("one held low counts as one press", button.press_event_count, 1u);
 
-    CHECK_EQ("second low toggles manual request off",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    /* Even while the deferred start is still pending, the first high sample
+       requests an immediate stop without either debounce interval. */
+    CHECK_EQ("high stop wins immediately even with a hard fault latched",
+             sample(&button, 1u, 92u, 1u),
              CAR_MANUAL_BUTTON_EVENT_STOP);
-    CHECK_EQ("stop immediately revokes run request", button.run_request, 0u);
-    CHECK_EQ("stop is pending for main-loop state conversion",
+    CHECK_EQ("high stop cancels the pending start", button.start_pending, 0u);
+    CHECK_EQ("high stop revokes the run request", button.run_request, 0u);
+    CHECK_EQ("high stop is queued for main-loop state conversion",
              button.stop_pending, 1u);
-    CHECK_EQ("stop generation advances exactly once",
+    CHECK_EQ("high stop advances generation once",
              button.stop_generation, 1u);
-    car_manual_button_poll_high(&button, 1u, 52u);
-    car_manual_button_poll_high(&button, 1u, 72u);
-    CHECK_EQ("low before stop consumption cannot start",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    CHECK_EQ("held high cannot repeat the stop",
+             sample(&button, 1u, 93u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("stop generation stays fixed during held high",
+             button.stop_generation, 1u);
+    CHECK_EQ("low sample while stop is pending cannot request RUN",
+             sample(&button, 0u, 94u),
              CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_STOP);
     CHECK_EQ("stop priority leaves request off", button.run_request, 0u);
+
+    CHECK_EQ("high after stop bounce starts a fresh rearm interval",
+             sample(&button, 1u, 95u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("stop pending prevents rearm before 20 ms",
+             sample(&button, 1u, 114u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("stop pending keeps switch unarmed", button.armed, 0u);
+    CHECK_EQ("20 ms high while stop is pending remains unarmed",
+             sample(&button, 1u, 115u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("stop pending still owns rearming", button.armed, 0u);
     car_manual_button_stop_consumed(&button);
-    car_manual_button_poll_high(&button, 1u, 73u);
-    car_manual_button_poll_high(&button, 1u, 93u);
-    CHECK_EQ("new low starts only after stop consumed and rearmed",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    CHECK_EQ("consumed stop rearms after the already stable-high interval",
+             sample(&button, 1u, 116u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("consumed stop and stable high rearm the switch", button.armed, 1u);
+    CHECK_EQ("new low begins a separate qualification interval",
+             sample(&button, 0u, 117u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("new low is not a start before 20 ms",
+             sample(&button, 0u, 136u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("new low starts after stop rearm and 20 ms low",
+             sample(&button, 0u, 137u),
              CAR_MANUAL_BUTTON_EVENT_START);
+
+    /* Once the deferred start has been consumed, high still stops immediately. */
+    car_manual_button_start_consumed(&button);
+    CHECK_EQ("first high stops an active request without debounce delay",
+             sample(&button, 1u, 138u),
+             CAR_MANUAL_BUTTON_EVENT_STOP);
+    CHECK_EQ("active-run high stop advances generation once more",
+             button.stop_generation, 2u);
+    CHECK_EQ("held high after active stop does not repeat generation",
+             sample(&button, 1u, 139u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("held active stop generation stays fixed", button.stop_generation, 2u);
+
+    car_manual_button_t rollover_low_button{};
+    const uint32_t low_start_ms = UINT32_MAX - 5u;
+    car_manual_button_init(&rollover_low_button, 1u, 0u);
+    CHECK_EQ("low rollover fixture arms after startup high",
+             sample(&rollover_low_button, 1u, 20u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("low dwell begins shortly before tick rollover",
+             sample(&rollover_low_button, 0u, low_start_ms),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("wrapped low dwell is still unqualified at 19 ms",
+             sample(&rollover_low_button, 0u, 13u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("wrapped low dwell qualifies at 20 ms",
+             sample(&rollover_low_button, 0u, 14u),
+             CAR_MANUAL_BUTTON_EVENT_START);
+
+    car_manual_button_t rollover_high_button{};
+    const uint32_t high_start_ms = UINT32_MAX - 57u;
+    car_manual_button_init(&rollover_high_button, 1u, high_start_ms);
+    CHECK_EQ("high rollover fixture arms after 20 ms startup release",
+             sample(&rollover_high_button, 1u, UINT32_MAX - 37u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("high rollover fixture begins low dwell",
+             sample(&rollover_high_button, 0u, UINT32_MAX - 31u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("high rollover fixture waits for low qualification",
+             sample(&rollover_high_button, 0u, UINT32_MAX - 12u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("high rollover fixture starts on qualified low",
+             sample(&rollover_high_button, 0u, UINT32_MAX - 11u),
+             CAR_MANUAL_BUTTON_EVENT_START);
+    CHECK_EQ("high stop immediately queues at rollover boundary",
+             sample(&rollover_high_button, 1u, UINT32_MAX - 10u),
+             CAR_MANUAL_BUTTON_EVENT_STOP);
+    car_manual_button_stop_consumed(&rollover_high_button);
+    CHECK_EQ("wrapped 19 ms high remains below rearm boundary",
+             sample(&rollover_high_button, 1u, 8u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("wrapped 20 ms high rearms correctly",
+             sample(&rollover_high_button, 1u, 9u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("high rollover preserves rearming", rollover_high_button.armed, 1u);
+
     car_manual_button_t faulted_button{};
     car_manual_button_init(&faulted_button, 1u, 0u);
-    car_manual_button_poll_high(&faulted_button, 1u, 20u);
-    CHECK_EQ("hard fault blocks a new request",
-             car_manual_button_note_low_edge(&faulted_button, 0u, 1u),
+    CHECK_EQ("fault fixture arms on stable high",
+             sample(&faulted_button, 1u, 20u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("fault fixture starts low qualification",
+             sample(&faulted_button, 0u, 21u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("hard fault blocks a low held for 19 ms",
+             sample(&faulted_button, 0u, 40u, 1u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("hard fault blocks qualified low RUN",
+             sample(&faulted_button, 0u, 41u, 1u),
              CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_FAULT);
     CHECK_EQ("hard fault leaves manual request off",
              faulted_button.run_request, 0u);
+    CHECK_EQ("hard fault consumes arming and low qualification",
+             faulted_button.low_qualified, 0u);
+    CHECK_EQ("held low cannot restart after the fault clears",
+             sample(&faulted_button, 0u, 80u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("held-low fault leaves start pending clear",
+             faulted_button.start_pending, 0u);
 }
 
 void test_bench_channel_mask_mapping()
@@ -4824,7 +4962,7 @@ void test_exact_vision_timeout_and_late_frame()
     CHECK_EQ("late new frame does not authorize motor", control.bench_output_duty_permille, 0u);
 }
 
-void test_follow_toggle_drives_manual_controller_session()
+void test_manual_follow_switch_drives_controller_session()
 {
     const car_config_t config = make_follow_config();
     car_control_t control{};
@@ -4859,10 +4997,25 @@ void test_follow_toggle_drives_manual_controller_session()
     CHECK_EQ("camera frames alone leave Follow session inactive",
              control.follow_session_active, 0u);
 
-    CHECK_EQ("first real low edge latches the manual start request",
+    CHECK_EQ("low switch sample starts the RUN qualification interval",
+             car_manual_button_poll_high(&button, 0u, 24u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("low edge before 20 ms cannot start Follow",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("19 ms low remains unqualified",
+             car_manual_button_poll_high(&button, 0u, 43u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("19 ms low still cannot start Follow",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("20 ms low qualifies the manual start request",
+             car_manual_button_poll_high(&button, 0u, 44u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("qualified low latches the manual start request",
              car_manual_button_note_low_edge(&button, 0u, 0u),
              CAR_MANUAL_BUTTON_EVENT_START);
-    car_inputs_t pressed = make_inputs(24u, false);
+    car_inputs_t pressed = make_inputs(44u, false);
     pressed.manual_run_request = button.run_request;
     pressed.manual_button_startup_release_confirmed =
         button.startup_release_confirmed;
@@ -4875,39 +5028,33 @@ void test_follow_toggle_drives_manual_controller_session()
     CHECK_EQ("start begins with the existing zero motor ramp",
              control.follow_output_duty_permille, 0u);
 
-    car_manual_button_poll_high(&button, 1u, 30u);
-    car_manual_button_poll_high(&button, 1u, 49u);
-    CHECK_EQ("release under 20 ms does not rearm the stop toggle",
-             button.armed, 0u);
-    CHECK_EQ("release leaves the latched manual request on",
-             button.run_request, 1u);
-    car_manual_button_poll_high(&button, 1u, 50u);
-    car_inputs_t released_again = make_inputs(50u, true);
-    released_again.manual_run_request = button.run_request;
-    released_again.manual_button_startup_release_confirmed =
-        button.startup_release_confirmed;
-    car_control_tick(&control, &config, &released_again);
-    CHECK_EQ("20 ms release does not stop the active Follow session",
-             control.mode, CAR_MODE_FOLLOW_RUNNING);
-
-    CHECK_EQ("second armed low edge requests a stop",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    CHECK_EQ("first high sample stops the active session immediately",
+             car_manual_button_poll_high(&button, 1u, 45u),
              CAR_MANUAL_BUTTON_EVENT_STOP);
-    CHECK_EQ("stop edge immediately revokes the request",
+    CHECK_EQ("high stop immediately revokes the request",
              button.run_request, 0u);
-    car_inputs_t stopped = make_inputs(51u, false);
+    CHECK_EQ("high stop queues controller state conversion",
+             button.stop_pending, 1u);
+    CHECK_EQ("high stop increments generation exactly once",
+             button.stop_generation, 1u);
+    CHECK_EQ("held high cannot request another stop",
+             car_manual_button_poll_high(&button, 1u, 46u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("held high does not repeat the stop generation",
+             button.stop_generation, 1u);
+    car_inputs_t stopped = make_inputs(46u, true);
     stopped.manual_run_request = button.run_request;
     const uint32_t effects = car_control_command(
         &control, &config, &stopped, CAR_CMD_NORMAL_STOP,
         CAR_MOTOR_NONE, CAR_MOTOR_IN1, 0u);
     CHECK((effects & CAR_EFFECT_STOP_OUTPUTS) != 0u,
-          "second press uses the normal stop effects");
+          "high stop uses the normal stop effects");
     CHECK((effects & CAR_EFFECT_RESET_PARSER) != 0u,
-          "second press clears cached visual state");
+          "high stop clears cached visual state");
     car_control_note_applied_outputs(&control, 0u, 0u, 0u, 0u, 0u);
     car_manual_button_stop_consumed(&button);
-    CHECK_EQ("second press cancels the session", control.follow_session_active, 0u);
-    CHECK_EQ("second press returns to stopped recovery", control.mode,
+    CHECK_EQ("high stop cancels the session", control.follow_session_active, 0u);
+    CHECK_EQ("high stop returns to stopped recovery", control.mode,
              CAR_MODE_RECOVERY_WAIT);
     CHECK_EQ("stopped request cannot restart from the same low level",
              control.manual_run_request, 0u);
@@ -4928,7 +5075,22 @@ void test_manual_follow_start_restarts_reverse_resync()
 
     car_manual_button_init(&button, 1u, 0u);
     car_manual_button_poll_high(&button, 1u, 20u);
-    CHECK_EQ("one armed PE7 low edge creates one physical start event",
+    CHECK_EQ("initial low sample begins the physical start dwell",
+             car_manual_button_poll_high(&button, 0u, 100u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("sub-20 ms low cannot begin reverse resync",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("19 ms low remains below the start qualification boundary",
+             car_manual_button_poll_high(&button, 0u, 119u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("low event remains absent before qualification",
+             car_manual_button_note_low_edge(&button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("20 ms low creates one physical start event",
+             car_manual_button_poll_high(&button, 0u, 120u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("qualified low begins one physical start event",
              car_manual_button_note_low_edge(&button, 0u, 0u),
              CAR_MANUAL_BUTTON_EVENT_START);
     car_manual_button_start_consumed(&button);
@@ -5042,11 +5204,11 @@ void test_manual_follow_start_restarts_reverse_resync()
     CHECK_EQ("fresh startup restores Follow session permission",
              control.road_drive_allowed, 1u);
 
-    car_manual_button_poll_high(&button, 1u, 1300u);
-    car_manual_button_poll_high(&button, 1u, 1320u);
-    CHECK_EQ("rearmed second low edge becomes a stop",
-             car_manual_button_note_low_edge(&button, 0u, 0u),
+    CHECK_EQ("first high sample stops the running resynchronized session",
+             car_manual_button_poll_high(&button, 1u, 1300u),
              CAR_MANUAL_BUTTON_EVENT_STOP);
+    CHECK_EQ("high stop advances the event generation once",
+             button.stop_generation, 1u);
     car_inputs_t stopped = latched_request;
     stopped.manual_run_request = button.run_request;
     stopped.manual_stop_pending = button.stop_pending;
@@ -5076,19 +5238,36 @@ void test_manual_follow_start_restarts_reverse_resync()
     start_follow_by_physical_pe7(&stop_race_control, &config, 80u, 100u);
     car_manual_button_init(&stop_race_button, 1u, 200u);
     car_manual_button_poll_high(&stop_race_button, 1u, 220u);
-    CHECK_EQ("race fixture captures a physical start event",
+    CHECK_EQ("race fixture begins low qualification before deferred start",
+             car_manual_button_poll_high(&stop_race_button, 0u, 221u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("race fixture has no low start before qualification",
+             car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("race fixture remains below low qualification at 19 ms",
+             car_manual_button_poll_high(&stop_race_button, 0u, 240u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("race fixture still has no start at 19 ms",
+             car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("race fixture reaches 20 ms low qualification",
+             car_manual_button_poll_high(&stop_race_button, 0u, 241u),
+             CAR_MANUAL_BUTTON_EVENT_NONE);
+    CHECK_EQ("qualified race fixture captures a physical start",
              car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
              CAR_MANUAL_BUTTON_EVENT_START);
     car_manual_button_start_consumed(&stop_race_button);
-    car_inputs_t stale_start_snapshot = make_inputs(201u, false);
+    car_inputs_t stale_start_snapshot = make_inputs(241u, false);
     stale_start_snapshot.manual_run_request = stop_race_button.run_request;
     stale_start_snapshot.manual_stop_pending = stop_race_button.stop_pending;
-    car_manual_button_poll_high(&stop_race_button, 1u, 210u);
-    car_manual_button_poll_high(&stop_race_button, 1u, 230u);
-    CHECK_EQ("a stop arriving before deferred start handoff wins",
-             car_manual_button_note_low_edge(&stop_race_button, 0u, 0u),
+    CHECK_EQ("high level wins before deferred start handoff",
+             car_manual_button_poll_high(&stop_race_button, 1u, 242u),
              CAR_MANUAL_BUTTON_EVENT_STOP);
-    car_inputs_t raced_stop = make_inputs(231u, false);
+    CHECK_EQ("a stop arriving before deferred start handoff wins",
+             stop_race_button.stop_pending, 1u);
+    CHECK_EQ("high stop cancels deferred start in race fixture",
+             stop_race_button.start_pending, 0u);
+    car_inputs_t raced_stop = make_inputs(242u, true);
     raced_stop.manual_run_request = stop_race_button.run_request;
     raced_stop.manual_stop_pending = stop_race_button.stop_pending;
     const uint32_t race_generation =
@@ -7599,8 +7778,8 @@ int main(int argc, char **argv)
     run_case("protocol_validation_and_crc", test_protocol_validation_and_crc);
     run_case("parser_split_concatenation_resync", test_parser_split_concatenation_and_resync);
     run_case("default_boot_switch_safe", test_default_boot_and_switch_do_not_drive);
-    run_case("manual_run_button_toggle_lifecycle",
-             test_manual_run_button_toggle_lifecycle);
+    run_case("manual_run_button_maintained_switch",
+             test_manual_run_button_maintained_switch);
     run_case("bench_channel_mask_mapping", test_bench_channel_mask_mapping);
     run_case("select_ack_flush_old_rx", test_select_ack_flushes_old_rx_before_new_frame);
     run_case("switch_edge_after_new_frame", test_switch_edge_must_follow_new_frame);
@@ -7631,8 +7810,8 @@ int main(int argc, char **argv)
     run_case("hard_ack_physical_recovery", test_hard_fault_requires_physical_ack_three_frames_and_new_press);
     run_case("vision_quality_sequence_rejection", test_invalid_quality_and_sequence_rejections);
     run_case("exact_vision_timeout", test_exact_vision_timeout_and_late_frame);
-    run_case("follow_toggle_actual_controller",
-             test_follow_toggle_drives_manual_controller_session);
+    run_case("manual_follow_switch_actual_controller",
+             test_manual_follow_switch_drives_controller_session);
     run_case("new_track_profile_fresh_v3_ack_gate",
              test_new_track_profile_requires_fresh_matching_v3_ack);
     run_case("manual_start_reverse_resync",

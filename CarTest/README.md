@@ -1,6 +1,7 @@
 # CarTest：H743 车载工程
 
-2026-10-29: Previous PE7 toggle behavior restored at user request. Release rearms the next press and does not stop Follow. See [restore record](docs/PE7-RESTORE-PREVIOUS-20261029.md). No board flash performed.
+2026-10-29: PE7 level-control candidate (low stable 20ms = RUN; first high = immediate STOP; high stable 20ms rearms). User requested switch-only change with debounce. See [implementation and validation](docs/PE7-LEVEL-RUN-STOP-20261029.md). No H743 flash performed.
+
 
 ## 2026-10-26 当前配套版本
 

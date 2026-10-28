@@ -1,7 +1,7 @@
 {
-  "version": "v20261029-pe7-restore-toggle-v19",
-  "status": "restored-previous-startup-software-tested-hardware-pending",
-  "branch": "experimental/pe7-restore-toggle",
-  "files": 797,
+  "version": "v20261029-pe7-level-run-stop-v20",
+  "status": "experimental-switch-debounce-software-tested-hardware-pending",
+  "branch": "experimental/pe7-level-run-stop",
+  "files": 798,
   "hardware_actions": "none"
 }

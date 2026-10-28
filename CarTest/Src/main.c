@@ -1855,7 +1855,7 @@ static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
 
     primask = __get_PRIMASK();
     __disable_irq();
-    car_manual_button_poll_high(&manual_run_button, raw_high, now_ms);
+    event = car_manual_button_poll_high(&manual_run_button, raw_high, now_ms);
     if (raw_high == 0u) {
         event = car_manual_button_note_low_edge(
             &manual_run_button, raw_high,

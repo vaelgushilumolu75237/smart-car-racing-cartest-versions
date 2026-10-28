@@ -173,7 +173,7 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "delivery_version": "v19-pe7-restore-toggle",
+  "delivery_version": "v20-pe7-level-run-stop-debounce",
   "camera_runtime_source": "unchanged-v17",
   "candidate_only": true,
   "hardware_validation": false,
