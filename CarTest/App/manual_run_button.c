@@ -6,6 +6,7 @@ static void manual_button_enter_wait_high(car_manual_button_t *button,
                                           uint8_t raw_high,
                                           uint32_t now_ms)
 {
+    button->high_stop_guard_active = 0u;
     button->state = CAR_MANUAL_BUTTON_WAIT_HIGH;
     button->armed = 0u;
     button->run_request = 0u;
@@ -22,6 +23,7 @@ void car_manual_button_init(car_manual_button_t *button,
     if (button == 0) {
         return;
     }
+    button->high_stop_guard_active = 0u;
     button->state = CAR_MANUAL_BUTTON_WAIT_HIGH;
     button->armed = 0u;
     button->run_request = 0u;
@@ -32,9 +34,23 @@ void car_manual_button_init(car_manual_button_t *button,
     button->startup_release_confirmed = 0u;
     button->high_since_ms = now_ms;
     button->low_since_ms = now_ms;
+    button->run_started_ms = now_ms;
     button->press_event_count = 0u;
     button->start_event_count = 0u;
     button->stop_generation = 0u;
+}
+
+/* One-shot guard: elapsed time wraps safely; once expired it never reopens
+   until a new qualified low start. No controller fault uses this guard. */
+static uint8_t manual_button_high_stop_guard(car_manual_button_t *button,
+                                             uint32_t now_ms)
+{
+    if (button->high_stop_guard_active != 0u &&
+        (uint32_t)(now_ms - button->run_started_ms) >=
+            CAR_MANUAL_BUTTON_HIGH_IGNORE_MS) {
+        button->high_stop_guard_active = 0u;
+    }
+    return button->high_stop_guard_active;
 }
 
 car_manual_button_event_t car_manual_button_stop_on_high(
@@ -49,6 +65,10 @@ car_manual_button_event_t car_manual_button_stop_on_high(
     button->low_tracking = 0u;
     if (button->state == CAR_MANUAL_BUTTON_RUNNING ||
         button->run_request != 0u || button->start_pending != 0u) {
+        if (manual_button_high_stop_guard(button, now_ms) != 0u) {
+            return CAR_MANUAL_BUTTON_EVENT_NONE;
+        }
+        button->high_stop_guard_active = 0u;
         button->state = CAR_MANUAL_BUTTON_WAIT_HIGH;
         button->armed = 0u;
         button->run_request = 0u;
@@ -80,12 +100,6 @@ car_manual_button_event_t car_manual_button_tick_1ms(
         return CAR_MANUAL_BUTTON_EVENT_NONE;
     }
 
-    if (raw_high != 0u &&
-        (button->state == CAR_MANUAL_BUTTON_RUNNING ||
-         button->run_request != 0u || button->start_pending != 0u)) {
-        return car_manual_button_stop_on_high(button, raw_high, now_ms);
-    }
-
     request_active = button->state == CAR_MANUAL_BUTTON_RUNNING ||
                      button->run_request != 0u ||
                      button->start_pending != 0u;
@@ -97,6 +111,13 @@ car_manual_button_event_t car_manual_button_tick_1ms(
             return CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_FAULT;
         }
         return CAR_MANUAL_BUTTON_EVENT_NONE;
+    }
+
+    (void)manual_button_high_stop_guard(button, now_ms);
+    if (raw_high != 0u &&
+        (button->state == CAR_MANUAL_BUTTON_RUNNING ||
+         button->run_request != 0u || button->start_pending != 0u)) {
+        return car_manual_button_stop_on_high(button, raw_high, now_ms);
     }
 
     switch (button->state) {
@@ -131,6 +152,8 @@ car_manual_button_event_t car_manual_button_tick_1ms(
             button->low_since_ms = now_ms;
         } else if ((uint32_t)(now_ms - button->low_since_ms) >=
                    CAR_MANUAL_BUTTON_LOW_STABLE_MS) {
+            button->run_started_ms = now_ms;
+            button->high_stop_guard_active = 1u;
             button->state = CAR_MANUAL_BUTTON_RUNNING;
             button->armed = 0u;
             button->run_request = 1u;

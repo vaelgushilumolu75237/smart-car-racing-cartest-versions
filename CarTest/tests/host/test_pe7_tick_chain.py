@@ -107,6 +107,11 @@ int main(void) {
     tick(0,40); CHECK(manual_run_button.start_event_count==1);
     car_manual_button_start_consumed(&manual_run_button); pretend_applied();
     raw_high=1; exti.PR1=APP_SWITCH_GPIO_PIN; EXTI9_5_IRQHandler();
+    CHECK(manual_run_button.run_request==1 && manual_run_button.stop_generation==0);
+    CHECK(timer.CCR2==123 && motor_outputs_active==1);
+    tick(1,959); /* Start was at71ms; now start+999ms. */
+    CHECK(manual_run_button.run_request==1 && timer.CCR2==123);
+    tick(1,1); /* No new EXTI edge: high at1000ms must stop via SysTick. */
     stopped(); CHECK(manual_run_button.stop_generation==1);
     CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH && servo_stops>0);
     /* Stop bounce and a low hold cannot restart before a new high dwell. */
@@ -116,12 +121,13 @@ int main(void) {
     tick(1,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_LOW);
     tick(0,51); CHECK(manual_run_button.start_event_count==2);
     pretend_applied();
-    /* A rising EXTI is not required for the 1ms high-stop fallback. */
+    /* Held low expires the guard; the next high still stops immediately. */
+    tick(0,1000);
     tick(1,1); stopped(); CHECK(manual_run_button.stop_generation==2);
     car_manual_button_stop_consumed(&manual_run_button);
     tick(1,20); tick(0,51); CHECK(manual_run_button.run_request==1);
     pretend_applied(); car_control_state.fault_latched=1;
-    tick(0,1); stopped(); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
+    tick(1,1); stopped(); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
     car_control_state.fault_latched=0; tick(0,100);
     CHECK(manual_run_button.run_request==0);
     CHECK(car_pe7_sample_gap_max_ms==1 && car_pe7_sample_count>100);

@@ -1,7 +1,7 @@
 {
-  "version": "v20261029-pe7-low50-v22",
+  "version": "v20261029-pe7-startguard1s-v23",
   "status": "experimental-software-tested-hardware-pending",
-  "branch": "experimental/pe7-low50",
-  "files": 807,
+  "branch": "experimental/pe7-startguard1s",
+  "files": 808,
   "hardware_actions": "none"
 }

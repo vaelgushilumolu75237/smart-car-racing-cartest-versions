@@ -1,6 +1,6 @@
 # CarTest：H743 车载工程
 
-2026-10-29: v22 PE7 low qualification is now50ms; high rearm remains20ms and first-high stop remains immediate. Camera runtime and UART diagnostics are unchanged fromv21. See [change and validation](docs/PE7-LOW50-20261029.md). Hardware/road/60FPS acceptance pending; no automatic deployment.
+2026-10-29: v23 ignores only PE7 high during the first1000ms after a qualified low50ms RUN request; high at/after the deadline stops immediately. All other protections remain active. See [behavior and validation](docs/PE7-START-GUARD-20261029.md). No automatic deployment; hardware/road/60FPS acceptance pending.
 
 
 ## 2026-10-26 当前配套版本

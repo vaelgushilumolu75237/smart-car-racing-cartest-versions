@@ -9,7 +9,8 @@ extern "C" {
 
 enum {
     CAR_MANUAL_BUTTON_HIGH_STABLE_MS = 20u,
-    CAR_MANUAL_BUTTON_LOW_STABLE_MS = 50u
+    CAR_MANUAL_BUTTON_LOW_STABLE_MS = 50u,
+    CAR_MANUAL_BUTTON_HIGH_IGNORE_MS = 1000u
 };
 
 typedef enum {
@@ -26,7 +27,8 @@ typedef enum {
 } car_manual_button_event_t;
 
 /* PE7 runs as a three-state maintained switch. Each tick uses the 1 ms
-   sample cadence; EXTI may only request an immediate high-level stop. Target
+   sample cadence; EXTI only stops on high after the one-shot1000ms start
+   window. Fault and emergency stops remain independent. Target
    callers serialize updates with the caller's PRIMASK. */
 typedef struct {
     volatile car_manual_button_state_t state;
@@ -34,9 +36,11 @@ typedef struct {
     volatile uint8_t run_request;
     volatile uint8_t stop_pending;
     volatile uint8_t start_pending;
+    uint8_t high_stop_guard_active;
     uint8_t high_tracking;
     uint8_t low_tracking;
     volatile uint8_t startup_release_confirmed;
+    uint32_t run_started_ms;
     uint32_t high_since_ms;
     uint32_t low_since_ms;
     volatile uint32_t press_event_count;
