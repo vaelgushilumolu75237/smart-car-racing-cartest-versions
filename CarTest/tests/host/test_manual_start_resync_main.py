@@ -26,26 +26,6 @@ def main() -> int:
     args = parser.parse_args()
     source = Path(args.source).read_text(encoding="utf-8")
 
-    sample_block = block_after(
-        source,
-        "static car_manual_button_event_t manual_button_sample(uint8_t raw_high,\n"
-        "                                                       uint32_t now_ms)\n{",
-    )
-    poll_high = sample_block.index(
-        "event = car_manual_button_poll_high(&manual_run_button, raw_high, now_ms);"
-    )
-    low_branch = sample_block.index("if (raw_high == 0u)")
-    low_edge = sample_block.index(
-        "event = car_manual_button_note_low_edge(", low_branch
-    )
-    restore_irq = sample_block.index("__set_PRIMASK(primask);")
-    stop_event = sample_block.index(
-        "if (event == CAR_MANUAL_BUTTON_EVENT_STOP)"
-    )
-    hardware_stop = sample_block.index("emergency_stop_hardware();", stop_event)
-    assert poll_high < low_branch < low_edge < restore_irq < stop_event < hardware_stop
-    assert "car_control_state.fault_latched" in sample_block[low_edge:restore_irq]
-
     event_block = block_after(
         source,
         "if (app_config.follow_mode_compiled != 0u &&\n"
@@ -88,7 +68,7 @@ def main() -> int:
     service_at = source.index("service_reverse_control(HAL_GetTick());", call_at)
     assert call_at < flush_at < service_at
 
-    print("PASS production PE7 high stop reaches hardware and start handoff rechecks state")
+    print("PASS production PE7 start rechecks stop state and advances session identity")
     return 0
 
 

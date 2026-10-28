@@ -1,7 +1,7 @@
 {
-  "version": "v20261029-pe7-maintained-switch-v18",
-  "status": "experimental-software-tested-hardware-pending",
-  "branch": "experimental/pe7-maintained-switch",
-  "files": 796,
+  "version": "v20261029-pe7-restore-toggle-v19",
+  "status": "restored-previous-startup-software-tested-hardware-pending",
+  "branch": "experimental/pe7-restore-toggle",
+  "files": 797,
   "hardware_actions": "none"
 }

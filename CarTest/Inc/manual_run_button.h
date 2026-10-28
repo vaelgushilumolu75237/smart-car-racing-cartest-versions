@@ -17,10 +17,8 @@ typedef enum {
     CAR_MANUAL_BUTTON_EVENT_BLOCKED_BY_STOP = 4u
 } car_manual_button_event_t;
 
-/* PE7 is a maintained switch: a stable-high startup/release arms a low-level
-   RUN request, and the first high sample while running requests STOP. The
-   button events are shared by EXTI and a main-loop fallback sampler. Target
-   callers serialize these small updates with the caller's PRIMASK. */
+/* The low-edge event is shared by EXTI and a main-loop fallback sampler.
+   Target callers serialize these small updates with the caller's PRIMASK. */
 typedef struct {
     volatile uint8_t armed;
     volatile uint8_t run_request;
@@ -37,10 +35,9 @@ typedef struct {
 void car_manual_button_init(car_manual_button_t *button,
                             uint8_t raw_high,
                             uint32_t now_ms);
-car_manual_button_event_t car_manual_button_poll_high(
-    car_manual_button_t *button,
-    uint8_t raw_high,
-    uint32_t now_ms);
+void car_manual_button_poll_high(car_manual_button_t *button,
+                                 uint8_t raw_high,
+                                 uint32_t now_ms);
 car_manual_button_event_t car_manual_button_note_low_edge(
     car_manual_button_t *button,
     uint8_t raw_high,
