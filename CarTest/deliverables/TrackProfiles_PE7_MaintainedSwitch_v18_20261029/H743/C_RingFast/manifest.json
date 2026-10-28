@@ -1,0 +1,14 @@
+{
+  "label": "C_RingFast",
+  "preset": "DebugRingFast",
+  "profile_id": 3,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_enabled": true,
+  "ring_outer_target_millirps": 4400,
+  "build_id": "31295eb8529ae401e1284ce613b32774",
+  "elf_sha256": "2ed04114c0a3384f37fd07592dbeced980ff418db257f4cf44753e4f4205293f",
+  "runtime_log_record_size": 64,
+  "runtime_log_header_size": 64,
+  "vehicle_acceptance": "pending_manual_road_tests"
+}

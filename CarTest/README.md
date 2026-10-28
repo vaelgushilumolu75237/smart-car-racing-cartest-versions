@@ -1,5 +1,7 @@
 # CarTest：H743 车载工程
 
+2026-10-29 PE7 maintained-switch candidate: Follow uses low=RUN and high=immediate STOP. Software validation and a deliberate H743 flash are required; the vehicle firmware has not been updated. See [implementation and validation](docs/PE7-MAINTAINED-SWITCH-20261029.md).
+
 ## 2026-10-26 当前配套版本
 
 当前为H750相机三档版本：新A提速无环岛5.6/4.4、新B原速环岛4.8/4.0、新C提速环岛5.6/4.4（单位为驱动轮目标转/秒）。三个新入口位于VS Code调试列表最前面，共用一套320×120相机程序，通过V3档位确认配对；下面旧记录中的占空比、速度和“当前”不代表本轮配置。

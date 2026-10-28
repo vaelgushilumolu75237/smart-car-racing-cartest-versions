@@ -1,9 +1,7 @@
 {
-  "version": "v20261027-ring45-offline-v17",
-  "status": "experimental-offline-software-tested",
-  "branch": "experimental/ring45-offline-v17",
-  "files": 829,
-  "hardware_actions": "none",
-  "openmv_native_v501_bundle": "deliverables/OpenMV_Ring45_Native_v16_20261027",
-  "openmv_native_v501_runtime_root": "deliverables/TrackProfiles_Ring45_USB60_v16_20261027/OpenMV"
+  "version": "v20261029-pe7-maintained-switch-v18",
+  "status": "experimental-software-tested-hardware-pending",
+  "branch": "experimental/pe7-maintained-switch",
+  "files": 796,
+  "hardware_actions": "none"
 }
