@@ -14,9 +14,8 @@ import zlib
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = PROJECT_ROOT / "tools"
-V2_RUNTIME_ROOT = (
-    PROJECT_ROOT / "logs" / "ring45-usb60-20261026" /
-    "pipeline_perf_v8_ringdiag_autosave_v1")
+V2_RUNTIME_ROOT = PROJECT_ROOT / "openmv"
+
 sys.path.insert(0, str(TOOLS_ROOT))
 
 import export_openmv_ring_diag as exporter
@@ -34,7 +33,7 @@ def _load_v2_runtime():
 RING = _load_v2_runtime()
 
 
-def _make_v2(candidate_episode=False):
+def _make_v3(candidate_episode=False):
     diagnostic = RING.RingDiagnostics()
     diagnostic.begin_session(100)
     common_selection = {"source": "ring_right", "reason": "OK"}
@@ -61,6 +60,29 @@ def _make_v2(candidate_episode=False):
         return path.read_bytes()
 
 
+def _make_v2(candidate_episode=False):
+    # Pack an independent historical layout from the current recorder's
+    # structural fixture; v1/v2 records contain48 base fields, not53.
+    data=_make_v3(candidate_episode)
+    header=bytearray(data[:32]);payload=data[32:]
+    converted=bytearray(payload[:RING.BUILD_ID_BYTES+3])
+    offset=RING.BUILD_ID_BYTES+3
+    episode_count=struct.unpack_from("<H",header,14)[0]
+    for _ in range(episode_count):
+        meta=payload[offset:offset+RING.EPISODE_META_SIZE]
+        converted.extend(meta);offset+=RING.EPISODE_META_SIZE
+        count=struct.unpack_from("<H",meta,0)[0]
+        for _ in range(count):
+            record=payload[offset:offset+RING.FRAME_RECORD_SIZE]
+            converted.extend(record[:96])
+            converted.extend(record[RING.BASE_FIELD_COUNT*2:])
+            offset+=RING.FRAME_RECORD_SIZE
+    struct.pack_into("<H",header,4,2);struct.pack_into("<H",header,8,122)
+    struct.pack_into("<I",header,24,len(converted))
+    struct.pack_into("<I",header,28,zlib.crc32(converted)&0xffffffff)
+    return bytes(header+converted)
+
+
 def _make_v1(data):
     converted = bytearray(data)
     header_size = 32
@@ -71,7 +93,7 @@ def _make_v1(data):
     payload[metadata_offset + 22:metadata_offset + 24] = b"\x00\x00"
     struct.pack_into("<h", payload, record_offset, 123)
     struct.pack_into(
-        "<h", payload, record_offset + RING.FRAME_RECORD_SIZE, 999)
+        "<h", payload, record_offset + 122, 999)
     struct.pack_into("<H", converted, 4, 1)
     converted[header_size:] = payload
     struct.pack_into("<I", converted, 28, zlib.crc32(payload) & 0xFFFFFFFF)
@@ -83,7 +105,7 @@ def _empty_v1():
     payload[0] = 0
     header = struct.pack(
         "<4s10H2I", b"RNGD", 1, RING.HEADER_SIZE,
-        RING.FRAME_RECORD_SIZE, RING.REJECT_COUNT, RING.EPISODE_CAPACITY,
+        122, RING.REJECT_COUNT, RING.EPISODE_CAPACITY,
         0, RING.PRE_FRAMES, RING.POST_FRAMES, 0, 1, len(payload),
         zlib.crc32(payload) & 0xFFFFFFFF)
     return header + payload
@@ -133,6 +155,34 @@ class ExportOpenMVRingDiagTests(unittest.TestCase):
             summary_file = json.loads((output_dir / "summary.json").read_text(
                 encoding="utf-8"))
             self.assertEqual(summary_file["status"], "ok")
+
+    def test_v3_direction_fields_export_and_crc(self):
+        diagnostic=RING.RingDiagnostics()
+        diagnostic.begin_session(100)
+        tracker=dict(candidate=True, ring_confirmed=True,state_id=3,
+            reason="GROWING_ARC_CONFIRMED",target_valid=True,target_side=0,
+            target_center2=51,diagnostic_position_error=-354,
+            diagnostic_sent_error=-340,route_admission_reason="RING_WIDTH_CACHE_TARGET")
+        diagnostic.record_frame(100,10,3,True,True,
+            {"source":"ring_left","reason":"RING_WIDTH_CACHE_TARGET"},tracker)
+        diagnostic.record_frame(120,11,3,True,True,
+            {"source":"ring_left","reason":"RING_WIDTH_CACHE_TARGET"},tracker)
+        diagnostic.freeze("EXPLICIT_STOP")
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root);(root/"camera").mkdir();source=root/"camera/camera.bin"
+            diagnostic.save(source,"V25_HOST")
+            status,summary=self._export(source,root/"export")
+            self.assertEqual(status,0)
+            self.assertEqual(summary["file_summary"]["format_version"],3)
+            rows=self._read_csv(root/"export/frames.csv")
+            self.assertEqual(rows[0]["target_side_id"],"0")
+            self.assertEqual(rows[0]["target_center_x2"],"51")
+            self.assertEqual(rows[0]["weighted_position_error"],"-354")
+            self.assertEqual(rows[0]["sent_error"],"-340")
+            self.assertEqual(rows[0]["route_admission_reason"],"RING_WIDTH_CACHE_TARGET")
+            data=bytearray(source.read_bytes());data[-1]^=1;source.write_bytes(data)
+            status,_=self._export(source,root/"bad")
+            self.assertNotEqual(status,0)
 
     def test_v1_elapsed_milliseconds_and_legacy_snapshot_flags(self):
         with tempfile.TemporaryDirectory() as root:

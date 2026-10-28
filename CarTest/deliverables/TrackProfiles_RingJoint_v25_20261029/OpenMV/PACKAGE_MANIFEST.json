@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "4b3a722301efc15ebadba3a6eb12ec65533cf5c9ee7fb7e3535a3226e72749bf",
+      "source_sha256": "cde38450ad56f3909298641b6c2da4479dd1c5371239b47d3371230bdb616777",
       "exit_code": 0,
-      "mpy_sha256": "8dab598d9177b932db2531317853dd723af6ac37ec29e502c36b257917f5ec3d"
+      "mpy_sha256": "2f6d46bcd3eeb1333ed43908568cbeed61c1abab4aeb8a6195c9356edd97a3f3"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "1edecf7b41514302be82a73325241f1c541e6f76347b2b7a98eedd64c29ae16c",
+      "source_sha256": "a001bed392a9d9bd712b739c7fdca0183c08a747a3d967868e76b8351668cf69",
       "exit_code": 0,
-      "mpy_sha256": "e19d0c6855a7dead24e733bf0ba0a3ecf0b6aa5c6cf0eb4152290d3f26d6fe6b"
+      "mpy_sha256": "2e4584dd72f79df1fb92c3569c589f000d28626ec0502caeff4d998bb6a7dd30"
     },
     {
       "file": "reverse_control.py",
@@ -149,9 +149,9 @@
     },
     {
       "file": "track_elements.py",
-      "source_sha256": "0bc8bf0f771a5ffe585d0ad0ae6cd98058b0e62e0adf5481b5146f1e982ba91a",
+      "source_sha256": "f9c40834ceedc728332d61b7587e96b8d734f523ab2c2611cbf212978a93cc51",
       "exit_code": 0,
-      "mpy_sha256": "ac1a37309b2339548093248096a4662b861b854fce9895085b5abb5fc12f1711"
+      "mpy_sha256": "29cba8fbfc9987adcbdf5910232c2f37586f9024f9c299b1bbe3584f21d1d81a"
     },
     {
       "file": "ring_width_calibration.py",
@@ -161,9 +161,9 @@
     },
     {
       "file": "ring_diagnostics.py",
-      "source_sha256": "5102d852d94672a00ccf40d95082c0d97d09cf18efc82f10725e15c707e4480b",
+      "source_sha256": "7d29c9514d45fb1e70c3a11dae0f71da13476050d909ca31198d5dfcdce34bf1",
       "exit_code": 0,
-      "mpy_sha256": "00f2c93572ae5905e19fe43e0da1a03c75b42a5837378cef78e0205841267195"
+      "mpy_sha256": "251b760e28b650f23c21f4e7d081b6ca9560ffedb8861e0f1ef46bb2eca01635"
     },
     {
       "file": "fast_ring_slope.py",
@@ -173,12 +173,14 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "version": "v20261029-pe7-reference-restore-v24",
-  "camera_runtime_equivalent_to": "v20261029-camera-diag-pe7-fsm-v21",
+  "version": "v20261029-ring-joint-v25",
+  "track_build": "CARTEST_H750_RING_JOINT_V25_20261029",
   "candidate_only": true,
   "hardware_validation": false,
   "deployment_eligible": false,
   "board_fps_verified": false,
-  "paired_h743_required": true,
-  "camera_diagnostic_build_code": "0x20261029"
+  "ide_preview_fps_verified": false,
+  "minimum_required_fps_exclusive": 60,
+  "ring_diagnostics_format": 3,
+  "h743_equivalent_to": "v20261029-pe7-reference-restore-v24"
 }

@@ -49,7 +49,9 @@
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
   "hardware_acceptance": "pending_manual_road_tests",
   "camera_diagnostic_wire": "D1/16-byte/1Hz-capability-negotiated",
-  "compatible_camera_runtime": "v21-v22-v23-or-v24-complete-production-package",
+  "h743_unchanged_from": "v24",
+  "camera_runtime": "v25-complete-production-package-required",
   "pe7_control": "exact_reference_toggle",
-  "pe7_high_rearm_ms": 20
+  "vision_hold_ms": 2000,
+  "vision_hold_ramp_ms": 200
 }
