@@ -6,8 +6,8 @@
   "curve_outer_target_millirps": 4400,
   "ring_enabled": false,
   "ring_outer_target_millirps": null,
-  "build_id": "4820de71275c8db6b4d16e5067503d55",
-  "elf_sha256": "b0495c1e4bdd4d808435bfcf10328e4f9a0a657b366fe901d71b5e18ca95aaef",
+  "build_id": "78015cd8bb77449f52ec9db1f8f50615",
+  "elf_sha256": "c8fb67e86bd5c2712bf044680f3d2ae0eeb77b4884804ff0f2bfe579ef0b31a0",
   "runtime_log_record_size": 64,
   "runtime_log_header_size": 64,
   "vehicle_acceptance": "pending_manual_road_tests"

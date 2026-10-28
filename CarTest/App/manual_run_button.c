@@ -112,7 +112,7 @@ car_manual_button_event_t car_manual_button_tick_1ms(
             button->high_since_ms = now_ms;
         } else if (button->stop_pending == 0u &&
                    (uint32_t)(now_ms - button->high_since_ms) >=
-                       CAR_MANUAL_BUTTON_STABLE_MS) {
+                       CAR_MANUAL_BUTTON_HIGH_STABLE_MS) {
             button->state = CAR_MANUAL_BUTTON_WAIT_LOW;
             button->armed = 1u;
             button->startup_release_confirmed = 1u;
@@ -130,7 +130,7 @@ car_manual_button_event_t car_manual_button_tick_1ms(
             button->low_tracking = 1u;
             button->low_since_ms = now_ms;
         } else if ((uint32_t)(now_ms - button->low_since_ms) >=
-                   CAR_MANUAL_BUTTON_STABLE_MS) {
+                   CAR_MANUAL_BUTTON_LOW_STABLE_MS) {
             button->state = CAR_MANUAL_BUTTON_RUNNING;
             button->armed = 0u;
             button->run_request = 1u;

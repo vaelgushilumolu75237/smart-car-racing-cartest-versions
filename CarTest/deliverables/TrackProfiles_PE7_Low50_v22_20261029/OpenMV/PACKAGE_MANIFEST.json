@@ -173,7 +173,8 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "version": "v20261029-camera-diag-pe7-fsm-v21",
+  "version": "v20261029-pe7-low50-v22",
+  "camera_runtime_equivalent_to": "v20261029-camera-diag-pe7-fsm-v21",
   "candidate_only": true,
   "hardware_validation": false,
   "deployment_eligible": false,

@@ -101,7 +101,7 @@ int main(void) {
     tick(1,19); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
     tick(1,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_LOW);
     /* No falling EXTI call is made: periodic sampling alone must start. */
-    tick(0,20); CHECK(manual_run_button.run_request==0);
+    tick(0,50); CHECK(manual_run_button.run_request==0);
     tick(0,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_RUNNING);
     CHECK(manual_run_button.start_event_count==1 && manual_run_button.start_pending==1);
     tick(0,40); CHECK(manual_run_button.start_event_count==1);
@@ -114,12 +114,12 @@ int main(void) {
     tick(0,30); CHECK(manual_run_button.run_request==0);
     tick(1,20); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
     tick(1,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_LOW);
-    tick(0,21); CHECK(manual_run_button.start_event_count==2);
+    tick(0,51); CHECK(manual_run_button.start_event_count==2);
     pretend_applied();
     /* A rising EXTI is not required for the 1ms high-stop fallback. */
     tick(1,1); stopped(); CHECK(manual_run_button.stop_generation==2);
     car_manual_button_stop_consumed(&manual_run_button);
-    tick(1,20); tick(0,21); CHECK(manual_run_button.run_request==1);
+    tick(1,20); tick(0,51); CHECK(manual_run_button.run_request==1);
     pretend_applied(); car_control_state.fault_latched=1;
     tick(0,1); stopped(); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
     car_control_state.fault_latched=0; tick(0,100);

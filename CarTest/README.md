@@ -1,6 +1,6 @@
 # CarTest：H743 车载工程
 
-2026-10-29: v21 paired candidate: PE7 WAIT_HIGH/WAIT_LOW/RUNNING at 1ms with immediate high-level stop, plus compact camera UART diagnostics readable through ST-Link. See [implementation and validation](docs/PE7-THREE-STATE-1MS-20261029.md). Hardware, road and 60FPS acceptance pending; no automatic flash/upload/start.
+2026-10-29: v22 PE7 low qualification is now50ms; high rearm remains20ms and first-high stop remains immediate. Camera runtime and UART diagnostics are unchanged fromv21. See [change and validation](docs/PE7-LOW50-20261029.md). Hardware/road/60FPS acceptance pending; no automatic deployment.
 
 
 ## 2026-10-26 当前配套版本

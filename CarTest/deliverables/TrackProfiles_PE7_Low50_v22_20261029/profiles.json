@@ -9,8 +9,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": false,
       "ring_outer_target_millirps": null,
-      "build_id": "4820de71275c8db6b4d16e5067503d55",
-      "elf_sha256": "b0495c1e4bdd4d808435bfcf10328e4f9a0a657b366fe901d71b5e18ca95aaef",
+      "build_id": "78015cd8bb77449f52ec9db1f8f50615",
+      "elf_sha256": "c8fb67e86bd5c2712bf044680f3d2ae0eeb77b4884804ff0f2bfe579ef0b31a0",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -23,8 +23,8 @@
       "curve_outer_target_millirps": 4000,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4000,
-      "build_id": "0dfb5a4183226588ce9ba5355ef0cd46",
-      "elf_sha256": "f2455e7c4403c205f180df480fc13baccc1dc4618c5c48ac6353d56e17e901f6",
+      "build_id": "7869d28762d4c268e819393d14f77bfa",
+      "elf_sha256": "32a778b36a64409c7f0fc20584a010b5c7cc0880fa05705dbfcb94466eb3fb8c",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -37,8 +37,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4400,
-      "build_id": "b3def83883647971a675f43a2ccd2b11",
-      "elf_sha256": "e4cf160a9d93dd758ffccdafd507b9a9fb9acd70c7e7ddd38dcff6abbefd615c",
+      "build_id": "b6831b525cb12969552a20577cd44ac7",
+      "elf_sha256": "3d236a123b9173b81ae53ee57500c2bced71b0ebb41c6d1ae004e0e98f46c928",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -49,5 +49,7 @@
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
   "hardware_acceptance": "pending_manual_road_tests",
   "camera_diagnostic_wire": "D1/16-byte/1Hz-capability-negotiated",
-  "paired_h743_openmv_update_required": true
+  "compatible_camera_runtime": "v21-or-v22-complete-production-package",
+  "pe7_high_arm_ms": 20,
+  "pe7_low_start_ms": 50
 }

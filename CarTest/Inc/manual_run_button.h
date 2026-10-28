@@ -7,7 +7,10 @@
 extern "C" {
 #endif
 
-enum { CAR_MANUAL_BUTTON_STABLE_MS = 20u };
+enum {
+    CAR_MANUAL_BUTTON_HIGH_STABLE_MS = 20u,
+    CAR_MANUAL_BUTTON_LOW_STABLE_MS = 50u
+};
 
 typedef enum {
     CAR_MANUAL_BUTTON_WAIT_HIGH = 0u,

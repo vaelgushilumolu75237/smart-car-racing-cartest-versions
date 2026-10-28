@@ -1,7 +1,7 @@
 {
-  "version": "v20261029-camera-diag-pe7-fsm-v21",
+  "version": "v20261029-pe7-low50-v22",
   "status": "experimental-software-tested-hardware-pending",
-  "branch": "experimental/camera-diag-pe7-fsm",
-  "files": 806,
+  "branch": "experimental/pe7-low50",
+  "files": 807,
   "hardware_actions": "none"
 }
