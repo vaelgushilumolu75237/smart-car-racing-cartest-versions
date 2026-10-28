@@ -9,8 +9,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": false,
       "ring_outer_target_millirps": null,
-      "build_id": "4df105bd4bc3e0ea69fa05c9a0767718",
-      "elf_sha256": "0cd8a9dc41d5432864fa9b6a22d3b1b0819dbf2193776bf385be530d86154eab",
+      "build_id": "a0eaa4e5b66d58f070c7a1395af06e2d",
+      "elf_sha256": "cb38e536068615db28a754d0f116ebd22e3f156c43a76098c0bc1e8b6db40d79",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -23,8 +23,8 @@
       "curve_outer_target_millirps": 4000,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4000,
-      "build_id": "e668d327c3db9ec8e43b9daa850d167b",
-      "elf_sha256": "2f5398a0d9cb4850a066a6656b0564b24899540e058de9bf5663cec60010a828",
+      "build_id": "36ba2d0e4b02fd0f4f25ad41622afe4c",
+      "elf_sha256": "1bf7f0d1f5cc114ac2aac69930e4fdafce9caa1bfd554a1a65ae8f3dc436d207",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -37,8 +37,8 @@
       "curve_outer_target_millirps": 4400,
       "ring_enabled": true,
       "ring_outer_target_millirps": 4400,
-      "build_id": "c8c3f09c324fd87f893683370e257b97",
-      "elf_sha256": "ab13be6d7af6cf2af182c3f9a10723f3cf2a9c2939df211cf10f94720299a7b7",
+      "build_id": "f9c8d0412652ba88045f8aedda099f08",
+      "elf_sha256": "9e0ab9033746f5fd885a2a8136e4c78e323b7f44129969f2a51a823d33048076",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -49,9 +49,7 @@
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
   "hardware_acceptance": "pending_manual_road_tests",
   "camera_diagnostic_wire": "D1/16-byte/1Hz-capability-negotiated",
-  "compatible_camera_runtime": "v21-v22-or-v23-complete-production-package",
-  "pe7_high_arm_ms": 20,
-  "pe7_low_start_ms": 50,
-  "pe7_high_ignore_after_qualified_request_ms": 1000,
-  "non_pe7_protections_masked": false
+  "compatible_camera_runtime": "v21-v22-v23-or-v24-complete-production-package",
+  "pe7_control": "exact_reference_toggle",
+  "pe7_high_rearm_ms": 20
 }

@@ -43,8 +43,6 @@ static car_control_t car_control_state;
 static car_manual_button_t manual_run_button;
 static car_follow_output_state_t follow_output_state;
 static uint32_t now, mask, raw_high=1u, gpio_low, servo_stops, faults;
-static volatile uint8_t manual_button_gpio_ready;
-static uint8_t manual_button_have_sample;
 static uint32_t car_pe7_raw_high, car_button_state, car_manual_run_request;
 static uint32_t car_button_press_event_count, car_button_start_event_count;
 static uint32_t car_button_stop_generation, car_button_armed;
@@ -72,10 +70,7 @@ static void protected_switch_release_note(void) { faults=CAR_FAULT_SWITCH_RELEAS
 CHECKS = r'''
 static unsigned failures, checks;
 #define CHECK(x) do { ++checks; if (!(x)) { ++failures; printf("FAIL line %d: %s\n",__LINE__,#x); } } while(0)
-static void tick(uint8_t level, unsigned count) {
-    raw_high=level;
-    while(count--) { car_main_loop_heartbeat_ms=now; SysTick_Handler(); }
-}
+static void sample(uint8_t level, uint32_t t) { raw_high=level; now=t; manual_button_sample(level,t); }
 static void pretend_applied(void) {
     car_control_state.follow_session_active=1;
     car_control_state.mode=CAR_MODE_FOLLOW_RUNNING;
@@ -91,48 +86,42 @@ static void stopped(void) {
     CHECK(timer.CCR1==0 && timer.CCR2==0 && timer.CCR3==0 && timer.CCR4==0);
     CHECK(gpio_low==1 && motor_outputs_active==0 && applied_follow_outputs==0);
     CHECK(applied_motor_duty_permille==0 && applied_motor_follow_left_permille==0 && applied_motor_follow_right_permille==0);
-    CHECK(manual_run_button.run_request==0 && manual_run_button.start_pending==0);
 }
 int main(void) {
     app_config.follow_mode_compiled=1;
     car_manual_button_init(&manual_run_button,1,0);
-    tick(0,50); CHECK(car_pe7_sample_count==0); /* No uninitialized GPIO reads. */
-    now=0; manual_button_gpio_ready=1;
-    tick(1,19); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
-    tick(1,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_LOW);
-    /* No falling EXTI call is made: periodic sampling alone must start. */
-    tick(0,50); CHECK(manual_run_button.run_request==0);
-    tick(0,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_RUNNING);
-    CHECK(manual_run_button.start_event_count==1 && manual_run_button.start_pending==1);
-    tick(0,40); CHECK(manual_run_button.start_event_count==1);
+    sample(1,19); CHECK(manual_run_button.armed==0);
+    sample(1,20); CHECK(manual_run_button.armed==1);
+    raw_high=0; now=21; exti.PR1=APP_SWITCH_GPIO_PIN; EXTI9_5_IRQHandler();
+    CHECK(manual_run_button.run_request==1 && manual_run_button.start_event_count==1);
     car_manual_button_start_consumed(&manual_run_button); pretend_applied();
-    raw_high=1; exti.PR1=APP_SWITCH_GPIO_PIN; EXTI9_5_IRQHandler();
-    CHECK(manual_run_button.run_request==1 && manual_run_button.stop_generation==0);
-    CHECK(timer.CCR2==123 && motor_outputs_active==1);
-    tick(1,959); /* Start was at71ms; now start+999ms. */
+    sample(0,30); CHECK(manual_run_button.start_event_count==1);
+    /* Reference release rearms; it does not stop or revoke the request. */
+    raw_high=1; now=31; exti.PR1=APP_SWITCH_GPIO_PIN; EXTI9_5_IRQHandler();
+    sample(1,50); CHECK(manual_run_button.armed==0);
+    sample(1,51); CHECK(manual_run_button.armed==1);
     CHECK(manual_run_button.run_request==1 && timer.CCR2==123);
-    tick(1,1); /* No new EXTI edge: high at1000ms must stop via SysTick. */
-    stopped(); CHECK(manual_run_button.stop_generation==1);
-    CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH && servo_stops>0);
-    /* Stop bounce and a low hold cannot restart before a new high dwell. */
+    car_main_loop_heartbeat_ms=now; SysTick_Handler();
+    CHECK(manual_run_button.run_request==1 && timer.CCR2==123);
+    /* The next low toggles STOP, with the real main.c output shutdown. */
+    raw_high=0; now=53; exti.PR1=APP_SWITCH_GPIO_PIN; EXTI9_5_IRQHandler();
+    stopped(); CHECK(manual_run_button.run_request==0);
+    CHECK(manual_run_button.stop_generation==1 && manual_run_button.stop_pending==1);
+    sample(0,100); CHECK(manual_run_button.start_event_count==1);
     car_manual_button_stop_consumed(&manual_run_button);
-    tick(0,30); CHECK(manual_run_button.run_request==0);
-    tick(1,20); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
-    tick(1,1); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_LOW);
-    tick(0,51); CHECK(manual_run_button.start_event_count==2);
-    pretend_applied();
-    /* Held low expires the guard; the next high still stops immediately. */
-    tick(0,1000);
-    tick(1,1); stopped(); CHECK(manual_run_button.stop_generation==2);
-    car_manual_button_stop_consumed(&manual_run_button);
-    tick(1,20); tick(0,51); CHECK(manual_run_button.run_request==1);
-    pretend_applied(); car_control_state.fault_latched=1;
-    tick(1,1); stopped(); CHECK(manual_run_button.state==CAR_MANUAL_BUTTON_WAIT_HIGH);
-    car_control_state.fault_latched=0; tick(0,100);
-    CHECK(manual_run_button.run_request==0);
-    CHECK(car_pe7_sample_gap_max_ms==1 && car_pe7_sample_count>100);
+    sample(1,101); sample(1,121);
+    /* Main-loop fallback alone starts even if falling EXTI was missed. */
+    sample(0,122); CHECK(manual_run_button.run_request==1 && manual_run_button.start_event_count==2);
+    car_manual_button_start_consumed(&manual_run_button); pretend_applied();
+    car_main_loop_heartbeat_ms=0; now=1000; SysTick_Handler();
+    stopped(); CHECK(faults==CAR_FAULT_LOOP_GAP);
+    car_manual_button_cancel_request(&manual_run_button);
+    CHECK(manual_run_button.run_request==0 && manual_run_button.start_pending==0);
+    sample(1,1100); sample(1,1120);
+    car_control_state.fault_latched=1; sample(0,1121);
+    CHECK(manual_run_button.run_request==0 && manual_run_button.start_event_count==2);
     CHECK(mask==0);
-    printf("PE7_CHAIN_TEST checks=%u failures=%u (fake registers; no hardware)\n",checks,failures);
+    printf("PE7_REFERENCE_CHAIN checks=%u failures=%u (fake registers; no hardware)\n",checks,failures);
     return failures ? 1 : 0;
 }
 '''
@@ -146,12 +135,10 @@ def main():
     root = Path(__file__).resolve().parents[2]
     source = (root / "Src/main.c").read_text(encoding="utf-8")
     markers = (
-        "static void manual_button_publish_live_locked(uint8_t raw_high)\n{",
         "static void stop_motor_outputs_hardware(void)\n{",
         "static void emergency_stop_hardware(void)\n{",
-        "static car_manual_button_event_t manual_button_tick_sample(uint32_t now_ms)\n{",
-        "static car_manual_button_event_t manual_button_stop_on_high_sample(\n"
-        "    uint8_t raw_high,\n    uint32_t now_ms)\n{",
+        "static car_manual_button_event_t manual_button_sample(uint8_t raw_high,\n"
+        "                                                       uint32_t now_ms)\n{",
         "void SysTick_Handler(void)\n{", "void EXTI9_5_IRQHandler(void)\n{",
     )
     with tempfile.TemporaryDirectory(prefix="cartest-pe7-chain-") as temp:
