@@ -1,0 +1,400 @@
+{
+  "artifact_class": "OPENMV4P_RING45_NATIVE_APP_ONLY_CLEAN_BUILD",
+  "deployment_eligible": false,
+  "hardware_touched": false,
+  "flash_performed": false,
+  "source_root": "P:\\source\\openmv",
+  "project_root": "P:\\project",
+  "runtime_root": "D:\\OMVEnv\\project\\deliverables\\TrackProfiles_RingJoint_v25_20261029\\OpenMV",
+  "source_commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+  "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+  "target": "OPENMV4P / STM32H743xx",
+  "board_compatibility_note": "This sample is identified by the vendor tree as OPENMV4P/H743 and was exercised on a user H750-marked board. It does not establish generic H750 compatibility.",
+  "build": {
+    "directory": "W:\\",
+    "initial_entry_count": 0,
+    "jobs": 4,
+    "omv_enable_bl": 0,
+    "make": "P:\\tools\\build-tools\\bin\\make.exe",
+    "make_args": [
+      "--no-print-directory",
+      "-j4",
+      "-C",
+      "P:\\source\\openmv",
+      "TARGET=OPENMV4P",
+      "BUILD=W:\\",
+      "OMV_ENABLE_BL=0",
+      "SDK_DIR=P:\\tools\\sdk-marker",
+      "MICROPY_MPYCROSS=P:\\tools\\mpy-cross-1.28.0\\mpy-cross.exe",
+      "PYTHON=P:\\runner\\python3",
+      "firmware"
+    ],
+    "exit_code": 0,
+    "python": "P:\\runner\\python3",
+    "micropython_mpycross": "P:\\tools\\mpy-cross-1.28.0\\mpy-cross.exe",
+    "sdk_dir": "P:\\tools\\sdk-marker",
+    "runtime_object_count": 787,
+    "dependency_file_count": 531,
+    "module_objects": [
+      "lib/micropython/modules/py_cartest_accel.o",
+      "lib/micropython/modules/cartest_accel_core.o",
+      "lib/micropython/modules/py_cartest_path_accel.o",
+      "lib/micropython/modules/cartest_path_accel_core.o"
+    ],
+    "initial_file_count": 0
+  },
+  "patch_series": [
+    {
+      "position": 1,
+      "file": "0001-snapshot-preview-control.patch",
+      "sha256": "E3A93287D75298664E68068547F9A1F68D15DB0422F0BC08DCC1E7D4D6ADF193",
+      "manifest_file": "manifest.json"
+    },
+    {
+      "position": 2,
+      "file": "0002-stm32h7-uart-fifo-write.patch",
+      "sha256": "8D1649CC9FB74E00B6D1234F6C8A3A62D70B90EBD605053F069B202EC36890FB",
+      "manifest_file": "0002-stm32h7-uart-fifo-write.manifest.json"
+    },
+    {
+      "position": 3,
+      "file": "0003-cartest-accel-module.patch",
+      "sha256": "D534F87231DFE87D4B200A3D8AA794367C506512485815D51E3B30757418D4F4",
+      "manifest_file": "0003-cartest-accel-module.manifest.json"
+    },
+    {
+      "position": 4,
+      "file": "0004-cartest-path-accel-module.patch",
+      "sha256": "68ACFE9DE1DA89D03DBAF95C373EA0FA549B7D5C5146F8B0C3EFF08D31988524",
+      "manifest_file": "0004-cartest-path-accel-module.manifest.json"
+    },
+    {
+      "position": 5,
+      "file": "0005-jpeg-preview-codec-guard.patch",
+      "sha256": "D89B3D70854BA9DEA9215D87F451AD087121416CD846A422E8265D17E577E027",
+      "manifest_file": "0005-jpeg-preview-codec-guard.manifest.json"
+    }
+  ],
+  "module_sources": {
+    "modules/cartest_accel_core.c": {
+      "source": "cartest_accel/core/cartest_accel_core.c",
+      "sha256": "572D9377437F9F67FE765B98A02B5C138D752651C6D96F604F85173CA277DDD2",
+      "q_tree_sha256": "572D9377437F9F67FE765B98A02B5C138D752651C6D96F604F85173CA277DDD2"
+    },
+    "modules/cartest_accel_core.h": {
+      "source": "cartest_accel/core/cartest_accel_core.h",
+      "sha256": "A26463AFFA48F604D91C4AB2BC4214B63148CC4019C925C3A3E1FCDF0CBDD19D",
+      "q_tree_sha256": "A26463AFFA48F604D91C4AB2BC4214B63148CC4019C925C3A3E1FCDF0CBDD19D"
+    },
+    "modules/py_cartest_accel.c": {
+      "source": "cartest_accel/binding/py_cartest_accel.c",
+      "sha256": "5D8C16AD3E3568DCAFA2D8D063E0839F5BF6B2D2995D7C88850F61394863C864",
+      "q_tree_sha256": "5D8C16AD3E3568DCAFA2D8D063E0839F5BF6B2D2995D7C88850F61394863C864"
+    },
+    "modules/cartest_path_accel_core.c": {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.c",
+      "sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1",
+      "q_tree_sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1"
+    },
+    "modules/cartest_path_accel_core.h": {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.h",
+      "sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237",
+      "q_tree_sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237"
+    },
+    "modules/py_cartest_path_accel.c": {
+      "source": "cartest_path_accel/binding/py_cartest_path_accel.c",
+      "sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78",
+      "q_tree_sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78"
+    }
+  },
+  "jpeg_guard_overlay_sources": {
+    "ports/stm32/stm_jpeg.c": {
+      "source": "jpeg_preview_guard/overlay/ports/stm32/stm_jpeg.c",
+      "sha256": "44684B59B86F4387E8F60EEFEF21BA7646E793F4FFFD0C38671FC6EAAF70C2DA",
+      "q_tree_sha256": "44684B59B86F4387E8F60EEFEF21BA7646E793F4FFFD0C38671FC6EAAF70C2DA"
+    },
+    "lib/imlib/imlib.h": {
+      "source": "jpeg_preview_guard/overlay/lib/imlib/imlib.h",
+      "sha256": "03D2F49CF4C1D0816B5EEF5107DAC47B1D33748DF43813245BCD293D7F742D9E",
+      "q_tree_sha256": "03D2F49CF4C1D0816B5EEF5107DAC47B1D33748DF43813245BCD293D7F742D9E"
+    },
+    "ports/stm32/jpeg_preview_guard_cleanup.h": {
+      "source": "jpeg_preview_guard/overlay/ports/stm32/jpeg_preview_guard_cleanup.h",
+      "sha256": "6031F7884C76EB3A9458E095646129F0702D8E2C8C65203FDE510DC417B8F94D",
+      "q_tree_sha256": "6031F7884C76EB3A9458E095646129F0702D8E2C8C65203FDE510DC417B8F94D"
+    }
+  },
+  "runtime_python_sources": [
+    {
+      "file": "adaptive_detector.py",
+      "sha256": "56542E5DD768A6F97FBDFD25BFE3B50985B362AD7C5466E0602162CA5F4226C7",
+      "manifest_source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "0df052eaf388405890c90e495a927b79edc49c2d23201a5917877895c43c4535",
+      "mpy_artifact_sha256": "0DF052EAF388405890C90E495A927B79EDC49C2D23201A5917877895C43C4535",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "boundary_evidence.py",
+      "sha256": "CFBBEDB044EEDC4B86B674017EA5D22E43C43DB6007484156E3BEB6C3161BC70",
+      "manifest_source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "d727a019a9eaf417191a8df907bc1390713367c7c9dd159dc54637e0ea31c33d",
+      "mpy_artifact_sha256": "D727A019A9EAF417191A8DF907BC1390713367C7C9DD159DC54637E0EA31C33D",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "config.py",
+      "sha256": "CDE38450AD56F3909298641B6C2DA4479DD1C5371239B47D3371230BDB616777",
+      "manifest_source_sha256": "cde38450ad56f3909298641b6c2da4479dd1c5371239b47d3371230bdb616777",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "2f6d46bcd3eeb1333ed43908568cbeed61c1abab4aeb8a6195c9356edd97a3f3",
+      "mpy_artifact_sha256": "2F6D46BCD3EEB1333ED43908568CBEED61C1ABAB4AEB8A6195C9356EDD97A3F3",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "contour_route.py",
+      "sha256": "61EBD51E0F722BB4B227B6ED24913700A7A92A4F67869BFA6E3BA32D2F1C9A24",
+      "manifest_source_sha256": "61ebd51e0f722bb4b227b6ed24913700a7a92a4f67869bfa6e3ba32d2f1c9a24",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "8ace16edd3ffe080561952e7b46bab03d9182790904d0f909273db0aed280b16",
+      "mpy_artifact_sha256": "8ACE16EDD3FFE080561952E7B46BAB03D9182790904D0F909273DB0AED280B16",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "contour_trace.py",
+      "sha256": "5D677ACD3203A9C945DCCB4F194F20B45F0BE78E53A92657FE4701F62D2842A3",
+      "manifest_source_sha256": "5d677acd3203a9c945dccb4f194f20b45f0be78e53a92657fe4701f62d2842a3",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "5ca936a44f7097c9994902b09f565273c9ef3a39be89e76e5f959b1c678470fa",
+      "mpy_artifact_sha256": "5CA936A44F7097C9994902B09F565273C9EF3A39BE89E76E5F959B1C678470FA",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_boundary.py",
+      "sha256": "0DC92340247B4C18489CD1D6B082AFA92671D6084AE2B99878C26F5DDD75CF65",
+      "manifest_source_sha256": "0dc92340247b4c18489cd1d6b082afa92671d6084ae2b99878c26f5ddd75cf65",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "a95a78363df53b6849b32564233340251412d9e694631a21d1a9194919b8248b",
+      "mpy_artifact_sha256": "A95A78363DF53B6849B32564233340251412D9E694631A21D1A9194919B8248B",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_gray.py",
+      "sha256": "E3DB6EA36000B5254B35BDF6308AC009A14919831937F2C1CDA1D735C0CD2589",
+      "manifest_source_sha256": "e3db6ea36000b5254b35bdf6308ac009a14919831937f2c1cda1d735c0cd2589",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "63429822626cf27c64076a8f55102e1f0b3c0f903fab1e4b4d90bdfb67568082",
+      "mpy_artifact_sha256": "63429822626CF27C64076A8F55102E1F0B3C0F903FAB1E4B4D90BDFB67568082",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_path.py",
+      "sha256": "26A27F3916C9F436F0672D10AEDEE521B2D20134356336BD9EEEABAC3A35854C",
+      "manifest_source_sha256": "26a27f3916c9f436f0672d10aedee521b2d20134356336bd9eeeabac3a35854c",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "5a5a4c4c8fbe6661d905c8148992a0a0f775dd38897004e9d6bec8d7f297e815",
+      "mpy_artifact_sha256": "5A5A4C4C8FBE6661D905C8148992A0A0F775DD38897004E9D6BEC8D7F297E815",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_single_edge.py",
+      "sha256": "45DA22C13AB2C96B3CEDD05F96FA59FBB4DF6D93F9C24E121A3992DA1740FF5A",
+      "manifest_source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "6ddbcf2ba9c65e41ba8e5ab1254e7f51d9a77715a323eb8b223ad5391ff52ce5",
+      "mpy_artifact_sha256": "6DDBCF2BA9C65E41BA8E5AB1254E7F51D9A77715A323EB8B223AD5391FF52CE5",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_topology.py",
+      "sha256": "572BC3FC30E24462184237006D717E8F7C5C6E078CE478EB97FF8AA41E5C49DC",
+      "manifest_source_sha256": "572bc3fc30e24462184237006d717e8f7c5c6e078ce478eb97ff8aa41e5c49dc",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "72074f89b1ace69d29b216d3b696dbd09aafab861da6adfc125b1b889f2842c6",
+      "mpy_artifact_sha256": "72074F89B1ACE69D29B216D3B696DBD09AAFAB861DA6ADFC125B1B889F2842C6",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "grayscale_adapter.py",
+      "sha256": "E108654BE97F092E80D7A1D0B224C990725C994CA04D1D49F63F5B332E977000",
+      "manifest_source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "a05d3bb618d15f08431eba79276c02c68240b267d7ae82441cc8216e61189825",
+      "mpy_artifact_sha256": "A05D3BB618D15F08431EBA79276C02C68240B267D7AE82441CC8216E61189825",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "line_detector.py",
+      "sha256": "3DB4B177023C64F40C2B57BF3BDD07D0FCD43A152EEC8F1CFAA055FE03C17EFF",
+      "manifest_source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "5a4eb70f5d7ff7f89b2c53b238367eb42ea4640a6358fb19b99782ab60ad8b0b",
+      "mpy_artifact_sha256": "5A4EB70F5D7FF7F89B2C53B238367EB42EA4640A6358FB19B99782AB60AD8B0B",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "main.py",
+      "sha256": "A001BED392A9D9BD712B739C7FDCA0183C08A747A3D967868E76B8351668CF69",
+      "manifest_source_sha256": "a001bed392a9d9bd712b739c7fdca0183c08a747a3d967868e76b8351668cf69",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "2e4584dd72f79df1fb92c3569c589f000d28626ec0502caeff4d998bb6a7dd30",
+      "mpy_artifact_sha256": "2E4584DD72F79DF1FB92C3569C589F000D28626EC0502CAEFF4D998BB6A7DD30",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "reverse_control.py",
+      "sha256": "A8CED2EE5C67EF5D0B4394B57372B5D12DBDA9B40B5081207D49D25368EFD1D1",
+      "manifest_source_sha256": "a8ced2ee5c67ef5d0b4394b57372b5d12dbda9b40b5081207d49d25368efd1d1",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "dfd85c1002b11ef9acc4dd2a2d8c2848d4cb8f98c38ce5c3174de0956732ddc3",
+      "mpy_artifact_sha256": "DFD85C1002B11EF9ACC4DD2A2D8C2848D4CB8F98C38CE5C3174DE0956732DDC3",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "road_detector.py",
+      "sha256": "3318B0D564660C5D822AF37C99256155F1594D8C9D24FF9CD45F056A6BB5EFBF",
+      "manifest_source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "090c57c6c44f3e85280ef87b7c6edd19c45488f907cd30023b13d3f7cd34fc10",
+      "mpy_artifact_sha256": "090C57C6C44F3E85280EF87B7C6EDD19C45488F907CD30023B13D3F7CD34FC10",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "source_selector.py",
+      "sha256": "47A0CFEAD51E90252BB1F61314FAF44C062FA474E16E16D25CA22C13D75D759F",
+      "manifest_source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "11f03f830fe9ec7bec9be809a10e77d89241ba7dafcad2d088c5394b3a058c80",
+      "mpy_artifact_sha256": "11F03F830FE9EC7BEC9BE809A10E77D89241BA7DAFCAD2D088C5394B3A058C80",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "surface_detector.py",
+      "sha256": "3639D6FCE71B5EA5902864D094FF6CCD75E7DD07A31D0A2E1C6FA8995E7B00CF",
+      "manifest_source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "013283082681977ef47a48daf3b2fe4ac2702df70a6e1e50b58089356b756188",
+      "mpy_artifact_sha256": "013283082681977EF47A48DAF3B2FE4AC2702DF70A6E1E50B58089356B756188",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "thresholding.py",
+      "sha256": "0A64949FFE3BAB59972BFC0439DFF5FD4C88DCE452D9E882375CA02960CD9706",
+      "manifest_source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "01e56d329b104f4b66e774117837567a55c4be02ff68bc10ff12fbb1a45d3b27",
+      "mpy_artifact_sha256": "01E56D329B104F4B66E774117837567A55C4BE02FF68BC10FF12FBB1A45D3B27",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "vision_protocol.py",
+      "sha256": "30A5269AE9F5AF96B66DACBC76798C0DC299031BA34EE56EC8487BC795A50FC1",
+      "manifest_source_sha256": "30a5269ae9f5af96b66dacbc76798c0dc299031ba34ee56ec8487bc795a50fc1",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "c2c174796e1d6b1a1ef2982f7733fbb1a69b785b889a7a01ffe5238c3b214170",
+      "mpy_artifact_sha256": "C2C174796E1D6B1A1EF2982F7733FBB1A69B785B889A7A01FFE5238C3B214170",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "track_elements.py",
+      "sha256": "F9C40834CEEDC728332D61B7587E96B8D734F523AB2C2611CBF212978A93CC51",
+      "manifest_source_sha256": "f9c40834ceedc728332d61b7587e96b8d734f523ab2c2611cbf212978a93cc51",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "29cba8fbfc9987adcbdf5910232c2f37586f9024f9c299b1bbe3584f21d1d81a",
+      "mpy_artifact_sha256": "29CBA8FBFC9987ADCBDF5910232C2F37586F9024F9C299B1BBE3584F21D1D81A",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "ring_width_calibration.py",
+      "sha256": "9D5489242EDF92E846128C71D77697EC757ECE69B551C62457A827F9676A5E5F",
+      "manifest_source_sha256": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "90b4b22fa757097de8c166243b8c65f52d2eceedbcec9833f8d28dffe8edbcce",
+      "mpy_artifact_sha256": "90B4B22FA757097DE8C166243B8C65F52D2ECEEDBCEC9833F8D28DFFE8EDBCCE",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "ring_diagnostics.py",
+      "sha256": "7D29C9514D45FB1E70C3A11DAE0F71DA13476050D909CA31198D5DFCDCE34BF1",
+      "manifest_source_sha256": "7d29c9514d45fb1e70c3a11dae0f71da13476050d909ca31198d5dfcdce34bf1",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "251b760e28b650f23c21f4e7d081b6ca9560ffedb8861e0f1ef46bb2eca01635",
+      "mpy_artifact_sha256": "251B760E28B650F23C21F4E7D081B6CA9560FFEDB8861E0F1EF46BB2ECA01635",
+      "compile_exit_code": 0
+    },
+    {
+      "file": "fast_ring_slope.py",
+      "sha256": "9340D79AD113A751C6FB4E610E06E4CFB949770FC74BE211989B1C44FAAD4CB6",
+      "manifest_source_sha256": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
+      "manifest_source_hash_matches": true,
+      "mpy_sha256": "f28329ea8ad2c2ffc01a59200dcc4ad93fc9bad28c3dfc73e0e7bb6310c259dd",
+      "mpy_artifact_sha256": "F28329EA8AD2C2FFC01A59200DCC4AD93FC9BAD28C3DFC73E0E7BB6310C259DD",
+      "compile_exit_code": 0
+    }
+  ],
+  "runtime_manifest_source_mismatch_files": [],
+  "generated_qstrs": [
+    "cartest_accel",
+    "API_VERSION",
+    "api_version",
+    "region_segments",
+    "internal_component",
+    "HEAP_STATS_API",
+    "heap_stats",
+    "PREVIEW_CODEC_GUARD_API",
+    "jpeg_encode_timeout_ms",
+    "cartest_path_accel",
+    "extract_rows",
+    "connect_rows",
+    "WRITE_FIFO_API",
+    "write_fifo",
+    "fifo_txdone"
+  ],
+  "vectors": {
+    "app_vector_base": "0x08040000",
+    "bin_vector_msp": "0x00010000",
+    "bin_vector_reset": "0x08040299",
+    "elf_entry": "0x08040299",
+    "app_load_vaddr": "0x08040000"
+  },
+  "artifacts": {
+    "firmware.bin": {
+      "bytes": 1741964,
+      "sha256": "C693F1CE035F8FF12796E2B21C21D347D5EF8AAC7B4A78F6343A089AD45DC154"
+    },
+    "firmware.elf": {
+      "bytes": 11229528,
+      "sha256": "97DA850CF07EE7101E2DD0563CE0A1F2DAAC3257AB26CED18096C24A07A305B4"
+    },
+    "qstrdefs.generated.h": {
+      "bytes": 118871,
+      "sha256": "749AF41337980F25681FE81A85F4C05BAC604BEC78D6AD436CD2E400667ABB60"
+    },
+    "build.log": {
+      "bytes": 28335,
+      "sha256": "FCB5FA6D860A61ED52554512A4C2C76C6057D8F86F45D8D42CAF4514301F26C1"
+    }
+  },
+  "verification": {
+    "fresh_empty_build_directory": true,
+    "patches_already_applied_and_reverse_checked": true,
+    "module_and_overlay_source_hashes_match": true,
+    "runtime_source_hashes_recorded_live": true,
+    "runtime_package_manifest_matches_all_sources": true,
+    "full_qstr_generation": true,
+    "app_only_vectors_at_08040000": true,
+    "hardware_validation_by_this_runner": false,
+    "hal_abort_cleanup_hard_bound_ms": null,
+    "nominal_hal_abort_cleanup_may_reach_ms": 1013,
+    "caller_encode_timeout_ms": 5,
+    "hardware_validation": false
+  },
+  "raw_runner_verification_sha256": "AF51A86B05DE13F48693BF44CA4008E9341D1A2E2956F7DFF9EDE12E0D2EADE2",
+  "original_target_label": "OpenMV vendor OPENMV4P / STM32H743xx",
+  "normalization_notes": [
+    "target label normalized without changing target",
+    "initial_file_count aliases initial_entry_count",
+    "hardware_validation aliases hardware_validation_by_this_runner"
+  ]
+}

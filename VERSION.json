@@ -1,7 +1,9 @@
 {
-  "version": "v20261029-ring-joint-v25",
-  "status": "experimental-software-tested-fps-road-pending",
+  "version": "v20261029-v25-native-build-fixed",
+  "status": "experimental-software-built-native-hardware-fps-road-pending",
   "branch": "experimental/ring-joint",
-  "files": 816,
-  "hardware_actions": "none"
+  "files": 832,
+  "hardware_actions": "none",
+  "openmv_native_v501_bundle": "deliverables/OpenMV_RingJoint_v25_NativeCandidate_20261029",
+  "openmv_native_v501_runtime_root": "deliverables/TrackProfiles_RingJoint_v25_20261029/OpenMV"
 }

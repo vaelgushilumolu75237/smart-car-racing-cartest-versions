@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "package_id": "OpenMV_RingJoint_v25_NativeCandidate_20261029",
+  "target": "OPENMV4P",
+  "artifact_class": "software-build-only-hardware-pending",
+  "application_base": "0x08040000",
+  "application_end": "0x08200000",
+  "motor_start": false,
+  "road_acceptance": false,
+  "deployment_eligible": false,
+  "hardware_validation": false,
+  "flash_performed": false,
+  "board_fps_verified": false,
+  "ide_preview_fps_verified": false,
+  "rollback_scope": "historical-j-reference-not-replacement-camera-backup",
+  "files_sha256": {
+    "firmware.bin": "C693F1CE035F8FF12796E2B21C21D347D5EF8AAC7B4A78F6343A089AD45DC154",
+    "firmware.elf": "97DA850CF07EE7101E2DD0563CE0A1F2DAAC3257AB26CED18096C24A07A305B4",
+    "source-manifest.json": "B66FD61B0170AEB9E9DB0CAB24B9FE71084EFA98B694D075E9B2E2A0B09121B2",
+    "build-verification.json": "8DC85DE7C27E9AD09AE3368D8C6372202D424C1CBE0DD2D0C7F956E7A5BB25B0",
+    "rollback/firmware.bin": "1E471194F0C9B44239AADF70288103DABCCD840B6B884C65827B04A5B33087B7",
+    "rollback/firmware.elf": "E5371B12CF716AF54E264D50EAF67D931A89E363313A7E571906AEFB19BA86FD",
+    "rollback/manifest.json": "0C980ACED65E472D383F84057BC557F754189DF20B7B9AA90F678FD618497C1A"
+  },
+  "evidence_refs": {}
+}

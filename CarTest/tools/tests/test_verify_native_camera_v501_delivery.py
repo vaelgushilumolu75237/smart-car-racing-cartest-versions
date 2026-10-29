@@ -260,6 +260,53 @@ class VerifyNativeCameraV501DeliveryTests(unittest.TestCase):
             for name in validator.PUBLIC_NATIVE_V501_FILES
         ])
 
+    def _use_software_only_manifest(self):
+        path = self.fixture.package / "artifact-manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf8"))
+        manifest.update(artifact_class="software-build-only-hardware-pending",
+                        hardware_validation=False, flash_performed=False,
+                        board_fps_verified=False, ide_preview_fps_verified=False,
+                        rollback_scope="historical-j-reference-not-replacement-camera-backup",
+                        evidence_refs={})
+        write_json(path, manifest)
+        self.fixture.refresh_sums()
+        return path, manifest
+
+    def test_software_only_build_requires_no_borrowed_device_evidence(self):
+        self._use_software_only_manifest()
+        result = validator.verify_native_camera_v501_delivery(
+            self.fixture.source, self.fixture.relative)
+        self.assertEqual(len(result), len(validator.PUBLIC_NATIVE_V501_FILES))
+
+    def test_software_only_cannot_claim_device_acceptance(self):
+        path, original = self._use_software_only_manifest()
+        for field in ("hardware_validation", "flash_performed", "board_fps_verified",
+                      "ide_preview_fps_verified"):
+            for value in (True, None):
+                with self.subTest(field=field, value=value):
+                    manifest = dict(original, **{field: value})
+                    write_json(path, manifest)
+                    self.fixture.refresh_sums()
+                    with self.assertRaisesRegex(RuntimeError, field):
+                        validator.verify_native_camera_v501_delivery(
+                            self.fixture.source, self.fixture.relative)
+
+    def test_software_only_rejects_historical_evidence_as_current(self):
+        path, manifest = self._use_software_only_manifest()
+        manifest["evidence_refs"] = {"bench": {"sha256": "A" * 64, "result": "old bench"}}
+        write_json(path, manifest)
+        self.fixture.refresh_sums()
+        with self.assertRaisesRegex(RuntimeError, "must not claim device evidence"):
+            validator.verify_native_camera_v501_delivery(self.fixture.source, self.fixture.relative)
+
+    def test_software_only_requires_explicit_historical_rollback_scope(self):
+        path, manifest = self._use_software_only_manifest()
+        del manifest["rollback_scope"]
+        write_json(path, manifest)
+        self.fixture.refresh_sums()
+        with self.assertRaisesRegex(RuntimeError, "rollback scope"):
+            validator.verify_native_camera_v501_delivery(self.fixture.source, self.fixture.relative)
+
     def _use_v16_object_row_runtime_manifest(self):
         manifest_path = self.fixture.source / "openmv" / "PACKAGE_MANIFEST.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
