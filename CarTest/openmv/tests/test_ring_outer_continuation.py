@@ -58,7 +58,7 @@ class OuterContinuationTests(unittest.TestCase):
 
     def test_expired_jump_or_unknown_corridor_cannot_handoff(self):
         for side in (0, 1):
-            for kwargs in ({'advance_ms': 1501}, {'shift': 8}, {'blocked': True}):
+            for kwargs in ({'advance_ms': 2001}, {'shift': 8}, {'blocked': True}):
                 h = self.setup_inner(side)
                 result, _ = self.frame(h, side, 1-side, **kwargs)
                 self.assertFalse(result['target_valid'], (side, kwargs, result))
@@ -90,9 +90,15 @@ class OuterContinuationTests(unittest.TestCase):
             h=self.setup_inner(side)
             result,_=self.frame(h,side,1-side)
             h.tracker.observe_route_outcome(h.now,True,False)
-            result,_=self.frame(h,side,side,advance_ms=1501)
+            result,_=self.frame(h,side,side,advance_ms=2001)
             self.assertTrue(result['target_valid'])
             self.assertFalse(result['outer_tracking'])
+
+    def test_qualified_outer_can_return_within_the_existing_two_second_hold(self):
+        for side in (0,1):
+            h=self.setup_inner(side)
+            result,_=self.frame(h,side,1-side,advance_ms=1800)
+            self.assertTrue(result['outer_tracking'])
 
     def test_a_bad_row_is_omitted_and_remaining_corridors_stay_verified(self):
         h=self.setup_inner(1)

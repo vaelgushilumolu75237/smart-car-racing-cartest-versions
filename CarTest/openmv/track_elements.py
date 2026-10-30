@@ -844,7 +844,7 @@ class TrackElementsTracker:
         self.handoff_max_center_delta2 = self._bounded_setting(
             settings, "TRACK_ELEMENTS_RING_HANDOFF_MAX_CENTER_DELTA_X2", 12, 1, 40)
         self.handoff_max_age_ms = self._bounded_setting(
-            settings, "TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS", 1500, 1, 1500)
+            settings, "TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS", 2000, 1, 2000)
         self.max_active_ms = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MAX_ACTIVE_MS", 16000, 1, 600000)
         self.exit_confirm_frames = self._bounded_setting(
