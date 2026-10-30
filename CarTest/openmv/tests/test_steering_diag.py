@@ -852,6 +852,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "_selected_actual_boundaries",
             "_main_fast", "_render_v7_preview_frame",
             "_validate_fast_config", "_load_contour_runtime",
+            "_load_singleedge_runtime",  # require the additive ring observation API
             "_configure_sensor",
             "_configure_gray_sensor", "_surface_pixel",
             "_validate_v6_gray_config", "_validate_v7_runtime_apis",

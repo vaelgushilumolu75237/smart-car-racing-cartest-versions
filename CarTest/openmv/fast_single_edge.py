@@ -44,6 +44,7 @@ except ImportError:  # Host tests only; OpenMV provides the real module.
 
 
 RUNTIME_API_VERSION = 2
+RING_OBSERVATION_API_VERSION = 1
 WIDTH = 80
 HEIGHT = 60
 MAX_ROWS = 60
@@ -539,6 +540,7 @@ def _scan_single_edges_viper(self) -> int:
     ambiguity_margin2 = int(self.ambiguity_margin2)
     ambiguity_separation2 = int(self.ambiguity_separation2)
     island_check = int(self._island_check)
+    retain_paired_edges = int(self._ring_observation_mode)
     total = width * height
     no_distance = int(2147483647)
     diag_candidate_edges = int(0)
@@ -645,7 +647,8 @@ def _scan_single_edges_viper(self) -> int:
                         anchor_edge2 = 0
                     corridor_last = x - 1
 
-                if cached_route != 0 and opposite_seen != 0:
+                if (cached_route != 0 and opposite_seen != 0 and
+                        retain_paired_edges == 0):
                     continue
                 if center2 < 0 or center2 > (width - 1) * 2:
                     continue
@@ -821,6 +824,7 @@ class FastSingleEdgeTracker:
         self._row_edge2 = array("i", [0] * (2 * self.height))
         self._row_center2 = array("i", [0] * (2 * self.height))
         self._row_contrast = array("i", [0] * (2 * self.height))
+        self._ring_observation_mode = 0
         self._side_valid = bytearray(2)
         self._side_ambiguous = bytearray(2)
         self._side_ambiguous_rows = array("i", [0, 0])
@@ -2061,6 +2065,20 @@ class FastSingleEdgeTracker:
             self._invalidate_result("NO_ANCHORED_SINGLE_EDGE")
         self._result["topology_reason"] = topology.get("reason", "NOT_RUN")
         return self._result
+
+    def observe_ring_boundaries(self, mask_info, control_fresh,
+                                topology_evidence=None):
+        """Observe both current edges without the single-missing-side filter.
+
+        This is not a fallback route selection. All transition, contrast,
+        identity, ambiguity and known-road checks still run; only exclusion
+        of an edge solely because its partner is visible is disabled.
+        """
+        self._ring_observation_mode = 1
+        try:
+            return self.detect(mask_info, control_fresh, topology_evidence)
+        finally:
+            self._ring_observation_mode = 0
 
     def detect(self, mask_info, control_fresh, topology_evidence=None):
         """Run one detector call and retain a fixed-size per-frame snapshot."""

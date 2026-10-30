@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "93756d037b23e1df9057061b142cf9b6cb02a7cf4b93a040816e836f8313a405",
+      "source_sha256": "9a850e181e331cf4b5101fde5dadc78e19849b818792cecd88a4a0b18e8b796f",
       "exit_code": 0,
-      "mpy_sha256": "acb91d5fdf2f1be5dd7ace83014073dcca0000cf01a6d16bd9e4a9b0acf7aaf1"
+      "mpy_sha256": "f93a5d4d18c9e16218219326691a324a71e5285741f8b78250965ed55e53b775"
     },
     {
       "file": "contour_route.py",
@@ -83,9 +83,9 @@
     },
     {
       "file": "fast_single_edge.py",
-      "source_sha256": "45da22c13ab2c96b3cedd05f96fa59fbb4df6d93f9c24e121a3992da1740ff5a",
+      "source_sha256": "6af6a4679cb830a60e5d3fdea0231b7bfae0ebfbe8ff2127ceed8914a25eaf4b",
       "exit_code": 0,
-      "mpy_sha256": "6ddbcf2ba9c65e41ba8e5ab1254e7f51d9a77715a323eb8b223ad5391ff52ce5"
+      "mpy_sha256": "39e7b4db8a9f8d4aa7226ce2066db51edd2c198e443e5bb9f0c87ebb04636fc6"
     },
     {
       "file": "fast_topology.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "f4fef2f7327d23745be10556bc89c7578ba3765b02a7585192512ad6f2a761aa",
+      "source_sha256": "5d01bdb4909a6938cf897bbbf1af59f7c00c5df44ce886fb0670dae18d4f5aa3",
       "exit_code": 0,
-      "mpy_sha256": "74912f04676ec5abaff442c1a9c2af5e2a0bb863b03492ea5a6c5ffc94b2b564"
+      "mpy_sha256": "3047bc13050e816bd0c1ac7baba6dd02cb82eabe320151c00219594e6ac1fc04"
     },
     {
       "file": "reverse_control.py",
@@ -180,5 +180,5 @@
   "road_validation": "pending",
   "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
   "vehicle_source_and_elf_unchanged": true,
-  "package_id": "v20261030-ring-entry-v26-r3"
+  "package_id": "v20261030-ring-entry-v26-r4"
 }

@@ -47,7 +47,7 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_ENTRY_V26R3_20261030"
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_ENTRY_V26R4_20261030"
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.

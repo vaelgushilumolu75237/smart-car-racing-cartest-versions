@@ -1727,6 +1727,8 @@ def _load_singleedge_runtime():
         ("fast_single_edge.py", fast_single_edge),
         ("reverse_control.py", reverse_control),
     )
+    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 1:
+        raise ImportError("single-edge bundle mismatch: ring observation API 1 required")
     return _SINGLEEDGE_RUNTIME_MODULES
 
 
@@ -3532,7 +3534,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R3_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R4_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7515,7 +7517,15 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         single_candidate = None
         single_diagnostic_reason = (
             "NOT_NEEDED" if selection.get("valid") else "NOT_ATTEMPTED")
-        if not selection.get("valid"):
+        prior_element = element_tracker.result
+        ring_observation_only = bool(
+            reverse_fresh and reverse_parser.profile_session_active and
+            mask_info is not None and prior_element.get("ring_confirmed") and
+            prior_element.get("state_id") in (
+                track_elements.STATE_INSIDE,
+                track_elements.STATE_EXIT_CONFIRM,
+                track_elements.STATE_EXIT_REPAIR))
+        if not selection.get("valid") and not ring_observation_only:
             if not reverse_fresh:
                 if mask_info is not None:
                     single_candidate = single_edge_tracker.detect(
@@ -7595,17 +7605,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         # not suppress this frame's independent boundary observation. Its
         # selected rows may cover only the far field. Do not select or commit
         # this diagnostic single-edge candidate as the ordinary route.
-        prior_element = element_tracker.result
-        if (single_candidate is None and selection.get("valid") and
-                reverse_fresh and reverse_parser.profile_session_active and
-                mask_info is not None and
-                prior_element.get("ring_confirmed") and
-                prior_element.get("state_id") in (
-                    track_elements.STATE_INSIDE,
-                    track_elements.STATE_EXIT_CONFIRM,
-                    track_elements.STATE_EXIT_REPAIR) and
-                not getattr(single_edge_tracker, "_frame_scan_done", False)):
-            single_candidate = single_edge_tracker.detect(
+        if ring_observation_only:
+            single_candidate = single_edge_tracker.observe_ring_boundaries(
                 mask_info, True, road_result.get("topology_evidence"))
             single_diagnostic_reason = "CONFIRMED_RING_BOUNDARY_OBSERVATION"
 
