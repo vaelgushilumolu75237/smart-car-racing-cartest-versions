@@ -44,7 +44,7 @@ except ImportError:  # Host tests only; OpenMV provides the real module.
 
 
 RUNTIME_API_VERSION = 2
-RING_OBSERVATION_API_VERSION = 1
+RING_OBSERVATION_API_VERSION = 2
 WIDTH = 80
 HEIGHT = 60
 MAX_ROWS = 60
@@ -555,7 +555,10 @@ def _scan_single_edges_viper(self) -> int:
         row_center2[index] = 0
         row_contrast[index] = 0
 
-    for y in range(floor, height):
+    for scan_index in range(floor, height):
+        y = scan_index
+        if retain_paired_edges != 0:
+            y = height - 1 - (scan_index - floor)
         if cached_route != 0 and cache_valid[y] == 0:
             continue
         row = y * width
@@ -669,8 +672,22 @@ def _scan_single_edges_viper(self) -> int:
                     if distance < 0:
                         distance = -distance
                     if distance > max_anchor2:
-                        diagnostics[diag_anchor_rejects] += 1
-                        continue
+                        chain_ok = 0
+                        if retain_paired_edges != 0 and y + 4 < height:
+                            chain_ok = 1
+                            for ahead in range(1, 5):
+                                if status[side*height+y+ahead] != 1:
+                                    chain_ok = 0
+                            if chain_ok != 0:
+                                previous_edge2 = int(row_edge2[side*height+y+1])
+                                chain_delta = edge2 - previous_edge2
+                                if chain_delta < 0:
+                                    chain_delta = -chain_delta
+                                if chain_delta > 6:
+                                    chain_ok = 0
+                        if chain_ok == 0:
+                            diagnostics[diag_anchor_rejects] += 1
+                            continue
 
                     identity_clear = 1
                     if side == 0 and edge2 > anchor_edge2:

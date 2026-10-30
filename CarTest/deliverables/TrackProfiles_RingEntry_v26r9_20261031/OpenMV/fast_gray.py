@@ -9,6 +9,7 @@ compile the Viper kernels.
 """
 
 RUNTIME_API_VERSION = 7
+RING_DARK_BLOCK_API_VERSION = 1
 
 from array import array
 
@@ -1549,6 +1550,7 @@ class FastGrayMasks:
         diagnostics["contrast_max"] = self._contrast_max
         diagnostics["threshold_min"] = self._threshold_min
         diagnostics["threshold_max"] = self._threshold_max
+        diagnostics["ring_dark_block_resolved"] = False
 
         info = self._mask_info
         info["sampling_source"] = sampling_source
@@ -1563,4 +1565,65 @@ class FastGrayMasks:
         info["contrast_max"] = self._contrast_max
         info["threshold_min"] = self._threshold_min
         info["threshold_max"] = self._threshold_max
+        info["ring_dark_block_resolved"] = False
         return info
+
+    def resolve_confirmed_ring_dark_block(self, info):
+        """Classify only a uniformly dark leading block from this frame's peers.
+
+        The caller must own a confirmed, calibrated ring session. This never
+        makes an unknown pixel white and never uses a previous frame threshold.
+        """
+        if (info is not self._mask_info or not self._mask_full_width_tiled_ready or
+                self._block_count < 3 or self.trusted[0] or
+                self.reasons[0] not in ("CONSTANT", "LOW_CONTRAST", "NO_CONTRAST") or
+                self.min_contrast <= 0):
+            return False
+        # Require every other block to have a strong, populated current split.
+        # Never propagate through another unknown block or an internal gap.
+        low_min = 256.0
+        low_max = -1.0
+        dark_limit = 256.0
+        for block in range(1, self._block_count):
+            count = self._block_stats[block*4]
+            classes = self.classes[block]
+            contrast = self.contrasts[block]
+            if (not self.trusted[block] or contrast < self.min_contrast*2 or
+                    min(classes)*20 < count):
+                return False
+            low = self.class_means[block][0]
+            low_min = min(low_min, low)
+            low_max = max(low_max, low)
+            dark_limit = min(dark_limit, low + contrast/8.0)
+        minimum = self._block_stats[2]
+        maximum = self._block_stats[3]
+        if (low_max-low_min > self.min_contrast or
+                maximum-minimum > self.min_contrast*2 or
+                minimum < low_min-self.min_contrast or maximum > dark_limit):
+            return False
+        # Threshold at the measured maximum: all pixels become known BLACK.
+        self.thresholds[0] = maximum
+        self._threshold_values[0] = maximum
+        self.trusted[0] = True
+        self._trusted_values[0] = 1
+        self.reasons[0] = "RING_DARK_CLASS_REFERENCE"
+        if self._debug_blocks is not None:
+            self._debug_blocks[0].update(threshold=maximum, trusted=True,
+                reason="RING_DARK_CLASS_REFERENCE")
+        self._trusted_count += 1
+        self._complete = True
+        self._reason = "OK"
+        self._threshold_min = min(maximum, self._threshold_min)
+        self._threshold_max = max(maximum, self._threshold_max)
+        self._write_masks()
+        for target in (self._mask_info, self._diagnostics):
+            target["complete"] = True
+            target["reason"] = "OK"
+            target["trusted_block_count"] = self._trusted_count
+            target["road_pixels"] = self._pixel_totals[0]
+            target["edge_pixels"] = self._pixel_totals[1]
+            target["mask_pixels"] = self._pixel_totals[1]
+            target["threshold_min"] = self._threshold_min
+            target["threshold_max"] = self._threshold_max
+            target["ring_dark_block_resolved"] = True
+        return True

@@ -1727,8 +1727,8 @@ def _load_singleedge_runtime():
         ("fast_single_edge.py", fast_single_edge),
         ("reverse_control.py", reverse_control),
     )
-    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 1:
-        raise ImportError("single-edge bundle mismatch: ring observation API 1 required")
+    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 2:
+        raise ImportError("single-edge bundle mismatch: ring observation API 2 required")
     return _SINGLEEDGE_RUNTIME_MODULES
 
 
@@ -1750,9 +1750,11 @@ def _load_track_elements_runtime():
                 getattr(track_elements, "RUNTIME_API_VERSION", None),
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
     if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 2:
-        raise RuntimeError("V7 element bundle mismatch: ring outer-route API 1 required")
+        raise RuntimeError("V7 element bundle mismatch: ring outer-route API 2 required")
     if getattr(track_elements, "RING_ISLAND_TOPOLOGY_API_VERSION", None) != 1:
         raise RuntimeError("V7 element bundle mismatch: ring island-topology API 1 required")
+    if getattr(__import__("fast_gray"), "RING_DARK_BLOCK_API_VERSION", None) != 1:
+        raise RuntimeError("V7 element bundle mismatch: ring dark-block API 1 required")
     return track_elements
 
 
@@ -3538,7 +3540,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R8_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R9_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7434,6 +7436,18 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         if image_size_valid:
             try:
                 mask_info = gray_builder.build(img)
+                prior_ring = element_tracker.result
+                if (reverse_fresh and reverse_parser.profile_session_active and
+                        prior_ring.get("profile_id") in (2, 3) and
+                        prior_ring.get("ring_confirmed") and
+                        prior_ring.get("state_id") in (
+                            track_elements.STATE_INSIDE,
+                            track_elements.STATE_EXIT_CONFIRM,
+                            track_elements.STATE_EXIT_REPAIR) and
+                        element_tracker.ring_calibration_ready and
+                        element_tracker.ring_calibration_check_ready and
+                        getattr(element_tracker, "_ring_cache_frozen", False)):
+                    gray_builder.resolve_confirmed_ring_dark_block(mask_info)
             except Exception as exc:
                 detector_error = "MASK:%s" % exc
         else:
