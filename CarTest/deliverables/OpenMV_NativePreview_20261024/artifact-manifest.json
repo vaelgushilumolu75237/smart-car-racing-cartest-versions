@@ -1,0 +1,16 @@
+{
+  "workflow_run": "https://github.com/vaelgushilumolu75237/smart-car-racing-cartest-versions/actions/runs/40003611704",
+  "run_id": 40003611704,
+  "head_sha": "78c8d4f6d7e7c9a83935aea60c749c4685bf2cbf",
+  "conclusion": "success",
+  "artifact_id": 12523477547,
+  "artifact_zip_sha256": "50205acdfb3954a5fad3a7da0f737234ef9e152b82c29e5e08af2e733db88114",
+  "files_sha256": {
+    "build-summary.txt": "5f448297965d25ec76807ca3e3404ca4753c3acf73880c9dd5cf2bae87996dd7",
+    "build-summary.txt.sha256": "4b7467ab38a26d14ffc08c7b94cc6f90465ba8133ff524d2487d63e2f7343876",
+    "firmware.bin": "9689d686881d2d358694f580256d0698f01226cd018c6f6951d1d7abf5c663b7",
+    "firmware.elf": "dafaec93152163769e81e0f86fcd9b280b289f4e6a49a87d1c29ac1fd559caaa"
+  },
+  "hardware_flashed": false,
+  "hardware_tested": false
+}

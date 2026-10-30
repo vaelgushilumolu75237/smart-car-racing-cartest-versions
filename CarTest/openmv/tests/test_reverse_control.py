@@ -1,4 +1,4 @@
-"""Host tests for the independent 8-byte H743-to-OpenMV control stream."""
+"""Host tests for mixed V1 control and V2 profile-state frames."""
 
 import csv
 from pathlib import Path
@@ -8,6 +8,9 @@ import unittest
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 VECTOR_FILE = Path(__file__).with_name("data") / "reverse-control-v1.csv"
+PROFILE_VECTOR_FILE = (
+    PACKAGE_DIR.parent / "tests" / "data" /
+    "reverse-profile-state-v2.csv")
 sys.path.insert(0, str(PACKAGE_DIR))
 
 import reverse_control  # noqa: E402
@@ -122,7 +125,7 @@ class ReverseControlTests(unittest.TestCase):
         self._feed(reverse_control.pack_frame(1, 100), 50)
         self.assertTrue(self.parser.single_enabled)
 
-    def test_ticks_wrap_and_feed_is_capped_at_32_bytes(self):
+    def test_ticks_wrap_and_feed_is_capped_at_64_bytes(self):
         period = 1 << 30
         diff = lambda now, then: ((now - then + period // 2) % period) - period // 2
         self._feed(reverse_control.pack_frame(0, 1), period - 40)
@@ -131,9 +134,223 @@ class ReverseControlTests(unittest.TestCase):
         self.assertFalse(self.parser.single_enabled)
 
         parser = reverse_control.ReverseControlParser()
-        data = bytearray(b"\x00" * 33)
-        self.assertEqual(parser.feed(data, len(data), 0), 32)
+        data = bytearray(b"\x00" * (reverse_control.MAX_FEED_BYTES + 1))
+        self.assertEqual(
+            parser.feed(data, len(data), 0), reverse_control.MAX_FEED_BYTES)
         self.assertEqual(parser.buffered_bytes, 0)
+
+    def test_profile_state_layout_crc_and_unsigned_fields(self):
+        frame = reverse_control.pack_profile_state(
+            0x1234, reverse_control.PROFILE_C,
+            reverse_control.PROFILE_SESSION_ACTIVE,
+            reverse_control.PROFILE_REVISION, 0x89ABCDEF, 0x10203040)
+        self.assertEqual(len(frame), reverse_control.PROFILE_FRAME_SIZE)
+        self.assertEqual(
+            bytes(frame[:10]), b"\xA6\x5A\x02\x02\x34\x12\x03\x01\x01\x00")
+        self.assertEqual(bytes(frame[10:14]), b"\xEF\xCD\xAB\x89")
+        self.assertEqual(bytes(frame[14:18]), b"\x40\x30\x20\x10")
+        self.assertEqual(frame[18] | frame[19] << 8,
+                         reverse_control.crc16_ccitt_false(frame, 18))
+
+    def test_shared_profile_state_vectors_match_exact_bytes(self):
+        with PROFILE_VECTOR_FILE.open(
+                "r", newline="", encoding="ascii") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(
+            list(rows[0]), ["case", "sequence", "profile_id", "active",
+                            "revision", "session_token",
+                            "mean_forward_wheel_millirev", "hex"])
+        for row in rows:
+            with self.subTest(case=row["case"]):
+                flags = (reverse_control.PROFILE_SESSION_ACTIVE
+                         if int(row["active"]) else 0)
+                frame = reverse_control.pack_profile_state(
+                    int(row["sequence"]), int(row["profile_id"]), flags,
+                    int(row["revision"]), int(row["session_token"]),
+                    int(row["mean_forward_wheel_millirev"]))
+                self.assertEqual(bytes(frame).hex(), row["hex"].lower())
+
+    def test_profile_sequence_and_freshness_are_independent_of_keep(self):
+        self.parser = reverse_control.ReverseControlParser(timeout_ms=1000)
+        self._feed(reverse_control.pack_frame(0, 100), 0)
+        self._feed(reverse_control.pack_frame(1, 101), 5)
+        self.assertTrue(self.parser.single_enabled)
+        control_generation = self.parser.generation
+        profile = reverse_control.pack_profile_state(
+            0xFFFE, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_SESSION_ACTIVE, session_token=9,
+            mean_forward_wheel_millirev=54321)
+        self._feed(profile, 10)
+        self.assertTrue(self.parser.single_enabled)
+        self.assertEqual(self.parser.generation, control_generation)
+        self.assertEqual(self.parser.profile_ack(10, lambda n, o: n - o), 2)
+        self.assertTrue(self.parser.ring_profile_enabled(
+            10, lambda n, o: n - o))
+        self.assertEqual(self.parser.session_token, 9)
+        self.assertEqual(self.parser.mean_forward_wheel_millirev, 54321)
+
+        next_profile = reverse_control.pack_profile_state(
+            0xFFFF, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_SESSION_ACTIVE, session_token=9)
+        self._feed(next_profile, 100)
+        self.assertTrue(self.parser.single_enabled)
+        self.assertEqual(self.parser.profile_generation, 0)
+        self.assertEqual(self.parser.profile_ack(349, lambda n, o: n - o), 2)
+        self.assertEqual(self.parser.profile_ack(350, lambda n, o: n - o), 0)
+        self.assertTrue(self.parser.poll(350, lambda n, o: n - o))
+        self.assertEqual(self.parser.last_profile_event, "PROFILE_TIMEOUT")
+        self.assertFalse(self.parser.ring_profile_enabled(
+            350, lambda n, o: n - o))
+        self.assertEqual(self.parser.generation, control_generation)
+        self.assertEqual(self.parser.profile_generation, 1)
+
+    def test_duplicate_profile_heartbeat_does_not_refresh_or_clear(self):
+        parser = reverse_control.ReverseControlParser()
+        active = reverse_control.PROFILE_SESSION_ACTIVE
+        frame = reverse_control.pack_profile_state(
+            10, reverse_control.PROFILE_C, active, session_token=2)
+        parser.feed(frame, len(frame), 0)
+        profile_generation = parser.profile_generation
+        parser.feed(frame, len(frame), 200)
+        self.assertEqual(parser.duplicate_profile_states, 1)
+        self.assertEqual(parser.profile_generation, profile_generation)
+        self.assertEqual(parser.profile_ack(249, lambda n, o: n - o), 3)
+        self.assertEqual(parser.profile_ack(250, lambda n, o: n - o), 0)
+
+    def test_profile_switch_and_session_token_change_bump_once(self):
+        parser = reverse_control.ReverseControlParser()
+        active = reverse_control.PROFILE_SESSION_ACTIVE
+        for sequence in range(4):
+            profile = reverse_control.PROFILE_B
+            token = 7
+            if sequence >= 2:
+                profile = reverse_control.PROFILE_C
+            if sequence >= 3:
+                token = 8
+            frame = reverse_control.pack_profile_state(
+                sequence, profile, active, session_token=token)
+            parser.feed(frame, len(frame), sequence * 50)
+            expected = 0 if sequence < 2 else sequence - 1
+            self.assertEqual(parser.profile_generation, expected)
+        self.assertEqual(parser.last_profile_event, "SESSION_CHANGE")
+
+    def test_profile_validation_rejects_bad_crc_rollback_and_flags_without_resetting_v1(self):
+        parser = reverse_control.ReverseControlParser()
+        parser.feed(reverse_control.pack_frame(0, 1), 8, 0)
+        parser.feed(reverse_control.pack_frame(1, 2), 8, 1)
+        self.assertTrue(parser.single_enabled)
+        valid = reverse_control.pack_profile_state(
+            10, reverse_control.PROFILE_A)
+        parser.feed(valid, len(valid), 2)
+        profile_generation = parser.profile_generation
+
+        bad_crc = bytearray(reverse_control.pack_profile_state(
+            11, reverse_control.PROFILE_C))
+        bad_crc[18] ^= 1
+        parser.feed(bad_crc, len(bad_crc), 3)
+        self.assertEqual(parser.last_profile_event, "BAD_PROFILE_CRC")
+        self.assertTrue(parser.single_enabled)
+        self.assertEqual(parser.profile_generation, profile_generation)
+
+        rollback = reverse_control.pack_profile_state(
+            9, reverse_control.PROFILE_C)
+        parser.feed(rollback, len(rollback), 4)
+        self.assertEqual(parser.last_profile_event,
+                         "PROFILE_SEQUENCE_ROLLBACK")
+        self.assertEqual(parser.profile_ack(4, lambda n, o: n - o), 1)
+        self.assertTrue(parser.single_enabled)
+
+        bad_flags = bytearray(reverse_control.pack_profile_state(
+            11, reverse_control.PROFILE_C, 0x04))
+        parser.feed(bad_flags, len(bad_flags), 5)
+        self.assertEqual(parser.last_profile_event, "BAD_PROFILE_FLAGS")
+        self.assertTrue(parser.single_enabled)
+
+    def test_diagnostics_capability_is_independent_of_follow_session_bit(self):
+        parser = reverse_control.ReverseControlParser()
+        diff = lambda now, then: now - then
+        flags = reverse_control.PROFILE_SESSION_ACTIVE
+        active = reverse_control.pack_profile_state(
+            1, reverse_control.PROFILE_B, flags, session_token=9)
+        parser.feed(active, len(active), 10)
+        self.assertTrue(parser.profile_session_active)
+        self.assertTrue(parser.ring_profile_enabled(10, diff))
+        profile_generation = parser.profile_generation
+
+        with_capability = reverse_control.pack_profile_state(
+            2, reverse_control.PROFILE_B,
+            flags | reverse_control.PROFILE_DIAGNOSTICS_SUPPORTED,
+            session_token=9)
+        parser.feed(with_capability, len(with_capability), 15)
+        self.assertEqual(parser.profile_generation, profile_generation)
+        self.assertTrue(parser.profile_session_active)
+        self.assertTrue(parser.profile_diagnostics_enabled(15, diff))
+        self.assertEqual(parser.profile_ack(15, diff),
+                         reverse_control.PROFILE_B)
+        self.assertFalse(parser.profile_diagnostics_enabled(270, diff))
+
+        inactive = reverse_control.pack_profile_state(
+            3, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_DIAGNOSTICS_SUPPORTED,
+            session_token=9)
+        parser.feed(inactive, len(inactive), 20)
+        self.assertFalse(parser.profile_session_active)
+        self.assertFalse(parser.ring_profile_enabled(20, diff))
+        self.assertTrue(parser.profile_diagnostics_enabled(20, diff))
+
+    def test_unknown_profile_revision_and_inactive_session_fail_closed(self):
+        parser = reverse_control.ReverseControlParser()
+        unknown = reverse_control.pack_profile_state(1, 99, 1, 1, 7)
+        parser.feed(unknown, len(unknown), 0)
+        self.assertEqual(parser.profile_ack(0, lambda n, o: n - o), 0)
+        self.assertFalse(parser.ring_profile_enabled(
+            0, lambda n, o: n - o))
+
+        unsupported = reverse_control.pack_profile_state(2, 2, 1, 2, 7)
+        parser.feed(unsupported, len(unsupported), 100)
+        self.assertEqual(parser.profile_ack(100, lambda n, o: n - o), 0)
+        self.assertFalse(parser.ring_profile_enabled(
+            100, lambda n, o: n - o))
+
+        inactive = reverse_control.pack_profile_state(3, 2, 0, 1, 7)
+        parser.feed(inactive, len(inactive), 200)
+        self.assertEqual(parser.profile_ack(200, lambda n, o: n - o), 2)
+        self.assertFalse(parser.ring_profile_enabled(
+            200, lambda n, o: n - o))
+
+    def test_mixed_fragmented_and_concatenated_frames_resynchronize(self):
+        parser = reverse_control.ReverseControlParser()
+        reset = reverse_control.pack_frame(0, 10)
+        status = reverse_control.pack_profile_state(
+            100, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_SESSION_ACTIVE, session_token=5)
+        keep = reverse_control.pack_frame(1, 11)
+        combined = bytearray(reset + status + keep)
+        parser.feed(combined, 13, 0)
+        self.assertFalse(parser.single_enabled)
+        parser.feed(combined[13:], len(combined) - 13, 1)
+        self.assertTrue(parser.single_enabled)
+        self.assertEqual(parser.accepted_resets, 1)
+        self.assertEqual(parser.accepted_profile_states, 1)
+        self.assertEqual(parser.accepted_keeps, 1)
+        self.assertEqual(parser.profile_ack(1, lambda n, o: n - o), 2)
+
+    def test_profile_partial_timeout_preserves_fresh_v1_keep(self):
+        parser = reverse_control.ReverseControlParser(
+            timeout_ms=1000, profile_timeout_ms=250)
+        parser.feed(reverse_control.pack_frame(0, 1), 8, 0)
+        parser.feed(reverse_control.pack_frame(1, 2), 8, 10)
+        profile = reverse_control.pack_profile_state(
+            1, reverse_control.PROFILE_B,
+            reverse_control.PROFILE_SESSION_ACTIVE, session_token=1)
+        parser.feed(profile, 10, 20)
+        self.assertEqual(parser.buffered_bytes, 10)
+        self.assertTrue(parser.single_enabled)
+        self.assertFalse(parser.poll(271, lambda n, o: n - o))
+        self.assertEqual(parser.last_profile_event,
+                         "PROFILE_PARTIAL_TIMEOUT")
+        self.assertTrue(parser.single_enabled)
 
     def test_pack_frame_rejects_out_of_range_inputs(self):
         for command, sequence in ((-1, 0), (2, 0), (True, 0), (0, -1),

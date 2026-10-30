@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "patch_file": "0003-cartest-accel-module.patch",
+  "patch_sha256": "D534F87231DFE87D4B200A3D8AA794367C506512485815D51E3B30757418D4F4",
+  "series_position": 3,
+  "applies_after": {
+    "patch_file": "0002-stm32h7-uart-fifo-write.patch",
+    "patch_sha256": "8D1649CC9FB74E00B6D1234F6C8A3A62D70B90EBD605053F069B202EC36890FB"
+  },
+  "base": {
+    "repository": "https://github.com/openmv/openmv",
+    "tag": "v5.0.1",
+    "openmv_commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+    "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+    "target": "OPENMV4P"
+  },
+  "module_linkage": {
+    "source_glob": "modules/micropython.mk: SRC_USERMOD += $(wildcard $(OMV_MOD_DIR)/*.c)",
+    "build_change": "none; the existing wildcard compiles both C files and scans the binding QSTR/module registration"
+  },
+  "api": {
+    "module": "cartest_accel",
+    "API_VERSION": 1,
+    "exports": [
+      "region_segments",
+      "internal_component",
+      "HEAP_STATS_API",
+      "heap_stats",
+      "PREVIEW_CODEC_GUARD_API",
+      "jpeg_encode_timeout_ms"
+    ],
+    "preview_codec_guard": {
+      "available_when": "OMV_JPEG_CODEC_ENABLE == 1",
+      "timeout_range_ms": [
+        1,
+        1000
+      ],
+      "getter": "jpeg_encode_timeout_ms() returns current timeout",
+      "setter": "jpeg_encode_timeout_ms(value) sets and returns previous timeout",
+      "api_version_change": false
+    }
+  },
+  "files": {
+    "modules/cartest_accel_core.c": {
+      "source": "cartest_accel/core/cartest_accel_core.c",
+      "source_sha256": "572D9377437F9F67FE765B98A02B5C138D752651C6D96F604F85173CA277DDD2"
+    },
+    "modules/cartest_accel_core.h": {
+      "source": "cartest_accel/core/cartest_accel_core.h",
+      "source_sha256": "A26463AFFA48F604D91C4AB2BC4214B63148CC4019C925C3A3E1FCDF0CBDD19D"
+    },
+    "modules/py_cartest_accel.c": {
+      "source": "cartest_accel/binding/py_cartest_accel.c",
+      "source_sha256": "5D8C16AD3E3568DCAFA2D8D063E0839F5BF6B2D2995D7C88850F61394863C864"
+    }
+  },
+  "deployment_eligible": false,
+  "hardware_validation": false
+}

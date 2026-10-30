@@ -1,47 +1,51 @@
-# CarTest OpenMV vision packages
+# H750 production camera package - three paired profiles
 
-`openmv/` and `openmv_clipped_midpoint/` are separately uploadable packages with 18 top-level runtime Python files each. Their exact accepted build pairs are `cached_width` / `CACHED_WIDTH_RING_20261014` and `clipped_midpoint` / `CLIPPED_MIDPOINT_RING_20261014`. Upload all 18 files from one directory together; never mix the packages. These IDs distinguish the slope-disabled runtime from the earlier ring-and-slope bundle.
+Upload the 23 Python files declared in PACKAGE_MANIFEST.json together. The
+ready-to-upload directory is deliverables/TrackProfiles_H750_20261026/OpenMV.
+`fast_ring_slope.py` remains an inactive compatibility module; `main.py` does
+not import it. Do not update openmv_clipped_midpoint.
 
-The original full package snapshot for this revision is preserved under `../test-data/turn-response-20261014/before/vision/`, indexed by `BASELINE_MANIFEST.json`. Earlier evidence folders remain unchanged.
+Use the matching H743 ELF from the same delivery. A/B/C are selected by H743
+through a versioned profile-state message; the camera acknowledges the profile.
+No manual camera config changes are needed when switching these three ELFs.
 
-## Turn response
+| Profile | Straight target | Curve/ring outer-wheel target | Ring |
+| --- | --- | --- | --- |
+| A / DebugFastNoRing | 5.6 rps | 4.4 rps | off |
+| B / DebugRingBase | 4.8 rps | 4.0 rps | on |
+| C / DebugRingFast | 5.6 rps | 4.4 rps | on |
 
-Both routes use accepted same-frame rows to calculate one virtual controller center. The lower 70% of the full camera image carries 80% of the aggregate weight; the upper 30% carries 20%. The split is full-resolution y=36, corresponding to grid row 18. Each group is normalized internally, so denser row sampling cannot change the configured 80/20 share.
+Keep the current vendor H750 firmware (measured 5.0.1) and MT9V034 sensor.
+Do not install the previous H743 camera FIFO/native-preview firmware.
+Images remain 320x120. Forward traffic is V3/16 bytes; reverse RESET/KEEP is
+V1/8 bytes, and profile/session/wheel-revolution status is V2/20 bytes.
+The application fails closed on an unknown, mismatched, or stale profile.
+Profiles B/C also require the CRC-verified 45 cm straight width map and a
+three-frame parked bilateral width check before they acknowledge the profile
+or send a valid steering observation. Profile A keeps its prior route.
 
-The grayscale ROI now starts at grid row 8 (full-resolution y=16) and uses four threshold blocks. The new upper block `(0,8,80,20)` sits above the three original lower blocks. Bilateral aggregation includes only rows with current per-row support for both measured boundaries. Single-edge aggregation includes only accepted tracker rows. Unsupported, ambiguous, and inferred bilateral rows are excluded. If one group has no accepted rows, the available group is renormalized to 100% and the missing group is shown in diagnostics.
+After stopping the main camera loop, run `run_ring_width_calibration()` at the
+REPL while the vehicle is parked on the measured straight. The recorded ground
+frames can be replayed with
+`run_ring_width_calibration('/flash/ring45_ground_raw.bin')`; the adjacent
+JSON manifest and streaming raw-frame CRC are checked before the calibration
+file is written. The collector sends only invalid V3 frames with ACK 0 and
+publishes `ring_width_calibration.json` only after 64 accepted frames pass.
 
-The weighted center is a virtual aggregate, not a measured boundary point. Boundary gates and the existing geometric safety reference remain in force. The aggregate supplies the raw steering error in the 12-byte UART observation, before the observation filter, for bilateral and either single-edge route. The initial EMA alpha is 0.70. Weighting affects steering response; it does not guarantee that path selection will never move to an adjacent lane.
+Ring history stays in bounded RAM during operation. After a real RESET or a
+fresh inactive-profile transition, stop the camera script and call
+`ring_diag_dump()` for the short summary, then `ring_diag_persist()` before
+changing camera power. If the script was stopped manually without a received
+transition, call `ring_diag_freeze()` first. The CRC-protected history is
+written atomically to `ring_diagnostics.bin`.
 
-## Routes and protocol
+Ring entry follows a measured-boundary sequence and freezes measured row
+widths. Exit repair uses the opposite current boundary. Inferred points never
+seed measured width. Confirmed ring targets that lack support produce invalid
+observations; they do not silently select a straight branch. Profile A bypasses
+ring state processing. Crossroads use a separate validated straight corridor.
 
-`cached_width` uses the validated bilateral-width cache for one-sided recovery. Only a fully accepted bilateral frame updates that cache. `clipped_midpoint` does not access the cache; it requires a current dark-to-white edge and a known white-road corridor to the opposite frame endpoint. The clipped endpoint is never reported as a measured boundary. Both routes require a fresh reverse RESET/KEEP lease; that lease does not grant motor permission.
-
-The P4/TX to H743 RX observation remains the fixed 12-byte UART v1 packet at 115200 8N1. The separate H743 TX to OpenMV P5/RX control channel remains the 8-byte RESET/KEEP protocol with a 250 ms lease. A stale or missing reverse lease denies lease-dependent single-edge recovery and ring takeover; it does not invalidate an otherwise current, independently accepted bilateral road observation. If the current road route itself is invalid, the observation remains invalid.
-
-The protocol encoder retains the optional flags bit 1 (`SLOPE_HINT`) for compatibility, and four-argument `pack_frame` calls preserve their exact old bytes. Slope classification is disabled in this runtime: `_main_fast` always passes zero, so every emitted packet has the slope bit clear. Invalid frames keep the entire flags byte zero, and receivers reject bits above bit 1. The slope-fitting methods and their isolated host tests remain in `fast_ring_slope.py` for possible future work; the main loop does not call them.
-
-## Ring behavior
-
-Ring detection uses only current known-road/edge masks and per-row measured boundary support. A candidate needs a supported convex inner arc, continuous opposite boundary, a connected white-road port, and a bounded path that keeps clearance from dark or unknown pixels. The port may reach a 5% viewport inset (4 grid cells on this 80-cell image) to tolerate one-cell crop-side variation; this margin is not a steering weight and does not bypass the current-white, two-cell-clearance, arc, or uniqueness checks. The route seed is the nearest current supported bilateral row no more than four grid rows from the last supported row that also has known-white and full two-cell clearance; if none qualifies, the candidate is rejected. The selected seed coordinate is used for both the ring reference and port heading. Three consecutive fresh KEEP frames confirm entry. A partial current inner edge may retain INSIDE identity, but without a full current arc/port candidate the main loop falls back to its ordinary accepted road/single-edge route; it does not retain ring heading from history. Missing or unknown current boundaries cannot synthesize a valid route. Exit requires side-specific outward near-crop inner-edge movement plus a current reliable bilateral road and forward continuation for three consecutive frames; an inward jump or unknown edge does not confirm exit. Ambiguous branches and multiple ports remain invalid. The image crop marker is kept separate from the reachable white port cell.
-
-The grayscale overlay distinguishes the geometric safety reference from the virtual weighted controller column, displays current near/far row counts and effective weights, and clears current geometry on invalid frames. `ring` and `row_weight` are separate timing stages. `capture_to_send` ends at UART transmission; preview drawing and flush are measured separately.
-
-## Verification and limits
-
-Run from the `CarTest` directory:
-
-```powershell
-python -B .\openmv\tests\test_turn_response_weights.py
-python -B .\openmv\tests\test_ring_slope_host.py
-python -B .\openmv\tests\test_fast_main_ring_slope.py
-python -B .\openmv\tests\test_protocol_host.py
-python -B .\openmv\tests\test_singleedge_main.py
-python -B .\openmv\tests\test_fast_single_edge.py
-python -B .\openmv\tests\test_two_routes.py
-python -B .\openmv\tests\run_v7_host_regression.py
-python -B .\tools\verify_openmv_two_routes.py --output-dir .\test-data\speed-ring-20261014\vision
-```
-
-The slope-disabled package evidence and saved logs are under `../test-data/speed-ring-20261014/vision/`; the pre-inset source/evidence snapshot is `../test-data/speed-ring-20261014/vision/pre-inset-port4/`, and the original pre-edit package snapshot is under `../test-data/speed-ring-20261014/before/vision/`. Start at the [vision evidence index](../test-data/speed-ring-20261014/vision/README.md), which links the current report and Chinese screenshot report. The frozen V7 suite is a legacy behavioral compatibility regression against the current runtime; its fixture source hashes remain unchanged and its temporary test-copy adaptations are listed in the report. Ring masks and repeated-frame state sequences are synthetic tests, not camera recordings. The eight available photos are static IDE screenshots with text over the top of the image; they were captured while the H743 was unpowered and cannot establish temporal ring entry, a live reverse-control fault, or an incline transition. The separate [eight-stage ring/speed design document](../test-data/speed-ring-20261014/环岛与速度环方案.md) is future architecture only; that plan is not implemented or accepted by these results.
-
-Both packages are compiled file-by-file with the bundled OpenMV IDE `mpy-cross` 1.25 for `armv7em`. This is compiler evidence, not board execution; the board's MicroPython 1.28 runtime is not compiled or tested here. No camera upload, board runtime, H743 build or flash, motor start, or vehicle track test is part of this evidence.
+Software and static-camera checks do not establish moving ring traversal.
+See docs/H750-TrackProfiles-Implementation-20261025.md and the Chinese switching
+instructions under docs for measured performance and remaining road tests.
+The stable rollback ZIP and prior release remain available.

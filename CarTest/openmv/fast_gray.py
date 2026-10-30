@@ -1,13 +1,15 @@
-"""Reusable 160x120 grayscale to 80x60 road and edge masks.
+"""Reusable 320x120 grayscale to 80x60 road and edge masks.
 
 The module owns all 80x60 byte buffers and its three 256-bin histograms.
 ``build`` reuses them on every call, so returned buffers and diagnostics are
-valid for the most recently processed frame only.  OpenMV builds use Viper
-for min-pooling, histogram collection, and mask writes.  CPython uses explicit
-reference loops and reports that it did not compile the Viper kernels.
+valid for the most recently processed frame only. OpenMV builds use Viper and
+guarded Thumb assembly for min-pooling and histogram work, plus Viper mask
+writes. CPython uses explicit reference loops and reports that it did not
+compile the Viper kernels.
 """
 
 RUNTIME_API_VERSION = 7
+RING_DARK_BLOCK_API_VERSION = 1
 
 from array import array
 
@@ -37,25 +39,247 @@ try:
 except ImportError:
     _image_module = None
 
+try:
+    import uctypes as _uctypes
+except ImportError:
+    _uctypes = None
+
+try:
+    import ustruct as _struct
+except ImportError:
+    import struct as _struct
+
+
+def _has_obj_repr_c_float_decode():
+    """Probe both erased low bits and their restored OBJ_REPR_C payload."""
+    if not _IS_MICROPYTHON:
+        return False
+    try:
+        first_value = _struct.unpack(
+            "<f", _struct.pack("<I", 0x3F800001))[0]
+        first_bits = _struct.unpack(
+            "<I", _struct.pack("<f", first_value))[0]
+        second_value = _struct.unpack(
+            "<f", _struct.pack("<I", 0x42B094DC))[0]
+        second_bits = _struct.unpack(
+            "<I", _struct.pack("<f", second_value))[0]
+    except Exception:
+        return False
+    # The first case alone could also match simple truncation. The second
+    # confirms OBJ_REPR_C restores bits 2..3 into the erased payload bits.
+    return first_bits == 0x3F800000 and second_bits == 0x42B094DF
+
+
+_OTSU_ASM_SUPPORTED = (
+    _IS_MICROPYTHON and _uctypes is not None and
+    _has_obj_repr_c_float_decode())
+
+_MIN_POOL_ASM_SUPPORTED = _IS_MICROPYTHON and _uctypes is not None
+_HISTOGRAM_ASM_SUPPORTED = _IS_MICROPYTHON and _uctypes is not None
+
+
+if _HISTOGRAM_ASM_SUPPORTED:
+    @micropython.asm_thumb
+    def _histogram_block_flat4_asm(r0, r1, r2):
+        # r0=contiguous luma bytes, r1=uint32 histogram, r2=groups of four.
+        label(loop)
+        cmp(r2, 0)
+        beq(done)
+
+        ldrb(r3, [r0, 0])
+        lsl(r3, r3, 2)
+        add(r4, r1, r3)
+        ldr(r3, [r4, 0])
+        add(r3, r3, 1)
+        str(r3, [r4, 0])
+
+        ldrb(r3, [r0, 1])
+        lsl(r3, r3, 2)
+        add(r4, r1, r3)
+        ldr(r3, [r4, 0])
+        add(r3, r3, 1)
+        str(r3, [r4, 0])
+
+        ldrb(r3, [r0, 2])
+        lsl(r3, r3, 2)
+        add(r4, r1, r3)
+        ldr(r3, [r4, 0])
+        add(r3, r3, 1)
+        str(r3, [r4, 0])
+
+        ldrb(r3, [r0, 3])
+        lsl(r3, r3, 2)
+        add(r4, r1, r3)
+        ldr(r3, [r4, 0])
+        add(r3, r3, 1)
+        str(r3, [r4, 0])
+
+        add(r0, r0, 4)
+        sub(r2, r2, 1)
+        b(loop)
+
+        label(done)
+        mov(r0, 0)
+else:
+    _histogram_block_flat4_asm = None
+
+
+def _histogram_asm_geometry_supported(rectangles, width, block_count):
+    """Return true only for full-width, byte-contiguous flat row spans."""
+    for block in range(block_count):
+        rect_base = block * 4
+        x0 = rectangles[rect_base]
+        y0 = rectangles[rect_base + 1]
+        x1 = rectangles[rect_base + 2]
+        y1 = rectangles[rect_base + 3]
+        pixel_count = (x1 - x0) * (y1 - y0)
+        if x0 != 0 or x1 != width or (pixel_count & 3):
+            return False
+    return True
+
+
+if _MIN_POOL_ASM_SUPPORTED:
+    @micropython.asm_thumb
+    def _min_pool_asm(r0, r1):
+        # Fixed 320x120 source crop -> 80x60 output, 4x2 exact minimum.
+        # r0=source byte pointer; r1=output byte pointer. The framebuffer
+        # pointer is word-aligned before entering this kernel. Grayscale
+        # bytes are 0..255, so signed BGE has the same order as unsigned.
+        mov(r2, r0)
+        mov(r0, 80)
+        lsl(r0, r0, 2)
+        add(r3, r2, r0)
+        mov(r4, 60)
+
+        label(row_loop)
+        mov(r5, 80)
+
+        label(column_loop)
+        ldrb(r6, [r2, 0])
+        ldrb(r7, [r2, 1])
+        cmp(r7, r6)
+        bge(top1_done)
+        mov(r6, r7)
+        label(top1_done)
+        ldrb(r7, [r2, 2])
+        cmp(r7, r6)
+        bge(top2_done)
+        mov(r6, r7)
+        label(top2_done)
+        ldrb(r7, [r2, 3])
+        cmp(r7, r6)
+        bge(top3_done)
+        mov(r6, r7)
+        label(top3_done)
+        ldrb(r7, [r3, 0])
+        cmp(r7, r6)
+        bge(bottom0_done)
+        mov(r6, r7)
+        label(bottom0_done)
+        ldrb(r7, [r3, 1])
+        cmp(r7, r6)
+        bge(bottom1_done)
+        mov(r6, r7)
+        label(bottom1_done)
+        ldrb(r7, [r3, 2])
+        cmp(r7, r6)
+        bge(bottom2_done)
+        mov(r6, r7)
+        label(bottom2_done)
+        ldrb(r7, [r3, 3])
+        cmp(r7, r6)
+        bge(bottom3_done)
+        mov(r6, r7)
+        label(bottom3_done)
+        strb(r6, [r1, 0])
+
+        add(r2, r2, 4)
+        add(r3, r3, 4)
+        add(r1, r1, 1)
+        sub(r5, r5, 1)
+        cmp(r5, 0)
+        bne(column_loop)
+
+        # Skip the next source row after consuming a 2-row output cell.
+        mov(r0, 80)
+        lsl(r0, r0, 2)
+        add(r2, r2, r0)
+        add(r3, r3, r0)
+        sub(r4, r4, 1)
+        cmp(r4, 0)
+        bne(row_loop)
+        mov(r0, 0)
+else:
+    _min_pool_asm = None
+
+
+@micropython.viper
+def _min_pool_words_viper(self, source_object, source_width: int) -> int:
+    """Min-pool two aligned little-endian words per 4x2 output cell."""
+    source = ptr32(source_object)
+    target = ptr8(self.luma)
+    output_width = int(self.width)
+    output_height = int(self.height)
+    scale_y = int(self.scale_y)
+    source_word_width = int(source_width) >> 2
+    for y in range(output_height):
+        source_top = y * scale_y * source_word_width
+        source_bottom = source_top + source_word_width
+        output_y = y * output_width
+        for x in range(output_width):
+            top_word = source[source_top + x]
+            bottom_word = source[source_bottom + x]
+            minimum = top_word & 0xFF
+            value = (top_word >> 8) & 0xFF
+            if value < minimum:
+                minimum = value
+            value = (top_word >> 16) & 0xFF
+            if value < minimum:
+                minimum = value
+            value = (top_word >> 24) & 0xFF
+            if value < minimum:
+                minimum = value
+            value = bottom_word & 0xFF
+            if value < minimum:
+                minimum = value
+            value = (bottom_word >> 8) & 0xFF
+            if value < minimum:
+                minimum = value
+            value = (bottom_word >> 16) & 0xFF
+            if value < minimum:
+                minimum = value
+            value = (bottom_word >> 24) & 0xFF
+            if value < minimum:
+                minimum = value
+            target[output_y + x] = minimum
+    return 0
+
 
 @micropython.viper
 def _min_pool_viper(self, source_object, source_width: int) -> int:
-    """2x2 min-pool byte pixels into a caller-owned output plane."""
+    """Min-pool every pixel in each 4x2 source cell into the grid."""
     source = ptr8(source_object)
     target = ptr8(self.luma)
     output_width = int(self.width)
     output_height = int(self.height)
-    scale = int(self.scale)
+    scale_x = int(self.scale_x)
+    scale_y = int(self.scale_y)
     for y in range(output_height):
-        source_y = y * scale * source_width
-        source_y1 = source_y + source_width
+        source_top = y * scale_y * source_width
+        source_bottom = source_top + source_width
         output_y = y * output_width
         source_x = 0
         for x in range(output_width):
-            top = source_y + source_x
-            bottom = source_y1 + source_x
+            top = source_top + source_x
+            bottom = source_bottom + source_x
             minimum = source[top]
             value = source[top + 1]
+            if value < minimum:
+                minimum = value
+            value = source[top + 2]
+            if value < minimum:
+                minimum = value
+            value = source[top + 3]
             if value < minimum:
                 minimum = value
             value = source[bottom]
@@ -64,8 +288,14 @@ def _min_pool_viper(self, source_object, source_width: int) -> int:
             value = source[bottom + 1]
             if value < minimum:
                 minimum = value
+            value = source[bottom + 2]
+            if value < minimum:
+                minimum = value
+            value = source[bottom + 3]
+            if value < minimum:
+                minimum = value
             target[output_y + x] = minimum
-            source_x += scale
+            source_x += scale_x
     return 0
 
 
@@ -123,6 +353,74 @@ def _histogram_viper(self) -> int:
 
 
 @micropython.viper
+def _histogram_clear_viper(self) -> int:
+    """Clear bounded per-block histogram bins before the Thumb count pass."""
+    histograms = ptr32(self._histograms)
+    total = int(self._block_count) * 256
+    for index in range(total):
+        histograms[index] = 0
+    return 0
+
+
+@micropython.viper
+def _histogram_compact_viper(self) -> int:
+    """Compact ascending nonzero bins and collect block statistics."""
+    histograms = ptr32(self._histograms)
+    nonzero_values = ptr8(self._nonzero_values)
+    nonzero_counts = ptr32(self._nonzero_counts)
+    block_stats = ptr32(self._block_stats)
+    block_count = int(self._block_count)
+    for block in range(block_count):
+        hist_base = block * 256
+        nonzero_count = 0
+        count = 0
+        value_sum = 0
+        minimum = 256
+        maximum = 0
+        for value in range(256):
+            amount = int(histograms[hist_base + value])
+            if amount != 0:
+                nonzero_values[hist_base + nonzero_count] = value
+                nonzero_count += 1
+                count += amount
+                value_sum += value * amount
+                if minimum == 256:
+                    minimum = value
+                maximum = value
+        nonzero_counts[block] = nonzero_count
+        stats_base = block * 4
+        block_stats[stats_base] = count
+        block_stats[stats_base + 1] = value_sum
+        block_stats[stats_base + 2] = minimum
+        block_stats[stats_base + 3] = maximum
+    return 0
+
+
+@micropython.native
+def _histogram_refresh(self):
+    """Use flat-block Thumb counting when its instance geometry is proven."""
+    if not self._histogram_asm_ready:
+        return _histogram_viper(self)
+
+    _histogram_clear_viper(self)
+    width = self.width
+    rectangles = self._rectangles
+    luma_ptr = self._histogram_luma_ptr
+    histograms_ptr = self._histogram_histograms_ptr
+    for block in range(self._block_count):
+        rect_base = block * 4
+        y0 = rectangles[rect_base + 1]
+        y1 = rectangles[rect_base + 3]
+        source_ptr = luma_ptr + y0 * width
+        hist_ptr = histograms_ptr + block * 256 * 4
+        pixel_count = (y1 - y0) * width
+        _histogram_block_flat4_asm(
+            source_ptr, hist_ptr, pixel_count >> 2)
+    _histogram_compact_viper(self)
+    return 0
+
+
+@micropython.viper
 def _mask_viper(self) -> int:
     """Clear reusable outputs, then write only trusted configured blocks."""
     luma = ptr8(self.luma)
@@ -143,11 +441,11 @@ def _mask_viper(self) -> int:
         road_mask[index] = 0
         edge_mask[index] = 0
         known_region[index] = 0
+    pixel_totals[0] = 0
+    pixel_totals[1] = 0
     for y in range(height):
         row_counts[y] = 0
         road_row_counts[y] = 0
-    pixel_totals[0] = 0
-    pixel_totals[1] = 0
 
     for block in range(block_count):
         if trusted[block] == 0:
@@ -171,6 +469,172 @@ def _mask_viper(self) -> int:
                     edge_mask[index] = 1
                     row_counts[y] += 1
                     pixel_totals[1] += 1
+    return 0
+
+
+@micropython.viper
+def _mask_viper_full_width_tiled(self) -> int:
+    """Classify four pixels at a time into complete output mask words.
+
+    This fast path is valid only when configured blocks fully tile the ROI
+    across the whole image width and every block is trusted for this frame.
+    It overwrites every output word, including the unknown rows above the ROI,
+    so it does not depend on a preceding plane clear.
+    """
+    if int(self._mask_full_width_tiled_ready) == 0:
+        return -1
+
+    luma = ptr8(self.luma)
+    road_words = ptr32(self.road_mask)
+    edge_words = ptr32(self.edge_mask)
+    known_words = ptr32(self.known_region)
+    rectangles = ptr32(self._rectangles)
+    thresholds = ptr32(self._threshold_values)
+    trusted = ptr32(self._trusted_values)
+    row_counts = ptr8(self.row_counts)
+    road_row_counts = ptr8(self.road_row_counts)
+    totals = ptr32(self._pixel_totals)
+    width = int(self.width)
+    height = int(self.height)
+    floor = int(self.floor)
+    block_count = int(self._block_count)
+
+    # The check must complete before any output is changed. Partial trust
+    # falls through to the general kernel, which clears unknown regions.
+    for block in range(block_count):
+        if trusted[block] == 0:
+            return -1
+
+    words_per_row = width >> 2
+    for y in range(floor):
+        row_word = y * words_per_row
+        for group in range(words_per_row):
+            index = row_word + group
+            road_words[index] = 0
+            edge_words[index] = 0
+            known_words[index] = 0
+        row_counts[y] = 0
+        road_row_counts[y] = 0
+
+    road_total = 0
+    edge_total = 0
+    for block in range(block_count):
+        rect_base = block * 4
+        y0 = rectangles[rect_base + 1]
+        y1 = rectangles[rect_base + 3]
+        threshold = thresholds[block]
+        for y in range(y0, y1):
+            row = y * width
+            row_word = y * words_per_row
+            row_road_count = 0
+            row_edge_count = 0
+            for group in range(words_per_row):
+                index = row + (group << 2)
+                lane0 = luma[index]
+                lane1 = luma[index + 1]
+                lane2 = luma[index + 2]
+                lane3 = luma[index + 3]
+                road_word = 0
+                edge_word = 0
+                if lane0 > threshold:
+                    road_word = road_word | 255
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 1
+                    row_edge_count += 1
+                if lane1 > threshold:
+                    road_word = road_word | 65280
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 256
+                    row_edge_count += 1
+                if lane2 > threshold:
+                    road_word = road_word | 16711680
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 65536
+                    row_edge_count += 1
+                if lane3 > threshold:
+                    road_word = road_word | -16777216
+                    row_road_count += 1
+                else:
+                    edge_word = edge_word | 16777216
+                    row_edge_count += 1
+                output_word = row_word + group
+                road_words[output_word] = road_word
+                edge_words[output_word] = edge_word
+                known_words[output_word] = 16843009
+            row_counts[y] = row_edge_count
+            road_row_counts[y] = row_road_count
+            road_total += row_road_count
+            edge_total += row_edge_count
+
+    totals[0] = road_total
+    totals[1] = edge_total
+    return 0
+
+
+@micropython.viper
+def _mask_viper_local_counts(self) -> int:
+    """Clear aligned planes by word and update row/totals once per row."""
+    luma = ptr8(self.luma)
+    road = ptr8(self.road_mask)
+    edge = ptr8(self.edge_mask)
+    known = ptr8(self.known_region)
+    road_words = ptr32(self.road_mask)
+    edge_words = ptr32(self.edge_mask)
+    known_words = ptr32(self.known_region)
+    rectangles = ptr32(self._rectangles)
+    thresholds = ptr32(self._threshold_values)
+    trusted = ptr32(self._trusted_values)
+    row_counts = ptr8(self.row_counts)
+    road_row_counts = ptr8(self.road_row_counts)
+    totals = ptr32(self._pixel_totals)
+    width = int(self.width)
+    height = int(self.height)
+    block_count = int(self._block_count)
+    total = width * height
+
+    for word_index in range(total >> 2):
+        road_words[word_index] = 0
+        edge_words[word_index] = 0
+        known_words[word_index] = 0
+    for y in range(height):
+        row_counts[y] = 0
+        road_row_counts[y] = 0
+    totals[0] = 0
+    totals[1] = 0
+
+    road_total = 0
+    edge_total = 0
+    for block in range(block_count):
+        if trusted[block] == 0:
+            continue
+        rect_base = block * 4
+        x0 = rectangles[rect_base]
+        y0 = rectangles[rect_base + 1]
+        x1 = rectangles[rect_base + 2]
+        y1 = rectangles[rect_base + 3]
+        threshold = thresholds[block]
+        for y in range(y0, y1):
+            row = y * width
+            row_road_count = 0
+            row_edge_count = 0
+            for x in range(x0, x1):
+                index = row + x
+                known[index] = 1
+                if luma[index] > threshold:
+                    road[index] = 255
+                    row_road_count += 1
+                else:
+                    edge[index] = 1
+                    row_edge_count += 1
+            row_counts[y] += row_edge_count
+            road_row_counts[y] += row_road_count
+            road_total += row_road_count
+            edge_total += row_edge_count
+    totals[0] = road_total
+    totals[1] = edge_total
     return 0
 
 
@@ -199,7 +663,7 @@ def _otsu_native(histograms, nonzero_values, nonzero_base: int,
         low_mean = low_sum / float(low_count)
         high_mean = high_sum / float(high_count)
         difference = high_mean - low_mean
-        score = (low_count * high_count / scale) * difference * difference
+        score = ((low_count * high_count / scale) * difference) * difference
         if score > best_score:
             best_score = score
             best_threshold = value
@@ -212,20 +676,277 @@ def _otsu_native(histograms, nonzero_values, nonzero_base: int,
             best_low_mean, best_high_mean, contrast)
 
 
+if _OTSU_ASM_SUPPORTED:
+    @micropython.asm_thumb
+    def _otsu_threshold_asm(r0, r1, r2, r3):
+        # r0=histogram base, r1=nonzero-values base,
+        # r2=[count,sum,nz_count,hist_base,nonzero_base], r3=workspace.
+        # The wrapper saves/restores r1-r7 and lr around this body.
+        ldr(r4, [r2, 0])
+        ldr(r5, [r2, 4])
+        ldr(r6, [r2, 8])
+        str(r0, [r3, 24])
+        str(r1, [r3, 28])
+        ldr(r7, [r2, 12])
+        lsl(r7, r7, 2)
+        str(r7, [r3, 60])
+        ldr(r7, [r2, 16])
+        str(r7, [r3, 64])
+        mov(r0, 0)
+        str(r0, [r3, 4])
+        str(r0, [r3, 8])
+        str(r0, [r3, 12])
+        mov(r7, 0)
+
+        label(loop)
+        cmp(r7, r6)
+        blt(process)
+        b(done)
+
+        label(process)
+        # Accumulate the next populated value into the low class.
+        ldr(r0, [r3, 28])
+        ldr(r2, [r3, 64])
+        add(r0, r0, r2)
+        add(r0, r0, r7)
+        ldrb(r1, [r0, 0])
+        str(r1, [r3, 16])
+        lsl(r2, r1, 2)
+        ldr(r0, [r3, 24])
+        ldr(r1, [r3, 60])
+        add(r0, r0, r1)
+        add(r0, r0, r2)
+        ldr(r1, [r0, 0])
+        str(r1, [r3, 20])
+        ldr(r0, [r3, 4])
+        add(r0, r0, r1)
+        str(r0, [r3, 4])
+        ldr(r2, [r3, 8])
+        ldr(r0, [r3, 16])
+        ldr(r1, [r3, 20])
+        mul(r0, r1)
+        add(r2, r2, r0)
+        str(r2, [r3, 8])
+
+        # Empty high class is skipped exactly as in the native reference.
+        ldr(r0, [r3, 4])
+        sub(r1, r4, r0)
+        cmp(r1, 0)
+        bne(nonempty_high)
+        b(skip)
+
+        label(nonempty_high)
+        str(r1, [r3, 36])
+        ldr(r0, [r3, 8])
+        sub(r0, r5, r0)
+        str(r0, [r3, 32])
+
+        # Match OBJ_REPR_C after every boxed float conversion or operation:
+        # bits = (bits & ~3) | ((bits >> 2) & 3).
+        ldr(r0, [r3, 8])
+        vmov(s0, r0)
+        vcvt_f32_s32(s0, s0)
+        ldr(r0, [r3, 4])
+        vmov(s1, r0)
+        vcvt_f32_s32(s1, s1)
+        mov(r0, 3)
+        vmov(r1, s1)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s1, r1)
+        vdiv(s0, s0, s1)
+        mov(r0, 3)
+        vmov(r1, s0)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s0, r1)
+
+        # high_mean = high_sum / float(high_count)
+        ldr(r0, [r3, 32])
+        vmov(s1, r0)
+        vcvt_f32_s32(s1, s1)
+        ldr(r0, [r3, 36])
+        vmov(s2, r0)
+        vcvt_f32_s32(s2, s2)
+        mov(r0, 3)
+        vmov(r1, s2)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s2, r1)
+        vdiv(s1, s1, s2)
+        mov(r0, 3)
+        vmov(r1, s1)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s1, r1)
+        vsub(s2, s1, s0)
+        mov(r0, 3)
+        vmov(r1, s2)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s2, r1)
+
+        # Keep the original left-to-right score expression and tie rule.
+        ldr(r0, [r3, 4])
+        ldr(r1, [r3, 36])
+        mul(r0, r1)
+        vmov(s3, r0)
+        vcvt_f32_s32(s3, s3)
+        mov(r0, r4)
+        mul(r0, r4)
+        vmov(s4, r0)
+        vcvt_f32_s32(s4, s4)
+        mov(r0, 3)
+        vmov(r1, s4)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s4, r1)
+        vdiv(s3, s3, s4)
+        mov(r0, 3)
+        vmov(r1, s3)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s3, r1)
+        vmul(s3, s3, s2)
+        mov(r0, 3)
+        vmov(r1, s3)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s3, r1)
+        vmul(s3, s3, s2)
+        mov(r0, 3)
+        vmov(r1, s3)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s3, r1)
+
+        vldr(s4, [r3, 0])
+        vcmp(s3, s4)
+        vmrs(APSR_nzcv, FPSCR)
+        ble(skip)
+        vstr(s3, [r3, 0])
+        ldr(r0, [r3, 16])
+        str(r0, [r3, 12])
+        ldr(r0, [r3, 4])
+        str(r0, [r3, 40])
+        ldr(r0, [r3, 36])
+        str(r0, [r3, 44])
+        vstr(s0, [r3, 48])
+        vstr(s1, [r3, 52])
+        vstr(s2, [r3, 56])
+
+        label(skip)
+        add(r7, r7, 1)
+        b(loop)
+
+        label(done)
+        # Contrast is computed after the winning means are retained.
+        vldr(s0, [r3, 48])
+        vldr(s1, [r3, 52])
+        vsub(s2, s1, s0)
+        mov(r0, 3)
+        vmov(r1, s2)
+        mov(r2, r1)
+        lsr(r2, r2, 2)
+        and_(r2, r0)
+        bic(r1, r0)
+        orr(r1, r2)
+        vmov(s2, r1)
+        vstr(s2, [r3, 56])
+        ldr(r0, [r3, 12])
+else:
+    _otsu_threshold_asm = None
+
+
+@micropython.native
+def _otsu_asm_result(self, hist_base: int, nonzero_base: int,
+                     nonzero_count: int, count: int, value_sum: int):
+    meta = self._otsu_asm_meta
+    meta[0] = count
+    meta[1] = value_sum
+    meta[2] = nonzero_count
+    meta[3] = hist_base
+    meta[4] = nonzero_base
+    workspace = self._otsu_asm_workspace
+    workspace[0] = 0xBF800000
+    workspace[3] = 0
+    workspace[10] = 0
+    workspace[11] = 0
+    workspace[12] = 0
+    workspace[13] = 0
+    workspace[14] = 0
+    histograms_ptr = self._otsu_histograms_ptr
+    nonzero_values_ptr = self._otsu_nonzero_values_ptr
+    meta_ptr = self._otsu_asm_meta_ptr
+    workspace_ptr = self._otsu_asm_workspace_ptr
+    _otsu_threshold_asm(histograms_ptr, nonzero_values_ptr,
+                        meta_ptr, workspace_ptr)
+    low_mean = _struct.unpack_from("<f", workspace, 48)[0]
+    high_mean = _struct.unpack_from("<f", workspace, 52)[0]
+    contrast = _struct.unpack_from("<f", workspace, 56)[0]
+    return (workspace[3], workspace[10], workspace[11],
+            low_mean, high_mean, contrast)
+
+
 def _min_pool_host(source, target, source_width, output_width,
-                   output_height, scale):
+                   output_height, scale_x, scale_y):
     for y in range(output_height):
-        source_y = y * scale * source_width
+        source_top = y * scale_y * source_width
+        source_bottom = source_top + source_width
         output_y = y * output_width
         for x in range(output_width):
-            source_x = x * scale
-            minimum = 255
-            for dy in range(scale):
-                row = source_y + dy * source_width + source_x
-                for dx in range(scale):
-                    value = source[row + dx]
-                    if value < minimum:
-                        minimum = value
+            source_x = x * scale_x
+            top = source_top + source_x
+            bottom = source_bottom + source_x
+            minimum = source[top]
+            value = source[top + 1]
+            if value < minimum:
+                minimum = value
+            value = source[top + 2]
+            if value < minimum:
+                minimum = value
+            value = source[top + 3]
+            if value < minimum:
+                minimum = value
+            value = source[bottom]
+            if value < minimum:
+                minimum = value
+            value = source[bottom + 1]
+            if value < minimum:
+                minimum = value
+            value = source[bottom + 2]
+            if value < minimum:
+                minimum = value
+            value = source[bottom + 3]
+            if value < minimum:
+                minimum = value
             target[output_y + x] = minimum
 
 
@@ -277,11 +998,11 @@ def _mask_host(luma, road_mask, edge_mask, known_region, rectangles,
         road_mask[index] = 0
         edge_mask[index] = 0
         known_region[index] = 0
+    pixel_totals[0] = 0
+    pixel_totals[1] = 0
     for y in range(height):
         row_counts[y] = 0
         road_row_counts[y] = 0
-    pixel_totals[0] = 0
-    pixel_totals[1] = 0
 
     for block in range(block_count):
         if not trusted[block]:
@@ -335,9 +1056,11 @@ class FastGrayMasks:
         self.width = getattr(settings, "SURFACE_GRID_WIDTH", 80)
         self.height = getattr(settings, "SURFACE_GRID_HEIGHT", 60)
         self.floor = getattr(settings, "SURFACE_ROI_FLOOR_Y", 8)
-        self.scale = getattr(settings, "SURFACE_PIXEL_SCALE", 2)
-        if (self.width != 80 or self.height != 60 or self.scale != 2):
-            raise ValueError("fast_gray requires an 80x60 grid and scale 2")
+        self.scale_x = getattr(settings, "SURFACE_PIXEL_SCALE_X", 4)
+        self.scale_y = getattr(settings, "SURFACE_PIXEL_SCALE_Y", 2)
+        if (self.width != 80 or self.height != 60 or
+                self.scale_x != 4 or self.scale_y != 2):
+            raise ValueError("fast_gray requires 80x60 grid with scale 4x2")
         if (isinstance(self.floor, bool) or not isinstance(self.floor, int) or
                 self.floor < 0 or self.floor >= self.height):
             raise ValueError("SURFACE_ROI_FLOOR_Y must be an integer in 0..59")
@@ -385,13 +1108,29 @@ class FastGrayMasks:
                         min(ay1, by1) > max(ay0, by0)):
                     raise ValueError("GRAY_THRESHOLD_BLOCKS must not overlap")
 
+        # The isolated word-mask candidate can skip the full-plane clear only
+        # when full-width blocks tile every row of the configured ROI. This is
+        # a structural optimization guard; the frame-local trust check remains
+        # in the kernel before it writes any output.
+        self._mask_full_width_tiled_ready = False
+        expected_y = self.floor
+        full_width_tiled = True
+        for rect in self.blocks:
+            x0, y0, x1, y1 = rect
+            if (x0 != 0 or x1 != self.width or y0 != expected_y or
+                    y1 <= y0):
+                full_width_tiled = False
+                break
+            expected_y = y1
+        self._mask_full_width_tiled_ready = (
+            full_width_tiled and expected_y == self.height)
+
         self.debug = bool(debug)
         self._block_count = len(self.blocks)
         self._rectangles = array("I")
         for rect in self.blocks:
             for value in rect:
                 self._rectangles.append(value)
-
         # All frame-sized buffers and all bounded uint32 histograms are owned by
         # this instance and allocated once.  Threshold scratch is also stable.
         total = self.width * self.height
@@ -399,6 +1138,17 @@ class FastGrayMasks:
         self.road_mask = bytearray(total)
         self.edge_mask = bytearray(total)
         self.known_region = bytearray(total)
+        self._mask_local_counts_ready = False
+        if (_IS_MICROPYTHON and _uctypes is not None and
+                (total & 3) == 0):
+            try:
+                mask_pointers = (
+                    _uctypes.addressof(self.road_mask) |
+                    _uctypes.addressof(self.edge_mask) |
+                    _uctypes.addressof(self.known_region))
+                self._mask_local_counts_ready = (mask_pointers & 3) == 0
+            except Exception:
+                self._mask_local_counts_ready = False
         self.row_counts = bytearray(self.height)
         self.road_row_counts = bytearray(self.height)
         self._histograms = array("I", [0] * (self._block_count * 256))
@@ -410,6 +1160,53 @@ class FastGrayMasks:
         # pixels, and its weighted sum is <= 4800*255=1,224,000; both fit
         # array('I') and signed native locals in Viper.
         self._block_stats = array("I", [0] * (self._block_count * 4))
+        self._histogram_asm_ready = False
+        self._histogram_luma_ptr = None
+        self._histogram_histograms_ptr = None
+        if (_HISTOGRAM_ASM_SUPPORTED and
+                _histogram_asm_geometry_supported(
+                    self._rectangles, self.width, self._block_count)):
+            try:
+                luma_ptr = _uctypes.addressof(self.luma)
+                histograms_ptr = _uctypes.addressof(self._histograms)
+                if histograms_ptr & 3:
+                    raise ValueError("histogram bins are not word-aligned")
+                self._histogram_luma_ptr = luma_ptr
+                self._histogram_histograms_ptr = histograms_ptr
+                self._histogram_asm_ready = True
+            except Exception:
+                self._histogram_luma_ptr = None
+                self._histogram_histograms_ptr = None
+                self._histogram_asm_ready = False
+        self._otsu_asm_ready = False
+        self._otsu_asm_meta = None
+        self._otsu_asm_workspace = None
+        if _OTSU_ASM_SUPPORTED:
+            self._otsu_asm_meta = array("I", [0] * 5)
+            self._otsu_asm_workspace = array("I", [0] * 17)
+            try:
+                self._otsu_histograms_ptr = _uctypes.addressof(
+                    self._histograms)
+                self._otsu_nonzero_values_ptr = _uctypes.addressof(
+                    self._nonzero_values)
+                self._otsu_asm_meta_ptr = _uctypes.addressof(
+                    self._otsu_asm_meta)
+                self._otsu_asm_workspace_ptr = _uctypes.addressof(
+                    self._otsu_asm_workspace)
+                self._otsu_asm_ready = not (
+                    (self._otsu_histograms_ptr |
+                     self._otsu_asm_meta_ptr |
+                     self._otsu_asm_workspace_ptr) & 3)
+            except Exception:
+                self._otsu_asm_ready = False
+        self._min_pool_asm_ready = False
+        self._min_pool_target_ptr = None
+        if _MIN_POOL_ASM_SUPPORTED:
+            try:
+                self._min_pool_target_ptr = _uctypes.addressof(self.luma)
+                self._min_pool_asm_ready = True
+            except Exception:
+                self._min_pool_asm_ready = False
         self._threshold_values = array("I", [0] * self._block_count)
         self._trusted_values = array("I", [0] * self._block_count)
         self._pixel_totals = array("I", [0, 0])
@@ -437,7 +1234,7 @@ class FastGrayMasks:
                 })
 
         self._diagnostics = {
-            "sampling": "min2",
+            "sampling": "min4x2",
             "sampling_source": "buffer",
             "valid": False,
             "complete": False,
@@ -472,7 +1269,7 @@ class FastGrayMasks:
             "width": self.width,
             "height": self.height,
             "floor": self.floor,
-            "sampling": "min2",
+            "sampling": "min4x2",
             "thresholds": self.thresholds,
             "raw_thresholds": self.raw_thresholds,
             "contrasts": self.contrasts,
@@ -529,8 +1326,8 @@ class FastGrayMasks:
         self._validate_image_format(image)
         image_width = image.width()
         image_height = image.height()
-        expected_width = self.width * self.scale
-        expected_height = self.height * self.scale
+        expected_width = self.width * self.scale_x
+        expected_height = self.height * self.scale_y
         if image_width != expected_width or image_height != expected_height:
             raise ValueError("image size differs from fixed grayscale input")
 
@@ -552,10 +1349,24 @@ class FastGrayMasks:
 
         if raw is not None:
             if _IS_MICROPYTHON:
-                _min_pool_viper(self, raw, image_width)
+                aligned = False
+                source_ptr = None
+                if _uctypes is not None:
+                    try:
+                        source_ptr = _uctypes.addressof(raw)
+                        aligned = (source_ptr & 3) == 0
+                    except Exception:
+                        aligned = False
+                if aligned and self._min_pool_asm_ready:
+                    _min_pool_asm(source_ptr, self._min_pool_target_ptr)
+                elif aligned:
+                    _min_pool_words_viper(self, raw, image_width)
+                else:
+                    _min_pool_viper(self, raw, image_width)
             else:
                 _min_pool_host(raw, self.luma, image_width,
-                               self.width, self.height, self.scale)
+                               self.width, self.height,
+                               self.scale_x, self.scale_y)
             return "buffer"
 
         if _IS_MICROPYTHON:
@@ -564,13 +1375,13 @@ class FastGrayMasks:
         if not callable(pixel_reader):
             raise ValueError("host fallback requires get_pixel((x, y))")
         for y in range(self.height):
-            source_y = y * self.scale
+            source_y = y * self.scale_y
             output_y = y * self.width
             for x in range(self.width):
-                source_x = x * self.scale
+                source_x = x * self.scale_x
                 minimum = 255
-                for dy in range(self.scale):
-                    for dx in range(self.scale):
+                for dy in range(self.scale_y):
+                    for dx in range(self.scale_x):
                         pixel = _pixel_luma(pixel_reader((source_x + dx,
                                                           source_y + dy)))
                         if pixel < minimum:
@@ -579,9 +1390,22 @@ class FastGrayMasks:
         return "host-get-pixel-fallback"
 
     @micropython.native
+    def _otsu_for_block(self, hist_base: int, nonzero_base: int,
+                        nonzero_count: int, count: int, value_sum: int):
+        if self._otsu_asm_ready:
+            return _otsu_asm_result(
+                self, hist_base, nonzero_base, nonzero_count, count,
+                value_sum)
+        return _otsu_native(
+            self._histograms, self._nonzero_values, nonzero_base,
+            nonzero_count, count, value_sum)
+
+    @micropython.native
     def _calculate_thresholds(self):
-        _histogram_viper(self) \
-            if _IS_MICROPYTHON else _histogram_host(
+        if _IS_MICROPYTHON:
+            _histogram_refresh(self)
+        else:
+            _histogram_host(
                 self.luma, self._histograms, self._rectangles,
                 self.width, self._block_count, self._nonzero_values,
                 self._nonzero_counts, self._block_stats)
@@ -621,9 +1445,8 @@ class FastGrayMasks:
                 # sufficient.  Products and means stay full-width Python ints
                 # and floats rather than overflowing Viper's 32-bit math.
                 (best_threshold, low_class_count, high_class_count,
-                 low_mean, high_mean, contrast) = _otsu_native(
-                    self._histograms, self._nonzero_values,
-                    nonzero_base, nonzero_count, count, value_sum)
+                 low_mean, high_mean, contrast) = self._otsu_for_block(
+                    hist_base, nonzero_base, nonzero_count, count, value_sum)
                 best_counts = (low_class_count, high_class_count)
                 best_means = (low_mean, high_mean)
                 raw_threshold = best_threshold
@@ -689,7 +1512,13 @@ class FastGrayMasks:
 
     def _write_masks(self):
         if _IS_MICROPYTHON:
-            _mask_viper(self)
+            if self._mask_local_counts_ready:
+                if self._mask_full_width_tiled_ready:
+                    if _mask_viper_full_width_tiled(self) == 0:
+                        return
+                _mask_viper_local_counts(self)
+            else:
+                _mask_viper(self)
         else:
             _mask_host(
                 self.luma, self.road_mask, self.edge_mask,
@@ -721,6 +1550,7 @@ class FastGrayMasks:
         diagnostics["contrast_max"] = self._contrast_max
         diagnostics["threshold_min"] = self._threshold_min
         diagnostics["threshold_max"] = self._threshold_max
+        diagnostics["ring_dark_block_resolved"] = False
 
         info = self._mask_info
         info["sampling_source"] = sampling_source
@@ -735,4 +1565,72 @@ class FastGrayMasks:
         info["contrast_max"] = self._contrast_max
         info["threshold_min"] = self._threshold_min
         info["threshold_max"] = self._threshold_max
+        info["ring_dark_block_resolved"] = False
         return info
+
+    def resolve_confirmed_ring_dark_block(self, info):
+        """Classify only a uniformly dark leading block from this frame's peers.
+
+        The caller must own a confirmed, calibrated ring session. This never
+        makes an unknown pixel white and never uses a previous frame threshold.
+        """
+        if (info is not self._mask_info or not self._mask_full_width_tiled_ready or
+                self._block_count < 3 or self.trusted[0] or
+                self.reasons[0] not in ("CONSTANT", "LOW_CONTRAST", "NO_CONTRAST") or
+                self.min_contrast <= 0):
+            return False
+        # Every other block must remain trusted and strongly separated. Require
+        # at least two populated current-frame splits for the dark reference;
+        # a third block's shrinking white sliver must not veto those references.
+        # All peer dark means still participate in the consistency bound.
+        # Never propagate through another unknown block or an internal gap.
+        low_min = 256.0
+        low_max = -1.0
+        dark_limit = 256.0
+        populated_references = 0
+        for block in range(1, self._block_count):
+            count = self._block_stats[block*4]
+            classes = self.classes[block]
+            contrast = self.contrasts[block]
+            if not self.trusted[block] or contrast < self.min_contrast*2:
+                return False
+            if min(classes)*20 >= count:
+                populated_references += 1
+            low = self.class_means[block][0]
+            low_min = min(low_min, low)
+            low_max = max(low_max, low)
+            dark_limit = min(dark_limit, low + contrast/8.0)
+        if populated_references < 2:
+            return False
+        minimum = self._block_stats[2]
+        maximum = self._block_stats[3]
+        if (low_max-low_min > self.min_contrast or
+                maximum-minimum > self.min_contrast*2 or
+                minimum < low_min-self.min_contrast or maximum > dark_limit):
+            return False
+        # Threshold at the measured maximum: all pixels become known BLACK.
+        self.thresholds[0] = maximum
+        self._threshold_values[0] = maximum
+        self.trusted[0] = True
+        self._trusted_values[0] = 1
+        self.reasons[0] = "RING_DARK_CLASS_REFERENCE"
+        if self._debug_blocks is not None:
+            self._debug_blocks[0].update(threshold=maximum, trusted=True,
+                reason="RING_DARK_CLASS_REFERENCE")
+        self._trusted_count += 1
+        self._complete = True
+        self._reason = "OK"
+        self._threshold_min = min(maximum, self._threshold_min)
+        self._threshold_max = max(maximum, self._threshold_max)
+        self._write_masks()
+        for target in (self._mask_info, self._diagnostics):
+            target["complete"] = True
+            target["reason"] = "OK"
+            target["trusted_block_count"] = self._trusted_count
+            target["road_pixels"] = self._pixel_totals[0]
+            target["edge_pixels"] = self._pixel_totals[1]
+            target["mask_pixels"] = self._pixel_totals[1]
+            target["threshold_min"] = self._threshold_min
+            target["threshold_max"] = self._threshold_max
+            target["ring_dark_block_resolved"] = True
+        return True

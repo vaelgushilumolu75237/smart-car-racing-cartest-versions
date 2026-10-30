@@ -26,9 +26,34 @@ HEIGHT = 60
 FLOOR = 8
 
 
-def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
-                  close_dark=False, unknown_neighbor=False,
-                  crop_side_edge=None):
+def _update_ring(detector, fresh_keep, generation, normal_route_valid,
+                 forward_continuation, now_ms=None):
+    if now_ms is None:
+        _update_ring.now_ms += 100
+        now_ms = _update_ring.now_ms
+    else:
+        _update_ring.now_ms = now_ms
+    candidate = detector._candidate
+    if candidate.get("valid") and not candidate.get("entry_geometry_ok"):
+        # State-machine unit tests inject a controlled qualified candidate;
+        # production-path tests use the real detector below.
+        candidate.update({
+            "entry_geometry_ok": True, "current_geometry_ok": True,
+            "path_row_count": 8, "path_y_span": 12,
+            "path_near_anchor": True, "port_segments": 1,
+            "near_seed_x": 40, "near_seed_y": 40, "port_x": 76,
+        })
+    return detector.update_ring_state(
+        fresh_keep, generation, normal_route_valid, forward_continuation,
+        now_ms, lambda new, old: new - old)
+
+
+_update_ring.now_ms = 0
+
+
+def _ring_geometry_fixture(side=ring_slope.RING_RIGHT, port=True,
+                           close_dark=False, unknown_neighbor=False,
+                           crop_side_edge=None, curved_outer=False):
     road = bytearray(WIDTH * HEIGHT)
     edge = bytearray(WIDTH * HEIGHT)
     known = bytearray(WIDTH * HEIGHT)
@@ -42,7 +67,7 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
         offset = y - 38
         if side == ring_slope.RING_RIGHT:
             inner = int(42 + (offset * offset) / 30.0 + 0.5)
-            outer = inner - 24
+            outer = inner - 24 if curved_outer else 18
             input_left = outer + 1
             input_right = inner - 1
             edge[y * WIDTH + outer] = 1
@@ -51,7 +76,7 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
                 road[y * WIDTH + x] = 1
         else:
             inner = int(38 - (offset * offset) / 30.0 + 0.5)
-            outer = inner + 24
+            outer = inner + 24 if curved_outer else 60
             input_left = inner + 1
             input_right = outer - 1
             edge[y * WIDTH + inner] = 1
@@ -67,11 +92,11 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
         offset = y - 38
         if side == ring_slope.RING_RIGHT:
             inner = int(42 + (offset * offset) / 30.0 + 0.5)
-            outer = inner - 24
+            outer = inner - 24 if curved_outer else 18
             road_start, road_end = outer + 1, inner
         else:
             inner = int(38 - (offset * offset) / 30.0 + 0.5)
-            outer = inner + 24
+            outer = inner + 24 if curved_outer else 60
             road_start, road_end = inner + 1, outer
         for x in range(road_start, road_end):
             road[y * WIDTH + x] = 1
@@ -79,10 +104,13 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
     first_inner = int(42 + ((18 - 38) ** 2) / 30.0 + 0.5) \
         if side == ring_slope.RING_RIGHT else \
         int(38 - ((18 - 38) ** 2) / 30.0 + 0.5)
+    first_outer = (first_inner - 24 if curved_outer else 18) \
+        if side == ring_slope.RING_RIGHT else \
+        (first_inner + 24 if curved_outer else 60)
     if crop_side_edge is None:
         crop_side_edge = WIDTH - 1 if side == ring_slope.RING_RIGHT else 0
     if side == ring_slope.RING_RIGHT:
-        low = first_inner - 24 + 1
+        low = first_outer + 1
         high = crop_side_edge - 1 if port else first_inner - 1
         for y in range(14, 18):
             edge[y * WIDTH + low - 1] = 1
@@ -91,7 +119,7 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
                 edge[y * WIDTH + high + 1] = 1
     else:
         low = crop_side_edge + 1 if port else first_inner + 1
-        high = first_inner + 24 - 1
+        high = first_outer - 1
         for y in range(14, 18):
             edge[y * WIDTH + high + 1] = 1
         if not port:
@@ -124,6 +152,124 @@ def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
     return mask_info, result, support
 
 
+def _ring_fixture(side=ring_slope.RING_RIGHT, port=True,
+                  close_dark=False, unknown_neighbor=False,
+                  crop_side_edge=None):
+    """Ordinary curve: both measured edges bend together at fixed width."""
+    return _ring_geometry_fixture(
+        side, port, close_dark, unknown_neighbor, crop_side_edge,
+        curved_outer=True)
+
+
+def _genuine_ring_fixture(side=ring_slope.RING_RIGHT, port=True,
+                          close_dark=False, unknown_neighbor=False,
+                          crop_side_edge=None):
+    """Positive geometry: curved inner edge beside an independent straight edge."""
+    return _ring_geometry_fixture(
+        side, port, close_dark, unknown_neighbor, crop_side_edge,
+        curved_outer=False)
+
+
+def _ordinary_band_fixture(side=ring_slope.RING_RIGHT, profile="straight",
+                           port=True, crop_side_edge=None,
+                           inner_scale=1.0, outer_scale=1.0,
+                           outer_sign=1.0):
+    """Synthetic constant-width ordinary road profiles with a crop opening.
+
+    These are detector regression inputs, not camera recordings. Both road
+    edges use the same profile so the outer edge remains an independent
+    measurement of ordinary roadway geometry.
+    """
+    if profile not in ("straight", "bend", "sharp_bend", "s_curve",
+                       "reverse_s", "u_curve"):
+        raise ValueError("unknown ordinary profile: %s" % profile)
+
+    def delta(offset):
+        if profile == "straight":
+            return 0.0
+        if profile == "bend":
+            return (offset * offset) / 30.0
+        if profile == "sharp_bend":
+            return (offset * offset) / 18.0
+        if profile == "s_curve":
+            return (offset * abs(offset)) / 30.0
+        if profile == "reverse_s":
+            return -(offset * abs(offset)) / 30.0
+        return (offset * offset) / 24.0
+
+    road = bytearray(WIDTH * HEIGHT)
+    edge = bytearray(WIDTH * HEIGHT)
+    known = bytearray(WIDTH * HEIGHT)
+    for y in range(FLOOR, HEIGHT):
+        start = y * WIDTH
+        known[start:start + WIDTH] = bytearray([1] * WIDTH)
+
+    packed = array("i")
+    for y in range(18, 59):
+        offset = y - 38
+        curve = delta(offset)
+        inner_curve = curve * inner_scale
+        outer_curve = curve * outer_scale * outer_sign
+        if side == ring_slope.RING_RIGHT:
+            inner = int(42 + inner_curve + 0.5)
+            outer = int(18 + outer_curve + 0.5)
+            road_left, road_right = outer + 1, inner - 1
+        else:
+            inner = int(38 - inner_curve + 0.5)
+            outer = int(62 - outer_curve + 0.5)
+            road_left, road_right = inner + 1, outer - 1
+        edge[y * WIDTH + inner] = 1
+        edge[y * WIDTH + outer] = 1
+        road_start = y * WIDTH + road_left
+        road[road_start:road_start + max(0, road_right - road_left + 1)] = \
+            bytearray([1] * max(0, road_right - road_left + 1))
+        if y % 2 == 0:
+            packed.extend((y, road_left, road_right, 7))
+
+    first_offset = 18 - 38
+    first_curve = delta(first_offset)
+    first_inner_curve = first_curve * inner_scale
+    first_outer_curve = first_curve * outer_scale * outer_sign
+    if side == ring_slope.RING_RIGHT:
+        first_outer = int(18 + first_outer_curve + 0.5)
+        first_inner = int(42 + first_inner_curve + 0.5)
+        default_crop = WIDTH - 1
+    else:
+        first_outer = int(62 - first_outer_curve + 0.5)
+        first_inner = int(38 - first_inner_curve + 0.5)
+        default_crop = 0
+    if crop_side_edge is None:
+        crop_side_edge = default_crop
+    if side == ring_slope.RING_RIGHT:
+        low = first_outer + 1
+        high = crop_side_edge - 1 if port else first_inner - 1
+        edge_y = first_outer
+    else:
+        low = crop_side_edge + 1 if port else first_inner + 1
+        high = first_outer - 1
+        edge_y = first_outer
+    if low > high:
+        raise ValueError("ordinary fixture geometry collapsed")
+    for y in range(14, 18):
+        start = y * WIDTH + low
+        count = high - low + 1
+        road[start:start + count] = bytearray([1] * count)
+        edge[y * WIDTH + edge_y] = 1
+        edge[y * WIDTH + crop_side_edge] = 1
+        edge[y * WIDTH + default_crop] = 1
+
+    result = {
+        "valid": True,
+        "selected_row_ints": packed,
+        "selected_row_count": len(packed) // 4,
+        "selected_row_stride": 4,
+        "topology_evidence": {},
+    }
+    support = bytearray([1] * (len(packed) // 4))
+    return ({"road_mask": road, "edge_mask": edge,
+             "known_region": known}, result, support)
+
+
 def _upper_arc_port_fixture(side=ring_slope.RING_RIGHT,
                             separated_ports=False):
     """Synthetic current road whose side opening appears beside the far arc."""
@@ -140,14 +286,14 @@ def _upper_arc_port_fixture(side=ring_slope.RING_RIGHT,
             inner = (79 if y <= 20 else
                      (79 - 2 * (y - 20) if y <= 38 else
                       43 + (y - 38)))
-            outer = inner - 24
+            outer = 18
             input_left = outer + 1
             input_right = inner - 1
         else:
             inner = (0 if y <= 20 else
                      (2 * (y - 20) if y <= 38 else
                       36 - (y - 38)))
-            outer = inner + 24
+            outer = 60
             input_left = inner + 1
             input_right = outer - 1
         if y % 2 == 0:
@@ -252,7 +398,7 @@ class FastRingSlopeTests(unittest.TestCase):
         self.detector = ring_slope.FastRingSlope(config)
 
     def test_right_arc_and_connected_white_port_are_current_geometry(self):
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         candidate = self.detector.detect_ring_candidate(
             masks, result, support, len(support))
         self.assertTrue(candidate["valid"], candidate)
@@ -271,8 +417,79 @@ class FastRingSlopeTests(unittest.TestCase):
                 self.assertTrue(masks["known_region"][index])
                 self.assertTrue(masks["road_mask"][index])
 
+    def test_constant_width_parallel_curve_is_rejected_by_outer_fit(self):
+        for side in (ring_slope.RING_LEFT, ring_slope.RING_RIGHT):
+            masks, result, support = _ring_fixture(side)
+            candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+                masks, result, support, len(support))
+            self.assertFalse(candidate["valid"])
+            self.assertEqual(candidate["reason"], "PARALLEL_CURVE")
+            self.assertFalse(candidate["entry_geometry_ok"])
+            self.assertGreaterEqual(candidate["outer_fit_rows"], 10)
+            self.assertGreater(candidate["outer_fit_residual_max"], 1.5)
+
+    def test_scaled_coherent_curves_are_rejected_in_both_fit_bands(self):
+        for side in (ring_slope.RING_LEFT, ring_slope.RING_RIGHT):
+            # This lower-residual case exercises the straight-outer band:
+            # meaningful, same-sign residual shape is still ordinary-road
+            # evidence even when the outer edge would otherwise pass 1.5.
+            masks, result, support = _ordinary_band_fixture(
+                side, "u_curve", inner_scale=1.0, outer_scale=0.1,
+                outer_sign=1.0)
+            candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+                masks, result, support, len(support))
+            self.assertFalse(candidate["valid"], candidate)
+            self.assertEqual(candidate["reason"], "PARALLEL_CURVE")
+            self.assertEqual(candidate["fit_mode"], "REJECT_PARALLEL_CURVE")
+            self.assertGreaterEqual(candidate["outer_fit_residual_max"], 0.75)
+            self.assertLessEqual(candidate["outer_fit_residual_max"], 1.5)
+            self.assertGreaterEqual(
+                candidate["inner_outer_residual_correlation"], 0.85)
+
+            # The second profile falls above the straight-line limit but its
+            # outer residual remains below the curved-profile ceiling. Its
+            # coherent shape must still fail the independent-curve gate.
+            masks, result, support = _ordinary_band_fixture(
+                side, "u_curve", inner_scale=1.0, outer_scale=0.2,
+                outer_sign=1.0)
+            candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+                masks, result, support, len(support))
+            self.assertFalse(candidate["valid"], candidate)
+            self.assertEqual(candidate["reason"], "PARALLEL_CURVE")
+            self.assertLessEqual(candidate["outer_fit_residual_max"], 3.5)
+            self.assertGreaterEqual(
+                candidate["inner_outer_residual_correlation"], 0.85)
+
+    def test_bounded_independent_curvature_positive_and_outer_ceiling(self):
+        for side in (ring_slope.RING_LEFT, ring_slope.RING_RIGHT):
+            masks, result, support = _ordinary_band_fixture(
+                side, "u_curve", inner_scale=1.2, outer_scale=0.3,
+                outer_sign=-1.0)
+            candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+                masks, result, support, len(support))
+            self.assertTrue(candidate["valid"], candidate)
+            self.assertEqual(candidate["fit_mode"],
+                             "INDEPENDENT_CURVATURE")
+            self.assertLessEqual(candidate["outer_fit_residual_max"], 3.5)
+            self.assertGreaterEqual(candidate["inner_fit_residual_max"], 6.0)
+            self.assertLessEqual(
+                candidate["outer_fit_residual_max"],
+                0.5 * candidate["inner_fit_residual_max"])
+            self.assertLessEqual(
+                candidate["inner_outer_residual_correlation"], 0.0)
+            self.assertGreaterEqual(candidate["width_range"], 6)
+
+            masks, result, support = _ordinary_band_fixture(
+                side, "u_curve", inner_scale=1.2, outer_scale=0.6,
+                outer_sign=-1.0)
+            candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+                masks, result, support, len(support))
+            self.assertFalse(candidate["valid"], candidate)
+            self.assertEqual(candidate["reason"], "OPPOSITE_EDGE_CURVED")
+            self.assertGreater(candidate["outer_fit_residual_max"], 3.5)
+
     def test_left_arc_is_mirrored_and_connected_to_real_crop_side_cell(self):
-        masks, result, support = _ring_fixture(ring_slope.RING_LEFT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_LEFT)
         candidate = self.detector.detect_ring_candidate(
             masks, result, support, len(support))
         self.assertTrue(candidate["valid"], candidate)
@@ -289,7 +506,7 @@ class FastRingSlopeTests(unittest.TestCase):
             (ring_slope.RING_RIGHT, WIDTH - 2, 75),
         )
         for side, crop_side_edge, expected_x in cases:
-            masks, result, support = _ring_fixture(
+            masks, result, support = _genuine_ring_fixture(
                 side, crop_side_edge=crop_side_edge)
             detector = ring_slope.FastRingSlope(config)
             candidate = detector.detect_ring_candidate(
@@ -324,12 +541,44 @@ class FastRingSlopeTests(unittest.TestCase):
                 self.assertEqual(candidate["port_x"], 3)
 
     def test_two_separated_reachable_side_ports_are_ambiguous(self):
+        detector = ring_slope.FastRingSlope(config)
+        genuine = _genuine_ring_fixture(ring_slope.RING_RIGHT)
+        for now_ms in (100, 200, 300):
+            masks, result, support = genuine
+            detector.detect_ring_candidate(masks, result, support,
+                                           len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms,
+                lambda new, old: new - old)
+        self.assertEqual(state["state"], "ENTRY_RIGHT")
+        self.assertTrue(state["route_authorized"])
+
         masks, result, support = _upper_arc_port_fixture(
             ring_slope.RING_RIGHT, separated_ports=True)
-        candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
+        candidate = detector.detect_ring_candidate(
             masks, result, support, len(support))
         self.assertFalse(candidate["valid"])
         self.assertEqual(candidate["reason"], "MULTIPLE_PORTS")
+        self.assertTrue(candidate["ambiguous"])
+        state = detector.update_ring_state(
+            True, 1, True, False, 400, lambda new, old: new - old)
+        self.assertEqual(state["state"], "IDLE")
+        self.assertFalse(state["active"])
+        self.assertFalse(state["route_authorized"])
+        self.assertEqual(state["reason"], "RING_SIDE_AMBIGUOUS")
+
+        for expected, now_ms in ((1, 500), (2, 600), (3, 700)):
+            masks, result, support = genuine
+            detector.detect_ring_candidate(masks, result, support,
+                                           len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms,
+                lambda new, old: new - old)
+            if expected < 3:
+                self.assertEqual(state["pending_count"], expected)
+                self.assertFalse(state["route_authorized"])
+        self.assertEqual(state["state"], "ENTRY_RIGHT")
+        self.assertTrue(state["route_authorized"])
 
     def test_one_isolated_outer_measurement_is_logged_but_sustained_jump_rejects(self):
         detector = ring_slope.FastRingSlope(config)
@@ -355,7 +604,7 @@ class FastRingSlopeTests(unittest.TestCase):
                  (False, True, True))
         for side in (ring_slope.RING_RIGHT, ring_slope.RING_LEFT):
             for close_dark, unknown, expect_reject in cases:
-                masks, result, support = _ring_fixture(
+                masks, result, support = _genuine_ring_fixture(
                     side, port=True, close_dark=close_dark,
                     unknown_neighbor=unknown)
                 candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
@@ -363,14 +612,14 @@ class FastRingSlopeTests(unittest.TestCase):
                 self.assertEqual(not candidate["valid"], expect_reject,
                                  (side, close_dark, unknown,
                                   candidate["reason"]))
-        masks, result, support = _ring_fixture(port=False)
+        masks, result, support = _genuine_ring_fixture(port=False)
         candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
             masks, result, support, len(support))
         self.assertFalse(candidate["valid"])
         self.assertEqual(candidate["reason"], "NO_CONNECTED_PORT")
 
     def test_border_pixels_alone_without_measured_arc_cannot_make_ring(self):
-        masks, _result, _support = _ring_fixture(ring_slope.RING_LEFT)
+        masks, _result, _support = _genuine_ring_fixture(ring_slope.RING_LEFT)
         candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
             masks, {"valid": True, "selected_row_ints": array("i"),
                     "selected_row_count": 0, "selected_row_stride": 4,
@@ -380,7 +629,7 @@ class FastRingSlopeTests(unittest.TestCase):
 
     def test_nearest_safe_supported_seed_fallback_is_mirrored(self):
         for side in (ring_slope.RING_RIGHT, ring_slope.RING_LEFT):
-            masks, result, support = _ring_fixture(side)
+            masks, result, support = _genuine_ring_fixture(side)
             last = result["selected_row_count"] - 1
             last_base = last * 4
             seed_y = result["selected_row_ints"][last_base]
@@ -403,7 +652,7 @@ class FastRingSlopeTests(unittest.TestCase):
             self.assertEqual(candidate["near_center_y"], seed_y - 2)
 
     def test_all_near_seed_candidates_without_clearance_are_rejected(self):
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         # The last three supported center rows lie at 58, 56, and 54. A
         # known-dark line at 56 is within two cells of each candidate seed.
         edge_row = 56 * WIDTH
@@ -414,7 +663,7 @@ class FastRingSlopeTests(unittest.TestCase):
         self.assertFalse(candidate["valid"])
         self.assertEqual(candidate["reason"], "NO_SEED_BOUNDARY_CLEARANCE")
 
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         for packed_index in range(result["selected_row_count"] - 3,
                                   result["selected_row_count"]):
             base = packed_index * 4
@@ -428,22 +677,42 @@ class FastRingSlopeTests(unittest.TestCase):
         self.assertEqual(candidate["reason"], "NO_NEAR_ROAD_SEED")
 
     def test_unsupported_rows_and_topology_branch_cannot_seed_ring(self):
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         unsupported = bytearray(len(support))
         candidate = self.detector.detect_ring_candidate(
             masks, result, unsupported, len(unsupported))
         self.assertFalse(candidate["valid"])
         self.assertEqual(candidate["reason"], "NO_SUPPORTED_BILATERAL_ROWS")
 
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         result["topology_evidence"] = {"branch_evidence": True}
         candidate = ring_slope.FastRingSlope(config).detect_ring_candidate(
             masks, result, support, len(support))
         self.assertFalse(candidate["valid"])
         self.assertEqual(candidate["reason"], "TOPOLOGY_BRANCH_OR_AMBIGUITY")
+        self.assertTrue(candidate["ambiguous"])
+
+    def test_current_topology_ambiguity_clears_real_latched_ring_identity(self):
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
+        detector = ring_slope.FastRingSlope(config)
+        for now_ms in (100, 200, 300):
+            detector.detect_ring_candidate(masks, result, support, len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms, lambda new, old: new - old)
+        self.assertTrue(state["active"])
+        result["topology_evidence"] = {"branch_evidence": True}
+        candidate = detector.detect_ring_candidate(
+            masks, result, support, len(support))
+        self.assertTrue(candidate["ambiguous"])
+        state = detector.update_ring_state(
+            True, 1, True, False, 400, lambda new, old: new - old)
+        self.assertEqual(state["state"], "IDLE")
+        self.assertFalse(state["active"])
+        self.assertFalse(state["route_authorized"])
+        self.assertEqual(state["reason"], "RING_SIDE_AMBIGUOUS")
 
     def test_viper_kernel_matches_host_reference_on_same_masks(self):
-        masks, result, support = _ring_fixture(ring_slope.RING_RIGHT)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
         detector = ring_slope.FastRingSlope(config)
         candidate = detector.detect_ring_candidate(
             masks, result, support, len(support))
@@ -467,21 +736,23 @@ class FastRingSlopeTests(unittest.TestCase):
         self.assertEqual(bytes(detector._port_rows), host_ports)
         self.assertEqual(detector._parent, host_parent)
 
-    def test_three_fresh_keep_frames_enter_and_partial_edge_holds_inside(self):
+    def test_three_fresh_keep_frames_latch_identity_without_partial_steering(self):
         detector = ring_slope.FastRingSlope(config)
         candidate = detector._candidate
         candidate.update({"valid": True, "side_id": ring_slope.RING_RIGHT,
                           "port_y": 8})
         for expected in (1, 2, 3):
-            state = detector.update_ring_state(True, 4, True, False)
+            state = _update_ring(detector, True, 4, True, False)
             self.assertEqual(state["pending_count"], expected)
         self.assertEqual(state["state"], "ENTRY_RIGHT")
         candidate.update({"valid": False, "side_id": ring_slope.RING_NONE,
                           "partial_inner_current": True})
-        state = detector.update_ring_state(True, 4, True, False)
-        self.assertEqual(state["state"], "INSIDE_RIGHT")
+        state = _update_ring(detector, True, 4, True, False)
+        self.assertEqual(state["state"], "ENTRY_RIGHT")
         self.assertTrue(state["active"])
-        self.assertEqual(state["reason"], "CURRENT_PARTIAL_INNER_EDGE")
+        self.assertFalse(state["route_authorized"])
+        self.assertFalse(state["current_geometry_ok"])
+        self.assertEqual(state["reason"], "CURRENT_RING_GEOMETRY_MISSING")
 
     def test_unknown_edge_does_not_exit_and_current_exit_needs_three_frames(self):
         detector = ring_slope.FastRingSlope(config)
@@ -489,27 +760,31 @@ class FastRingSlopeTests(unittest.TestCase):
         candidate.update({"valid": True, "side_id": ring_slope.RING_RIGHT,
                           "port_y": 8})
         for _ in range(3):
-            state = detector.update_ring_state(True, 1, True, False)
-        candidate["partial_inner_current"] = True
-        state = detector.update_ring_state(True, 1, True, False)
+            state = _update_ring(detector, True, 1, True, False)
+        state = _update_ring(detector, True, 1, True, False)
         self.assertEqual(state["state"], "INSIDE_RIGHT")
+        candidate.update({"valid": False, "side_id": ring_slope.RING_NONE,
+                          "partial_inner_current": True})
+        state = _update_ring(detector, True, 1, True, False)
+        self.assertEqual(state["state"], "INSIDE_RIGHT")
+        self.assertFalse(state["route_authorized"])
         candidate.update({"valid": False, "side_id": ring_slope.RING_NONE,
                           "partial_inner_current": False,
                           "inner_edge_receding": False,
                           "inner_edge_near_clip": False,
                           "inner_edge_disappeared": False})
-        state = detector.update_ring_state(True, 1, True, True)
+        state = _update_ring(detector, True, 1, True, True)
         self.assertEqual(state["state"], "INSIDE_RIGHT")
         self.assertEqual(state["exit_count"], 0)
         candidate["inner_edge_disappeared"] = True
         candidate["inner_edge_receding"] = True
         candidate["inner_edge_near_clip"] = True
         for expected in (1, 2, 3):
-            state = detector.update_ring_state(True, 1, True, True)
+            state = _update_ring(detector, True, 1, True, True)
             self.assertEqual(state["exit_count"], expected)
         self.assertEqual(state["state"], "EXIT")
         for _ in range(3):
-            state = detector.update_ring_state(True, 1, True, True)
+            state = _update_ring(detector, True, 1, True, True)
         self.assertEqual(state["state"], "IDLE")
 
     def test_detected_near_bilateral_exit_is_directional_mirrored_and_consecutive(self):
@@ -523,10 +798,14 @@ class FastRingSlopeTests(unittest.TestCase):
             candidate.update({"valid": True, "side_id": side,
                               "port_y": 18, "near_inner_x": anchor})
             for _ in range(3):
-                state = detector.update_ring_state(True, 8, True, False)
+                state = _update_ring(detector, True, 8, True, False)
+            state = _update_ring(detector, True, 8, True, False)
+            self.assertEqual(state["state"],
+                             "INSIDE_RIGHT" if side == ring_slope.RING_RIGHT
+                             else "INSIDE_LEFT")
             candidate.update({"valid": False, "side_id": ring_slope.RING_NONE,
                               "partial_inner_current": True})
-            state = detector.update_ring_state(True, 8, True, False)
+            state = _update_ring(detector, True, 8, True, False)
             self.assertEqual(state["state"],
                              "INSIDE_RIGHT" if side == ring_slope.RING_RIGHT
                              else "INSIDE_LEFT")
@@ -541,7 +820,7 @@ class FastRingSlopeTests(unittest.TestCase):
             self.assertEqual(observed["near_inner_x"], expected_measured)
             self.assertFalse(observed["inner_edge_receding"])
             self.assertFalse(observed["inner_edge_disappeared"])
-            state = detector.update_ring_state(True, 8, True, True)
+            state = _update_ring(detector, True, 8, True, True)
             self.assertEqual(state["exit_count"], 0)
 
             result, support = _near_bilateral_rows(side, outward_x)
@@ -551,7 +830,7 @@ class FastRingSlopeTests(unittest.TestCase):
             self.assertTrue(observed["inner_edge_near_clip"])
             self.assertTrue(observed["inner_edge_disappeared"])
             self.assertEqual(observed["inner_edge_rows"], 3)
-            state = detector.update_ring_state(True, 8, True, False)
+            state = _update_ring(detector, True, 8, True, False)
             self.assertEqual(state["exit_count"], 0)
 
             # A missing current bilateral observation breaks the sequence.
@@ -560,7 +839,7 @@ class FastRingSlopeTests(unittest.TestCase):
             observed = detector.detect_ring_candidate(
                 {}, result, support, len(support))
             self.assertFalse(observed["inner_edge_disappeared"])
-            state = detector.update_ring_state(True, 8, True, True)
+            state = _update_ring(detector, True, 8, True, True)
             self.assertEqual(state["exit_count"], 0)
 
             result, support = _near_bilateral_rows(side, outward_x)
@@ -568,7 +847,7 @@ class FastRingSlopeTests(unittest.TestCase):
                 observed = detector.detect_ring_candidate(
                     {}, result, support, len(support))
                 self.assertTrue(observed["inner_edge_disappeared"])
-                state = detector.update_ring_state(True, 8, True, True)
+                state = _update_ring(detector, True, 8, True, True)
                 self.assertEqual(state["exit_count"], expected)
             self.assertEqual(state["state"], "EXIT")
 
@@ -578,16 +857,16 @@ class FastRingSlopeTests(unittest.TestCase):
         candidate.update({"valid": True, "side_id": ring_slope.RING_LEFT,
                           "port_y": 8})
         for _ in range(3):
-            state = detector.update_ring_state(True, 7, True, False)
+            state = _update_ring(detector, True, 7, True, False)
         self.assertEqual(state["state"], "ENTRY_LEFT")
-        state = detector.update_ring_state(False, 7, True, False)
+        state = _update_ring(detector, False, 7, True, False)
         self.assertEqual(state["state"], "IDLE")
         candidate.update({"valid": True, "side_id": ring_slope.RING_RIGHT,
                           "port_y": 8})
         for _ in range(3):
-            state = detector.update_ring_state(True, 7, True, False)
+            state = _update_ring(detector, True, 7, True, False)
         candidate["ambiguous"] = True
-        state = detector.update_ring_state(True, 7, True, True)
+        state = _update_ring(detector, True, 7, True, True)
         self.assertEqual(state["state"], "IDLE")
         self.assertEqual(state["reason"], "RING_SIDE_AMBIGUOUS")
 
@@ -595,10 +874,120 @@ class FastRingSlopeTests(unittest.TestCase):
         detector = ring_slope.FastRingSlope(config)
         detector._candidate.update({
             "valid": True, "side_id": ring_slope.RING_RIGHT, "port_y": 8})
-        state = detector.update_ring_state(False, 3, True, False)
+        state = _update_ring(detector, False, 3, True, False)
         self.assertEqual(state["state"], "PREVIEW")
         self.assertFalse(state["active"])
         self.assertEqual(state["pending_count"], 0)
+
+    def test_ring_geometry_lease_expires_at_1000ms_and_reentry_reconfirms(self):
+        detector = ring_slope.FastRingSlope(config)
+        genuine = _genuine_ring_fixture(ring_slope.RING_RIGHT)
+        ordinary = _ring_fixture(ring_slope.RING_RIGHT)
+        for now_ms in (100, 200, 300, 400):
+            masks, result, support = genuine
+            detector.detect_ring_candidate(masks, result, support, len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms, lambda new, old: new - old)
+        self.assertEqual(state["state"], "INSIDE_RIGHT")
+        self.assertTrue(state["route_authorized"])
+
+        masks, result, support = ordinary
+        detector.detect_ring_candidate(masks, result, support, len(support))
+        state = detector.update_ring_state(
+            True, 1, True, False, 1399, lambda new, old: new - old)
+        self.assertEqual(state["state"], "INSIDE_RIGHT")
+        self.assertTrue(state["active"])
+        self.assertFalse(state["route_authorized"])
+
+        detector.detect_ring_candidate(masks, result, support, len(support))
+        state = detector.update_ring_state(
+            True, 1, True, False, 1400, lambda new, old: new - old)
+        self.assertFalse(state["active"])
+        self.assertFalse(state["route_authorized"])
+        self.assertEqual(state["reason"], "RING_GEOMETRY_LEASE_EXPIRED")
+
+        masks, result, support = genuine
+        for expected, now_ms in ((1, 1500), (2, 1600), (3, 1700)):
+            detector.detect_ring_candidate(masks, result, support, len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms, lambda new, old: new - old)
+            if expected < 3:
+                self.assertEqual(state["pending_count"], expected)
+                self.assertFalse(state["route_authorized"])
+        self.assertEqual(state["state"], "ENTRY_RIGHT")
+        self.assertTrue(state["route_authorized"])
+
+    def test_geometry_lease_expiry_blocks_exit_evidence_at_1000ms(self):
+        detector = ring_slope.FastRingSlope(config)
+        masks, result, support = _genuine_ring_fixture(ring_slope.RING_RIGHT)
+        for now_ms in (100, 200, 300, 400):
+            detector.detect_ring_candidate(masks, result, support, len(support))
+            state = detector.update_ring_state(
+                True, 1, True, False, now_ms, lambda new, old: new - old)
+        candidate = detector._candidate
+        candidate.update({
+            "valid": False, "side_id": ring_slope.RING_NONE,
+            "arc_detected": False, "inner_edge_disappeared": True,
+            "inner_edge_receding": True, "inner_edge_near_clip": True,
+        })
+        state = detector.update_ring_state(
+            True, 1, True, True, 1399, lambda new, old: new - old)
+        self.assertEqual(state["exit_count"], 1)
+        state = detector.update_ring_state(
+            True, 1, True, True, 1400, lambda new, old: new - old)
+        self.assertEqual(state["state"], "IDLE")
+        self.assertFalse(state["active"])
+        self.assertEqual(state["reason"], "RING_GEOMETRY_LEASE_EXPIRED")
+
+    def test_geometry_lease_expires_before_stale_exit_and_cooldown_advance(self):
+        def make_exit(last_geometry_ms):
+            detector = ring_slope.FastRingSlope(config)
+            masks, result, support = _genuine_ring_fixture(
+                ring_slope.RING_RIGHT)
+            for now_ms in (last_geometry_ms - 300,
+                           last_geometry_ms - 200,
+                           last_geometry_ms - 100,
+                           last_geometry_ms):
+                detector.detect_ring_candidate(masks, result, support,
+                                               len(support))
+                state = detector.update_ring_state(
+                    True, 1, True, False, now_ms,
+                    lambda new, old: new - old)
+            self.assertEqual(state["state"], "INSIDE_RIGHT")
+            candidate = detector._candidate
+            candidate.update({
+                "valid": False, "side_id": ring_slope.RING_NONE,
+                "arc_detected": False, "inner_edge_disappeared": True,
+                "inner_edge_receding": True,
+                "inner_edge_near_clip": True,
+            })
+            for now_ms in (last_geometry_ms + 100,
+                           last_geometry_ms + 200,
+                           last_geometry_ms + 300):
+                state = detector.update_ring_state(
+                    True, 1, True, True, now_ms,
+                    lambda new, old: new - old)
+            self.assertEqual(state["state"], "EXIT")
+            return detector
+
+        # At exactly 1000 ms the EXIT evidence cannot advance identity.
+        detector = make_exit(400)
+        state = detector.update_ring_state(
+            True, 1, True, True, 1400, lambda new, old: new - old)
+        self.assertEqual(state["state"], "IDLE")
+        self.assertEqual(state["reason"], "RING_GEOMETRY_LEASE_EXPIRED")
+
+        # EXIT may enter COOLDOWN at 999 ms, but the same expired lease is
+        # checked before the next COOLDOWN frame advances its counter.
+        detector = make_exit(1300)
+        state = detector.update_ring_state(
+            True, 1, True, True, 2299, lambda new, old: new - old)
+        self.assertEqual(state["state"], "COOLDOWN")
+        self.assertEqual(state["cooldown_count"], 1)
+        state = detector.update_ring_state(
+            True, 1, True, True, 2300, lambda new, old: new - old)
+        self.assertEqual(state["state"], "IDLE")
+        self.assertEqual(state["reason"], "RING_GEOMETRY_LEASE_EXPIRED")
 
     def test_slope_learns_ten_frames_then_requires_three_candidates(self):
         detector = ring_slope.FastRingSlope(config)

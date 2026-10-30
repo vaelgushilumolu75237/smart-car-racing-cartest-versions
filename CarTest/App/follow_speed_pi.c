@@ -41,7 +41,15 @@ static uint8_t valid_input(const car_follow_speed_pi_input_t *input)
            input->nominal_left_permille <= CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE &&
            input->nominal_right_permille <= CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE &&
            input->applied_left_permille <= CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE &&
-           input->applied_right_permille <= CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE;
+           input->applied_right_permille <= CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE &&
+           input->target_override_valid <= 1u &&
+           (input->target_override_valid == 0u ||
+            (input->target_left_millirps >= 0 &&
+             input->target_left_millirps <=
+                 CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS &&
+             input->target_right_millirps >= 0 &&
+             input->target_right_millirps <=
+                 CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS));
 }
 
 static uint16_t nominal_to_feedforward(uint16_t nominal_permille)
@@ -55,6 +63,18 @@ static int32_t nominal_to_target_millirps(uint16_t nominal_permille)
 {
     return (int32_t)(((uint32_t)CAR_FOLLOW_SPEED_PI_TARGET_MILLIRPS *
                       nominal_permille) / 500u);
+}
+
+static int32_t input_target_millirps(
+    const car_follow_speed_pi_input_t *input,
+    uint8_t left_wheel)
+{
+    if (input->target_override_valid != 0u) {
+        return left_wheel != 0u ? input->target_left_millirps
+                                : input->target_right_millirps;
+    }
+    return nominal_to_target_millirps(left_wheel != 0u
+        ? input->nominal_left_permille : input->nominal_right_permille);
 }
 
 static void reset_axis_history(car_speed_pi_state_t *axis)
@@ -154,10 +174,8 @@ uint32_t car_follow_speed_pi_update(
         state->hold_seen = 0u;
         state->hold_was_armed = 0u;
         state->armed = 1u;
-        state->target_left_millirps = nominal_to_target_millirps(
-            input->nominal_left_permille);
-        state->target_right_millirps = nominal_to_target_millirps(
-            input->nominal_right_permille);
+        state->target_left_millirps = input_target_millirps(input, 1u);
+        state->target_right_millirps = input_target_millirps(input, 0u);
         state->status = CAR_FOLLOW_SPEED_PI_STATUS_RUNNING;
         return state->status;
     }
@@ -179,16 +197,14 @@ uint32_t car_follow_speed_pi_update(
         .feedforward_permille = nominal_to_feedforward(
             input->nominal_left_permille),
         .dt_ms = input->sample_elapsed_ms,
-        .target_millirps = nominal_to_target_millirps(
-            input->nominal_left_permille),
+        .target_millirps = input_target_millirps(input, 1u),
         .measured_millirps = input->measured_left_millirps
     };
     right_input = left_input;
     right_input.downstream_applied_permille = input->applied_right_permille;
     right_input.feedforward_permille = nominal_to_feedforward(
         input->nominal_right_permille);
-    right_input.target_millirps = nominal_to_target_millirps(
-        input->nominal_right_permille);
+    right_input.target_millirps = input_target_millirps(input, 0u);
     right_input.measured_millirps = input->measured_right_millirps;
 
     (void)car_speed_pi_update(&state->left, &speed_pi_config, &left_input,

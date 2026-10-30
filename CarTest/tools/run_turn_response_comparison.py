@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "test-data" / "turn-response-20261014" / "control"
+OUTPUT = ROOT / "test-data" / "speedpd-20261020-validation" / "turn-response"
 HARNESS = ROOT / "tests" / "host" / "test_turn_response_timing.c"
 SOURCE_FILES = [ROOT / "App" / "servo_safety.c", ROOT / "App" / "follow_output.c"]
 PROFILES = [
@@ -31,9 +31,9 @@ PROFILES = [
         "name": "DebugFollowTurn_3gear",
         "diff_permille": 200,
         "inner_diff_permille": 200,
-        "normal_limit_permille": 700,
-        "normal_motor_step_permille": 20,
-        "normal_servo_step_us": 60,
+        "normal_limit_permille": 1000,
+        "normal_motor_step_permille": 40,
+        "normal_servo_step_us": 120,
         "left_target_permille": 300,
         "right_target_permille": 700,
     },
@@ -91,7 +91,7 @@ def compile_profile(profile: dict[str, object]) -> dict[str, object]:
         f"/DCARTEST_FOLLOW_DIFF_PERMILLE={profile['diff_permille']}",
         f"/DCARTEST_FOLLOW_INNER_DIFF_PERMILLE={profile['inner_diff_permille']}",
         f"/DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE={profile['normal_limit_permille']}",
-        "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=700",
+        "/DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000",
         "/DCARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE=10",
         f"/DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE={profile['normal_motor_step_permille']}",
         f"/DCARTEST_FOLLOW_SERVO_SLEW_STEP_US={profile['normal_servo_step_us']}",

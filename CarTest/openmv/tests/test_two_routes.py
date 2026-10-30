@@ -215,7 +215,7 @@ class TwoRouteTests(unittest.TestCase):
         mask = _record_extra_dark_step(_mask("left"), x=45)
         result = tracker.detect(mask, True)
         self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "AMBIGUOUS_SINGLE_EDGE_IDENTITY")
+        self.assertEqual(result["reason"], "AMBIGUOUS_SINGLE_EDGE_CHAIN")
 
     def test_both_reliable_sides_are_rejected_as_ambiguous(self):
         tracker = _tracker(ROUTE_CLIPPED_MIDPOINT)
@@ -245,7 +245,7 @@ class TwoRouteTests(unittest.TestCase):
             short["edge_mask"][row:row + WIDTH] = bytes(WIDTH)
         result = tracker.detect(short, True)
         self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "SINGLE_EDGE_CONTINUITY_OR_SUPPORT")
+        self.assertEqual(result["reason"], "SINGLE_EDGE_SUPPORT_ROWS")
 
         discontinuous = _mask("left")
         for y in range(FLOOR + 20, HEIGHT):
@@ -259,8 +259,11 @@ class TwoRouteTests(unittest.TestCase):
                 discontinuous["edge_mask"][row + x] = 0
                 discontinuous["luma"][row + x] = 220
         result = tracker.detect(discontinuous, True)
-        self.assertFalse(result["valid"])
-        self.assertEqual(result["reason"], "SINGLE_EDGE_CONTINUITY_OR_SUPPORT")
+        self.assertTrue(result["valid"], result["reason"])
+        self.assertEqual(result["selected_row_count"], HEIGHT - FLOOR - 20)
+        self.assertEqual(result["selected_row_ints"][0], FLOOR + 20)
+        self.assertEqual(result["selected_row_ints"][(
+            result["selected_row_count"] - 1) * 5], HEIGHT - 1)
 
     def test_side_switch_requires_a_published_bilateral_reacquisition(self):
         tracker = _tracker(ROUTE_CLIPPED_MIDPOINT)
@@ -270,7 +273,7 @@ class TwoRouteTests(unittest.TestCase):
         switched = tracker.detect(_mask("right"), True)
         self.assertFalse(switched["valid"])
         self.assertEqual(switched["reason"],
-                         "SINGLE_EDGE_SIDE_SWITCH_REQUIRES_BILATERAL")
+                         "SINGLE_EDGE_SIDE_SWITCH_PENDING")
 
         dual = _mask("both")
         accepted = tracker.observe_bilateral(
@@ -283,19 +286,23 @@ class TwoRouteTests(unittest.TestCase):
         self.assertEqual(switched["boundary_source"], "RIGHT_ONLY")
         self.assertEqual(tracker.cache_rows, 0)
 
-    def test_only_the_two_explicit_route_build_pairs_validate(self):
-        for route, build in main.SINGLEEDGE_ROUTE_BUILD_IDS:
-            with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", route), \
+    def test_each_cached_width_profile_build_validates(self):
+        for profile, build in config.STEERING_CONTROL_PROFILE_BUILD_IDS:
+            with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "cached_width"), \
+                    patch.object(config, "STEERING_CONTROL_PROFILE", profile), \
                     patch.object(config, "BUILD_ID", build):
                 self.assertTrue(main._validate_fast_config())
         with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "clipped_midpoint"), \
-                patch.object(config, "BUILD_ID", "ARBITRARY_BUILD"):
+                patch.object(config, "STEERING_CONTROL_PROFILE", "pd"), \
+                patch.object(config, "BUILD_ID", dict(
+                    config.STEERING_CONTROL_PROFILE_BUILD_IDS)["pd"]):
             with self.assertRaisesRegex(RuntimeError, "route/build mismatch"):
                 main._validate_fast_config()
         with patch.object(config, "SINGLE_EDGE_ROUTE_MODE", "cached_width"), \
+                patch.object(config, "STEERING_CONTROL_PROFILE", "pd"), \
                 patch.object(config, "BUILD_ID",
-                             main.CLIPPED_MIDPOINT_BUILD_ID):
-            with self.assertRaisesRegex(RuntimeError, "route/build mismatch"):
+                             "ARBITRARY_BUILD"):
+            with self.assertRaisesRegex(RuntimeError, "profile/build mismatch"):
                 main._validate_fast_config()
 
     def test_overlay_draws_midpoint_chain_boundary_and_clip_separately(self):
@@ -346,7 +353,9 @@ class TwoRouteTests(unittest.TestCase):
         })
         self.assertTrue(all(point[1] < main._surface_pixel((0, HEIGHT - 1))[1]
                             for point in boundary_points))
-        self.assertIn("D100 CLIP", image.strings[1][1])
+        self.assertEqual(image.strings[1][1], "TRK UNK IDLE")
+        self.assertIn("WHY OK_CLIPPED", image.strings[2][1])
+        self.assertLessEqual(len(image.strings), 5)
         self.assertEqual(image.strings[0][1], "NOW V CLIP/SINGLE_LEFT")
 
         invalid_image = _OverlayImage()
@@ -360,8 +369,10 @@ class TwoRouteTests(unittest.TestCase):
             main._draw_gray_result(
                 invalid_image, invalid_selection, {}, {}, None, False,
                 0, 0, 5, 30.0)
-        self.assertIn("NO_FRESH_KEEP", " ".join(
-            value for point, value in invalid_image.strings))
+        invalid_text = " ".join(
+            value for point, value in invalid_image.strings)
+        self.assertIn("NO_FRESH_KEEP", invalid_text)
+        self.assertLessEqual(len(invalid_image.strings), 5)
         self.assertEqual(invalid_image.strings[0][1], "NOW INVALID CLIP")
 
     def test_fallback_diagnostic_names_route_and_keeps_full_reason(self):

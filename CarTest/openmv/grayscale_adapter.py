@@ -1,6 +1,6 @@
-"""Convert one grayscale camera frame into bounded, known-region masks.
+"""Convert one windowed grayscale frame into bounded, known-region masks.
 
-The 2x2 minimum pool preserves narrow dark paint in the 80x60 working grid.
+The 4x2 minimum pool preserves narrow dark paint in the 80x60 working grid.
 Unknown/untrusted Otsu blocks remain unknown in ``known_region``; their zero
 fill is never promoted to a measured wall or road boundary.
 """
@@ -19,15 +19,18 @@ def _gray(pixel):
     return int(pixel)
 
 
-def _read_min_pool(image, width, height, scale):
+def _read_min_pool(image, width, height, scale_x, scale_y):
     image_width = image.width()
     image_height = image.height()
     if image_width == width and image_height == height:
-        pool = 1
+        pool_x = 1
+        pool_y = 1
         sampling = "grid"
-    elif image_width == width * scale and image_height == height * scale:
-        pool = scale
-        sampling = "min%d" % scale
+    elif (image_width == width * scale_x and
+          image_height == height * scale_y):
+        pool_x = scale_x
+        pool_y = scale_y
+        sampling = "min%dx%d" % (scale_x, scale_y)
     else:
         raise ValueError("image size differs from grayscale grid config")
 
@@ -43,15 +46,15 @@ def _read_min_pool(image, width, height, scale):
                 luma = bytearray(width * height)
                 valid_buffer = True
                 for y in range(height):
-                    source_y = y * pool
+                    source_y = y * pool_y
                     row = y * width
                     for x in range(width):
-                        source_x = x * pool
+                        source_x = x * pool_x
                         value = 255
-                        for dy in range(pool):
+                        for dy in range(pool_y):
                             base = ((source_y + dy) * image_width +
                                     source_x)
-                            for dx in range(pool):
+                            for dx in range(pool_x):
                                 pixel = raw[base + dx]
                                 if not isinstance(pixel, int) or \
                                         pixel < 0 or pixel > 255:
@@ -75,13 +78,13 @@ def _read_min_pool(image, width, height, scale):
 
     luma = bytearray(width * height)
     for y in range(height):
-        source_y = y * pool
+        source_y = y * pool_y
         row = y * width
         for x in range(width):
-            source_x = x * pool
+            source_x = x * pool_x
             value = 255
-            for dy in range(pool):
-                for dx in range(pool):
+            for dy in range(pool_y):
+                for dx in range(pool_x):
                     pixel = _gray(image.get_pixel((source_x + dx,
                                                    source_y + dy)))
                     if pixel < value:
@@ -111,7 +114,8 @@ def build_masks(image, settings):
     width = getattr(settings, "SURFACE_GRID_WIDTH", 80)
     height = getattr(settings, "SURFACE_GRID_HEIGHT", 60)
     floor_y = getattr(settings, "SURFACE_ROI_FLOOR_Y", 20)
-    scale = getattr(settings, "SURFACE_PIXEL_SCALE", 2)
+    scale_x = getattr(settings, "SURFACE_PIXEL_SCALE_X", 4)
+    scale_y = getattr(settings, "SURFACE_PIXEL_SCALE_Y", 2)
     roi = (0, floor_y, width, height)
     blocks = getattr(settings, "GRAY_THRESHOLD_BLOCKS", None)
     if blocks is None:
@@ -121,7 +125,8 @@ def build_masks(image, settings):
                   (0, split_a, width, split_b),
                   (0, split_b, width, height))
 
-    luma, sampling = _read_min_pool(image, width, height, scale)
+    luma, sampling = _read_min_pool(
+        image, width, height, scale_x, scale_y)
     road_mask, threshold_info = thresholding.build_mask(
         luma, width, height, roi=roi, blocks=blocks,
         min_contrast=getattr(settings, "GRAY_THRESHOLD_MIN_CONTRAST", 0),

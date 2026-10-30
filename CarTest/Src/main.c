@@ -3,13 +3,21 @@
 #include "commissioning.h"
 #include "encoder_diag.h"
 #include "follow_output.h"
+#include "follow_incremental_pi.h"
 #include "follow_speed_pi.h"
 #include "manual_run_button.h"
 #include "reverse_control.h"
 #include "run_block_reason.h"
+#include "runtime_diag.h"
 #include "runtime_log.h"
+#include "session_odometry.h"
+#include "receive_diag.h"
 #include "servo_safety.h"
+#include "speed_pi_diag.h"
+#include "speed_pi_trace.h"
 #include "speed_observer.h"
+#include "ackermann_control.h"
+#include "ackermann_snapshot.h"
 #include "uart_rx_service.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_rcc_ex.h"
@@ -37,6 +45,10 @@
 #if !defined(CARTEST_FOLLOW_SPEED_PI_ENABLED)
 #error "CMake must explicitly select whether the Follow speed PI trial is enabled."
 #endif
+#if !defined(CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED) || \
+    !defined(CARTEST_ACKERMANN_COORDINATION_ENABLED)
+#error "CMake must explicitly select incremental PI and Ackermann coordination profiles."
+#endif
 #if !defined(CARTEST_FOLLOW_DIFF_PERMILLE)
 #error "CMake must explicitly select the Follow differential level."
 #endif
@@ -51,27 +63,67 @@
 #endif
 #if CARTEST_FOLLOW_TURN_PROFILE_COMPILED
 #if !CARTEST_FOLLOW_MODE_COMPILED || \
-    (CARTEST_FOLLOW_DIFF_PERMILLE != 200) || \
-    (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != 200) || \
-    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700) || \
-    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    ((CARTEST_FOLLOW_DIFF_PERMILLE != 150) && \
+     (CARTEST_FOLLOW_DIFF_PERMILLE != 200)) || \
+    (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != CARTEST_FOLLOW_DIFF_PERMILLE) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000) || \
     (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 20) || \
-    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 60)
-#error "FollowTurn requires the validated 70/30, 60us/20ms, 20-permille/10ms profile."
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != \
+        (CARTEST_ACKERMANN_COORDINATION_ENABLED ? 160 : 120))
+#error "FollowTurn requires a 65/35 or 70/30 differential with the selected 120/160us steering slew and 40-permille/10ms motor ramp."
 #endif
-#else
+#if CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200
+#error "FollowTurn requires a 2000 ms hold deadline and 200 ms deceleration."
+#endif
+#elif CARTEST_FOLLOW_MODE_COMPILED
 #if (CARTEST_FOLLOW_DIFF_PERMILLE != 0) && \
     (CARTEST_FOLLOW_DIFF_PERMILLE != 50) && \
     (CARTEST_FOLLOW_DIFF_PERMILLE != 100) || \
     (CARTEST_FOLLOW_INNER_DIFF_PERMILLE != CARTEST_FOLLOW_DIFF_PERMILLE) || \
-    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 600) || \
-    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700) || \
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000) || \
+    (CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000) || \
     (CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 10) || \
-    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 40)
-#error "Legacy Follow requires differential 0, 50, or 100 with its original limits and rates."
+    (CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40) || \
+    (CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120) || \
+    (CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200)
+#error "Follow requires 1000-permille caps, 40/10 ms motor ramp, 120/20 us servo slew, and a 2000/200 ms hold profile."
 #endif
+#else
+#if CARTEST_FOLLOW_DIFF_PERMILLE != 0 || \
+    CARTEST_FOLLOW_INNER_DIFF_PERMILLE != 0 || \
+    CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 600 || \
+    CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000 || \
+    CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE != 10 || \
+    CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 10 || \
+    CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 40 || \
+    CARTEST_VISION_HOLD_MS != 3000 || \
+    CARTEST_VISION_HOLD_RAMP_MS != 300
+#error "Non-Follow profiles must preserve the 600-permille legacy output cap, 10-permille motor ramp, 40-us servo slew, and 3000/300 ms hold profile."
+#endif
+#endif
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED && \
+    (!CARTEST_FOLLOW_SPEED_PI_ENABLED || \
+     !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
+     CARTEST_FOLLOW_DIFF_PERMILLE != 150 || \
+     !CARTEST_HARDWARE_ACCEPTED || \
+     !CARTEST_RUNTIME_LOG_ENABLED)
+#error "Incremental PI is reserved for the hardware-accepted, logged DebugFollowTurn65 C profile."
+#endif
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED && \
+    (!CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED || \
+     !CARTEST_FOLLOW_SPEED_PI_ENABLED || \
+     !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
+     CARTEST_FOLLOW_DIFF_PERMILLE != 150 || \
+     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != \
+        160)
+#error "Ackermann coordination requires the incremental-PI profile and its selected 120/160us servo slew."
+#endif
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED && \
+    !CARTEST_ACKERMANN_COORDINATION_ENABLED && \
+    CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 120
+#error "The incremental PI baseline must preserve 120us/20ms servo slew."
 #endif
 #if !CARTEST_FOLLOW_MODE_COMPILED && (CARTEST_FOLLOW_DIFF_PERMILLE != 0)
 #error "Follow differential is only valid in a Follow profile."
@@ -79,15 +131,25 @@
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED && \
     (!CARTEST_FOLLOW_MODE_COMPILED || !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
      !CARTEST_HARDWARE_ACCEPTED || \
-     CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700 || \
-     CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 20 || \
-     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != 60 || \
+     CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000 || \
+     CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE != 40 || \
+     CARTEST_FOLLOW_SERVO_SLEW_STEP_US != \
+        (CARTEST_ACKERMANN_COORDINATION_ENABLED ? 160 : 120) || \
      CARTEST_FOLLOW_SPEED_PI_TARGET_MILLIRPS != 2400 || \
      CARTEST_FOLLOW_SPEED_PI_KP_Q16 != 13107 || \
      CARTEST_FOLLOW_SPEED_PI_KI_Q16 != 26214 || \
-     CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE != 700 || \
+     CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE != 1000 || \
      CARTEST_FOLLOW_SPEED_PI_TRACKING_TIME_MS != 200)
 #error "The speed PI trial requires the exact accepted FollowTurn profile and provisional PI parameters."
+#endif
+#if CARTEST_TRACK_PROFILE != CAR_TRACK_PROFILE_LEGACY && \
+    (!CARTEST_FOLLOW_MODE_COMPILED || \
+     !CARTEST_FOLLOW_TURN_PROFILE_COMPILED || \
+     !CARTEST_FOLLOW_SPEED_PI_ENABLED || \
+     !CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED || \
+     !CARTEST_ACKERMANN_COORDINATION_ENABLED || \
+     !CARTEST_HARDWARE_ACCEPTED || !CARTEST_RUNTIME_LOG_ENABLED)
+#error "Paired track profiles require logged, hardware-accepted incremental-PI Ackermann Follow."
 #endif
 #if (CARTEST_BENCH_MODE_COMPILED + CARTEST_FOLLOW_MODE_COMPILED + \
      CARTEST_STEERING_MODE_COMPILED) > 1
@@ -114,11 +176,41 @@
 #define APP_SWITCH_GPIO_PIN GPIO_PIN_7
 #define APP_MOTOR_CHANNEL_MASK (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E)
 
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+#define APP_FOLLOW_PI_ARMED (follow_incremental_pi_state.armed)
+#define APP_FOLLOW_PI_STATUS (follow_incremental_pi_state.status)
+#define APP_FOLLOW_PI_TARGET_LEFT (follow_incremental_pi_state.target_left_millirps)
+#define APP_FOLLOW_PI_TARGET_RIGHT (follow_incremental_pi_state.target_right_millirps)
+#define APP_FOLLOW_PI_REQUEST_LEFT (follow_incremental_pi_state.proposal_left_permille)
+#define APP_FOLLOW_PI_REQUEST_RIGHT (follow_incremental_pi_state.proposal_right_permille)
+#define APP_FOLLOW_PI_SATURATED_LEFT (follow_incremental_pi_state.saturated_left)
+#define APP_FOLLOW_PI_SATURATED_RIGHT (follow_incremental_pi_state.saturated_right)
+#else
+#define APP_FOLLOW_PI_ARMED (follow_speed_pi_state.armed)
+#define APP_FOLLOW_PI_STATUS (follow_speed_pi_state.status)
+#define APP_FOLLOW_PI_TARGET_LEFT (follow_speed_pi_state.target_left_millirps)
+#define APP_FOLLOW_PI_TARGET_RIGHT (follow_speed_pi_state.target_right_millirps)
+#define APP_FOLLOW_PI_REQUEST_LEFT (follow_speed_pi_state.proposal_left_permille)
+#define APP_FOLLOW_PI_REQUEST_RIGHT (follow_speed_pi_state.proposal_right_permille)
+#define APP_FOLLOW_PI_SATURATED_LEFT (follow_speed_pi_state.saturated_left)
+#define APP_FOLLOW_PI_SATURATED_RIGHT (follow_speed_pi_state.saturated_right)
+#endif
+
 /* Fixed harness phase labels are reversed relative to timer channel order. */
 #define APP_ENCODER_LEFT_A_GPIO_PIN GPIO_PIN_1  /* PA1 / TIM2_CH2 */
 #define APP_ENCODER_LEFT_B_GPIO_PIN GPIO_PIN_0  /* PA0 / TIM2_CH1 */
 #define APP_ENCODER_RIGHT_A_GPIO_PIN GPIO_PIN_7 /* PC7 / TIM8_CH2 */
 #define APP_ENCODER_RIGHT_B_GPIO_PIN GPIO_PIN_6 /* PC6 / TIM8_CH1 */
+
+/* Exporters use these ROM symbols to require a frozen speed trace for the
+   two PI builds even though the older 128-byte snapshot is C-only. */
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED && CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+const uint8_t g_speed_pi_trace_profile_incremental
+    __attribute__((used)) = 2u;
+#elif CARTEST_FOLLOW_SPEED_PI_ENABLED
+const uint8_t g_speed_pi_trace_profile_position
+    __attribute__((used)) = 1u;
+#endif
 
 /* These numeric values are intentionally stable for Live Watch diagnosis. */
 typedef enum {
@@ -176,6 +268,7 @@ typedef enum {
     CAR_INIT_ERROR_IWDG_LSI_NOT_READY = 22u,
     CAR_INIT_ERROR_IWDG_REGISTER_UPDATE_TIMEOUT = 25u,
     CAR_INIT_ERROR_IWDG_READBACK = 26u,
+    CAR_INIT_ERROR_TRACE_SRAM = 27u,
     CAR_INIT_ERROR_UNCLASSIFIED = 0x7FFFFFFFu
 } car_init_error_t;
 
@@ -269,6 +362,23 @@ volatile uint32_t car_reverse_control_reset_generation;
 volatile uint32_t car_reverse_control_reset_phase_complete;
 volatile uint32_t car_reverse_control_keep_active;
 volatile uint32_t car_reverse_control_fresh_frames;
+volatile uint32_t car_camera_profile_required_ack;
+volatile uint32_t car_camera_profile_latest_ack;
+volatile uint32_t car_camera_profile_latest_version;
+volatile uint32_t car_camera_profile_ack_ready;
+volatile uint32_t car_camera_profile_ack_seen_after_reset;
+volatile uint32_t car_camera_profile_ack_age_ms;
+volatile uint32_t car_camera_profile_last_ack_ms;
+volatile uint32_t car_camera_profile_mismatch_count;
+volatile uint32_t car_profile_state_sequence;
+volatile uint32_t car_profile_state_last_tx_ms;
+volatile uint32_t car_profile_state_tx_count;
+volatile uint32_t car_profile_state_id;
+volatile uint32_t car_profile_state_session_active;
+volatile uint32_t car_session_token;
+volatile uint32_t car_session_mean_forward_wheel_millirev;
+volatile uint32_t car_session_odom_valid_samples;
+volatile uint32_t car_session_odom_invalid_samples;
 volatile uint32_t car_follow_servo_target_us;
 volatile uint32_t car_follow_motor_duty_permille;
 volatile uint32_t car_follow_diff_mode_permille;
@@ -317,6 +427,7 @@ volatile int32_t car_speed_right_rpm;
 volatile uint32_t car_speed_pi_actuation_enabled;
 volatile uint32_t car_speed_pi_compiled = CARTEST_FOLLOW_SPEED_PI_ENABLED;
 volatile uint32_t car_speed_pi_status;
+volatile uint32_t car_speed_pi_type;
 volatile uint32_t car_speed_pi_target_left_millirps;
 volatile uint32_t car_speed_pi_target_right_millirps;
 volatile uint32_t car_speed_pi_requested_left_permille;
@@ -325,6 +436,10 @@ volatile uint32_t car_speed_pi_saturated_left;
 volatile uint32_t car_speed_pi_saturated_right;
 volatile int64_t car_speed_pi_integral_left_q16;
 volatile int64_t car_speed_pi_integral_right_q16;
+/* These expose the active incremental controller's output accumulators;
+   car_speed_pi_integral_* retain their legacy position-PI meaning. */
+volatile int64_t car_speed_pi_accumulator_left_q16;
+volatile int64_t car_speed_pi_accumulator_right_q16;
 volatile uint32_t car_enc_tim8_cnt_hw;
 volatile uint32_t car_enc_tim8_cen;
 volatile uint32_t car_enc_tim8_clock_enabled;
@@ -335,6 +450,10 @@ volatile uint32_t car_motor_left_in1_output_permille;
 volatile uint32_t car_motor_left_in2_output_permille;
 volatile uint32_t car_motor_right_in1_output_permille;
 volatile uint32_t car_motor_right_in2_output_permille;
+volatile uint32_t car_motor_pwm_ccr2;
+volatile uint32_t car_motor_pwm_ccr3;
+volatile uint32_t car_motor_pwm_ccer;
+volatile uint32_t car_motor_pwm_enabled;
 volatile uint32_t car_bench_ready;
 volatile uint32_t car_bench_max_applied_duty_permille;
 volatile uint32_t car_main_loop_heartbeat_ms;
@@ -368,7 +487,47 @@ car_encoder_diag_t car_encoder_diag;
 static car_speed_observer_t speed_observer;
 static car_speed_observer_result_t speed_observer_result;
 static car_follow_speed_pi_state_t follow_speed_pi_state;
+static car_follow_incremental_pi_state_t follow_incremental_pi_state;
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+static car_ackermann_control_state_t ackermann_control_state;
+static car_ackermann_control_output_t ackermann_control_output = {
+    .model_angle_cdeg = 0,
+    .ratio_q15 = CAR_ACKERMANN_RATIO_ONE_Q15,
+    .request_permille = 0u,
+    .curve_phase = CAR_ACKERMANN_PHASE_STRAIGHT,
+    .request_active = 0u,
+    .fastest_target_millirps = CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+    .left_target_millirps = CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+    .right_target_millirps = CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS
+};
+static uint8_t ackermann_control_session_ready;
+#endif
+static uint8_t ackermann_snapshot_session_active;
+static uint32_t ackermann_snapshot_last_publish_ms;
+static uint16_t ackermann_snapshot_last_valid_servo_pulse_us;
+#endif
 static volatile uint8_t follow_speed_pi_reset_pending;
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+static uint8_t speed_pi_diag_session_active;
+static uint32_t speed_pi_diag_start_token;
+static uint8_t speed_pi_diag_have_values;
+static uint8_t speed_pi_diag_have_observer_sample;
+static uint8_t speed_pi_diag_last_armed;
+static uint8_t speed_pi_diag_last_hold;
+static uint32_t speed_pi_diag_last_observer_sample_ms;
+static uint32_t speed_pi_diag_last_status;
+static uint16_t speed_pi_diag_last_request_left;
+static uint16_t speed_pi_diag_last_request_right;
+static uint16_t speed_pi_diag_last_applied_left;
+static uint16_t speed_pi_diag_last_applied_right;
+#endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static uint8_t speed_pi_trace_session_active;
+static uint32_t speed_pi_trace_start_token;
+static uint8_t speed_pi_trace_have_sample;
+static uint32_t speed_pi_trace_last_sample_ms;
+#endif
 
 static car_config_t app_config;
 
@@ -397,6 +556,17 @@ static car_servo_safety_t servo_safety;
 static car_follow_output_state_t follow_output_state;
 static car_servo_safety_io_t servo_safety_io;
 static car_reverse_control_tx_t reverse_control_tx;
+static uint32_t follow_session_token;
+static uint64_t session_left_millirev;
+static uint64_t session_right_millirev;
+static uint64_t session_mean_forward_millirev;
+static uint64_t odometry_left_fractional_remainder;
+static uint64_t odometry_right_fractional_remainder;
+static int64_t odometry_last_left_raw_counts;
+static int64_t odometry_last_right_raw_counts;
+static uint8_t odometry_have_baseline;
+static uint32_t odometry_valid_sample_count;
+static uint32_t odometry_rejected_sample_count;
 static uint32_t reverse_control_seen_generation;
 static uint32_t reverse_control_seen_rx_fault_generation;
 static uint8_t reverse_control_ready;
@@ -455,6 +625,8 @@ static uint8_t servo_hardware_start(void *context);
 static uint8_t servo_take_completed_update(void *context);
 static void servo_safety_fault_to_controller(void);
 static void service_reverse_control(uint32_t now_ms);
+static void reset_session_odometry(void);
+static void update_session_odometry(void);
 static void enforce_motor_hardware_lock(void);
 static void consume_fast_stop_latch(void);
 static void flush_uart_and_parser(void);
@@ -463,8 +635,7 @@ static void service_physical_profile_operation(const car_inputs_t *inputs);
 static void publish_encoder_hardware_snapshot(void);
 static motor_applied_channels_t motor_applied_channels_snapshot(void);
 static void publish_motor_channel_debug_snapshot(void);
-static void publish_debug_snapshot(uint8_t pe7_raw_high,
-                                   const car_inputs_t *inputs);
+static void publish_debug_snapshot(const car_inputs_t *inputs);
 static void protected_uart_error_note(uint32_t status);
 static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
 static uint16_t vision_rx_snapshot(uint32_t *now_ms);
@@ -474,6 +645,15 @@ static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
 static void cancel_manual_request_on_fault(void);
 static void consume_manual_stop_request(const car_inputs_t *inputs);
 static void apply_manual_stop_effects(uint32_t effects);
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+static void speed_pi_diag_publish(uint32_t now_ms, uint8_t allow_new_sample,
+                                  uint8_t force);
+static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms);
+#endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static void speed_pi_trace_publish_sample(void);
+static void speed_pi_trace_freeze_if_stopped(uint32_t now_ms);
+#endif
 #if CARTEST_RUNTIME_LOG_ENABLED
 static car_runtime_log_session_kind_t runtime_log_start_edge(
     car_mode_t mode_before_tick);
@@ -1751,6 +1931,112 @@ static void consume_manual_stop_request(const car_inputs_t *inputs)
     __set_PRIMASK(primask);
 }
 
+static void reset_session_odometry(void)
+{
+    session_left_millirev = 0u;
+    session_right_millirev = 0u;
+    session_mean_forward_millirev = 0u;
+    odometry_left_fractional_remainder = 0u;
+    odometry_right_fractional_remainder = 0u;
+    odometry_have_baseline = 0u;
+    odometry_valid_sample_count = 0u;
+    odometry_rejected_sample_count = 0u;
+}
+
+static uint8_t normalize_forward_encoder_delta(
+    int64_t current,
+    int64_t previous,
+    int8_t sign,
+    uint64_t *forward_delta)
+{
+    int64_t delta;
+
+    if (forward_delta == 0 || (sign != 1 && sign != -1) ||
+        (previous > 0 && current < INT64_MIN + previous) ||
+        (previous < 0 && current > INT64_MAX + previous)) {
+        return 0u;
+    }
+    delta = current - previous;
+    if (sign < 0) {
+        if (delta == INT64_MIN) {
+            return 0u;
+        }
+        delta = -delta;
+    }
+    if (delta < 0) {
+        return 0u;
+    }
+    *forward_delta = (uint64_t)delta;
+    return 1u;
+}
+
+static void update_session_odometry(void)
+{
+    const int64_t left_counts = car_encoder_diag.left_raw_delta_sum;
+    const int64_t right_counts = car_encoder_diag.right_raw_delta_sum;
+    uint64_t left_delta;
+    uint64_t right_delta;
+    uint64_t left_millirev;
+    uint64_t right_millirev;
+    uint64_t left_fractional_remainder =
+        odometry_left_fractional_remainder;
+    uint64_t right_fractional_remainder =
+        odometry_right_fractional_remainder;
+
+    if (car_control_state.follow_session_active == 0u) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (speed_observer_result.valid == 0u) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_WAITING) {
+        return;
+    }
+    if (speed_observer_result.status != CAR_SPEED_OBSERVER_STATUS_SAMPLE) {
+        odometry_have_baseline = 0u;
+        return;
+    }
+    if (odometry_have_baseline == 0u) {
+        odometry_last_left_raw_counts = left_counts;
+        odometry_last_right_raw_counts = right_counts;
+        odometry_have_baseline = 1u;
+        return;
+    }
+    if (normalize_forward_encoder_delta(
+            left_counts, odometry_last_left_raw_counts,
+            app_config.follow_left_encoder_sign, &left_delta) == 0u ||
+        normalize_forward_encoder_delta(
+            right_counts, odometry_last_right_raw_counts,
+            app_config.follow_right_encoder_sign, &right_delta) == 0u ||
+        car_encoder_counts_to_millirev(
+            left_delta, app_config.follow_left_encoder_counts_per_rev,
+            &left_fractional_remainder, &left_millirev) == 0u ||
+        car_encoder_counts_to_millirev(
+            right_delta, app_config.follow_right_encoder_counts_per_rev,
+            &right_fractional_remainder, &right_millirev) == 0u ||
+        left_millirev > UINT64_MAX - session_left_millirev ||
+        right_millirev > UINT64_MAX - session_right_millirev) {
+        odometry_have_baseline = 0u;
+        ++odometry_rejected_sample_count;
+        return;
+    }
+
+    odometry_last_left_raw_counts = left_counts;
+    odometry_last_right_raw_counts = right_counts;
+    odometry_left_fractional_remainder = left_fractional_remainder;
+    odometry_right_fractional_remainder = right_fractional_remainder;
+    session_left_millirev += left_millirev;
+    session_right_millirev += right_millirev;
+    session_mean_forward_millirev =
+        (session_left_millirev / 2u) +
+        (session_right_millirev / 2u) +
+        (((session_left_millirev & 1u) +
+          (session_right_millirev & 1u)) / 2u);
+    ++odometry_valid_sample_count;
+}
+
 static void flush_uart_and_parser(void)
 {
     uint32_t primask;
@@ -1778,8 +2064,7 @@ static void flush_uart_and_parser(void)
     }
     if (session_active != 0u && pending_switch_release != 0u &&
         app_config.follow_mode_compiled == 0u && pe7_is_high() != 0u) {
-        /* Bench retains its released-high stop. Follow consumes only a
-           debounced low-edge toggle; an EXTI pending bit is not a stop. */
+        /* Bench keeps its released-high stop; Follow handles PE7 separately. */
         car_control_note_switch_release_isr(&car_control_state);
     }
     /* Clear an old NVIC request before flushing the peripheral. A new byte
@@ -1981,7 +2266,7 @@ static uint8_t motor_output_guard(
             if (active_session != 0u && pe7_is_high() != 0u) {
                 car_control_note_switch_release_isr(&car_control_state);
             }
-            /* Bench release edges remain fail-safe; Follow uses low toggles. */
+            /* Bench release edges remain fail-safe in this non-Follow path. */
             return 0u;
         }
         if (pe7_is_high() != 0u) {
@@ -2056,6 +2341,178 @@ static uint8_t motor_output_guard(
                                     app_config.vision_timeout_ms) != 0u;
 }
 
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+static void speed_pi_diag_publish(uint32_t now_ms,
+                                  uint8_t allow_new_sample,
+                                  uint8_t force)
+{
+    car_speed_pi_diag_values_t values = {0};
+    const uint8_t hold_active = car_control_state.vision_hold_active;
+    const uint8_t observer_sample_seen =
+        speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_SAMPLE;
+    const uint8_t observer_sample_new = observer_sample_seen != 0u &&
+        (speed_pi_diag_have_observer_sample == 0u ||
+         speed_observer_result.sample_ms !=
+             speed_pi_diag_last_observer_sample_ms);
+    const uint8_t proposal_valid =
+        follow_incremental_pi_state.armed != 0u &&
+        follow_incremental_pi_state.status ==
+            CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
+        follow_speed_pi_reset_pending == 0u;
+    const uint8_t new_sample = observer_sample_new != 0u &&
+        allow_new_sample != 0u && hold_active == 0u ? 1u : 0u;
+    const uint8_t armed = follow_incremental_pi_state.armed;
+    const uint32_t status = follow_incremental_pi_state.status;
+    const uint16_t request_left =
+        follow_incremental_pi_state.proposal_left_permille;
+    const uint16_t request_right =
+        follow_incremental_pi_state.proposal_right_permille;
+    const uint16_t applied_left = applied_motor_follow_left_permille;
+    const uint16_t applied_right = applied_motor_follow_right_permille;
+    const uint8_t changed = force != 0u || new_sample != 0u ||
+        speed_pi_diag_have_values == 0u || status != speed_pi_diag_last_status ||
+        armed != speed_pi_diag_last_armed ||
+        hold_active != speed_pi_diag_last_hold ||
+        request_left != speed_pi_diag_last_request_left ||
+        request_right != speed_pi_diag_last_request_right ||
+        applied_left != speed_pi_diag_last_applied_left ||
+        applied_right != speed_pi_diag_last_applied_right;
+
+    if (observer_sample_seen != 0u) {
+        speed_pi_diag_have_observer_sample = 1u;
+        speed_pi_diag_last_observer_sample_ms =
+            speed_observer_result.sample_ms;
+    }
+    if (speed_pi_diag_session_active == 0u || changed == 0u) {
+        return;
+    }
+
+    values.now_ms = now_ms;
+    values.sample_ms = speed_observer_result.sample_ms;
+    values.target_left_millirps =
+        follow_incremental_pi_state.target_left_millirps;
+    values.target_right_millirps =
+        follow_incremental_pi_state.target_right_millirps;
+    values.measured_left_millirps = speed_observer_result.left_millirps;
+    values.measured_right_millirps = speed_observer_result.right_millirps;
+    values.nominal_ff_left_permille =
+        follow_incremental_pi_state.left.previous_feedforward_permille;
+    values.nominal_ff_right_permille =
+        follow_incremental_pi_state.right.previous_feedforward_permille;
+    values.requested_left_permille = request_left;
+    values.requested_right_permille = request_right;
+    values.applied_left_permille = applied_left;
+    values.applied_right_permille = applied_right;
+    values.status = status;
+    values.sample_elapsed_ms = speed_observer_result.elapsed_ms;
+    values.enabled = 1u;
+    values.armed = armed;
+    values.new_speed_sample = new_sample;
+    values.speed_sample_valid = speed_observer_result.valid;
+    values.saturated_left = follow_incremental_pi_state.saturated_left;
+    values.saturated_right = follow_incremental_pi_state.saturated_right;
+    values.hold_active = hold_active;
+    values.pi_proposal_valid = proposal_valid;
+    (void)car_speed_pi_diag_update(&values);
+
+    speed_pi_diag_have_values = 1u;
+    speed_pi_diag_last_status = status;
+    speed_pi_diag_last_armed = armed;
+    speed_pi_diag_last_hold = hold_active;
+    speed_pi_diag_last_request_left = request_left;
+    speed_pi_diag_last_request_right = request_right;
+    speed_pi_diag_last_applied_left = applied_left;
+    speed_pi_diag_last_applied_right = applied_right;
+}
+
+static void speed_pi_diag_freeze_if_stopped(uint32_t now_ms)
+{
+    uint32_t termination_fault;
+    /* Match the runtime logger's active Follow-session predicate exactly:
+       recoverable vision/transport faults keep the manual session open. */
+    const uint8_t terminal_state =
+        manual_run_button.run_request == 0u ||
+        car_control_state.fault_latched != 0u;
+
+    if (speed_pi_diag_session_active == 0u || terminal_state == 0u) {
+        return;
+    }
+
+    speed_pi_diag_publish(now_ms, 0u, 1u);
+    termination_fault = (uint32_t)car_control_state.fault;
+    if (termination_fault == (uint32_t)CAR_FAULT_NONE &&
+        car_control_state.isr_stop_fault != CAR_FAULT_NONE) {
+        termination_fault = (uint32_t)car_control_state.isr_stop_fault;
+    }
+    car_speed_pi_diag_freeze(now_ms, termination_fault);
+    speed_pi_diag_session_active = 0u;
+}
+#endif
+
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+static void speed_pi_trace_publish_sample(void)
+{
+    car_speed_pi_trace_values_t values = {0};
+    const uint32_t primask = __get_PRIMASK();
+    const uint8_t new_sample =
+        speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_SAMPLE &&
+        (speed_pi_trace_have_sample == 0u ||
+         speed_observer_result.sample_ms != speed_pi_trace_last_sample_ms);
+
+    if (speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_SAMPLE) {
+        speed_pi_trace_have_sample = 1u;
+        speed_pi_trace_last_sample_ms = speed_observer_result.sample_ms;
+    }
+    if (speed_pi_trace_session_active == 0u || new_sample == 0u) {
+        return;
+    }
+
+    __disable_irq();
+    values.record_ms = HAL_GetTick();
+    values.sample_ms = speed_observer_result.sample_ms;
+    values.vision_sequence = car_control_state.latest_rx_have_frame != 0u
+        ? car_control_state.latest_rx_sequence : 0u;
+    values.vision_arrival_ms = car_control_state.latest_rx_have_frame != 0u
+        ? car_control_state.latest_rx_arrival_ms : 0u;
+    values.pi_type = CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+        ? CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL
+        : CAR_SPEED_PI_DIAG_TYPE_POSITION;
+    values.speed_valid = speed_observer_result.valid;
+    values.armed = APP_FOLLOW_PI_ARMED;
+    values.hold_active = car_control_state.vision_hold_active;
+    values.proposal_valid = APP_FOLLOW_PI_ARMED != 0u &&
+        APP_FOLLOW_PI_STATUS == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
+        follow_speed_pi_reset_pending == 0u;
+    values.target_left_millirps = APP_FOLLOW_PI_TARGET_LEFT;
+    values.target_right_millirps = APP_FOLLOW_PI_TARGET_RIGHT;
+    values.measured_left_millirps = speed_observer_result.left_millirps;
+    values.measured_right_millirps = speed_observer_result.right_millirps;
+    values.requested_left_permille = APP_FOLLOW_PI_REQUEST_LEFT;
+    values.requested_right_permille = APP_FOLLOW_PI_REQUEST_RIGHT;
+    values.applied_left_permille = applied_motor_follow_left_permille;
+    values.applied_right_permille = applied_motor_follow_right_permille;
+    __set_PRIMASK(primask);
+    car_speed_pi_trace_append(&values);
+}
+
+static void speed_pi_trace_freeze_if_stopped(uint32_t now_ms)
+{
+    const uint8_t terminal_state =
+        manual_run_button.run_request == 0u ||
+        car_control_state.fault_latched != 0u;
+
+    if (speed_pi_trace_session_active == 0u || terminal_state == 0u) {
+        return;
+    }
+    /* CRC work is limited per call so serial and main-loop safety servicing
+       continue after outputs stop. The trace remains ACTIVE/pending until its
+       complete chronological CRC is published. */
+    if (car_speed_pi_trace_freeze(now_ms) != 0u) {
+        speed_pi_trace_session_active = 0u;
+    }
+}
+#endif
+
 static void consume_follow_speed_pi_reset_request(void)
 {
     const uint32_t primask = __get_PRIMASK();
@@ -2066,6 +2523,7 @@ static void consume_follow_speed_pi_reset_request(void)
     __set_PRIMASK(primask);
     if (reset_requested != 0u) {
         car_follow_speed_pi_reset(&follow_speed_pi_state);
+        car_follow_incremental_pi_reset(&follow_incremental_pi_state);
     }
 }
 
@@ -2077,6 +2535,9 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
     uint8_t startup_qualified_before_update;
 #endif
 
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+    speed_pi_diag_freeze_if_stopped(now_ms);
+#endif
     consume_follow_speed_pi_reset_request();
 
     fault_or_stop = car_control_state.fault_latched != 0u ||
@@ -2096,7 +2557,7 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                  CAR_SPEED_OBSERVER_STATUS_INVALID_CONFIG ||
              (uint32_t)(now_ms - speed_observer_result.sample_ms) >
                  CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS ||
-             (follow_speed_pi_state.armed != 0u &&
+             (APP_FOLLOW_PI_ARMED != 0u &&
               speed_observer_result.valid == 0u) ||
              (speed_observer_result.valid == 0u &&
               speed_observer_result.status !=
@@ -2110,8 +2571,10 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         }
 #endif
         follow_output_state.slope_assist_active = 0u;
-        car_follow_output_hold(
+        car_follow_output_hold_at(
             &follow_output_state, now_ms,
+            car_control_state.vision_hold_started_ms,
+            car_control_state.vision_hold_entries,
             car_control_state.vision_hold_motor_left_permille,
             car_control_state.vision_hold_motor_right_permille);
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
@@ -2121,8 +2584,13 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                 .vision_hold = 1u,
                 .sample_ms = speed_observer_result.sample_ms
             };
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+            (void)car_follow_incremental_pi_update(
+                &follow_incremental_pi_state, &pi_input);
+#else
             (void)car_follow_speed_pi_update(&follow_speed_pi_state,
                                              &pi_input);
+#endif
         }
 #endif
         return;
@@ -2134,6 +2602,10 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         car_control_state.road_drive_allowed == 0u || fault_or_stop != 0u) {
         car_follow_output_reset(&follow_output_state);
         car_follow_speed_pi_reset(&follow_speed_pi_state);
+        car_follow_incremental_pi_reset(&follow_incremental_pi_state);
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+        ackermann_control_session_ready = 0u;
+#endif
         return;
     }
 
@@ -2144,11 +2616,55 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
     startup_qualified_before_update = follow_output_state.startup_qualified;
 #endif
 
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+    {
+        uint16_t steering_model_pulse_us = applied_servo_pulse_us;
+
+        /* Servo startup deliberately begins with software-applied pulse 0.
+           Until a complete TIM1 frame is confirmed, model straight steering
+           at the legal configured center; the independent full-frame and
+           motor-ramp gates below remain authoritative. */
+        if (servo_output_active == 0u || servo_safety.frame_ready == 0u) {
+            steering_model_pulse_us = app_config.servo_center_us;
+        } else if (steering_model_pulse_us < app_config.follow_servo_left_us ||
+                   steering_model_pulse_us > app_config.follow_servo_right_us) {
+            car_control_note_fault(&car_control_state, CAR_FAULT_CONFIG);
+            emergency_stop_hardware();
+            car_follow_speed_pi_reset(&follow_speed_pi_state);
+            car_follow_incremental_pi_reset(&follow_incremental_pi_state);
+            return;
+        }
+    if (ackermann_control_session_ready == 0u) {
+        car_ackermann_control_reset(&ackermann_control_state);
+        ackermann_control_session_ready = 1u;
+    }
+    if (car_ackermann_control_update(
+            &ackermann_control_state, now_ms,
+            car_control_state.vision_curve_phase,
+            car_control_state.vision_slowdown_request_permille,
+            steering_model_pulse_us, app_config.servo_center_us,
+            app_config.follow_servo_left_us,
+            app_config.follow_servo_right_us,
+            &ackermann_control_output) == 0u) {
+        car_control_note_fault(&car_control_state, CAR_FAULT_CONFIG);
+        emergency_stop_hardware();
+        car_follow_speed_pi_reset(&follow_speed_pi_state);
+        car_follow_incremental_pi_reset(&follow_incremental_pi_state);
+        return;
+    }
+    }
+#endif
+
     if (car_follow_output_update(
             &follow_output_state, now_ms,
             car_control_state.follow_output_duty_permille,
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+            0u, 0u,
+#else
             CARTEST_FOLLOW_DIFF_PERMILLE,
-            CARTEST_FOLLOW_INNER_DIFF_PERMILLE, applied_servo_pulse_us,
+            CARTEST_FOLLOW_INNER_DIFF_PERMILLE,
+#endif
+            applied_servo_pulse_us,
             app_config.servo_center_us, app_config.follow_servo_left_us,
             app_config.follow_servo_right_us, servo_output_active,
             servo_safety.frame_ready,
@@ -2160,6 +2676,7 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         car_control_note_fault(&car_control_state, CAR_FAULT_CONFIG);
         emergency_stop_hardware();
         car_follow_speed_pi_reset(&follow_speed_pi_state);
+        car_follow_incremental_pi_reset(&follow_incremental_pi_state);
         follow_speed_pi_reset_pending = 0u;
         return;
     }
@@ -2182,7 +2699,7 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
             (speed_observer_result.status >=
                  CAR_SPEED_OBSERVER_STATUS_INVALID_CONFIG ||
              sample_age_ms > CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS ||
-             (follow_speed_pi_state.armed != 0u &&
+             (APP_FOLLOW_PI_ARMED != 0u &&
               speed_observer_result.valid == 0u) ||
              (speed_observer_result.valid == 0u &&
               speed_observer_result.status !=
@@ -2205,7 +2722,7 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                 .startup_qualified = startup_qualified != 0u &&
                                      startup_qualified_before_update != 0u &&
                                      (speed_observer_result.valid != 0u ||
-                                      follow_speed_pi_state.armed != 0u),
+                                      APP_FOLLOW_PI_ARMED != 0u),
                 .actual_motor_outputs = outputs_active,
                 .servo_ready = servo_ready,
                 .speed_sample_valid = speed_observer_result.valid,
@@ -2227,9 +2744,22 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                     applied_motor_follow_left_permille,
                 .applied_right_permille =
                     applied_motor_follow_right_permille
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+                , .target_override_valid = 1u,
+                .target_left_millirps =
+                    ackermann_control_output.left_target_millirps,
+                .target_right_millirps =
+                    ackermann_control_output.right_target_millirps
+#endif
             };
-            const uint32_t pi_status = car_follow_speed_pi_update(
+            uint32_t pi_status;
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+            pi_status = car_follow_incremental_pi_update(
+                &follow_incremental_pi_state, &pi_input);
+#else
+            pi_status = car_follow_speed_pi_update(
                 &follow_speed_pi_state, &pi_input);
+#endif
 
             if (pi_status == CAR_FOLLOW_SPEED_PI_STATUS_INVALID) {
                 car_speed_pi_actuation_enabled = 0u;
@@ -2239,14 +2769,26 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                 return;
             }
             if (pi_status == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING) {
+                uint8_t ramp_ok;
                 car_speed_pi_actuation_enabled =
-                    follow_speed_pi_state.armed != 0u ? 1u : 0u;
-                if (car_follow_speed_pi_ramp(
+                    APP_FOLLOW_PI_ARMED != 0u ? 1u : 0u;
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+                ramp_ok = car_follow_incremental_pi_ramp(
+                        &follow_incremental_pi_state, follow_ramp_due,
+                        CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE,
+                        applied_motor_follow_left_permille,
+                        applied_motor_follow_right_permille,
+                        &follow_output_state.command_left_permille,
+                        &follow_output_state.command_right_permille);
+#else
+                ramp_ok = car_follow_speed_pi_ramp(
                         &follow_speed_pi_state, follow_ramp_due,
                         applied_motor_follow_left_permille,
                         applied_motor_follow_right_permille,
                         &follow_output_state.command_left_permille,
-                        &follow_output_state.command_right_permille) == 0u) {
+                        &follow_output_state.command_right_permille);
+#endif
+                if (ramp_ok == 0u) {
                     car_speed_pi_actuation_enabled = 0u;
                     car_control_note_fault(&car_control_state,
                                            CAR_FAULT_ENCODER_INIT);
@@ -2301,13 +2843,8 @@ static void motor_apply(void)
         (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
          car_control_state.vision_hold_active != 0u)) {
         follow_mode = 1u;
-        if (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD) {
-            left_duty = car_control_state.vision_hold_motor_left_permille;
-            right_duty = car_control_state.vision_hold_motor_right_permille;
-        } else {
-            left_duty = follow_output_state.command_left_permille;
-            right_duty = follow_output_state.command_right_permille;
-        }
+        left_duty = follow_output_state.command_left_permille;
+        right_duty = follow_output_state.command_right_permille;
         duty = left_duty > right_duty ? left_duty : right_duty;
         cc_enable = TIM_CCER_CC2E | TIM_CCER_CC3E;
     } else if (car_control_state.mode == CAR_MODE_BENCH_RUNNING) {
@@ -2330,8 +2867,8 @@ static void motor_apply(void)
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
     pi_zero_coast_allowed =
         follow_mode != 0u && duty == 0u &&
-        follow_speed_pi_state.armed != 0u &&
-        follow_speed_pi_state.status == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
+        APP_FOLLOW_PI_ARMED != 0u &&
+        APP_FOLLOW_PI_STATUS == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
         follow_output_state.startup_qualified != 0u &&
         car_control_state.mode == CAR_MODE_FOLLOW_RUNNING &&
         car_control_state.manual_run_request != 0u &&
@@ -2543,10 +3080,7 @@ static void servo_apply(void)
 {
     uint32_t primask;
     const uint16_t follow_pulse =
-        car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
-        car_control_state.vision_hold_active != 0u
-            ? car_control_state.vision_hold_servo_pulse_us
-            : car_control_state.follow_servo_target_us;
+        car_control_follow_servo_output_target_us(&car_control_state);
     const uint16_t debug_pulse = car_control_state.steering_servo_target_us;
     output_generation_snapshot_t generations;
     const uint8_t follow_mode =
@@ -2734,6 +3268,12 @@ static void service_reverse_control(uint32_t now_ms)
         return;
     }
 
+    car_reverse_control_set_profile_state(
+        &reverse_control_tx, (uint8_t)CARTEST_TRACK_PROFILE,
+        car_control_state.follow_session_active, follow_session_token,
+        session_mean_forward_millirev > UINT32_MAX
+            ? UINT32_MAX : (uint32_t)session_mean_forward_millirev);
+
     if (car_control_state.reverse_control_reset_generation !=
         reverse_control_seen_generation) {
         reverse_control_seen_generation =
@@ -2784,8 +3324,8 @@ static void service_reverse_control(uint32_t now_ms)
        single-byte DR-empty condition. Preserve the prior bounded pacing by
        enqueueing at most one protocol byte per main-loop service call. */
     if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_reverse_control_next_byte(&reverse_control_tx, now_ms,
-                                      keep_permitted, &byte) != 0u) {
+        car_reverse_control_next_byte_paired(
+            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
         USART1->TDR = byte;
         if (reverse_control_tx.keep_active != 0u &&
             reverse_keep_notified == 0u) {
@@ -2803,6 +3343,17 @@ static void service_reverse_control(uint32_t now_ms)
     car_reverse_control_keep_active = reverse_control_tx.keep_active;
     car_reverse_control_fresh_frames =
         car_control_state.reverse_control_fresh_frames;
+    car_profile_state_sequence = reverse_control_tx.profile_sequence;
+    car_profile_state_last_tx_ms = reverse_control_tx.profile_last_tx_ms;
+    car_profile_state_tx_count = reverse_control_tx.profile_tx_count;
+    car_profile_state_id = reverse_control_tx.profile_id;
+    car_profile_state_session_active = reverse_control_tx.profile_flags & 1u;
+    car_session_token = follow_session_token;
+    car_session_mean_forward_wheel_millirev =
+        session_mean_forward_millirev > UINT32_MAX
+            ? UINT32_MAX : (uint32_t)session_mean_forward_millirev;
+    car_session_odom_valid_samples = odometry_valid_sample_count;
+    car_session_odom_invalid_samples = odometry_rejected_sample_count;
 }
 
 static void publish_encoder_hardware_snapshot(void)
@@ -2861,11 +3412,16 @@ static void publish_motor_channel_debug_snapshot(void)
     car_motor_left_in2_output_permille = channels.left_in2_permille;
     car_motor_right_in1_output_permille = channels.right_in1_permille;
     car_motor_right_in2_output_permille = channels.right_in2_permille;
+    car_motor_pwm_ccr2 = TIM3->CCR2;
+    car_motor_pwm_ccr3 = TIM3->CCR3;
+    car_motor_pwm_ccer = TIM3->CCER;
+    car_motor_pwm_enabled =
+        (TIM3->CR1 & TIM_CR1_CEN) != 0u &&
+        (TIM3->CCER & APP_MOTOR_CHANNEL_MASK) != 0u ? 1u : 0u;
     __set_PRIMASK(primask);
 }
 
-static void publish_debug_snapshot(uint8_t raw_high,
-                                   const car_inputs_t *inputs)
+static void publish_debug_snapshot(const car_inputs_t *inputs)
 {
     car_run_block_reason_input_t block_reason = {0};
     uint32_t snapshot_now_ms = HAL_GetTick();
@@ -2877,7 +3433,6 @@ static void publish_debug_snapshot(uint8_t raw_high,
 #else
     car_drive_allowed = 0u;
 #endif
-    car_pe7_raw_high = raw_high;
     car_pe7_high_stable = switch_debounce.stable_valid != 0u &&
                           switch_debounce.stable_level != 0u;
     car_pe7_low_stable = switch_debounce.stable_valid != 0u &&
@@ -2898,6 +3453,26 @@ static void publish_debug_snapshot(uint8_t raw_high,
     car_latest_rx_sequence = car_control_state.latest_rx_sequence;
     car_latest_rx_arrival_ms = car_control_state.latest_rx_arrival_ms;
     car_latest_rx_frame_count = car_control_state.latest_rx_frame_count;
+    car_camera_profile_required_ack =
+        app_config.required_camera_profile_ack;
+    car_camera_profile_latest_ack =
+        car_control_state.latest_rx_profile_ack;
+    car_camera_profile_latest_version =
+        car_control_state.latest_rx_protocol_version;
+    car_camera_profile_ack_ready =
+        car_control_camera_profile_ack_ready(
+            &car_control_state, &app_config, snapshot_now_ms);
+    car_camera_profile_ack_seen_after_reset =
+        car_control_state.profile_ack_seen_after_reset;
+    car_camera_profile_ack_age_ms =
+        car_control_state.latest_rx_have_frame != 0u
+            ? snapshot_now_ms -
+                car_control_state.latest_rx_profile_ack_arrival_ms
+            : 0u;
+    car_camera_profile_last_ack_ms =
+        car_control_state.latest_rx_profile_ack_arrival_ms;
+    car_camera_profile_mismatch_count =
+        car_control_state.profile_ack_mismatch_count;
     car_recovery_frame_count = car_control_state.recovery_frame_count;
     car_recovery_active = car_control_state.recovery_active;
     car_auto_recovery_count = car_control_state.auto_recovery_count;
@@ -2963,8 +3538,8 @@ static void publish_debug_snapshot(uint8_t raw_high,
         CARTEST_FOLLOW_SPEED_PI_ENABLED != 0 &&
         CARTEST_HARDWARE_ACCEPTED != 0 &&
         follow_speed_pi_reset_pending == 0u &&
-        follow_speed_pi_state.armed != 0u &&
-        follow_speed_pi_state.status == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
+        APP_FOLLOW_PI_ARMED != 0u &&
+        APP_FOLLOW_PI_STATUS == CAR_FOLLOW_SPEED_PI_STATUS_RUNNING &&
         follow_output_state.startup_qualified != 0u &&
         car_control_state.mode == CAR_MODE_FOLLOW_RUNNING &&
         car_control_state.manual_run_request != 0u &&
@@ -2982,19 +3557,31 @@ static void publish_debug_snapshot(uint8_t raw_high,
         (uint32_t)(snapshot_now_ms - speed_observer_result.sample_ms) <=
             CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS;
     car_speed_pi_compiled = CARTEST_FOLLOW_SPEED_PI_ENABLED;
-    car_speed_pi_status = follow_speed_pi_state.status;
+    car_speed_pi_status = APP_FOLLOW_PI_STATUS;
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+    car_speed_pi_type = CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL;
+    car_speed_pi_accumulator_left_q16 =
+        follow_incremental_pi_state.left.accumulator_q16;
+    car_speed_pi_accumulator_right_q16 =
+        follow_incremental_pi_state.right.accumulator_q16;
+#else
+    car_speed_pi_type = CARTEST_FOLLOW_SPEED_PI_ENABLED
+        ? CAR_SPEED_PI_DIAG_TYPE_POSITION : CAR_SPEED_PI_DIAG_TYPE_NONE;
+    car_speed_pi_accumulator_left_q16 = 0;
+    car_speed_pi_accumulator_right_q16 = 0;
+#endif
     car_speed_pi_target_left_millirps =
-        follow_speed_pi_state.target_left_millirps > 0
-            ? (uint32_t)follow_speed_pi_state.target_left_millirps : 0u;
+        APP_FOLLOW_PI_TARGET_LEFT > 0
+            ? (uint32_t)APP_FOLLOW_PI_TARGET_LEFT : 0u;
     car_speed_pi_target_right_millirps =
-        follow_speed_pi_state.target_right_millirps > 0
-            ? (uint32_t)follow_speed_pi_state.target_right_millirps : 0u;
+        APP_FOLLOW_PI_TARGET_RIGHT > 0
+            ? (uint32_t)APP_FOLLOW_PI_TARGET_RIGHT : 0u;
     car_speed_pi_requested_left_permille =
-        follow_speed_pi_state.proposal_left_permille;
+        APP_FOLLOW_PI_REQUEST_LEFT;
     car_speed_pi_requested_right_permille =
-        follow_speed_pi_state.proposal_right_permille;
-    car_speed_pi_saturated_left = follow_speed_pi_state.saturated_left;
-    car_speed_pi_saturated_right = follow_speed_pi_state.saturated_right;
+        APP_FOLLOW_PI_REQUEST_RIGHT;
+    car_speed_pi_saturated_left = APP_FOLLOW_PI_SATURATED_LEFT;
+    car_speed_pi_saturated_right = APP_FOLLOW_PI_SATURATED_RIGHT;
     car_speed_pi_integral_left_q16 = follow_speed_pi_state.left.integral_q16;
     car_speed_pi_integral_right_q16 = follow_speed_pi_state.right.integral_q16;
     publish_motor_channel_debug_snapshot();
@@ -3050,10 +3637,15 @@ static void publish_debug_snapshot(uint8_t raw_high,
 #endif
     car_follow_diff_mode_permille = CARTEST_FOLLOW_DIFF_PERMILLE;
     car_follow_inner_diff_permille = CARTEST_FOLLOW_INNER_DIFF_PERMILLE;
-    car_follow_profile_id = CARTEST_FOLLOW_SPEED_PI_ENABLED ? 4u :
-        (CARTEST_FOLLOW_TURN_PROFILE_COMPILED ? 3u :
-        (CARTEST_FOLLOW_DIFF_PERMILLE == 0 ? 0u :
-         (CARTEST_FOLLOW_DIFF_PERMILLE == 50 ? 1u : 2u)));
+    car_follow_profile_id = CARTEST_TRACK_PROFILE !=
+                                    CAR_TRACK_PROFILE_LEGACY
+        ? 6u + CARTEST_TRACK_PROFILE :
+        (CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED ? 6u :
+         (CARTEST_FOLLOW_SPEED_PI_ENABLED ? 4u :
+          (CARTEST_FOLLOW_TURN_PROFILE_COMPILED ?
+              (CARTEST_FOLLOW_DIFF_PERMILLE == 150 ? 5u : 3u) :
+           (CARTEST_FOLLOW_DIFF_PERMILLE == 0 ? 0u :
+            (CARTEST_FOLLOW_DIFF_PERMILLE == 50 ? 1u : 2u)))));
     car_follow_diff_u_permille = follow_output_state.differential_u_permille;
     car_follow_outer_delta_permille =
         follow_output_state.outer_delta_permille;
@@ -3248,20 +3840,14 @@ static car_runtime_log_sample_t runtime_log_capture_sample(uint32_t now_ms)
 
     if (sample.mode == (uint8_t)CAR_MODE_FOLLOW_VISION_HOLD) {
         uint32_t hold_elapsed = (uint32_t)(now_ms - vision_last_valid_ms);
-        uint32_t hold_ticks;
         if (hold_elapsed > CAR_CONTROL_VISION_HOLD_MS) {
             hold_elapsed = CAR_CONTROL_VISION_HOLD_MS;
         }
         sample.vision_hold_elapsed_ms = (uint16_t)hold_elapsed;
-        hold_ticks = hold_elapsed / 20u;
-        if (hold_ticks > 50u) {
-            hold_ticks = 50u;
-        }
-        /* Mode 12 retains the fixed record ABI by packing elapsed 20 ms
-           ticks above the low two recovery-frame-count bits. */
-        sample.recovery_frame_count =
-            (uint8_t)((hold_ticks << 2) |
-                      (sample.vision_hold_valid_count & 0x03u));
+        /* Mode 12 retains its 64-byte ABI: 50 ms progress ticks occupy the
+           high six bits and the low two bits retain consecutive recovery. */
+        sample.recovery_frame_count = car_runtime_log_pack_hold_progress(
+            hold_elapsed, sample.vision_hold_valid_count);
     }
     return sample;
 }
@@ -3272,9 +3858,192 @@ static void runtime_log_publish_sample(
 {
     car_runtime_log_sample_t sample = runtime_log_capture_sample(now_ms);
 
+    car_runtime_diag_note_log_update_call();
     car_runtime_log_update(&sample, start_kind);
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+    if (start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW) {
+        const uint32_t start_token = car_runtime_log_last_start_token();
+        if (start_token != 0u &&
+            (speed_pi_trace_session_active == 0u ||
+             start_token != speed_pi_trace_start_token)) {
+            const uint8_t pi_type = CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+                ? CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL
+                : CAR_SPEED_PI_DIAG_TYPE_POSITION;
+            car_speed_pi_trace_begin(start_token, now_ms, pi_type);
+            speed_pi_trace_session_active = 1u;
+            speed_pi_trace_start_token = start_token;
+            speed_pi_trace_have_sample = 0u;
+        }
+    }
+#endif
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+    if (start_kind == CAR_RUNTIME_LOG_SESSION_FOLLOW) {
+        const uint32_t start_token = car_runtime_log_last_start_token();
+        if (start_token != 0u &&
+            (speed_pi_diag_session_active == 0u ||
+             start_token != speed_pi_diag_start_token)) {
+            car_speed_pi_diag_begin(start_token, now_ms,
+                                    CAR_SPEED_PI_DIAG_TYPE_INCREMENTAL);
+            speed_pi_diag_session_active = 1u;
+            speed_pi_diag_start_token = start_token;
+            speed_pi_diag_have_values = 0u;
+            speed_pi_diag_have_observer_sample = 0u;
+        }
+    }
+#endif
 }
 #endif
+
+static void runtime_diag_publish_snapshot(uint32_t now_ms)
+{
+    car_runtime_diag_values_t values = {0};
+    uint32_t primask = __get_PRIMASK();
+
+    /* Capture ISR-visible event counters and applied outputs as one bounded
+       software snapshot. The CRC/cache publication itself runs with IRQs on. */
+    __disable_irq();
+    values.start_events = manual_run_button.start_event_count;
+    values.stop_events = manual_run_button.stop_generation;
+    values.left_output_permille = applied_motor_follow_left_permille;
+    values.right_output_permille = applied_motor_follow_right_permille;
+    values.servo_pulse_us = applied_servo_pulse_us;
+    __set_PRIMASK(primask);
+
+    values.start_token = car_runtime_log_last_start_token();
+    values.cpu_header_state = car_runtime_log_storage.header.state;
+    values.cpu_header_count = car_runtime_log_storage.header.count;
+    values.header_session_id = car_runtime_log_storage.header.session_id;
+    values.uptime_ms = now_ms;
+    values.reset_flags = car_init_rcc_rsr_reset_snapshot;
+    values.log_enabled = (uint8_t)CARTEST_RUNTIME_LOG_ENABLED;
+    (void)car_runtime_diag_update(&values);
+}
+
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+static void ackermann_snapshot_update(uint32_t now_ms)
+{
+    car_ackermann_snapshot_values_t values = {0};
+    uint16_t snapshot_servo_pulse_us = applied_servo_pulse_us;
+    const uint8_t in_hold =
+        car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
+        car_control_state.vision_hold_active != 0u;
+    const uint8_t fault_locked = car_control_state.fault_latched != 0u ||
+                                 car_control_state.fault != CAR_FAULT_NONE;
+    const uint8_t active =
+        car_control_state.manual_run_request != 0u &&
+        car_control_state.follow_session_active != 0u &&
+        fault_locked == 0u &&
+        (car_control_state.mode == CAR_MODE_FOLLOW_RUNNING ||
+         in_hold != 0u);
+    int16_t angle_cdeg = 0;
+    uint16_t ratio_q15 = CAR_ACKERMANN_RATIO_ONE_Q15;
+    int32_t applied_delta;
+
+    if (active == 0u && ackermann_snapshot_session_active == 0u) {
+        return;
+    }
+    if (active != 0u && ackermann_snapshot_session_active == 0u) {
+        ackermann_snapshot_last_valid_servo_pulse_us = 0u;
+    }
+    if (active != 0u && ackermann_snapshot_session_active != 0u &&
+        (uint32_t)(now_ms - ackermann_snapshot_last_publish_ms) < 10u) {
+        return;
+    }
+
+    if (active != 0u && servo_output_active != 0u &&
+        servo_safety.frame_ready != 0u &&
+        snapshot_servo_pulse_us >= app_config.follow_servo_left_us &&
+        snapshot_servo_pulse_us <= app_config.follow_servo_right_us) {
+        ackermann_snapshot_last_valid_servo_pulse_us =
+            snapshot_servo_pulse_us;
+    } else if (ackermann_snapshot_last_valid_servo_pulse_us != 0u) {
+        /* Freeze/servo restart records retain the last physically published
+           pulse; a stopped TIM1 compare of zero is not a valid model input. */
+        snapshot_servo_pulse_us =
+            ackermann_snapshot_last_valid_servo_pulse_us;
+    } else if (active != 0u) {
+        /* Do not claim an applied steering sample before the first full frame. */
+        return;
+    } else {
+        snapshot_servo_pulse_us = app_config.servo_center_us;
+    }
+
+    if (car_ackermann_model_geometry(
+            snapshot_servo_pulse_us, app_config.servo_center_us,
+            app_config.follow_servo_left_us,
+            app_config.follow_servo_right_us,
+            &angle_cdeg, &ratio_q15) == 0u) {
+        angle_cdeg = 0;
+        ratio_q15 = CAR_ACKERMANN_RATIO_ONE_Q15;
+    }
+    applied_delta = (int32_t)snapshot_servo_pulse_us -
+                    (int32_t)app_config.servo_center_us;
+
+    values.flags = 0u;
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+    values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_COORD_ENABLED;
+#endif
+    values.curve_phase = car_control_state.vision_curve_phase;
+    values.slowdown_request_permille =
+        car_control_state.vision_slowdown_request_permille;
+    if (values.slowdown_request_permille != 0u) {
+        values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_REQUEST_ACTIVE;
+    }
+    if (in_hold != 0u) {
+        values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_IN_HOLD;
+    }
+    if (fault_locked != 0u) {
+        values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_FAULT_LOCKED;
+    }
+    if (active != 0u) {
+        values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_SESSION_ACTIVE;
+    } else {
+        values.flags |= CAR_ACKERMANN_SNAPSHOT_FLAG_FROZEN;
+    }
+    values.timestamp_ms = now_ms;
+    values.vision_sequence = car_control_state.have_sequence != 0u
+        ? car_control_state.vision_sequence : 0u;
+    values.model_angle_cdeg = angle_cdeg;
+    values.ratio_q15 = ratio_q15;
+    values.applied_pwm_delta_us = (int16_t)applied_delta;
+    values.servo_pulse_us = snapshot_servo_pulse_us;
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED
+    values.fastest_target_millirps =
+        ackermann_control_output.fastest_target_millirps;
+    values.left_target_millirps =
+        ackermann_control_output.left_target_millirps;
+    values.right_target_millirps =
+        ackermann_control_output.right_target_millirps;
+#else
+    values.left_target_millirps = APP_FOLLOW_PI_TARGET_LEFT;
+    values.right_target_millirps = APP_FOLLOW_PI_TARGET_RIGHT;
+    values.fastest_target_millirps =
+        values.left_target_millirps > values.right_target_millirps
+            ? values.left_target_millirps : values.right_target_millirps;
+#endif
+    values.left_measured_millirps = speed_observer_result.left_millirps;
+    values.right_measured_millirps = speed_observer_result.right_millirps;
+    values.left_duty_permille = applied_motor_follow_left_permille;
+    values.right_duty_permille = applied_motor_follow_right_permille;
+    values.run_state = (uint8_t)car_control_state.mode;
+    values.fault_reason = (uint8_t)car_control_state.fault;
+    car_ackermann_snapshot_publish(g_ackermann_snapshot, &values);
+    ackermann_snapshot_last_publish_ms = now_ms;
+    ackermann_snapshot_session_active = active;
+}
+#endif
+
+static HAL_StatusTypeDef speed_pi_trace_sram_enable(void)
+{
+    uint32_t enabled;
+
+    /* D2 SRAM1 is clock-gated on this device. The trace section is NOLOAD, so
+       explicitly enable and read back its clock before any trace access. */
+    RCC->AHB2ENR |= RCC_AHB2ENR_D2SRAM1EN;
+    enabled = RCC->AHB2ENR;
+    __DSB();
+    return (enabled & RCC_AHB2ENR_D2SRAM1EN) != 0u ? HAL_OK : HAL_ERROR;
+}
 
 int main(void)
 {
@@ -3292,12 +4061,16 @@ int main(void)
 #endif
     car_inputs_t inputs;
 
+    car_ackermann_snapshot_reset(g_ackermann_snapshot);
     car_runtime_log_enabled = (uint32_t)CARTEST_RUNTIME_LOG_ENABLED;
     car_config_init_application(
         &app_config, (uint8_t)CARTEST_BENCH_MODE_COMPILED,
         (uint8_t)CARTEST_STEERING_MODE_COMPILED,
         (uint8_t)CARTEST_FOLLOW_MODE_COMPILED,
         (uint8_t)CARTEST_HARDWARE_ACCEPTED);
+    car_camera_profile_required_ack =
+        app_config.required_camera_profile_ack;
+    reset_session_odometry();
     car_servo_safety_init(&servo_safety);
     servo_safety_io = (car_servo_safety_io_t){
         .context = 0,
@@ -3393,6 +4166,15 @@ int main(void)
 #else
     car_runtime_log_invalidate();
 #endif
+    init_status = speed_pi_trace_sram_enable();
+    if (init_status != HAL_OK) {
+        init_failure(CAR_FAULT_CONFIG, CAR_INIT_ERROR_TRACE_SRAM, init_status);
+    }
+    car_speed_pi_trace_init();
+    car_receive_diag_init(HAL_GetTick());
+    car_speed_pi_diag_init();
+    car_runtime_diag_init(car_init_rcc_rsr_reset_snapshot,
+                          (uint8_t)CARTEST_RUNTIME_LOG_ENABLED);
 
     car_init_stage = (uint32_t)CAR_INIT_STAGE_READY;
     car_init_hal_status = (uint32_t)HAL_OK;
@@ -3466,9 +4248,9 @@ int main(void)
                 applied_motor_follow_right_permille != 0u;
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
             if (observer_base_expected != 0u &&
-                follow_speed_pi_state.armed != 0u &&
-                follow_speed_pi_state.target_left_millirps > 0 &&
-                follow_speed_pi_state.target_right_millirps > 0) {
+                APP_FOLLOW_PI_ARMED != 0u &&
+                APP_FOLLOW_PI_TARGET_LEFT > 0 &&
+                APP_FOLLOW_PI_TARGET_RIGHT > 0) {
                 /* A zero-coast correction must not hide an encoder stall. */
                 observer_motion_expected = 1u;
             }
@@ -3479,6 +4261,7 @@ int main(void)
                 car_encoder_diag.right_raw_delta_sum,
                 observer_motion_expected, &speed_observer_result);
         }
+        update_session_odometry();
 
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
         consume_fast_stop_latch();
@@ -3545,6 +4328,32 @@ int main(void)
             car_control_state.fault_latched == 0u) {
             car_servo_safety_acknowledge(&servo_safety);
         }
+        if (follow_start_event != 0u &&
+            app_config.follow_mode_compiled != 0u) {
+            uint8_t manual_start_accepted = 0u;
+            uint32_t start_event_primask = __get_PRIMASK();
+            __disable_irq();
+            /* Rebuild the inputs while the ISR button/fast-stop state is
+               stable; the earlier loop snapshot may predate a physical stop. */
+            inputs = make_inputs(HAL_GetTick(), pe7_is_high(), loop_gap_fault);
+            if (manual_run_button.run_request != 0u &&
+                manual_run_button.stop_pending == 0u &&
+                manual_run_button.start_pending == 0u) {
+                manual_start_accepted =
+                    car_control_begin_manual_follow_start(
+                        &car_control_state, &app_config, &inputs);
+            }
+            __set_PRIMASK(start_event_primask);
+            if (manual_start_accepted != 0u) {
+                ++follow_session_token;
+                if (follow_session_token == 0u) {
+                    ++follow_session_token;
+                }
+                reset_session_odometry();
+                /* A previous local KEEP may have left applied outputs active. */
+                emergency_stop_hardware();
+            }
+        }
         enforce_motor_hardware_lock();
         if (car_control_state.rx_recovery_flush_required != 0u) {
             flush_uart_and_parser();
@@ -3555,7 +4364,10 @@ int main(void)
             /* A late third route frame may resume the session logically, but
                it cannot reuse outputs from the expired hold. Stop TIM3 now,
                complete the servo pulse stop path, then require a new first
-               servo frame and fresh motor ramp. */
+               servo frame and fresh motor ramp. Close controller permission
+               in this loop before any output stage can reuse the old frame. */
+            car_control_state.road_drive_allowed = 0u;
+            car_control_state.follow_output_duty_permille = 0u;
             emergency_stop_hardware();
             follow_ramp_started = 0u;
             car_follow_output_reset(&follow_output_state);
@@ -3565,10 +4377,22 @@ int main(void)
         prepare_follow_motor_targets(HAL_GetTick());
         motor_apply();
         note_applied_output_snapshot();
-        publish_debug_snapshot(raw_high, &inputs);
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+        ackermann_snapshot_update(HAL_GetTick());
+#endif
+        publish_debug_snapshot(&inputs);
 #if CARTEST_RUNTIME_LOG_ENABLED
         runtime_log_publish_sample(HAL_GetTick(), runtime_log_start_kind);
 #endif
+#if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
+        speed_pi_diag_publish(HAL_GetTick(), 1u, 0u);
+#endif
+#if CARTEST_FOLLOW_SPEED_PI_ENABLED
+        speed_pi_trace_publish_sample();
+        speed_pi_trace_freeze_if_stopped(HAL_GetTick());
+#endif
+        car_receive_diag_publish(HAL_GetTick());
+        runtime_diag_publish_snapshot(HAL_GetTick());
         iwdg_refresh();
     }
 }

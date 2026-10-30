@@ -1,0 +1,397 @@
+diff --git a/ports/stm32/stm_jpeg.c b/ports/stm32/stm_jpeg.c
+--- a/ports/stm32/stm_jpeg.c
++++ b/ports/stm32/stm_jpeg.c
+@@ -30,10 +30,12 @@
+ 
+ #include "py/mphal.h"
+ #include "py/runtime.h"
++#include "py/nlr.h"
+ 
+ #include STM32_HAL_H
+ #include "irq.h"
+ #include "stm_dma.h"
++#include "jpeg_preview_guard_cleanup.h"
+ 
+ #if (OMV_VENC_CODEC_ENABLE == 1)
+ #include "jpegencapi.h"
+@@ -53,6 +55,9 @@
+     volatile uint32_t out_data_len;
+     volatile bool input_paused;
+     volatile bool output_paused;
++    bool compress_abort_failed;
++    void *quarantined_mcu_row_buffer;
++    void *quarantined_dst_buffer;
+     JPEG_HandleTypeDef jpeg_descr;
+     #if defined(OMV_MDMA_CHANNEL_JPEG_IN)
+     MDMA_HandleTypeDef mdma_descr[2];
+@@ -60,6 +65,21 @@
+ } jpeg_state_t;
+ 
+ static jpeg_state_t JPEG_state = {};
++static uint32_t jpeg_encode_timeout_ms = JPEG_CODEC_TIMEOUT;
++
++uint32_t jpeg_get_encode_timeout_ms(void) {
++    return jpeg_encode_timeout_ms;
++}
++
++// Return false and preserve the previous value when the requested limit is invalid.
++bool jpeg_set_encode_timeout_ms(uint32_t timeout_ms) {
++    if (!jpeg_preview_guard_timeout_valid(timeout_ms, JPEG_CODEC_TIMEOUT)) {
++        return false;
++    }
++
++    jpeg_encode_timeout_ms = timeout_ms;
++    return true;
++}
+ 
+ // JIFF-APP0 header designed to be injected at the start of the JPEG byte stream.
+ // Contains a variable sized COM header at the end for cache alignment.
+@@ -113,8 +133,8 @@
+         return JPEG_ERR_UNSUPPORTED;
+     }
+ 
+-    uint32_t alloc_size = dst->size;
+-    bool owned = false;
++    volatile uint32_t alloc_size = dst->size;
++    volatile bool owned = false;
+ 
+     JpegEncCfg cfg = {
+         .inputWidth = (u32) src->w,
+@@ -136,14 +156,35 @@
+     };
+ 
+     int jpeg_error = 0;
+-    JpegEncInst inst = {};
+-
+-    if (JpegEncInit(&cfg, &inst) != JPEGENC_OK) {
++    volatile JpegEncInst inst = NULL;
++    volatile bool inst_active = false;
++    uint32_t timeout_ms = jpeg_encode_timeout_ms;
++    nlr_buf_t nlr;
++
++    if (nlr_push(&nlr) != 0) {
++        void *exception = nlr.ret_val;
++        if (inst_active) {
++            JpegEncRelease((JpegEncInst) inst);
++        }
++        if (owned && dst->data) {
++            uma_free(dst->data);
++            dst->size = 0;
++            dst->data = NULL;
++        } else if (!owned) {
++            dst->size = alloc_size;
++        }
++        nlr_jump(exception);
++    }
++
++    JpegEncInst new_inst = NULL;
++    if (JpegEncInit(&cfg, &new_inst) != JPEGENC_OK) {
+         jpeg_error = JPEG_ERR_FAILED;
+         goto exit_cleanup;
+     }
+-
+-    if (JpegEncSetPictureSize(inst, &cfg) != JPEGENC_OK) {
++    inst = new_inst;
++    inst_active = true;
++
++    if (JpegEncSetPictureSize((JpegEncInst) inst, &cfg) != JPEGENC_OK) {
+         jpeg_error = JPEG_ERR_FAILED;
+         goto exit_cleanup;
+     }
+@@ -178,23 +219,27 @@
+     for (mp_uint_t tickstart = mp_hal_ticks_ms(); ret == JPEGENC_RESTART_INTERVAL; ) {
+         mp_uint_t elapsed = mp_hal_ticks_ms() - tickstart;
+ 
+-        if (elapsed > JPEG_CODEC_TIMEOUT) {
++        if (elapsed > timeout_ms) {
+             jpeg_error = JPEG_ERR_FAILED;
+             goto exit_cleanup;
+         }
+ 
+-        ret = JpegEncEncode(inst, &encIn, &encOut, NULL, NULL);
++        ret = JpegEncEncode((JpegEncInst) inst, &encIn, &encOut, NULL, NULL);
+ 
+         // Retry on errors that may be transient due to HW state (e.g. bus error or timeout).
+         if (ret == JPEGENC_HW_BUS_ERROR || ret == JPEGENC_HW_TIMEOUT) {
+-            JpegEncRelease(inst);
+-
+-            if (JpegEncInit(&cfg, &inst) != JPEGENC_OK) {
++            JpegEncRelease((JpegEncInst) inst);
++            inst_active = false;
++
++            new_inst = NULL;
++            if (JpegEncInit(&cfg, &new_inst) != JPEGENC_OK) {
+                 jpeg_error = JPEG_ERR_FAILED;
+                 goto exit_cleanup;
+             }
+-
+-            if (JpegEncSetPictureSize(inst, &cfg) != JPEGENC_OK) {
++            inst = new_inst;
++            inst_active = true;
++
++            if (JpegEncSetPictureSize((JpegEncInst) inst, &cfg) != JPEGENC_OK) {
+                 jpeg_error = JPEG_ERR_FAILED;
+                 goto exit_cleanup;
+             }
+@@ -229,7 +274,10 @@
+ 
+ exit_cleanup:
+ 
+-    JpegEncRelease(inst);
++    if (inst_active) {
++        JpegEncRelease((JpegEncInst) inst);
++        inst_active = false;
++    }
+ 
+     if (jpeg_error && owned) {
+         uma_free(dst->data);
+@@ -237,6 +285,7 @@
+         dst->data = NULL;
+     }
+ 
++    nlr_pop();
+     return jpeg_error;
+ }
+ #endif // OMV_VENC_CODEC_ENABLE
+@@ -297,6 +346,76 @@
+     }
+ }
+ 
++typedef struct jpeg_compress_cleanup_context {
++    image_t *dst;
++    uint8_t *mcu_row_buffer;
++    bool owned_dst;
++    bool discard_dst;
++    uint32_t original_dst_size;
++} jpeg_compress_cleanup_context_t;
++
++static bool jpeg_compress_abort(void *context) {
++    (void) context;
++    return HAL_JPEG_Abort(&JPEG_state.jpeg_descr) == HAL_OK;
++}
++
++static void jpeg_compress_unbind_callbacks(void *context) {
++    (void) context;
++    if (HAL_JPEG_UnRegisterDataReadyCallback(&JPEG_state.jpeg_descr) != HAL_OK) {
++        JPEG_state.jpeg_descr.DataReadyCallback = HAL_JPEG_DataReadyCallback;
++    }
++    if (HAL_JPEG_UnRegisterGetDataCallback(&JPEG_state.jpeg_descr) != HAL_OK) {
++        JPEG_state.jpeg_descr.GetDataCallback = HAL_JPEG_GetDataCallback;
++    }
++}
++
++static void jpeg_compress_release_buffers(void *context) {
++    jpeg_compress_cleanup_context_t *cleanup = context;
++
++    if (cleanup->mcu_row_buffer) {
++        uma_free(cleanup->mcu_row_buffer);
++        cleanup->mcu_row_buffer = NULL;
++    }
++
++    if (cleanup->discard_dst) {
++        if (cleanup->owned_dst && cleanup->dst->data) {
++            uma_free(cleanup->dst->data);
++            cleanup->dst->data = NULL;
++            cleanup->dst->size = 0;
++        } else if (!cleanup->owned_dst) {
++            cleanup->dst->size = cleanup->original_dst_size;
++        }
++    }
++}
++
++static bool jpeg_compress_cleanup(image_t *dst, uint8_t *mcu_row_buffer, bool owned_dst,
++                                  uint32_t original_dst_size, bool discard_dst) {
++    jpeg_compress_cleanup_context_t cleanup = {
++        .dst = dst,
++        .mcu_row_buffer = mcu_row_buffer,
++        .owned_dst = owned_dst,
++        .discard_dst = discard_dst,
++        .original_dst_size = original_dst_size,
++    };
++
++    bool stopped = jpeg_preview_guard_cleanup(&cleanup, jpeg_compress_abort,
++                                               jpeg_compress_unbind_callbacks,
++                                               jpeg_compress_release_buffers);
++    if (!stopped) {
++        // Keep DMA-referenced storage alive if HAL could not confirm that it stopped.
++        JPEG_state.compress_abort_failed = true;
++        JPEG_state.quarantined_mcu_row_buffer = mcu_row_buffer;
++        JPEG_state.quarantined_dst_buffer = dst->data;
++        if (owned_dst && dst->data) {
++            dst->data = NULL;
++            dst->size = 0;
++        } else if (!owned_dst) {
++            dst->size = original_dst_size;
++        }
++    }
++    return stopped;
++}
++
+ int jpeg_compress(image_t *src, image_t *dst, int quality, jpeg_subsampling_t subsampling) {
+     if (src->is_compressed) {
+         return -1;
+@@ -310,8 +429,34 @@
+     }
+     #endif // OMV_VENC_CODEC_ENABLE
+ 
+-    HAL_JPEG_RegisterGetDataCallback(&JPEG_state.jpeg_descr, jpeg_compress_get_data);
+-    HAL_JPEG_RegisterDataReadyCallback(&JPEG_state.jpeg_descr, jpeg_compress_data_ready);
++    if (JPEG_state.compress_abort_failed) {
++        return -1;
++    }
++
++    uint32_t timeout_ms = jpeg_encode_timeout_ms;
++    uint8_t * volatile mcu_row_buffer = NULL;
++    volatile bool owned = false;
++    volatile bool callbacks_registered = false;
++    volatile uint32_t alloc_size = dst->size;
++    bool jpeg_overflow = false;
++    bool cleanup_ok = false;
++    nlr_buf_t nlr;
++
++    if (nlr_push(&nlr) != 0) {
++        void *exception = nlr.ret_val;
++        if (callbacks_registered) {
++            jpeg_compress_cleanup(dst, (uint8_t *) mcu_row_buffer, owned,
++                                  alloc_size, true);
++        }
++        nlr_jump(exception);
++    }
++
++    callbacks_registered = true;
++    if ((HAL_JPEG_RegisterGetDataCallback(&JPEG_state.jpeg_descr, jpeg_compress_get_data) != HAL_OK) ||
++        (HAL_JPEG_RegisterDataReadyCallback(&JPEG_state.jpeg_descr, jpeg_compress_data_ready) != HAL_OK)) {
++        jpeg_overflow = true;
++        goto exit_cleanup;
++    }
+ 
+     int mcu_size = 0;
+     JPEG_ConfTypeDef JPEG_Info;
+@@ -342,7 +487,8 @@
+                 JPEG_Info.ChromaSubsampling = JPEG_422_SUBSAMPLING;
+             } else if (subsampling == JPEG_SUBSAMPLING_420) {
+                 // not supported
+-                return -1;
++                jpeg_overflow = true;
++                goto exit_cleanup;
+             }
+             break;
+         default:
+@@ -358,11 +504,7 @@
+     int src_w_mcus_bytes = src_w_mcus * mcu_size;
+     int src_w_mcus_bytes_2 = src_w_mcus_bytes * 2;
+ 
+-    uint32_t alloc_size = dst->size;
+-    bool owned = false;
+-    bool jpeg_overflow = false;
+-
+-    uint8_t *mcu_row_buffer = uma_malloc(src_w_mcus_bytes_2, UMA_FAST | UMA_CACHE);
++    mcu_row_buffer = uma_malloc(src_w_mcus_bytes_2, UMA_FAST | UMA_CACHE);
+ 
+     // Allocate the output buffer, after the MCU row buffer.
+     if (!dst->data) {
+@@ -508,12 +650,12 @@
+             // Wait for the last row MCUs to be processed before starting the next row.
+             for (mp_uint_t tickstart = mp_hal_ticks_ms(); !JPEG_state.input_paused; ) {
+                 mp_uint_t elapsed = mp_hal_ticks_ms() - tickstart;
+-                if (JPEG_state.output_paused || (elapsed > JPEG_CODEC_TIMEOUT)) {
++                if (JPEG_state.output_paused || (elapsed > timeout_ms)) {
+                     memset(&JPEG_state.jpeg_descr.Conf, 0, sizeof(JPEG_ConfTypeDef));
+                     jpeg_overflow = true;
+                     goto exit_cleanup;
+                 }
+-                mp_event_wait_ms(JPEG_CODEC_TIMEOUT - elapsed);
++                mp_event_wait_ms(timeout_ms - elapsed);
+             }
+ 
+             // Reset the lock.
+@@ -530,12 +672,12 @@
+     for (mp_uint_t tickstart = mp_hal_ticks_ms();
+          HAL_JPEG_GetState(&JPEG_state.jpeg_descr) == HAL_JPEG_STATE_BUSY_ENCODING; ) {
+         mp_uint_t elapsed = mp_hal_ticks_ms() - tickstart;
+-        if (JPEG_state.output_paused || (elapsed > JPEG_CODEC_TIMEOUT)) {
++        if (JPEG_state.output_paused || (elapsed > timeout_ms)) {
+             memset(&JPEG_state.jpeg_descr.Conf, 0, sizeof(JPEG_ConfTypeDef));
+             jpeg_overflow = true;
+             goto exit_cleanup;
+         }
+-        mp_event_wait_ms(JPEG_CODEC_TIMEOUT - elapsed);
++        mp_event_wait_ms(timeout_ms - elapsed);
+     }
+ 
+     // Set output size.
+@@ -570,21 +712,11 @@
+     }
+ 
+ exit_cleanup:
+-    // Cleanup jpeg state.
+-    HAL_JPEG_Abort(&JPEG_state.jpeg_descr);
+-    HAL_JPEG_UnRegisterDataReadyCallback(&JPEG_state.jpeg_descr);
+-    HAL_JPEG_UnRegisterGetDataCallback(&JPEG_state.jpeg_descr);
+-
+-    uma_free(mcu_row_buffer); // after DMA is aborted
+-
+     // A truncated JPEG is of no use to the caller, so don't return one.
+-    if (jpeg_overflow && owned) {
+-        uma_free(dst->data);
+-        dst->size = 0;
+-        dst->data = NULL;
+-    }
+-
+-    return jpeg_overflow ? -1 : 0;
++    cleanup_ok = jpeg_compress_cleanup(dst, (uint8_t *) mcu_row_buffer, owned,
++                                       alloc_size, jpeg_overflow);
++    nlr_pop();
++    return (jpeg_overflow || !cleanup_ok) ? -1 : 0;
+ }
+ 
+ static void jpeg_decompress_data_ready_abort(JPEG_HandleTypeDef *hjpeg, uint8_t *pDataOut, uint32_t OutDataLength) {
+diff --git a/lib/imlib/imlib.h b/lib/imlib/imlib.h
+--- a/lib/imlib/imlib.h
++++ b/lib/imlib/imlib.h
+@@ -1271,6 +1271,10 @@
+                   int8_t *Y0, int8_t *CB, int8_t *CR);
+ void jpeg_decompress(image_t *dst, image_t *src);
+ int jpeg_compress(image_t *src, image_t *dst, int quality, jpeg_subsampling_t subsampling);
++#if (OMV_JPEG_CODEC_ENABLE == 1)
++uint32_t jpeg_get_encode_timeout_ms(void);
++bool jpeg_set_encode_timeout_ms(uint32_t timeout_ms);
++#endif
+ bool jpeg_is_valid(image_t *img);
+ int jpeg_clean_trailing_bytes(int bpp, uint8_t *data);
+ void jpeg_read_geometry(file_t *fp, image_t *img, const char *path, jpg_read_settings_t *rs);
+diff --git a/ports/stm32/jpeg_preview_guard_cleanup.h b/ports/stm32/jpeg_preview_guard_cleanup.h
+new file mode 100644
+--- /dev/null
++++ b/ports/stm32/jpeg_preview_guard_cleanup.h
+@@ -0,0 +1,30 @@
++#ifndef JPEG_PREVIEW_GUARD_CLEANUP_H
++#define JPEG_PREVIEW_GUARD_CLEANUP_H
++
++#include <stdbool.h>
++#include <stdint.h>
++
++typedef bool (*jpeg_preview_guard_abort_fn_t)(void *context);
++typedef void (*jpeg_preview_guard_action_fn_t)(void *context);
++
++static inline bool jpeg_preview_guard_timeout_valid(uint32_t timeout_ms, uint32_t maximum_ms) {
++    return (timeout_ms >= 1U) && (timeout_ms <= maximum_ms);
++}
++
++/* Never release DMA-referenced memory until the abort callback confirms stop. */
++static inline bool jpeg_preview_guard_cleanup(void *context,
++                                             jpeg_preview_guard_abort_fn_t abort_fn,
++                                             jpeg_preview_guard_action_fn_t unbind_fn,
++                                             jpeg_preview_guard_action_fn_t release_fn) {
++    bool stopped = abort_fn(context);
++    unbind_fn(context);
++
++    if (!stopped) {
++        return false;
++    }
++
++    release_fn(context);
++    return true;
++}
++
++#endif

@@ -15,25 +15,115 @@ SEND_PERIOD_MS = 50
 # the explicit historical V4 entry and is not a V7 send gate.
 PERF_WINDOW_MS = 10000
 PERF_WINDOW_HISTOGRAM_MS = 1
-PERF_GC_PERIOD_FRAMES = 30
+PERF_GC_PERIOD_FRAMES = 120
+PERF_GC_MAX_INTERVAL_FRAMES = 120
+PERF_GC_MIN_FREE_BYTES = 1024 * 1024
 V7_UART_WRITE_RESERVE_US = 22000  # UART 20 ms timeout plus 2 ms guard.
 DEBUG_ENABLED = True
 # Keep grayscale frames unmodified for calibration by setting this False.
 OVERLAY_ENABLED = True
-OVERLAY_PERIOD_MS = 100  # Detailed text refresh only; drawing is per frame.
+# Candidate USB preview is independent from H743 control and route logic.
+USB_PREVIEW_ENABLED = True
+USB_PREVIEW_QUALITY = 10
+USB_PREVIEW_OVERLAY_MODE = "compact"
+USB_PREVIEW_BUILD_ID = "OPENMV_USB60_CANDIDATE_20261024"
+# Enable only for opt-in visible-IDE cadence measurements. The marker is
+# drawn after perception and control have consumed the grayscale frame.
+PREVIEW_FPS_MARKER_ENABLED = False
+OVERLAY_PERIOD_MS = 200  # Detailed text refresh only; drawing is per frame.
 DEBUG_PERIOD_MS = 1000
 # Optional diagnostic output only.
 DEBUG_ROW_DETAILS = True
-BUILD_ID = "CACHED_WIDTH_RING_20261014"
+# The coordinated profile uses PD plus confirmed adaptive preview and the
+# independent speed-request stage. geometry_perf_only retains the same PD and
+# preview behavior with the prior .35/100 preview bounds and no speed request.
+STEERING_CONTROL_PROFILE = "coordinated"
+STEERING_CONTROL_PROFILE_BUILD_IDS = (
+    ("no_pd", "OPENMV_ACKERMANN320_NO_PD_20261022"),
+    ("pd", "OPENMV_ACKERMANN320_PD_20261022"),
+    ("pd_preview", "OPENMV_ACKERMANN320_COORDINATED_20261022"),
+    ("geometry_perf_only", "OPENMV_ACKERMANN320_GEOMETRY_PERF_ONLY_20261022"),
+    ("coordinated", "OPENMV_ACKERMANN320_COORDINATED_20261022"),
+)
+BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
+    STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_EXIT_V26R13_20261031"
+# Vehicle behavior profiles are selected by the H743 and acknowledged in the
+# V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
+# revision-1 V2 profile-state frame arrives.
+VEHICLE_PROFILE_UNKNOWN = 0
+VEHICLE_PROFILE_A = 1  # Ring disabled.
+VEHICLE_PROFILE_B = 2  # Ring enabled, base speed profile.
+VEHICLE_PROFILE_C = 3  # Ring enabled, faster speed profile.
+RING_ENABLED_PROFILE_IDS = (VEHICLE_PROFILE_B, VEHICLE_PROFILE_C)
+PROFILE_STATE_REVISION = 1
+PROFILE_STATE_TIMEOUT_MS = 250
+CAMERA_UART_DIAG_ENABLED = True
+CAMERA_UART_DIAG_INTERVAL_MS = 1000
+CAMERA_UART_DIAG_BUILD_CODE = 0x20261030
+
+# Bounded element-tracker settings. These conservative software defaults are
+# adjustable; they are not thresholds calibrated against a recorded track run.
+TRACK_ELEMENTS_MAX_ENTRY_MS = 4000
+TRACK_ELEMENTS_RING_HANDOFF_MAX_CENTER_DELTA_X2 = 12
+TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS = 2000
+TRACK_ELEMENTS_MAX_ACTIVE_MS = 16000
+TRACK_ELEMENTS_MAX_ACTIVE_MILLIREV = 60000
+TRACK_ELEMENTS_NEAR_ROWS = 12
+TRACK_ELEMENTS_MIN_NEAR_SUPPORT = 5
+TRACK_ELEMENTS_MIN_NEAR_CONTIGUOUS = 4
+TRACK_ELEMENTS_MIN_STABLE_FRAMES = 3
+TRACK_ELEMENTS_MIN_SIDE_SUPPORT = 5
+TRACK_ELEMENTS_MIN_SIDE_CONTIGUOUS = 4
+TRACK_ELEMENTS_MAX_MISSING_SIDE_ROWS = 1
+TRACK_ELEMENTS_MIN_DROP_FRAMES = 2
+TRACK_ELEMENTS_OPPOSITE_POSITION_TOLERANCE_X2 = 6
+TRACK_ELEMENTS_REAPPEAR_SHIFT_X2 = 8
+TRACK_ELEMENTS_PEAK_REVERSAL_X2 = 6
+TRACK_ELEMENTS_PEAK_CONFIRM_FRAMES = 2
+TRACK_ELEMENTS_RING_ENTRY_MIN_NEAR_SUPPORT = 4
+TRACK_ELEMENTS_RING_ENTRY_MIN_NEAR_CONTIGUOUS = 3
+TRACK_ELEMENTS_RING_ENTRY_OPPOSITE_POSITION_TOLERANCE_X2 = 10
+TRACK_ELEMENTS_RING_ENTRY_REAPPEAR_SHIFT_X2 = 6
+TRACK_ELEMENTS_RING_ARC_MIN_ROWS = 4
+TRACK_ELEMENTS_RING_ARC_MIN_CONTIGUOUS_ROWS = 3
+TRACK_ELEMENTS_RING_ARC_MIN_SPAN_ROWS = 4
+TRACK_ELEMENTS_RING_ARC_MIN_GROWTH_X2 = 2
+TRACK_ELEMENTS_RING_ARC_GROWING_SUPPORT_FRAMES = 3
+TRACK_ELEMENTS_MIN_TARGET_ROWS = 5
+TRACK_ELEMENTS_MAX_CACHE_GAP = 3
+TRACK_ELEMENTS_EXIT_DROP_FRAMES = 3
+TRACK_ELEMENTS_EXIT_CONFIRM_FRAMES = 4
+TRACK_ELEMENTS_EXIT_REPAIR_FRAMES = 4
+TRACK_ELEMENTS_EXIT_WIDTH_TOLERANCE_CELLS = 6
+TRACK_ELEMENTS_EXIT_CENTER_TOLERANCE_X2 = 12
+TRACK_ELEMENTS_REACQUIRE_FRAMES = 3
+TRACK_ELEMENTS_CROSS_CONFIRM_FRAMES = 2
+TRACK_ELEMENTS_CROSS_MIN_OPEN_ROWS = 3
+TRACK_ELEMENTS_CROSS_OPEN_MIN_CELLS = 3
+TRACK_ELEMENTS_CROSS_SYMMETRY_TOL_CELLS = 2
+TRACK_ELEMENTS_CROSS_CENTER_TOLERANCE_X2 = 6
+TRACK_ELEMENTS_CROSS_WIDTH_TOLERANCE_CELLS = 6
+
+STEERING_DIAG_ENABLED = True
+RING_DIAGNOSTICS_ENABLED = True
+# Fixed 115200-byte pre/failure/post raw capture; write only after Follow stops.
+RING_OUTER_FAILURE_RAW_ENABLED = True
+RING_DIAGNOSTICS_PATH = "ring_diagnostics.bin"
+RING_WIDTH_CALIBRATION_PATH = "ring_width_calibration.json"
+RING_WIDTH_CALIBRATION_REQUIRED = True
 V7_RUNTIME_API_VERSION = 7
 SINGLEEDGE_RUNTIME_API_VERSION = 2
 SINGLE_EDGE_ROUTE_MODE = "cached_width"
 LEGACY_BUILD_ID = "SIXTH_V4_BOUNDARY_GUARD_20261003"
 VISION_BACKEND = "fast"  # Explicit diagnostics: "compare"; V4: "legacy".
+CONTOUR_RECOVERY_ENABLED = True  # Bounded Python fallback for eligible path misses.
 
-FRAME_SIZE_NAME = "QQVGA"
-IMAGE_WIDTH = 160
+FRAME_SIZE_NAME = "QVGA"
+IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 120
+SENSOR_WINDOW_X = 0
+SENSOR_WINDOW_Y = 60
 AUTO_EXPOSURE = True
 AUTO_EXPOSURE_MAX_US = 10000  # V7 exposure cap; compare keeps legacy AEC.
 EXPOSURE_US = 10000  # Used only when AUTO_EXPOSURE is False.
@@ -47,14 +137,45 @@ SURFACE_MODE = "gray_unified"
 SURFACE_MODES = ("gray_unified",)
 SURFACE_GRID_WIDTH = 80
 SURFACE_GRID_HEIGHT = 60
-SURFACE_PIXEL_SCALE = 2
+SURFACE_PIXEL_SCALE_X = 4
+SURFACE_PIXEL_SCALE_Y = 2
 SURFACE_ROI_FLOOR_Y = 8  # Full-resolution y=16; preserves the upper turn band.
-# Full-frame weighting split: grid y=18 maps to full-resolution y=36.
-STEERING_SPLIT_IMAGE_Y = 36
-STEERING_SPLIT_GRID_Y = 18
-STEERING_FAR_WEIGHT = 0.20
-STEERING_NEAR_WEIGHT = 0.80
-TURN_RESPONSE_VERSION = "LOWER70_UPPER30_V1"
+# Q6-independent fixed point row weights. Entry y is the mean of the two
+# original 320x120 crop rows covered by grid row y (4x2 minpool).
+STEERING_ROW_WEIGHT_Q_SCALE = 1000
+STEERING_ROW_WEIGHT_Q = (164, 220, 274, 326, 375, 423, 470, 514, 556, 596, 635, 671, 706, 738, 769, 798, 825, 850, 873, 894, 913, 931, 946, 959, 971, 980, 988, 994, 998, 1000, 1000, 998, 994, 988, 980, 971, 959, 946, 931, 913, 894, 873, 850, 825, 798, 769, 738, 706, 671, 635, 596, 556, 514, 470, 423, 375, 326, 274, 220, 164)
+STEERING_CORE_RAW_Y_MIN = 40
+STEERING_CORE_RAW_Y_MAX = 79
+STEERING_CORE_MIN_SUPPORT_ROWS = 3
+STEERING_CORE_MIN_SUPPORT_SPAN_GRID = 2
+
+# Position PD acts after the existing position EMA. The derivative is low-pass
+# filtered before Td is applied; limits are in the protocol's normalized units.
+POSITION_PD_DERIVATIVE_TAU_MS = 60
+POSITION_PD_TIME_MS = 30
+POSITION_PD_D_LIMIT = 100
+POSITION_PD_MAX_DT_MS = 100
+STEERING_OUTPUT_LIMIT = 1000
+
+# Adaptive preview is enabled by the pd_preview compatibility selector and
+# the two named Ackermann package selectors.
+PREVIEW_CANDIDATE_MIN_ABS = 80
+PREVIEW_CONFIRM_FRAMES = 3
+PREVIEW_CONFIRM_MS = 60
+PREVIEW_POSITION_MIN_ABS = 50
+PREVIEW_POSITION_FULL_GAIN_ABS = 250
+PREVIEW_MAX_GAIN = 0.45
+PREVIEW_APPLIED_LIMIT = 120
+PREVIEW_SLEW_PER_SECOND = 500
+SPEED_STAGE_ENABLED = True
+SPEED_CANDIDATE_MIN_ABS = 80
+SPEED_CANDIDATE_CONFIRM_FRAMES = 3
+SPEED_CANDIDATE_CONFIRM_MS = 60
+SPEED_RELEASE_POSITION_ABS = 50
+SPEED_RELEASE_CANDIDATE_ABS = 80
+SPEED_RELEASE_CONFIRM_MS = 300
+SPEED_EXIT_PHASE_MS = 800
+SPEED_SLOWDOWN_REQUEST_PERMILLE = 1000
 # Ring entry ports may be within a 5% viewport inset (4 cells on the 80-cell
 # grid). This margin is only a crop-side connection tolerance; it is unrelated
 # to the 80/20 steering weights and does not relax road/clearance checks.
@@ -71,7 +192,8 @@ GRAY_THRESHOLD_BLOCKS = (
     (0, 46, 80, 60),
 )
 GRAY_SENSOR_WARMUP_MS = 1000
-GRAY_MINPOOL_SCALE = 2
+GRAY_MINPOOL_SCALE_X = 4
+GRAY_MINPOOL_SCALE_Y = 2
 GRAY_SOURCE_AGREEMENT_CELLS = 6.0
 GRAY_SHARED_REFERENCE_MAX_GAP_CELLS = 4.0
 # Legacy selector diagnostic only; V6 does not use this tiebreak.
@@ -193,14 +315,21 @@ ROAD_PARAMS = {
     "ROAD_QUALITY_MIN": 60,
 }
 
+# Keep a fully observed bilateral path close to the configured steering row.
+# fast_path's reusable default remains broad for historical test fixtures.
+FAST_PATH_REFERENCE_MAX_GAP = 4.0
+
 # Single-boundary steering is permitted only after this run has established
 # per-row width/edge anchors from a fully accepted bilateral observation and
 # the independent reverse-control stream is fresh. Values are grid cells.
-SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 10.0
+SINGLE_EDGE_ANCHOR_RADIUS_CELLS = 16.0
 SINGLE_EDGE_AMBIGUITY_MARGIN_CELLS = 2.0
 SINGLE_EDGE_AMBIGUITY_SEPARATION_CELLS = 4.0
-SINGLE_EDGE_MIN_ROWS = 8
-SINGLE_EDGE_MIN_SPAN = 12
+SINGLE_EDGE_MIN_ROWS = 5
+SINGLE_EDGE_MIN_SPAN = 6
+SINGLE_EDGE_MAX_MISSING_ROWS = 3
+# Short chains remain valid but are marked weak in their result metadata.
+SINGLE_EDGE_WEAK_SUPPORT_ROWS = 8
 SINGLE_EDGE_REFERENCE_MAX_GAP = 4
 
 # The hand-held practice surface is a bright corridor between dark-blue areas.

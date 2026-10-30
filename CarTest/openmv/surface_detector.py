@@ -59,28 +59,30 @@ def _blue_pixel(pixel, blue_min, blue_excess_min, saturation_min):
 
 
 def _work_image(image, settings):
-    """Return an 80x60 image, or the original image plus a step-2 fallback."""
+    """Return an 80x60 image or original source with explicit x/y strides."""
     width = _value(settings, "SURFACE_GRID_WIDTH", 80)
     height = _value(settings, "SURFACE_GRID_HEIGHT", 60)
-    scale = _value(settings, "SURFACE_PIXEL_SCALE", 2)
+    scale_x = _value(settings, "SURFACE_PIXEL_SCALE_X", 4)
+    scale_y = _value(settings, "SURFACE_PIXEL_SCALE_Y", 2)
     image_width = image.width()
     image_height = image.height()
     if image_width == width and image_height == height:
-        return image, 1, "grid"
+        return image, 1, 1, "grid"
 
-    if image_width != width * scale or image_height != height * scale:
+    if (image_width != width * scale_x or
+            image_height != height * scale_y):
         raise ValueError("image size differs from surface grid config")
 
     try:
-        half = image.copy(x_scale=1.0 / scale, y_scale=1.0 / scale)
+        half = image.copy(x_scale=1.0 / scale_x, y_scale=1.0 / scale_y)
         if half.width() == width and half.height() == height:
-            return half, 1, "copy"
+            return half, 1, 1, "copy"
     except Exception:
         pass
 
-    # Firmware builds with a different image.copy signature use one source
-    # sample per two full-resolution pixels; the field of view is unchanged.
-    return image, scale, "step2"
+    # Compare-only legacy fallback. Production masks use fast_gray's exact
+    # 4x2 minpool and inspect every source pixel in each grid cell.
+    return image, scale_x, scale_y, "stride4x2-compare"
 
 
 def build_mask(image, mode, settings):
@@ -93,7 +95,7 @@ def build_mask(image, mode, settings):
     if mode not in ("blue_white", "black_white"):
         raise ValueError("mode must be blue_white or black_white")
 
-    work, stride, sampling = _work_image(image, settings)
+    work, stride_x, stride_y, sampling = _work_image(image, settings)
     width = _value(settings, "SURFACE_GRID_WIDTH", 80)
     height = _value(settings, "SURFACE_GRID_HEIGHT", 60)
     mask = bytearray(width * height)
@@ -107,10 +109,10 @@ def build_mask(image, mode, settings):
             settings, "BLUE_NORMALIZED_EXCESS_MIN", 60)
         saturation_min = _value(settings, "BLUE_SATURATION_MIN", 18)
         for y in range(floor_y, height):
-            source_y = y if stride == 1 else y * stride
+            source_y = y if stride_y == 1 else y * stride_y
             row_count = 0
             for x in range(width):
-                source_x = x if stride == 1 else x * stride
+                source_x = x if stride_x == 1 else x * stride_x
                 pixel = work.get_pixel((source_x, source_y))
                 if _blue_pixel(pixel, blue_min, blue_excess_min,
                                saturation_min):
@@ -127,10 +129,10 @@ def build_mask(image, mode, settings):
     low = 255
     high = 0
     for y in range(floor_y, height):
-        source_y = y if stride == 1 else y * stride
+        source_y = y if stride_y == 1 else y * stride_y
         row = y * width
         for x in range(width):
-            source_x = x if stride == 1 else x * stride
+            source_x = x if stride_x == 1 else x * stride_x
             value = _gray_value(work.get_pixel((source_x, source_y)))
             if value < 0:
                 value = 0

@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 enum {
-    CAR_RUNTIME_LOG_VERSION = 1u,
+    CAR_RUNTIME_LOG_VERSION = 2u,
     CAR_RUNTIME_LOG_HEADER_SIZE = 64u,
     CAR_RUNTIME_LOG_RECORD_SIZE = 64u,
     CAR_RUNTIME_LOG_CAPACITY = 6144u,
@@ -210,7 +210,13 @@ void car_runtime_log_invalidate(void);
 void car_runtime_log_update(const car_runtime_log_sample_t *sample,
                             car_runtime_log_session_kind_t start_kind);
 uint8_t car_runtime_log_state(void);
+/* PE7 generation consumed when the most recent CPU log session began. */
+uint32_t car_runtime_log_last_start_token(void);
 uint32_t car_runtime_log_crc32(const void *bytes, uint32_t length);
+/* Mode-12 record byte: 50 ms elapsed ticks in bits 2..7 and the fresh-route
+   recovery count in bits 0..1. Progress saturates at the 3000 ms deadline. */
+uint8_t car_runtime_log_pack_hold_progress(uint32_t hold_elapsed_ms,
+                                           uint8_t recovery_valid_count);
 
 #ifdef __cplusplus
 }

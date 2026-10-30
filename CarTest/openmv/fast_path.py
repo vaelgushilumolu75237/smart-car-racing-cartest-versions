@@ -35,6 +35,49 @@ except ImportError:  # Host tests only; OpenMV provides the real module.
 from fast_topology import FastTopologyGuard
 
 
+_PATH_ACCEL_UNRESOLVED = object()
+_PATH_ACCEL = _PATH_ACCEL_UNRESOLVED
+
+
+def _path_accel_backend():
+    """Load the optional exact C path kernels without changing Viper fallback."""
+    global _PATH_ACCEL
+    if _PATH_ACCEL is _PATH_ACCEL_UNRESOLVED:
+        try:
+            module = __import__("cartest_path_accel")
+        except ImportError:
+            module = None
+        if (module is not None and
+                getattr(module, "API_VERSION", None) != 1):
+            module = None
+        if (module is not None and
+                (not callable(getattr(module, "extract_rows", None)) or
+                 not callable(getattr(module, "connect_rows", None)))):
+            module = None
+        _PATH_ACCEL = module
+    return _PATH_ACCEL
+
+
+def _path_accel_supported(detector, module):
+    """Use C only for the fixed geometry and bounded kernel settings."""
+    return bool(module is not None and detector.width == 80 and
+                detector.height == 60 and detector.floor_y >= 0 and
+                detector.floor_y < detector.height and
+                detector.max_per_row >= 1 and detector.max_per_row <= 8 and
+                detector.row_count == detector.height - detector.floor_y and
+                detector.min_width >= 8 and detector.min_width <= 70 and
+                detector.max_width >= detector.min_width and
+                detector.max_width <= 70 and detector.max_gap >= 0 and
+                detector.max_gap <= 2 and detector.max_width_change >= 1 and
+                detector.max_width_change <= 70 and
+                detector.max_slope_milli >= 0 and
+                detector.max_slope_milli <= 80000 and
+                detector.link_tolerance_milli >= 0 and
+                detector.link_tolerance_milli <= 80000 and
+                detector.reference_y_milli >= 0 and
+                detector.reference_y_milli < 60000)
+
+
 _DEFAULTS = {
     "SURFACE_GRID_WIDTH": 80,
     "SURFACE_GRID_HEIGHT": 60,
@@ -110,11 +153,33 @@ def _normalize_center(center_x, width):
 
 
 class _RowView:
-    __slots__ = ("records", "active_count")
+    __slots__ = ("records", "active_count", "packed", "exposed")
 
-    def __init__(self, records):
+    def __init__(self, records, packed):
         self.records = records
         self.active_count = 0
+        self.packed = packed
+        self.exposed = bytearray(len(records))
+
+    def _materialize(self, index):
+        data_offset = index * 4
+        y = self.packed[data_offset]
+        left = self.packed[data_offset + 1]
+        right = self.packed[data_offset + 2]
+        row = self.records[index]
+        row["y"] = y
+        row["left"] = left
+        row["right"] = right
+        row["center"] = (left + right) * 0.5
+        width = right - left + 1
+        row["width"] = width
+        row["pixels"] = width
+        boundary = row["boundary"]
+        boundary["left"][0] = left - 1
+        boundary["left"][1] = y
+        boundary["right"][0] = right + 1
+        boundary["right"][1] = y
+        self.exposed[index] = 1
 
     def clear(self):
         self.active_count = 0
@@ -125,11 +190,13 @@ class _RowView:
     def __getitem__(self, index):
         if isinstance(index, slice):
             start, stop, step = index.indices(self.active_count)
-            return [self.records[item] for item in range(start, stop, step)]
+            return [self[item] for item in range(start, stop, step)]
         if index < 0:
             index += self.active_count
         if index < 0 or index >= self.active_count:
             raise IndexError("selected row index out of range")
+        if not self.exposed[index]:
+            self._materialize(index)
         return self.records[index]
 
 
@@ -218,7 +285,8 @@ def _extract_viper(self) -> int:
             node = layer * max_per_row + candidate_count
             offset = node * 4
             candidates[offset] = start
-            candidates[offset + 1] = end
+            # Cache the doubled center used by every downstream scoring pass.
+            candidates[offset + 1] = start + end
             candidates[offset + 2] = run_width
             bright_mean_milli = bright_sum * 1000 // run_width
             dark_mean_milli = (
@@ -251,7 +319,7 @@ def _connect_viper(self) -> int:
         for slot in range(counts[layer]):
             node = layer * max_per_row + slot
             cbase = node * 4
-            center_twice = int(candidates[cbase]) + int(candidates[cbase + 1])
+            center_twice = int(candidates[cbase + 1])
             run_width = int(candidates[cbase + 2])
             contrast_milli = int(candidates[cbase + 3])
             if contrast_milli < 0:
@@ -283,9 +351,8 @@ def _connect_viper(self) -> int:
                 old_y = height - 1 - previous_layer
                 for previous_slot in range(previous_count):
                     previous_node = previous_layer * max_per_row + previous_slot
-                    previous_center_twice = (
-                        int(candidates[previous_node * 4]) +
-                        int(candidates[previous_node * 4 + 1]))
+                    previous_center_twice = int(
+                        candidates[previous_node * 4 + 1])
                     previous_width = int(candidates[previous_node * 4 + 2])
                     width_delta = run_width - previous_width
                     if width_delta < 0:
@@ -318,9 +385,8 @@ def _connect_viper(self) -> int:
                             base_dy = previous_layer - prior_layer
                             if base_dy <= 0 or prior_layer >= layers:
                                 continue
-                            prior_center_twice = (
-                                int(candidates[parent_node * 4]) +
-                                int(candidates[parent_node * 4 + 1]))
+                            prior_center_twice = int(
+                                candidates[parent_node * 4 + 1])
                             prediction_delta = (
                                 (previous_center_twice - prior_center_twice) *
                                 distance)
@@ -513,8 +579,7 @@ def _select_viper(self) -> int:
         if layer >= layers:
             return -1
         trace[path_count] = node
-        center_twice = (
-            int(candidates[node * 4]) + int(candidates[node * 4 + 1]))
+        center_twice = int(candidates[node * 4 + 1])
         observed[layer] = 1
         best_centers[layer] = center_twice
         center_sum_twice += center_twice
@@ -548,9 +613,7 @@ def _select_viper(self) -> int:
     for layer in range(layers):
         for slot in range(counts[layer]):
             node = layer * max_per_row + slot
-            center_twice = (
-                int(candidates[node * 4]) +
-                int(candidates[node * 4 + 1]))
+            center_twice = int(candidates[node * 4 + 1])
             for state_slot in range(2):
                 state_id = node * 2 + state_slot
                 base = state_id * 10
@@ -599,6 +662,40 @@ def _select_viper(self) -> int:
                     control[2] = 1
                     return 2
     return 1
+
+
+@micropython.viper
+def _pack_recovered_rows_viper(
+        self, path_count: int, trace_capacity: int,
+        output_capacity: int, candidate_capacity: int,
+        max_per_row: int) -> int:
+    """Write the selected path as packed integer rows."""
+    trace = ptr32(self._trace)
+    candidates = ptr32(self._candidate_data)
+    output = ptr32(self.selected_row_ints)
+    height = int(self.height)
+    if (max_per_row <= 0 or path_count <= 0 or
+            path_count > trace_capacity or path_count > output_capacity):
+        return -1
+    grid_candidate_capacity = trace_capacity * max_per_row
+
+    for index in range(path_count):
+        node = int(trace[path_count - 1 - index])
+        if (node < 0 or node >= candidate_capacity or
+                node >= grid_candidate_capacity):
+            return -1
+        layer = node // max_per_row
+        y = height - 1 - layer
+        candidate_offset = node * 4
+        left = int(candidates[candidate_offset])
+        run_width = int(candidates[candidate_offset + 2])
+        right = left + run_width - 1
+        output_offset = index * 4
+        output[output_offset] = y
+        output[output_offset + 1] = left
+        output[output_offset + 2] = right
+        output[output_offset + 3] = 7
+    return path_count
 
 
 class FastPathDetector:
@@ -697,7 +794,6 @@ class FastPathDetector:
             self._state_data, self.STATE_STRIDE, 8, self.state_capacity)
         self._row_records = []
         self._boundary_records = []
-        self._selected_rows = _RowView(self._row_records)
         self._left_edges = ()
         self._right_edges = ()
         self._controller_reference = {
@@ -712,6 +808,8 @@ class FastPathDetector:
                 "boundary": boundary, "left_status": "OBSERVED",
                 "right_status": "OBSERVED", "provenance": "OBSERVED",
             })
+        self._selected_rows = _RowView(
+            self._row_records, self.selected_row_ints)
         self._result = {
             "valid": False, "quality": 0, "lateral_error": 0,
             "reason": "NOT_RUN", "scene": "UNKNOWN",
@@ -784,9 +882,26 @@ class FastPathDetector:
         self._current_road = mask_info["road_mask"]
         self._current_edge = mask_info["edge_mask"]
         self._current_known = mask_info["known_region"]
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            return module.extract_rows(
+                self._current_luma, self._current_road,
+                self._current_edge, self._current_known,
+                self._counts, self._candidate_data,
+                self.width, self.height, self.floor_y,
+                self.min_width, self.max_width, self.max_per_row)
         return _extract_viper(self)
 
     def _connect_all(self):
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            return module.connect_rows(
+                self._counts, self._candidate_data, self._state_data,
+                self.width, self.height, self.floor_y,
+                self.max_gap, self.max_width_change,
+                self.max_slope_milli, self.link_tolerance_milli,
+                self.reference_y_milli, self.max_per_row,
+                self.state_capacity)
         return _connect_viper(self)
 
     def _select_best(self):
@@ -814,8 +929,7 @@ class FastPathDetector:
                 return False
             if self._best_layer_observed[layer]:
                 offset = node * 4
-                center_twice = (self._candidate_data[offset] +
-                                self._candidate_data[offset + 1])
+                center_twice = self._candidate_data[offset + 1]
                 if (abs(center_twice -
                         self._best_centers_by_layer[layer]) * 500 >=
                         self.ambiguity_separation_milli):
@@ -827,43 +941,44 @@ class FastPathDetector:
     @micropython.native
     def _recover_output(self):
         control = self._control
+        exposed_rows = self._selected_rows.exposed
         path_count = int(control[3])
+        max_per_row = int(self.max_per_row)
+        trace_capacity = len(self._trace)
+        output_capacity = len(self.selected_row_ints) // 4
+        candidate_capacity = len(self._candidate_data) // 4
+        if _pack_recovered_rows_viper(
+                self, path_count, trace_capacity, output_capacity,
+                candidate_capacity, max_per_row) < 0:
+            return self._fail("CORRUPT_PATH_STATE")
         ref_node = int(control[5])
         ref_layer = ref_node // self.max_per_row
         ref_y = self.height - 1 - ref_layer
         ref_offset = ref_node * 4
-        ref_center = (
-            self._candidate_data[ref_offset] +
-            self._candidate_data[ref_offset + 1]) * 0.5
+        ref_center = self._candidate_data[ref_offset + 1] * 0.5
         center_x = control[4] / float(path_count * 2)
         reference_shift = float(ref_y) - self.reference_y
 
         for index in range(path_count):
-            node = self._trace[path_count - 1 - index]
-            layer = node // self.max_per_row
-            y = self.height - 1 - layer
-            offset = node * 4
-            left = int(self._candidate_data[offset])
-            right = int(self._candidate_data[offset + 1])
-            run_width = int(self._candidate_data[offset + 2])
-            center = (left + right) * 0.5
-            row = self._row_records[index]
-            row["y"] = y
-            row["left"] = left
-            row["right"] = right
-            row["center"] = center
-            row["width"] = run_width
-            row["pixels"] = run_width
-            boundary = self._boundary_records[index]
-            boundary["left"][0] = left - 1
-            boundary["left"][1] = y
-            boundary["right"][0] = right + 1
-            boundary["right"][1] = y
-            data_offset = index * 4
-            self.selected_row_ints[data_offset] = y
-            self.selected_row_ints[data_offset + 1] = left
-            self.selected_row_ints[data_offset + 2] = right
-            self.selected_row_ints[data_offset + 3] = 7
+            if exposed_rows[index]:
+                data_offset = index * 4
+                y = int(self.selected_row_ints[data_offset])
+                left = int(self.selected_row_ints[data_offset + 1])
+                right = int(self.selected_row_ints[data_offset + 2])
+                run_width = right - left + 1
+                center = (left + right) * 0.5
+                row = self._row_records[index]
+                row["y"] = y
+                row["left"] = left
+                row["right"] = right
+                row["center"] = center
+                row["width"] = run_width
+                row["pixels"] = run_width
+                boundary = self._boundary_records[index]
+                boundary["left"][0] = left - 1
+                boundary["left"][1] = y
+                boundary["right"][0] = right + 1
+                boundary["right"][1] = y
 
         self._selected_rows.active_count = path_count
         self.selected_row_count = path_count
@@ -951,12 +1066,37 @@ class FastPathDetector:
                 "INVALID_MASK_INFO", "KERNEL_BOUNDS"):
             return self._fail(topology.get("reason"))
 
-        if self._extract_rows(mask_info) < 0:
+        # Keep the frame buffers in locals already validated above, and call
+        # the Viper kernels directly. The old thin wrappers performed only
+        # attribute lookups and introduced per-frame bound-method objects.
+        self._current_luma = luma
+        self._current_road = road
+        self._current_edge = edge
+        self._current_known = known
+        module = _path_accel_backend()
+        if _path_accel_supported(self, module):
+            extract_status = module.extract_rows(
+                luma, road, edge, known, self._counts,
+                self._candidate_data, self.width, self.height,
+                self.floor_y, self.min_width, self.max_width,
+                self.max_per_row)
+        else:
+            extract_status = _extract_viper(self)
+        if extract_status < 0:
             rows = self._rows() if mask_info.get("debug") else ()
             return self._fail("ROW_CANDIDATE_OVERFLOW", rows,
                               "AMBIGUOUS_CANDIDATE")
-        self._connect_all()
-        select_status = self._select_best()
+        if _path_accel_supported(self, module):
+            module.connect_rows(
+                self._counts, self._candidate_data, self._state_data,
+                self.width, self.height, self.floor_y,
+                self.max_gap, self.max_width_change,
+                self.max_slope_milli, self.link_tolerance_milli,
+                self.reference_y_milli, self.max_per_row,
+                self.state_capacity)
+        else:
+            _connect_viper(self)
+        select_status = _select_viper(self)
         if select_status == 2:
             rows = self._rows() if mask_info.get("debug") else ()
             return self._fail("AMBIGUOUS_ROAD", rows, "AMBIGUOUS_CANDIDATE")

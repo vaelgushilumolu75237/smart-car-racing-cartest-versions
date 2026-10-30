@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "label": "A_FastNoRing",
+      "preset": "DebugFastNoRing",
+      "profile_id": 1,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": false,
+      "ring_outer_target_millirps": null,
+      "build_id": "a0eaa4e5b66d58f070c7a1395af06e2d",
+      "elf_sha256": "cb38e536068615db28a754d0f116ebd22e3f156c43a76098c0bc1e8b6db40d79",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    },
+    {
+      "label": "B_RingBase",
+      "preset": "DebugRingBase",
+      "profile_id": 2,
+      "straight_target_millirps": 4800,
+      "curve_outer_target_millirps": 4000,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4000,
+      "build_id": "36ba2d0e4b02fd0f4f25ad41622afe4c",
+      "elf_sha256": "1bf7f0d1f5cc114ac2aac69930e4fdafce9caa1bfd554a1a65ae8f3dc436d207",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    },
+    {
+      "label": "C_RingFast",
+      "preset": "DebugRingFast",
+      "profile_id": 3,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4400,
+      "build_id": "f9c8d0412652ba88045f8aedda099f08",
+      "elf_sha256": "9e0ab9033746f5fd885a2a8136e4c78e323b7f44129969f2a51a823d33048076",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests"
+    }
+  ],
+  "forward_wire": "V3/16-byte/profile-ack",
+  "reverse_state_wire": "V2/20-byte/revision1",
+  "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
+  "hardware_acceptance": "pending_manual_road_tests"
+}

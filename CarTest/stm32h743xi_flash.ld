@@ -197,6 +197,80 @@ SECTIONS
   PROVIDE( __bss_size = __bss_end - __bss_start );
   PROVIDE( __non_tls_bss_start = ADDR(.bss) );
 
+  /* Independent SWD-readable CPU snapshot. It has its own 64-byte ABI and is
+     kept separate from the fixed-size V1/V2 runtime-log allocation. */
+  .runtime_diag (NOLOAD) : ALIGN(32)
+  {
+    __runtime_diag_start = .;
+    KEEP(*(.runtime_diag))
+    . = ALIGN(32);
+    __runtime_diag_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.runtime_diag) & 31) == 0,
+         "runtime diagnostic section is not 32-byte aligned")
+  ASSERT(SIZEOF(.runtime_diag) == 64,
+         "runtime diagnostic ABI must reserve exactly 64 bytes")
+
+  /* Independent Ackermann-control record. This is never part of the fixed
+     64-byte runtime-log ABI or the separate CPU diagnostic snapshot. */
+  .ackermann_snapshot (NOLOAD) : ALIGN(32)
+  {
+    __ackermann_snapshot_start = .;
+    KEEP(*(.ackermann_snapshot))
+    . = ALIGN(32);
+    __ackermann_snapshot_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.ackermann_snapshot) & 31) == 0,
+         "Ackermann snapshot section is not 32-byte aligned")
+  ASSERT(SIZEOF(.ackermann_snapshot) == 64,
+         "Ackermann snapshot ABI must reserve exactly 64 bytes")
+
+  .receive_diag (NOLOAD) : ALIGN(32)
+  {
+    __receive_diag_start = .;
+    KEEP(*(.receive_diag))
+    . = ALIGN(32);
+    __receive_diag_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.receive_diag) & 31) == 0,
+         "receive diagnostic section is not 32-byte aligned")
+  ASSERT(SIZEOF(.receive_diag) == 96,
+         "receive diagnostic ABI must reserve exactly 96 bytes")
+
+  /* Independent encoder speed-PI diagnostic snapshot. Keep it separate from
+     both the CPU snapshot and the fixed-size runtime log for SWD inspection. */
+  .speed_pi_diag (NOLOAD) : ALIGN(32)
+  {
+    __speed_pi_diag_start = .;
+    KEEP(*(.speed_pi_diag))
+    . = ALIGN(32);
+    __speed_pi_diag_end = .;
+  } >RAM_D1
+
+  ASSERT((ADDR(.speed_pi_diag) & 31) == 0,
+         "speed PI diagnostic section is not 32-byte aligned")
+  ASSERT(SIZEOF(.speed_pi_diag) == 128,
+         "speed PI diagnostic ABI must reserve exactly 128 bytes")
+
+  .speed_pi_trace (NOLOAD) : ALIGN(32)
+  {
+    __speed_pi_trace_start = .;
+    KEEP(*(.speed_pi_trace))
+    . = ALIGN(32);
+    __speed_pi_trace_end = .;
+  } >RAM_D2
+
+  ASSERT((ADDR(.speed_pi_trace) & 31) == 0,
+         "speed PI trace section is not 32-byte aligned")
+  ASSERT(SIZEOF(.speed_pi_trace) == 98368,
+         "speed PI trace ABI must reserve exactly 98368 bytes")
+  ASSERT(ADDR(.speed_pi_trace) >= 0x30000000 &&
+         ADDR(.speed_pi_trace) + SIZEOF(.speed_pi_trace) <= 0x30020000,
+         "speed PI trace must fit in the 128 KiB clocked D2 SRAM1 bank")
+
   /* The log is SWD-readable, NOLOAD, cache-line aligned, and not initialized
      or cleared with .bss. Runtime code initializes only its 64-byte header. */
   .runtime_log (NOLOAD) : ALIGN(32)

@@ -1,5 +1,28 @@
 # CarTest：H743 车载工程
 
+2026-10-29: v25 camera candidate adds common-motion entry rejection, validated ordinary-route recovery and calibrated ring target admission. v24 PE7, H743 parameters and ELFs unchanged. See [implementation and verification](docs/RING-JOINT-V25-20261029.md). Road, actual steering and >60FPS with IDE preview remain unverified; no automatic hardware action.
+
+
+## 2026-10-26 当前配套版本
+
+当前为H750相机三档版本：新A提速无环岛5.6/4.4、新B原速环岛4.8/4.0、新C提速环岛5.6/4.4（单位为驱动轮目标转/秒）。三个新入口位于VS Code调试列表最前面，共用一套320×120相机程序，通过V3档位确认配对；下面旧记录中的占空比、速度和“当前”不代表本轮配置。
+
+交付位于 `deliverables/TrackProfiles_H750_20261026`。操作与日志命令见[三档切换说明](docs/TrackProfiles-使用与切换-20261026.md)，实现和验证边界见[H750实施记录](docs/H750-TrackProfiles-Implementation-20261025.md)。软件与静止相机测试已完成，车辆移动过弯、十字和左右环岛尚待手动验收；保留稳定版回退包。
+
+## 2026-10-20 A/B/C上坡保速试验
+
+当前VS Code入口为A冻结原版、B 65%/35%开环对照、C增量式PI保速试验及关闭执行器的诊断档。B/C采用200ms丢线减速、2000ms续行截止；C直行初始轮速目标2.4转/秒，每轮输出上限70%。相机继续使用未改动的生产`openmv/`目录，保持关闭预瞄及80/20位置权重。
+
+切换与日志命令见[本轮操作说明](docs/UPHILL_ABC_20261019_CN.md)，软件验证见[验证记录](docs/UPHILL_ABC_VALIDATION_20261020.md)。A启动项使用冻结ELF，不重新构建。本轮没有烧录或实车验收，C尚不能视为已经改善上坡表现。
+
+以下保留历史记录；旧段落中的“当前”仅指其标注日期，不用于选择本轮档位或参数。
+
+## 2026-10-16 历史配套版本
+
+当前版本为 `AGGRESSIVE_TURN_20261016`：单边连续段恢复、近端短链和有证据的左右换边；快速档正常舵机120μs/20ms、左右电机各40‰/10ms；3秒最后可靠偏差保持。使用 `build/DebugFollowTurn/CarTest.elf`，相机另行上传本版20个Python运行文件。完整步骤和实测边界见[本版说明](docs/AGGRESSIVE_TURN_20261016_CN.md)，最终文件哈希和软件验证见 `openmv/PACKAGE_MANIFEST.json`。
+
+日志导出默认使用只读HOTPLUG共享连接、固定探针序号和有限降频重试，并在读取RAM前校验板上Flash版本。只读连接、主机测试或编译不能证明新固件已经烧录或完成实车过弯。下方保留历次交付记录；其中旧的“当前构建”、参数及测试结论均以该条日期为准，恢复旧版时使用对应ELF。
+
 本目录是 STM32H743VIT6 GCC/CMake 工程。`openmv/` 中的 MicroPython 程序独立运行，不进入 STM32 构建，也不随 H743 ELF 一起烧录。
 
 > **当前 DebugFollow 操作（2026-10-13）**：DebugFollow 与 DebugFollowNoLog 均保留用户授权的软件输出许可；这不代表实板验收。PE7 先稳定释放 20 ms 后，第一次按下锁存启动请求，松手继续运行，下一次按下才取消请求并停止。有效=0 的短暂丢线仅在舵机和双路电机已有非零软件输出时进入最长 1000 ms 的视觉保持；到期先停车但会话和日志继续等待，三帧连续新鲜有效路线数据可恢复。串口/协议/硬故障路径仍独立停车。Follow 直线基准为 500‰，常规目标上限 600‰、硬上限 700‰；差速档位为 0/50/100‰。舵机 1100–2500 μs 限幅、1530 μs 中位与启动 10 μs/20 ms、正常 Follow 40 μs/20 ms 变化限制保持。没有连接或烧录 H743，也没有做台架或实车验证。

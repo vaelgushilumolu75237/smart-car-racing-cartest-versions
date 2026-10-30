@@ -1,35 +1,19 @@
-# CarTest OpenMV 软件验证记录
+# OpenMV V2 协议与静态预览验证摘要
 
-记录日期：2026-10-06。以下均为 PC Python 软件测试，不是 OpenMV MicroPython 实板、UART 电气、H743 接收或实车验证。
+此记录适用于当前 320×120 V2 运行包，不适用于旧 V1 包或其性能记录。详细的静态预览测量和边界见 [`docs/OpenMV-USB60-Static-Validation-20261024.md`](../docs/OpenMV-USB60-Static-Validation-20261024.md)。
 
-## 协议编码测试
+## 软件验证
 
-从 `firmware/vehicle/CarTest/openmv` 执行：
+- `python -m unittest discover -s openmv/tests -p 'test_*.py'`：242 项运行，239 项通过，3 项跳过，0 项失败。
+- OpenMV USB 预览工具主机测试：44 项通过。
+- 清单中的 19 个运行模块均由指定 `mpy-cross` 编译，目标为 `armv7emsp`，退出码均为 0。
 
-```powershell
-python -B .\tests\test_protocol_host.py
-```
+## 静态预览测量
 
-实际解释器为 Python 3.14.8，退出码 0；**6/6 个测试方法通过**，用时 0.005 s。覆盖本包 BUILD/API 一致性、9 条共同 v1 CSV 向量逐字节相等、CRC-16/CCITT-FALSE 检查值、帧长度与小端字段、invalid 零置信度/零误差、越界及畸形字段拒绝。
+19 个模块从隔离相机文件系统加载，只有小型性能 runner 从 RAM 注入。320×120 已配置并由预览尺寸观察确认。IDE 收到 3693 个完整 JPEG payload，大小全部匹配且无读取错误；五个完整读取窗口为 60.4380、60.3276、60.2762、60.3608、60.289 次/秒。本次未独立记录 IDE 逐帧解码成功和尺寸。固件解锁会清空缓冲区，避免重复读取同一已发布缓冲；但本次 IDE 测量未逐帧解码序号 marker，因此没有独立逐帧新鲜性校验。SDK marker 序号速率 60.4–60.5 次/秒为另一项独立测量。IDE GUI 先将平均帧间隔截断为整数毫秒，再以 1000 除以该值计算帧率，显示值可能偏高，不作为精确帧率证据。
 
-逐项输出保存在 [`tests/protocol-host-final.log`](tests/protocol-host-final.log)。向量文件 [`tests/vision-protocol-v1.csv`](tests/vision-protocol-v1.csv) 与 Sixth_Test 原文件字节相同，SHA-256 为 `707364E6EE162CB69075FB3694691863F9C26101ECFB392D6AAF88113E3DCE7F`。
+CDC 关闭的 60 秒 headless 测试得到六个 10 秒窗口计数 796、796、797、795、797、795，共 4777 条有效路由；没有 JPEG marker 写入。该结果不代表 USB 预览速率。
 
-## V7 算法与发送链路回归
+## 配对边界
 
-从同一目录执行：
-
-```powershell
-python -B .\tests\run_v7_host_regression.py
-```
-
-实际解释器为 Python 3.14.8，退出码 0；**79 项中 78 项通过，1 项跳过**，用时 0.397 s。该 runner 把 Sixth_Test V7 测试副本放入临时目录，并把导入的 15 个 OpenMV 模块替换为 CarTest/openmv 当前文件；只在临时测试副本中把硬编码的 Sixth_Test BUILD 期望改为 CarTest BUILD。没有改写 Sixth_Test 的源文件、测试或冻结 ZIP。
-
-通过项覆盖灰度掩码与蓝灰边界/窄黑边样本、拓扑、路径连续性、分支歧义拒绝、当前帧证据不足拒绝、边界门、滤波重置、invalid 发送、整帧 UART/CRC、序号唯一与 API/混装不匹配拒绝。跳过项是要求 OpenMV 板上 Viper 探针 manifest 的 `test_board_viper_outputs_match_host`；本次没有摄像头或板端运行，所以不把它报告为通过。完整逐项结果见 [`tests/v7-regression-final.log`](tests/v7-regression-final.log)。
-
-## 文件来源核验
-
-冻结源 ZIP SHA-256 为 `80E8F2C900B212DB1AD866CE6F823008658CAFFDF8F218F416B3819766CB960F`；冻结 manifest SHA-256 为 `EC60BFAF943F4D835774CBA7A26F88240536B1C2F7B785E67FBD4C73FCD6FF50`。已逐文件从该 ZIP 重新比对本包：除 `main.py` 和 `config.py` 外，其余 13 个运行文件字节完全相同；这两个文件的差异都由清单中声明的 BUILD 身份和诊断标签改动构成，算法/阈值/拒绝条件代码与冻结字节的预期变换完全一致。每个文件的新 SHA、冻结 SHA 和差异核验标志见 [`PACKAGE_MANIFEST.json`](PACKAGE_MANIFEST.json)。
-
-## 尚无的实物证据
-
-没有在 OpenMV H7Plus 上上传或运行，没有采集当前安装机位图像，没有测到 UART 写入电气链路或 H743 实际收帧，也没有测得蓝边/正式黑边赛道准确率、弯道/环岛/坡道表现或整车帧率。Sixth_Test 已记录的真实直道两窗口是 42.6/42.4 次完整发送每秒，未达 45 FPS；这只是上游 V7 旧记录，本包未重测。不要将其合成性能结果或 PC 回归当作现场通过。
+H743 `C Incremental PI 20261020` 核心未修改、未烧录、未复位；电机未启动。相机测试使用无操作 UART sink，不证明 H743 收到 V2 帧。20 秒、每帧注入 1389 微秒的 `pyb.udelay` 只是 UART wire-time 近似，不是实际 UART 测量。完整 UART 闭环和 `full_control_60fps_accepted` 均未通过验收。

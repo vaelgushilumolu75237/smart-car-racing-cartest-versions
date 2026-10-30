@@ -34,8 +34,57 @@ except ImportError:
             return function
 
     micropython = _MicroPythonHostShim()
-    ptr8 = int
-    ptr16 = int
+
+    def ptr8(buffer):
+        return buffer
+
+    def ptr16(buffer):
+        return buffer
+
+    def ptr32(buffer):
+        if isinstance(buffer, bytearray):
+            return _HostByteWords(buffer)
+        return buffer
+
+    class _HostByteWords:
+        """Read-only little-endian word view for CPython Viper shims."""
+
+        def __init__(self, buffer):
+            self._buffer = buffer
+
+        def __getitem__(self, index):
+            offset = index * 4
+            buffer = self._buffer
+            return (buffer[offset] | (buffer[offset + 1] << 8) |
+                    (buffer[offset + 2] << 16) |
+                    (buffer[offset + 3] << 24))
+
+    uint = int
+
+
+# Optional native backend. Keep the established compiler/backend flags above
+# intact: this describes only the additional topology C module.
+NATIVE_ACCEL_API = 1
+NATIVE_ACCEL_API_VERSION = 0
+NATIVE_ACCEL_BACKEND = "viper-module-unavailable"
+_NATIVE_ACCEL = None
+try:
+    import cartest_accel as _cartest_accel_module
+except ImportError:
+    _cartest_accel_module = None
+else:
+    NATIVE_ACCEL_API_VERSION = getattr(
+        _cartest_accel_module, "API_VERSION", 0)
+    if NATIVE_ACCEL_API_VERSION != NATIVE_ACCEL_API:
+        NATIVE_ACCEL_BACKEND = "viper-api-mismatch"
+    elif (not callable(getattr(_cartest_accel_module,
+                               "region_segments", None)) or
+          not callable(getattr(_cartest_accel_module,
+                               "internal_component", None))):
+        NATIVE_ACCEL_BACKEND = "viper-methods-incomplete"
+    else:
+        _NATIVE_ACCEL = _cartest_accel_module
+        NATIVE_ACCEL_BACKEND = "cartest_accel-api1"
 
 
 @micropython.viper
@@ -60,10 +109,14 @@ def _region_segments_viper(self, floor: int) -> int:
     segment_start = -1
     all_known = 1
     partial_rows = 0
-    for y in range(floor, height):
-        trusted_rows[y] = 0
     segment_count_out[0] = 0
+    segment_count_out[1] = 0
+    trusted_row_count = 0
     for y in range(floor, height):
+        # Every ROI row is written exactly once below. Clearing each row here
+        # lets the pixel scan establish both its fresh trust bit and the count
+        # without a separate pre-pass over the same rows.
+        trusted_rows[y] = 0
         offset = y * width
         count = 0
         known_count = 0
@@ -83,6 +136,7 @@ def _region_segments_viper(self, floor: int) -> int:
             partial_rows = 1
         if complete_row != 0:
             trusted_rows[y] = 1
+            trusted_row_count += 1
             if segment_start < 0:
                 segment_start = y
         else:
@@ -99,6 +153,7 @@ def _region_segments_viper(self, floor: int) -> int:
         segment_count_out[0] = 0
         return -2
     segment_count_out[0] = segment_count
+    segment_count_out[1] = trusted_row_count
     if segment_count == 0:
         return 0
     if all_known != 0:
@@ -217,7 +272,11 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
     """Find a bounded 8-connected dark contour with a 4-connected hole."""
     mask = ptr8(self._current_mask)
     visited = ptr8(self._visited)
+    mask_words = ptr32(self._current_mask)
+    visited_words = ptr32(self._visited)
     queue = ptr16(self._queue)
+    queue_capacity = int(self._queue_capacity)
+    epoch_buffer = ptr32(self._visit_epoch)
     width = int(self.width)
     height = int(self.height)
     total = width * height
@@ -227,22 +286,46 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
     max_extent = int(self.component_max_extent)
     min_hole_area = int(self.hole_min_area)
 
-    reset_start = floor * width
-    reset_end = band_end * width
-    for index in range(reset_start, reset_end):
-        visited[index] = 0
+    # The high six bits identify this invocation; the low two bits retain the
+    # queued/processed states. This avoids clearing the 80x60 map every frame.
+    # Clear the full map only when the six-bit epoch wraps.
+    epoch = int(epoch_buffer[0]) + 1
+    if epoch >= 64:
+        for index in range(total):
+            visited[index] = 0
+        epoch = 1
+    epoch_buffer[0] = epoch
+    visit_stamp = epoch << 2
+    visit_word_stamp = uint(visit_stamp) * uint(0x01010101)
 
     for start_y in range(floor, band_end):
-        for start_x in range(width):
-            start = start_y * width + start_x
-            if mask[start] == 0 or visited[start] != 0:
+        start_row_offset = start_y * width
+        start_x = 0
+        while start_x < width:
+            # Rows start on a four-byte boundary (the grid width is 80). A
+            # zero mask word or a word already stamped in all four bytes has
+            # no candidate seed, so advance directly to the next word. Mixed
+            # words retain the exact bytewise test and scan order below.
+            if (start_x & 3) == 0 and start_x + 3 < width:
+                word_index = (start_row_offset + start_x) >> 2
+                mask_word = uint(mask_words[word_index])
+                visited_word = uint(visited_words[word_index])
+                if (mask_word == uint(0) or
+                        (visited_word & uint(0xFCFCFCFC)) ==
+                        visit_word_stamp):
+                    start_x += 4
+                    continue
+            start = start_row_offset + start_x
+            if (mask[start] == 0 or
+                    (visited[start] >> 2) == epoch):
+                start_x += 1
                 continue
 
             # Seed one horizontal dark run. The queue stores one index per
             # run, not one index per pixel; 8-connectivity is preserved by
             # joining runs whose x intervals touch within one pixel on an
             # adjacent row.
-            row_offset = start_y * width
+            row_offset = start_row_offset
             run_left = start_x
             while run_left > 0 and mask[row_offset + run_left - 1] != 0:
                 run_left -= 1
@@ -250,10 +333,15 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             while run_right + 1 < width and \
                     mask[row_offset + run_right + 1] != 0:
                 run_right += 1
+            seed_run_right = run_right
             for x in range(run_left, run_right + 1):
-                visited[row_offset + x] = 1
+                visited[row_offset + x] = visit_stamp | 1
             queue_count = 1
+            # Keep both ends of each queued run in the existing 16-bit queue.
+            # The grid has at most 2,400 alternating dark runs, so two entries
+            # per run fit exactly in the 4,800-entry scratch array.
             queue[0] = row_offset + run_left
+            queue[1] = row_offset + run_right
             queue_head = 0
             area = 0
             touches_roi = 0
@@ -263,15 +351,14 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             max_y = -1
 
             while queue_head < queue_count:
-                index = int(queue[queue_head])
+                queue_slot = queue_head * 2
+                index = int(queue[queue_slot])
+                run_end_index = int(queue[queue_slot + 1])
                 queue_head += 1
                 y = index // width
                 row_offset = y * width
                 run_left = index - row_offset
-                run_right = run_left
-                while run_right + 1 < width and \
-                        mask[row_offset + run_right + 1] != 0:
-                    run_right += 1
+                run_right = run_end_index - row_offset
                 area += run_right - run_left + 1
                 if run_left < min_x:
                     min_x = run_left
@@ -284,9 +371,6 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                 if (run_left == 0 or run_right == width - 1 or
                         y == floor or y == band_end - 1):
                     touches_roi = 1
-                for x in range(run_left, run_right + 1):
-                    visited[row_offset + x] = 2
-
                 for direction in range(2):
                     ny = y - 1 if direction == 0 else y + 1
                     if ny < floor or ny >= band_end:
@@ -300,7 +384,8 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                         nx_limit = width - 1
                     while nx <= nx_limit:
                         neighbor = neighbor_row + nx
-                        if mask[neighbor] != 0 and visited[neighbor] == 0:
+                        if (mask[neighbor] != 0 and
+                                (visited[neighbor] >> 2) != epoch):
                             next_left = nx
                             while next_left > 0 and \
                                     mask[neighbor_row + next_left - 1] != 0:
@@ -309,12 +394,15 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                             while next_right + 1 < width and \
                                     mask[neighbor_row + next_right + 1] != 0:
                                 next_right += 1
-                            if queue_count >= total:
+                            if queue_count * 2 + 1 >= queue_capacity:
                                 return -1
-                            queue[queue_count] = neighbor_row + next_left
+                            queue_slot = queue_count * 2
+                            queue[queue_slot] = neighbor_row + next_left
+                            queue[queue_slot + 1] = (
+                                neighbor_row + next_right)
                             queue_count += 1
                             for px in range(next_left, next_right + 1):
-                                visited[neighbor_row + px] = 1
+                                visited[neighbor_row + px] = visit_stamp | 1
                             nx = next_right + 1
                         else:
                             nx += 1
@@ -324,6 +412,9 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             if (touches_roi != 0 or area < min_area or area > max_area or
                     box_width < min_extent or box_height < min_extent or
                     box_width > max_extent or box_height > max_extent):
+                # Every pixel through this seed run was stamped at enqueue,
+                # so no other 8-connected component can begin inside it.
+                start_x = seed_run_right + 1
                 continue
 
             x0 = min_x - 1
@@ -339,7 +430,9 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
             if y1 >= band_end:
                 y1 = band_end - 1
 
-            # Mark all zero pixels connected to the padded box border.
+            # Flood zero regions as horizontal runs. The queue stores the
+            # start and end index per run, so 4-connectivity is preserved
+            # without a queue entry and coordinate division per pixel.
             queue_count = 0
             for y in range(y0, y1 + 1):
                 for x in range(x0, x1 + 1):
@@ -347,112 +440,211 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
                             y != y0 and y != y1):
                         continue
                     index = y * width + x
-                    if mask[index] != 0 or visited[index] != 0:
+                    if (mask[index] != 0 or
+                            (visited[index] >> 2) == epoch):
                         continue
-                    if queue_count >= total:
+                    run_left = x
+                    while run_left > x0:
+                        neighbor = y * width + run_left - 1
+                        if (mask[neighbor] != 0 or
+                                (visited[neighbor] >> 2) == epoch):
+                            break
+                        run_left -= 1
+                    run_right = x
+                    while run_right < x1:
+                        neighbor = y * width + run_right + 1
+                        if (mask[neighbor] != 0 or
+                                (visited[neighbor] >> 2) == epoch):
+                            break
+                        run_right += 1
+                    if queue_count * 2 + 1 >= queue_capacity:
                         return -1
-                    visited[index] = 1
-                    queue[queue_count] = index
+                    queue[queue_count * 2] = y * width + run_left
+                    queue[queue_count * 2 + 1] = y * width + run_right
                     queue_count += 1
+                    for px in range(run_left, run_right + 1):
+                        visited[y * width + px] = visit_stamp | 1
 
             queue_head = 0
             while queue_head < queue_count:
-                index = int(queue[queue_head])
+                index = int(queue[queue_head * 2])
+                run_end_index = int(queue[queue_head * 2 + 1])
                 queue_head += 1
-                x = index % width
                 y = index // width
-                nx = x - 1
-                if nx >= x0:
-                    neighbor = y * width + nx
-                    if mask[neighbor] == 0 and visited[neighbor] == 0:
-                        if queue_count >= total:
-                            return -1
-                        visited[neighbor] = 1
-                        queue[queue_count] = neighbor
-                        queue_count += 1
-                nx = x + 1
-                if nx <= x1:
-                    neighbor = y * width + nx
-                    if mask[neighbor] == 0 and visited[neighbor] == 0:
-                        if queue_count >= total:
-                            return -1
-                        visited[neighbor] = 1
-                        queue[queue_count] = neighbor
-                        queue_count += 1
-                ny = y - 1
-                if ny >= y0:
-                    neighbor = ny * width + x
-                    if mask[neighbor] == 0 and visited[neighbor] == 0:
-                        if queue_count >= total:
-                            return -1
-                        visited[neighbor] = 1
-                        queue[queue_count] = neighbor
-                        queue_count += 1
-                ny = y + 1
-                if ny <= y1:
-                    neighbor = ny * width + x
-                    if mask[neighbor] == 0 and visited[neighbor] == 0:
-                        if queue_count >= total:
-                            return -1
-                        visited[neighbor] = 1
-                        queue[queue_count] = neighbor
-                        queue_count += 1
+                row_offset = y * width
+                run_left = index - row_offset
+                run_right = run_end_index - row_offset
 
-            for y in range(y0 + 1, y1):
-                for x in range(x0 + 1, x1):
-                    start = y * width + x
-                    if mask[start] != 0 or visited[start] != 0:
+                for direction in range(2):
+                    ny = y - 1 if direction == 0 else y + 1
+                    if ny < y0 or ny > y1:
                         continue
-                    visited[start] = 1
+                    neighbor_row = ny * width
+                    nx = run_left
+                    while nx <= run_right:
+                        neighbor = neighbor_row + nx
+                        if (mask[neighbor] == 0 and
+                                (visited[neighbor] >> 2) != epoch):
+                            next_left = nx
+                            while next_left > x0:
+                                neighbor = neighbor_row + next_left - 1
+                                if (mask[neighbor] != 0 or
+                                        (visited[neighbor] >> 2) == epoch):
+                                    break
+                                next_left -= 1
+                            next_right = nx
+                            while next_right < x1:
+                                neighbor = neighbor_row + next_right + 1
+                                if (mask[neighbor] != 0 or
+                                        (visited[neighbor] >> 2) == epoch):
+                                    break
+                                next_right += 1
+                            if queue_count * 2 + 1 >= queue_capacity:
+                                return -1
+                            queue[queue_count * 2] = (
+                                neighbor_row + next_left)
+                            queue[queue_count * 2 + 1] = (
+                                neighbor_row + next_right)
+                            queue_count += 1
+                            for px in range(next_left, next_right + 1):
+                                visited[neighbor_row + px] = visit_stamp | 1
+                            nx = next_right + 1
+                        else:
+                            nx += 1
+
+            # Count interior zero components with the same 4-connected run
+            # flood. Runs cannot cross the padded border, just as the prior
+            # pixel flood's neighbor checks could not cross it.
+            inner_left = x0 + 1
+            inner_right = x1 - 1
+            for y in range(y0 + 1, y1):
+                x = inner_left
+                while x <= inner_right:
+                    start = y * width + x
+                    if (mask[start] != 0 or
+                            (visited[start] >> 2) == epoch):
+                        x += 1
+                        continue
+                    run_left = x
+                    while run_left > inner_left:
+                        neighbor = y * width + run_left - 1
+                        if (mask[neighbor] != 0 or
+                                (visited[neighbor] >> 2) == epoch):
+                            break
+                        run_left -= 1
+                    run_right = x
+                    while run_right < inner_right:
+                        neighbor = y * width + run_right + 1
+                        if (mask[neighbor] != 0 or
+                                (visited[neighbor] >> 2) == epoch):
+                            break
+                        run_right += 1
+                    seed_right = run_right
+                    for px in range(run_left, run_right + 1):
+                        visited[y * width + px] = visit_stamp | 1
                     queue_count = 1
-                    queue[0] = start
+                    queue[0] = y * width + run_left
+                    queue[1] = y * width + run_right
                     queue_head = 0
                     hole_area = 0
                     while queue_head < queue_count:
-                        index = int(queue[queue_head])
+                        index = int(queue[queue_head * 2])
+                        run_end_index = int(queue[queue_head * 2 + 1])
                         queue_head += 1
-                        px = index % width
                         py = index // width
-                        hole_area += 1
-                        nx = px - 1
-                        if nx > x0:
-                            neighbor = py * width + nx
-                            if mask[neighbor] == 0 and visited[neighbor] == 0:
-                                if queue_count >= total:
-                                    return -1
-                                visited[neighbor] = 1
-                                queue[queue_count] = neighbor
-                                queue_count += 1
-                        nx = px + 1
-                        if nx < x1:
-                            neighbor = py * width + nx
-                            if mask[neighbor] == 0 and visited[neighbor] == 0:
-                                if queue_count >= total:
-                                    return -1
-                                visited[neighbor] = 1
-                                queue[queue_count] = neighbor
-                                queue_count += 1
-                        ny = py - 1
-                        if ny > y0:
-                            neighbor = ny * width + px
-                            if mask[neighbor] == 0 and visited[neighbor] == 0:
-                                if queue_count >= total:
-                                    return -1
-                                visited[neighbor] = 1
-                                queue[queue_count] = neighbor
-                                queue_count += 1
-                        ny = py + 1
-                        if ny < y1:
-                            neighbor = ny * width + px
-                            if mask[neighbor] == 0 and visited[neighbor] == 0:
-                                if queue_count >= total:
-                                    return -1
-                                visited[neighbor] = 1
-                                queue[queue_count] = neighbor
-                                queue_count += 1
+                        row_offset = py * width
+                        run_left = index - row_offset
+                        run_right = run_end_index - row_offset
+                        hole_area += run_right - run_left + 1
+                        for direction in range(2):
+                            ny = py - 1 if direction == 0 else py + 1
+                            if ny <= y0 or ny >= y1:
+                                continue
+                            neighbor_row = ny * width
+                            nx = run_left
+                            while nx <= run_right:
+                                neighbor = neighbor_row + nx
+                                if (mask[neighbor] == 0 and
+                                        (visited[neighbor] >> 2) != epoch):
+                                    next_left = nx
+                                    while next_left > inner_left:
+                                        neighbor = (neighbor_row +
+                                                    next_left - 1)
+                                        if (mask[neighbor] != 0 or
+                                                (visited[neighbor] >> 2) ==
+                                                epoch):
+                                            break
+                                        next_left -= 1
+                                    next_right = nx
+                                    while next_right < inner_right:
+                                        neighbor = (neighbor_row +
+                                                    next_right + 1)
+                                        if (mask[neighbor] != 0 or
+                                                (visited[neighbor] >> 2) ==
+                                                epoch):
+                                            break
+                                        next_right += 1
+                                    if queue_count * 2 + 1 >= queue_capacity:
+                                        return -1
+                                    queue[queue_count * 2] = (
+                                        neighbor_row + next_left)
+                                    queue[queue_count * 2 + 1] = (
+                                        neighbor_row + next_right)
+                                    queue_count += 1
+                                    for px in range(next_left,
+                                                    next_right + 1):
+                                        visited[neighbor_row + px] = (
+                                            visit_stamp | 1)
+                                    nx = next_right + 1
+                                else:
+                                    nx += 1
                     if hole_area >= min_hole_area:
                         return 1
+                    x = seed_right + 1
+            start_x += 1
     return 0
+
+
+def _region_segments_dispatch(self, floor):
+    native = _NATIVE_ACCEL
+    if native is not None and self.width == 80 and self.height == 60:
+        # Do not catch native validation exceptions: the calling main loop must
+        # fail closed instead of retrying with a less defensive kernel.
+        return native.region_segments(
+            self._current_mask,
+            self._current_known,
+            self._current_rows,
+            floor,
+            self._trusted_rows,
+            self._segment_starts,
+            self._segment_ends,
+            self._segment_count_buffer)
+    if _IS_MICROPYTHON:
+        return _region_segments_viper(self, floor)
+    return self._region_segments_host(floor)
+
+
+def _internal_component_dispatch(self, floor, band_end):
+    native = _NATIVE_ACCEL
+    if native is not None and self.width == 80 and self.height == 60:
+        # The native binding validates all exact buffer types, lengths, and
+        # settings before entering C. Any rejection propagates to main.
+        return native.internal_component(
+            self._current_mask,
+            self._visited,
+            self._visit_epoch,
+            self._queue,
+            floor,
+            band_end,
+            self._queue_capacity,
+            self.component_min_area,
+            self.component_max_area,
+            self.component_min_extent,
+            self.component_max_extent,
+            self.hole_min_area)
+    if _IS_MICROPYTHON:
+        return _internal_component_viper(self, floor, band_end)
+    return self._internal_component_runs_host(floor, band_end)
 
 
 def _value(settings, name, default):
@@ -492,14 +684,21 @@ class FastTopologyGuard:
 
         total = self.width * self.height
         self._visited = bytearray(total)
-        # Every linear index is below 4800, so an unsigned 16-bit queue is
-        # sufficient and occupies the same 2 bytes per entry as the old byte
-        # packed queue.
-        self._queue = array("H", [0] * total)
+        self._visit_epoch = array("i", [0])
+        # The run queue stores two 16-bit endpoints per run. A row can have
+        # ceil(width/2) separated runs, so odd-width grids need more than one
+        # queue slot per pixel. This formula leaves the existing 80x60
+        # allocation at 4,800 entries while covering a 5x5 checkerboard's
+        # 13 runs (26 endpoint entries).
+        self._queue_capacity = 2 * ((self.width + 1) // 2) * self.height
+        self._queue = array("H", [0] * self._queue_capacity)
         self._trusted_rows = bytearray(self.height)
         self._segment_starts = bytearray(self.height)
         self._segment_ends = bytearray(self.height)
-        self._segment_count_buffer = array("i", [0])
+        # Slot 0 is the trusted-band count. Slot 1 is the number of fully
+        # known rows, produced by the Viper region scan to avoid rescanning
+        # the trust bitmap in Python on every frame.
+        self._segment_count_buffer = array("i", [0, 0])
         self._trusted_row_count = 0
         self._current_mask = None
         self._current_known = None
@@ -509,6 +708,7 @@ class FastTopologyGuard:
         self._result = {
             "island_evidence": False,
             "branch_evidence": False,
+            "independent_branch_checked": False,
             "ambiguous": False,
             "reason": "NOT_RUN",
             "complete": False,
@@ -940,9 +1140,10 @@ class FastTopologyGuard:
         return False
 
     def _set_result(self, island, branch, reason, complete=False,
-                    ambiguous=None):
+                    ambiguous=None, independent_branch_checked=False):
         self._result["island_evidence"] = bool(island)
         self._result["branch_evidence"] = bool(branch)
+        self._result["independent_branch_checked"] = bool(independent_branch_checked)
         self._result["ambiguous"] = (bool(island or branch)
                                       if ambiguous is None else
                                       bool(ambiguous))
@@ -982,10 +1183,12 @@ class FastTopologyGuard:
         self._current_known = known_region
         self._current_rows = row_counts
         self._current_floor = floor
-        if _IS_MICROPYTHON:
-            complete = _region_segments_viper(self, floor)
-        else:
-            complete = self._region_segments_host(floor)
+        use_native_accel = (
+            _NATIVE_ACCEL is not None and
+            self.width == 80 and self.height == 60)
+        complete = _region_segments_dispatch(self, floor)
+        if _IS_MICROPYTHON or use_native_accel:
+            self._trusted_row_count = self._segment_count_buffer[1]
         if complete == -2:
             self._segment_count_buffer[0] = 0
             return self._set_result(False, False, "UNKNOWN_REGION",
@@ -997,9 +1200,10 @@ class FastTopologyGuard:
             return self._set_result(False, False, "UNKNOWN_REGION",
                                     ambiguous=True)
 
-        for y in range(floor, self.height):
-            if self._trusted_rows[y]:
-                self._trusted_row_count += 1
+        if not _IS_MICROPYTHON and not use_native_accel:
+            for y in range(floor, self.height):
+                if self._trusted_rows[y]:
+                    self._trusted_row_count += 1
 
         island = 0
         branch = 0
@@ -1011,34 +1215,31 @@ class FastTopologyGuard:
                 return self._set_result(False, False, "KERNEL_BOUNDS")
             self._current_floor = segment_floor
             self._current_band_end = segment_end
-            if _IS_MICROPYTHON:
-                segment_island = _internal_component_viper(
-                    self, segment_floor, segment_end)
-            else:
-                segment_island = self._internal_component_runs_host(
-                    segment_floor, segment_end)
+            segment_island = _internal_component_dispatch(
+                self, segment_floor, segment_end)
             if segment_island < 0:
                 return self._set_result(False, False, "KERNEL_BOUNDS")
             if segment_island:
                 island = 1
                 break
-        if not island:
-            for segment in range(segment_count):
-                segment_floor = self._segment_starts[segment]
-                segment_end = self._segment_ends[segment]
-                self._current_floor = segment_floor
-                self._current_band_end = segment_end
-                if _IS_MICROPYTHON:
-                    segment_branch = _open_band_viper(
-                        self, segment_floor, segment_end)
-                else:
-                    segment_branch = self._open_band_host(
-                        segment_floor, segment_end)
-                if segment_branch < 0:
-                    return self._set_result(False, False, "KERNEL_BOUNDS")
-                if segment_branch:
-                    branch = 1
-                    break
+        # A confirmed ring may accept its own island. Independently inspect
+        # open branches even when an island was found; ISLAND must not hide one.
+        for segment in range(segment_count):
+            segment_floor = self._segment_starts[segment]
+            segment_end = self._segment_ends[segment]
+            self._current_floor = segment_floor
+            self._current_band_end = segment_end
+            if _IS_MICROPYTHON:
+                segment_branch = _open_band_viper(
+                    self, segment_floor, segment_end)
+            else:
+                segment_branch = self._open_band_host(
+                    segment_floor, segment_end)
+            if segment_branch < 0:
+                return self._set_result(False, False, "KERNEL_BOUNDS")
+            if segment_branch:
+                branch = 1
+                break
         if island:
             reason = "ISLAND"
         elif branch:
@@ -1047,4 +1248,5 @@ class FastTopologyGuard:
             reason = "PARTIAL_KNOWN_ROI"
         else:
             reason = "OK"
-        return self._set_result(island, branch, reason, complete == 1)
+        return self._set_result(island, branch, reason, complete == 1,
+                                independent_branch_checked=True)

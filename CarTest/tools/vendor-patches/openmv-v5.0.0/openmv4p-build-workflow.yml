@@ -1,0 +1,114 @@
+# Archival copy of the manually triggered workflow at the version-repository
+# root: .github/workflows/openmv4p-v5.0.0-build.yml
+name: OpenMV OPENMV4P v5.0.0 firmware build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/openmv-preview-native-build-20261024
+
+permissions:
+  contents: read
+
+jobs:
+  build-openmv4p:
+    name: Build patched OPENMV4P firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out version checkpoint
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Verify the approved patch file
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file='CarTest/tools/vendor-patches/openmv-v5.0.0/0001-csi-snapshot-preview-kwarg.patch'
+          expected_sha256='2bbb92b2b25705002ae16b9e9f18f57fc171ca8f0549680cc15260cce0b468d5'
+          printf '%s  %s\n' "$expected_sha256" "$patch_file" | sha256sum --check --strict
+
+      - name: Install host build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential git patch python3 wget xz-utils
+
+      - name: Fetch and verify OpenMV v5.0.0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly openmv_tag='v5.0.0'
+          readonly expected_commit='7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79'
+
+          git init --quiet openmv-source
+          git -C openmv-source remote add origin https://github.com/openmv/openmv.git
+          git -C openmv-source fetch --depth=1 origin "refs/tags/${openmv_tag}"
+          git -C openmv-source checkout --quiet --detach FETCH_HEAD
+          actual_commit="$(git -C openmv-source rev-parse HEAD)"
+          if [[ "$actual_commit" != "$expected_commit" ]]; then
+            printf 'Unexpected OpenMV commit: %s\n' "$actual_commit" >&2
+            exit 1
+          fi
+
+          git -C openmv-source submodule update --init --depth=1 --no-single-branch
+          git -C openmv-source/lib/micropython submodule update --init --depth=1
+
+      - name: Apply the verified CSI preview patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file="$GITHUB_WORKSPACE/CarTest/tools/vendor-patches/openmv-v5.0.0/0001-csi-snapshot-preview-kwarg.patch"
+          patch --batch --forward --fuzz=0 -p1 -d openmv-source < "$patch_file"
+
+      - name: Build firmware with the pinned OpenMV SDK
+        shell: bash
+        working-directory: openmv-source
+        run: |
+          set -euo pipefail
+          readonly expected_sdk_version='1.6.0'
+          actual_sdk_version="$(cat SDK_VERSION)"
+          if [[ "$actual_sdk_version" != "$expected_sdk_version" ]]; then
+            printf 'Unexpected OpenMV SDK version: %s\n' "$actual_sdk_version" >&2
+            exit 1
+          fi
+
+          source tools/ci.sh
+          ci_install_sdk
+          ci_build_target OPENMV4P false 0 true
+
+      - name: Verify firmware image and prepare build summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s openmv-source/OPENMV4P/firmware.bin
+          mkdir -p build-artifacts
+          cp -- openmv-source/OPENMV4P/firmware.bin build-artifacts/firmware.bin
+          if [[ -s openmv-source/OPENMV4P/firmware.elf ]]; then
+            cp -- openmv-source/OPENMV4P/firmware.elf build-artifacts/firmware.elf
+          fi
+
+          {
+            printf 'openmv_tag=%s\n' 'v5.0.0'
+            printf 'openmv_commit=%s\n' '7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79'
+            printf 'openmv_sdk_version=%s\n' '1.6.0'
+            printf 'patch_sha256=%s\n' '2bbb92b2b25705002ae16b9e9f18f57fc171ca8f0549680cc15260cce0b468d5'
+            printf 'firmware.bin_sha256=%s\n' "$(sha256sum build-artifacts/firmware.bin | cut -d' ' -f1)"
+            if [[ -s build-artifacts/firmware.elf ]]; then
+              printf 'firmware.elf_sha256=%s\n' "$(sha256sum build-artifacts/firmware.elf | cut -d' ' -f1)"
+            fi
+          } | tee build-artifacts/build-summary.txt
+          summary_sha256="$(sha256sum build-artifacts/build-summary.txt | cut -d' ' -f1)"
+          printf '%s  %s\n' "$summary_sha256" 'build-summary.txt' > build-artifacts/build-summary.txt.sha256
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: openmv4p-v5.0.0-${{ github.run_id }}
+          path: build-artifacts/
+          if-no-files-found: error
+          retention-days: 14

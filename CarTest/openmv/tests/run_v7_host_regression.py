@@ -1,11 +1,15 @@
-"""Run frozen V7 host regressions with CarTest's OpenMV source modules.
+"""Historical frozen V7 checks for the pre-320x120 160x120/2x2 input.
 
 This runner copies tests into a temporary tree so their existing path-based
 imports resolve to the CarTest package. It adapts the old literal BUILD
 expectation and marks the frozen V7 test double as the confidence-diagnostic
-API required by the new bundle. Neither the frozen snapshot nor original
-Sixth_Test tests are modified. Board-only equivalence stays skipped unless a
-real-board manifest is provided, and no camera or serial interface is opened.
+API required by the old bundle. Its image fixtures assume one uniform 2x2
+source-to-grid scale, so it is a historical compatibility check and does not
+validate the current 320x120 center crop or 4x2 min-pool. Use
+`python -m unittest discover -s openmv/tests -p 'test_*.py'` for current host
+regressions. Neither the frozen snapshot nor original Sixth_Test tests are
+modified. Board-only equivalence stays skipped unless a real-board manifest is
+provided, and no camera or serial interface is opened.
 """
 
 import csv
@@ -27,7 +31,7 @@ FROZEN_MANIFEST = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.jso
 FROZEN_ZIP = PACKAGE_DATA / "OpenMV_V7_FAST_GRAY_RT45_20261005.zip"
 FROZEN_INVENTORY = FROZEN_DIR / "source-sha256.csv"
 BUILD_OLD = "SIXTH_V7_FAST_GRAY_RT45_20261005"
-BUILD_NEW = "CACHED_WIDTH_RING_20261014"
+BUILD_NEW = "BOTTOM80_POSPD_20261020"
 TEST_NAMES = (
     "test_fast_gray.py",
     "test_fast_topology.py",
@@ -115,6 +119,13 @@ def main():
                     reason="expected block diagnostics follow four-block config")
             elif name == "test_fast_path.py":
                 content = replace_fixture(
+                    content, name, "import config\n",
+                    "import config as _production_config\n"
+                    "from types import SimpleNamespace\n"
+                    "config = SimpleNamespace(**vars(_production_config))\n"
+                    "config.FAST_PATH_REFERENCE_MAX_GAP = 51.0\n",
+                    reason="pin legacy broad-reference kernel fixtures; production near-reference policy has separate regressions")
+                content = replace_fixture(
                     content, name,
                     "def mask_for_rows(center_fn=None, half_width=18, "
                     "y_range=(20, 60),",
@@ -194,6 +205,10 @@ def main():
                     content, name, BUILD_OLD, BUILD_NEW,
                     expected=1,
                     reason="adapt historical BUILD literal to current package identity")
+                content = replace_fixture(
+                    content, name, '"config/build mismatch"',
+                    '"control profile/build mismatch"',
+                    reason="match the explicit profile/build guard wording")
                 content = replace_fixture(
                     content, name, frozen_stub, cartest_stub,
                     reason="add current confidence-diagnostic API to frozen test double")
@@ -318,9 +333,9 @@ def main():
             encoding="utf-8", newline="")
         environment = os.environ.copy()
         environment.pop("V7_REQUIRE_BOARD_KERNEL_EQUIVALENCE", None)
-        print("SUITE_CLASS=FROZEN_V7_BEHAVIORAL_COMPATIBILITY")
+        print("SUITE_CLASS=HISTORICAL_160x120_2x2_BEHAVIORAL_COMPATIBILITY")
         print("FIXTURE_SOURCE_HASHES=VERIFIED_UNCHANGED")
-        print("TARGET_RUNTIME_CONFIG=CURRENT_RING_20261014")
+        print("CURRENT_320x120_4x2_ACCEPTANCE=NOT_COVERED")
         print("TEMPORARY_TEST_COPY_ADAPTATIONS=" +
               json.dumps(adaptations_applied, sort_keys=True))
         completed = subprocess.run(

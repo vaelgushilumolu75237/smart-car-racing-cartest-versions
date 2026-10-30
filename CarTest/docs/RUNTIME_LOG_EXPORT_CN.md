@@ -4,12 +4,30 @@
 
 ## 导出前
 
-从本项目目录选择本次实际构建使用的 `CarTest.elf`。不要从同名的其他工程或旧配置中取 ELF；ROM 描述符中的 build ID 必须与 RAM 日志一致。当前 DebugFollow 构建示例：
+从本项目目录选择本次实际构建使用的 `CarTest.elf`。不要从同名的其他工程或旧配置中取 ELF；ROM 描述符中的 build ID 必须与 RAM 日志一致。离线工具依次校验头 schema、header CRC 和保留字节，再比较 build ID，最后报告 `IDLE`、`ACTIVE` 或可导出的 `FROZEN` 状态。build ID 不匹配时，错误会显示 RAM 地址、所选 ELF 的 expected ID 和头中的 observed ID。这个不匹配只说明当前头与所选 ELF 的身份不同；它不能单独证明哪一个固件当时正在运行。工具不会根据头自动切换 ELF；先核对实际使用的 ELF 与记录来源。
+
+当前 DebugFollow 构建示例：
 
 ```powershell
 Set-Location 'D:\Codex\smart-car-racing-codex-handoff\smart-car-racing\firmware\vehicle\CarTest'
 $elf = (Resolve-Path '.\build\DebugFollow\CarTest.elf').Path
 ```
+
+## 选择本次实际构建
+
+普通三档试跑使用 `DebugFollowTurn` ELF：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\export_run_log.ps1 -Elf .\build\DebugFollowTurn\CarTest.elf
+```
+
+Speed PI 试跑使用 `DebugFollowSpeedPI` ELF：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\export_run_log.ps1 -Elf .\build\DebugFollowSpeedPI\CarTest.elf
+```
+
+每次都按本次实际烧录的配置选择 ELF。若用 PowerShell `$elf` 变量，切换配置后必须重新赋值；不要沿用上一个配置留下的路径。当前 VS Code 工作区没有专用的日志导出 task。ELF 不匹配时工具只报告身份不一致，不会自动换 ELF，也不能恢复或推断一份 `IDLE` / `count=0` 头对应的运行记录。
 
 一次导出必须满足以下状态：
 

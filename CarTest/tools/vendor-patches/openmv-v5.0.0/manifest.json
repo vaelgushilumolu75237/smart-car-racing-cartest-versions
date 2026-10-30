@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/openmv/openmv",
+  "tag": "v5.0.0",
+  "commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+  "micropython_commit": "d18a77e5d55664045e71a0c839695df07a96a6e1",
+  "base_sha256": {
+    "modules/py_csi.c": "6DE532C54D5F0BD4660F82587BEF7F48D2199A17E72B677578BF289605A044D3",
+    "modules/py_csi_ng.c": "6BA5B285B5BAC277D456C9B576B5516314F6AB8DC3B46325E7FFECB1DDE430A6"
+  },
+  "patch_sha256": "2BBB92B2B25705002AE16B9E9F18F57FC171CA8F0549680CC15260CCE0B468D5"
+}

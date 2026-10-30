@@ -1,7 +1,7 @@
 {
-  "version": "v20261015-pi-trial",
-  "status": "experimental-pi-software-tested-ring-regression-reported",
+  "version": "v20261031-ring-exit-v26-r13",
+  "status": "experimental-software-tested",
   "branch": "experimental/pi-trial",
-  "files": 327,
+  "files": 846,
   "hardware_actions": "none"
 }

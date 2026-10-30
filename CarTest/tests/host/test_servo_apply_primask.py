@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -20,7 +22,7 @@ PRELUDE = r'''
 #define CAR_SERVO_SAFETY_MIN_US 1100u
 #define CAR_SERVO_SAFETY_MAX_US 2500u
 #define CAR_SERVO_SAFETY_SLEW_STEP_US 10u
-#define CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US 40u
+#define CAR_SERVO_SAFETY_FOLLOW_NORMAL_SLEW_STEP_US __FOLLOW_NORMAL_SLEW_STEP_US__u
 #define APP_MOTOR_CHANNEL_MASK 0x0fu
 #define TIM_CR1_CEN 0x0001u
 #define TIM_CCER_CC1E 0x0001u
@@ -149,6 +151,8 @@ static void stop_servo_outputs_hardware(void);
 static void car_control_note_fault(car_control_state_t *state, car_fault_t fault);
 static uint8_t car_control_vision_fresh(const car_control_state_t *state,
                                         uint32_t now_ms, uint16_t timeout_ms);
+static uint16_t car_control_follow_servo_output_target_us(
+    const car_control_state_t *state);
 #define __DSB() ((void)0)
 '''
 
@@ -178,6 +182,12 @@ static void __set_PRIMASK(uint32_t value)
 static uint32_t HAL_GetTick(void)
 {
     return 1234u;
+}
+
+static uint16_t car_control_follow_servo_output_target_us(
+    const car_control_state_t *state)
+{
+    return state->follow_servo_target_us;
 }
 
 static void output_generation_snapshot(output_generation_snapshot_t *snapshot)
@@ -530,7 +540,8 @@ def extract_function(source: str) -> str:
     raise ValueError("servo_apply function braces did not balance")
 
 
-def compile_and_run(source_path: Path, compiler: str, expect_negative: bool) -> tuple[int, str]:
+def compile_and_run(source_path: Path, compiler: str, expect_negative: bool,
+                    follow_slew_step_us: int) -> tuple[int, str]:
     source_text = source_path.read_text(encoding="utf-8-sig")
     function = extract_function(source_text)
     source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
@@ -538,7 +549,10 @@ def compile_and_run(source_path: Path, compiler: str, expect_negative: bool) -> 
         temp = Path(temp_name)
         c_file = temp / "servo_apply_primask.c"
         executable = temp / "servo_apply_primask.exe"
-        c_file.write_text(PRELUDE + "\n" + function + "\n" + SUPPORT, encoding="ascii")
+        prelude = PRELUDE.replace(
+            "__FOLLOW_NORMAL_SLEW_STEP_US__", str(follow_slew_step_us)
+        )
+        c_file.write_text(prelude + "\n" + function + "\n" + SUPPORT, encoding="ascii")
         built = subprocess.run(
             [compiler, "/nologo", "/std:c11", "/W4", "/TC",
              "/Fe:" + str(executable), str(c_file)],
@@ -580,12 +594,40 @@ def compile_and_run(source_path: Path, compiler: str, expect_negative: bool) -> 
         return run.returncode, output
 
 
+def configured_follow_servo_slew_step_us(build_preset: str | None = None) -> int:
+    selected_preset = build_preset or os.environ.get(
+        "CARTEST_RUNTIME_LOG_BUILD_PRESET", "DebugFollow"
+    )
+    if selected_preset not in ("DebugFollow", "DebugFollowTurn"):
+        raise SystemExit("build preset must be DebugFollow or DebugFollowTurn")
+    build_ninja = PROJECT_ROOT / "build" / selected_preset / "build.ninja"
+    if not build_ninja.is_file():
+        raise SystemExit("Build the selected preset before running this test: " + str(build_ninja))
+    match = re.search(
+        r"-DCARTEST_FOLLOW_SERVO_SLEW_STEP_US=(\d+)",
+        build_ninja.read_text(encoding="utf-8-sig", errors="replace"),
+    )
+    if match is None:
+        raise SystemExit("Selected build has no CARTEST_FOLLOW_SERVO_SLEW_STEP_US definition")
+    return int(match.group(1))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--negative-source", required=True)
     parser.add_argument("--source", required=True)
     parser.add_argument("--compiler", default="cl")
+    parser.add_argument("--build-preset", default=None,
+                        help="read the selected follow-servo slew value from build/<preset>/build.ninja")
     args = parser.parse_args()
+
+    build_preset = args.build_preset or os.environ.get(
+        "CARTEST_RUNTIME_LOG_BUILD_PRESET", "DebugFollow"
+    )
+    follow_slew_step_us = configured_follow_servo_slew_step_us(build_preset)
+    print("FOLLOW_SERVO_SLEW_STEP_US={} BUILD_PRESET={}".format(
+        follow_slew_step_us, build_preset
+    ))
 
     negative_source = (PROJECT_ROOT / args.negative_source).resolve()
     fixed_source = (PROJECT_ROOT / args.source).resolve()
@@ -594,8 +636,10 @@ def main() -> int:
     if not fixed_source.is_file():
         raise SystemExit("Production source not found: {}".format(fixed_source))
 
-    compile_and_run(negative_source, args.compiler, expect_negative=True)
-    compile_and_run(fixed_source, args.compiler, expect_negative=False)
+    compile_and_run(negative_source, args.compiler, expect_negative=True,
+                    follow_slew_step_us=follow_slew_step_us)
+    compile_and_run(fixed_source, args.compiler, expect_negative=False,
+                    follow_slew_step_us=follow_slew_step_us)
     return 0
 
 

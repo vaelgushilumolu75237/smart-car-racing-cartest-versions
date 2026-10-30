@@ -68,21 +68,110 @@ void car_follow_output_reset(car_follow_output_state_t *state)
     }
 }
 
+static uint16_t vision_hold_target(uint16_t entry_permille,
+                                   uint16_t maximum_entry_permille)
+{
+    uint32_t scaled_target;
+
+    if (maximum_entry_permille == 0u) {
+        return 0u;
+    }
+    scaled_target = ((uint32_t)entry_permille *
+                     CAR_FOLLOW_VISION_HOLD_TARGET_PERMILLE) /
+                    maximum_entry_permille;
+    if (scaled_target < CAR_FOLLOW_VISION_HOLD_MIN_TARGET_PERMILLE) {
+        scaled_target = CAR_FOLLOW_VISION_HOLD_MIN_TARGET_PERMILLE;
+    }
+    /* A low entry side must never be raised to the minimum target. */
+    if (scaled_target > entry_permille) {
+        scaled_target = entry_permille;
+    }
+    return (uint16_t)scaled_target;
+}
+
+static uint16_t vision_hold_interpolate(uint16_t entry_permille,
+                                        uint16_t target_permille,
+                                        uint32_t elapsed_ms)
+{
+    uint32_t drop;
+
+    if (target_permille >= entry_permille) {
+        return entry_permille;
+    }
+    if (elapsed_ms >= CAR_FOLLOW_VISION_HOLD_RAMP_MS) {
+        return target_permille;
+    }
+    drop = ((uint32_t)(entry_permille - target_permille) * elapsed_ms) /
+           CAR_FOLLOW_VISION_HOLD_RAMP_MS;
+    return (uint16_t)(entry_permille - drop);
+}
+
+void car_follow_output_hold_at(car_follow_output_state_t *state,
+                               uint32_t now_ms,
+                               uint32_t hold_started_ms,
+                               uint32_t hold_entry_generation,
+                               uint16_t left_applied_permille,
+                               uint16_t right_applied_permille)
+{
+    uint32_t elapsed_ms;
+
+    if (state == 0) {
+        return;
+    }
+
+    if (state->phase != CAR_FOLLOW_OUTPUT_PHASE_VISION_HOLD ||
+        state->hold_entry_generation != hold_entry_generation) {
+        uint16_t maximum_entry_permille =
+            left_applied_permille > right_applied_permille
+                ? left_applied_permille : right_applied_permille;
+
+        state->hold_entry_left_permille = left_applied_permille;
+        state->hold_entry_right_permille = right_applied_permille;
+        state->hold_entry_generation = hold_entry_generation;
+        state->target_left_permille = vision_hold_target(
+            left_applied_permille, maximum_entry_permille);
+        state->target_right_permille = vision_hold_target(
+            right_applied_permille, maximum_entry_permille);
+        state->hold_started_ms = hold_started_ms;
+        state->phase = CAR_FOLLOW_OUTPUT_PHASE_VISION_HOLD;
+    }
+
+    elapsed_ms = (uint32_t)(now_ms - state->hold_started_ms);
+    if (elapsed_ms > CAR_FOLLOW_VISION_HOLD_RAMP_MS) {
+        elapsed_ms = CAR_FOLLOW_VISION_HOLD_RAMP_MS;
+    }
+    state->command_left_permille = vision_hold_interpolate(
+        state->hold_entry_left_permille, state->target_left_permille,
+        elapsed_ms);
+    state->command_right_permille = vision_hold_interpolate(
+        state->hold_entry_right_permille, state->target_right_permille,
+        elapsed_ms);
+
+    state->last_ramp_ms = now_ms;
+    state->have_ramp_time = 1u;
+}
+
 void car_follow_output_hold(car_follow_output_state_t *state,
                             uint32_t now_ms,
                             uint16_t left_applied_permille,
                             uint16_t right_applied_permille)
 {
+    uint32_t hold_entry_generation;
+
     if (state == 0) {
         return;
     }
-    state->target_left_permille = left_applied_permille;
-    state->target_right_permille = right_applied_permille;
-    state->command_left_permille = left_applied_permille;
-    state->command_right_permille = right_applied_permille;
-    state->last_ramp_ms = now_ms;
-    state->have_ramp_time = 1u;
-    state->phase = CAR_FOLLOW_OUTPUT_PHASE_VISION_HOLD;
+    hold_entry_generation = state->hold_entry_generation;
+    if (state->phase != CAR_FOLLOW_OUTPUT_PHASE_VISION_HOLD) {
+        ++hold_entry_generation;
+        if (hold_entry_generation == 0u) {
+            ++hold_entry_generation;
+        }
+    }
+    car_follow_output_hold_at(state, now_ms, now_ms,
+                              hold_entry_generation,
+                              left_applied_permille,
+                              right_applied_permille);
 }
 
 uint8_t car_follow_output_slope_assist_request(

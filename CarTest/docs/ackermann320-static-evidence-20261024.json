@@ -1,0 +1,350 @@
+{
+  "date": "2026-10-24",
+  "scene": "static real straight track",
+  "sensor": "OPENMV4P 320x120 center crop",
+  "host_status_poll_ms": 5,
+  "tests": [
+    {
+      "test": "coordinated_no_usb_preview",
+      "private_local_log": "logs\\camera-bench-20261023\\package-coordinated-30sec-console.log",
+      "log_sha256": "d25c728f3f20ae342467e6b90c743849119dbefae1d1dd83aef62c9b942a5ff9",
+      "windows": [
+        {
+          "index": 0,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 1,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 2,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        }
+      ],
+      "fps": [
+        60.8,
+        60.8,
+        60.8
+      ],
+      "physical_uart": false,
+      "simulated_keep": true,
+      "stages_us": [
+        {
+          "index": 0,
+          "stage": "masks",
+          "n": 608,
+          "avg": 2571,
+          "p95_upper": 3000,
+          "max": 2979
+        },
+        {
+          "index": 0,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12450,
+          "p95_upper": 13000,
+          "max": 14760
+        },
+        {
+          "index": 0,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16426,
+          "p95_upper": 19000,
+          "max": 36748
+        },
+        {
+          "index": 1,
+          "stage": "masks",
+          "n": 608,
+          "avg": 2582,
+          "p95_upper": 3000,
+          "max": 4591
+        },
+        {
+          "index": 1,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12458,
+          "p95_upper": 13000,
+          "max": 14719
+        },
+        {
+          "index": 1,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16441,
+          "p95_upper": 19000,
+          "max": 36461
+        },
+        {
+          "index": 2,
+          "stage": "masks",
+          "n": 608,
+          "avg": 2578,
+          "p95_upper": 3000,
+          "max": 4336
+        },
+        {
+          "index": 2,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12460,
+          "p95_upper": 13000,
+          "max": 14861
+        },
+        {
+          "index": 2,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16448,
+          "p95_upper": 19000,
+          "max": 38691
+        }
+      ]
+    },
+    {
+      "test": "baseline_no_usb_preview",
+      "private_local_log": "logs\\camera-bench-20261023\\package-baseline-nopreview-30sec-console.log",
+      "log_sha256": "d3bd3e05a6595ee17ea1d81228ad62f2307e558a663bdfbbf6add7896f15f0c9",
+      "windows": [
+        {
+          "index": 0,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 1,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 2,
+          "distinct_captures": 608,
+          "valid_frames": 608,
+          "full_uart_writes": 608,
+          "uart_write_errors": 0
+        }
+      ],
+      "fps": [
+        60.8,
+        60.8,
+        60.8
+      ],
+      "physical_uart": false,
+      "simulated_keep": true,
+      "stages_us": [
+        {
+          "index": 0,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12434,
+          "p95_upper": 13000,
+          "max": 14936
+        },
+        {
+          "index": 0,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16419,
+          "p95_upper": 19000,
+          "max": 37070
+        },
+        {
+          "index": 1,
+          "stage": "masks",
+          "n": 608,
+          "avg": 2588,
+          "p95_upper": 3000,
+          "max": 4370
+        },
+        {
+          "index": 1,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12442,
+          "p95_upper": 13000,
+          "max": 14324
+        },
+        {
+          "index": 1,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16449,
+          "p95_upper": 19000,
+          "max": 37041
+        },
+        {
+          "index": 2,
+          "stage": "masks",
+          "n": 608,
+          "avg": 2585,
+          "p95_upper": 3000,
+          "max": 4607
+        },
+        {
+          "index": 2,
+          "stage": "capture_to_send",
+          "n": 608,
+          "avg": 12435,
+          "p95_upper": 13000,
+          "max": 14552
+        },
+        {
+          "index": 2,
+          "stage": "total_cycle",
+          "n": 608,
+          "avg": 16449,
+          "p95_upper": 19000,
+          "max": 38454
+        }
+      ]
+    },
+    {
+      "test": "production_usb_preview_marker",
+      "private_local_log": "logs\\camera-bench-20261023\\preview-final-marker-fixed-console.log",
+      "log_sha256": "f619538302f30145797213686054d4b354d128aa7a0d50ab90e6b2d869a1f633",
+      "windows": [
+        {
+          "index": 0,
+          "distinct_captures": 350,
+          "valid_frames": 350,
+          "full_uart_writes": 350,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 1,
+          "distinct_captures": 347,
+          "valid_frames": 347,
+          "full_uart_writes": 347,
+          "uart_write_errors": 0
+        },
+        {
+          "index": 2,
+          "distinct_captures": 347,
+          "valid_frames": 347,
+          "full_uart_writes": 347,
+          "uart_write_errors": 0
+        }
+      ],
+      "fps": [
+        35.0,
+        34.7,
+        34.7
+      ],
+      "physical_uart": false,
+      "simulated_keep": true,
+      "stages_us": [
+        {
+          "index": 0,
+          "stage": "masks",
+          "n": 350,
+          "avg": 2687,
+          "p95_upper": 3000,
+          "max": 13867
+        },
+        {
+          "index": 0,
+          "stage": "capture_to_send",
+          "n": 350,
+          "avg": 23268,
+          "p95_upper": 25000,
+          "max": 26398
+        },
+        {
+          "index": 0,
+          "stage": "total_cycle",
+          "n": 350,
+          "avg": 28516,
+          "p95_upper": 31000,
+          "max": 59885
+        },
+        {
+          "index": 1,
+          "stage": "masks",
+          "n": 347,
+          "avg": 2663,
+          "p95_upper": 3000,
+          "max": 14021
+        },
+        {
+          "index": 1,
+          "stage": "capture_to_send",
+          "n": 347,
+          "avg": 23491,
+          "p95_upper": 25000,
+          "max": 26302
+        },
+        {
+          "index": 1,
+          "stage": "total_cycle",
+          "n": 347,
+          "avg": 28801,
+          "p95_upper": 31000,
+          "max": 59996
+        },
+        {
+          "index": 2,
+          "stage": "masks",
+          "n": 347,
+          "avg": 2660,
+          "p95_upper": 3000,
+          "max": 13971
+        },
+        {
+          "index": 2,
+          "stage": "capture_to_send",
+          "n": 347,
+          "avg": 23467,
+          "p95_upper": 25000,
+          "max": 26063
+        },
+        {
+          "index": 2,
+          "stage": "total_cycle",
+          "n": 347,
+          "avg": 28809,
+          "p95_upper": 31000,
+          "max": 60237
+        }
+      ]
+    }
+  ],
+  "camera_package_hash_audit": [
+    {
+      "profile": "geometry_perf_only",
+      "manifest_sha256": "3a1c6f983b69391e73c67b9351c8e3b0f4c6803f6cdcef670b04c220e701d2c3",
+      "modules_verified": 19
+    },
+    {
+      "profile": "coordinated",
+      "manifest_sha256": "49b9169425c39f5b7a453769ed41e8119063e7a5b0532260b8018f679dc6945d",
+      "modules_verified": 19
+    }
+  ],
+  "h743_declared_builds_verified": 12,
+  "h743_flashed": false,
+  "camera_filesystem_written": false,
+  "motors_started": false,
+  "rollback_zip_sha256": "fb626b41fc4b80e805ce209212c4c14376c168f9ab405c29df860f603528fed9",
+  "limitations": [
+    "RAM UART sink and simulated KEEP, physical H743 reception unverified",
+    "60 FPS only verified on static straight track with USB image preview disabled",
+    "USB preview approximately 35 FPS",
+    "Vehicle steering and slope acceptance pending"
+  ]
+}

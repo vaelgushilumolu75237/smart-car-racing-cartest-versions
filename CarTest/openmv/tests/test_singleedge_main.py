@@ -19,6 +19,7 @@ import config  # noqa: E402
 import main  # noqa: E402
 import fast_single_edge  # noqa: E402
 import reverse_control  # noqa: E402
+import vision_protocol  # noqa: E402
 
 
 class _FakeUart:
@@ -126,7 +127,7 @@ class _FakeSensor:
 class _FakeImage:
     @staticmethod
     def width():
-        return 160
+        return 320
 
     @staticmethod
     def height():
@@ -221,10 +222,11 @@ def _dual_path_result(left=24, right=48, quality=1):
 
 def _decode_observation(frame):
     frame = bytes(frame)
-    if len(frame) != 12 or frame[:2] != b"\xA5\x5A":
+    if (len(frame) != 16 or frame[:2] != b"\xA5\x5A" or
+            frame[2] not in (2, 3) or frame[3] != 8):
         raise AssertionError("invalid observation frame")
-    expected = main.vision_protocol.crc16_ccitt_false(frame[2:10])
-    actual = frame[10] | frame[11] << 8
+    expected = main.vision_protocol.crc16_ccitt_false(frame[2:14])
+    actual = frame[14] | frame[15] << 8
     if actual != expected:
         raise AssertionError("observation CRC mismatch")
     raw = frame[8] | frame[9] << 8
@@ -234,6 +236,8 @@ def _decode_observation(frame):
         "valid": frame[6] & 1,
         "quality": frame[7],
         "error": raw,
+        "profile_ack": frame[11] if frame[2] == 3 else 0,
+        "version": frame[2],
     }
 
 
@@ -271,7 +275,7 @@ class SingleEdgeMainTests(unittest.TestCase):
         parser = reverse_control.ReverseControlParser()
         drain = array("i", [0])
         excessive = _FakeUart(
-            bytes(reverse_control.pack_frame(0, 1)) * 5)
+            bytes(reverse_control.pack_frame(0, 1)) * 9)
         self.assertFalse(self._service(excessive, parser, drain, 0))
         self.assertEqual(parser.last_event, "RX_OVERFLOW")
         self.assertEqual(len(excessive.data), 8)
@@ -322,7 +326,7 @@ class SingleEdgeMainTests(unittest.TestCase):
     def test_new_bundle_apis_are_required_and_quality_is_diagnostic_only(self):
         self.assertTrue(main._validate_fast_config())
         self.assertEqual(config.SINGLEEDGE_RUNTIME_API_VERSION, 2)
-        with patch.object(main.reverse_control, "RUNTIME_API_VERSION", 2):
+        with patch.object(main.reverse_control, "RUNTIME_API_VERSION", 1):
             with self.assertRaisesRegex(RuntimeError, "reverse_control.py API"):
                 main._validate_fast_config()
         with patch.object(main.fast_path,
@@ -340,17 +344,37 @@ class SingleEdgeMainTests(unittest.TestCase):
         uart = _IntegrationUart(short_write_at=9)
         controls = (
             bytes(reverse_control.pack_frame(0, 1)) +
-            bytes(reverse_control.pack_frame(1, 2)),
-            bytes(reverse_control.pack_frame(1, 3)),
-            bytes(reverse_control.pack_frame(1, 4)),
-            bytes(reverse_control.pack_frame(1, 5)),
-            bytes(reverse_control.pack_frame(1, 6)),
-            bytes(reverse_control.pack_frame(1, 7)),
-            bytes(reverse_control.pack_frame(1, 8)),
+            bytes(reverse_control.pack_frame(1, 2)) +
+            bytes(reverse_control.pack_profile_state(
+                0, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 3)) +
+            bytes(reverse_control.pack_profile_state(
+                1, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 4)) +
+            bytes(reverse_control.pack_profile_state(
+                2, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 5)) +
+            bytes(reverse_control.pack_profile_state(
+                3, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 6)) +
+            bytes(reverse_control.pack_profile_state(
+                4, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 7)) +
+            bytes(reverse_control.pack_profile_state(
+                5, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 8)) +
+            bytes(reverse_control.pack_profile_state(
+                6, reverse_control.PROFILE_A)),
             bytes(reverse_control.pack_frame(0, 9)) +
-            bytes(reverse_control.pack_frame(1, 10)),
-            bytes(reverse_control.pack_frame(1, 11)),
-            bytes(reverse_control.pack_frame(1, 12)),
+            bytes(reverse_control.pack_frame(1, 10)) +
+            bytes(reverse_control.pack_profile_state(
+                7, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 11)) +
+            bytes(reverse_control.pack_profile_state(
+                8, reverse_control.PROFILE_A)),
+            bytes(reverse_control.pack_frame(1, 12)) +
+            bytes(reverse_control.pack_profile_state(
+                9, reverse_control.PROFILE_A)),
         )
         camera = _FakeSensor(controls)
         camera.uart = uart
@@ -491,12 +515,24 @@ class SingleEdgeMainTests(unittest.TestCase):
         self.assertEqual(len(uart.frames), 10)
         self.assertEqual(camera.flush_calls, 10)
         decoded = [_decode_observation(frame) for frame in uart.frames]
+        self.assertTrue(all(frame[2] == vision_protocol.VERSION_V3
+                            for frame in uart.frames))
+        self.assertEqual([item["profile_ack"] for item in decoded],
+                         [reverse_control.PROFILE_A] * len(decoded))
         debug_lines = [line for line in console.getvalue().splitlines()
                        if line.startswith("V7DBG ")]
+        control_by_sequence = {}
+        for line in console.getvalue().splitlines():
+            if line.startswith("V7CTRL "):
+                control = dict(token.split("=", 1)
+                               for token in line.split()[1:]
+                               if "=" in token)
+                control_by_sequence[int(control["seq"])] = control
         self.assertTrue(debug_lines)
         self.assertTrue(any("safe_ref=" in line and "wctrl=" in line and
                             "rows_nf=" in line and "eff_nf=" in line and
-                            "raw_weighted=" in line and "road_why=" in line
+                            "pos_weighted=" in line and "raw_pos=" in line and
+                            "tx_cmd=" in line and "road_why=" in line
                             for line in debug_lines))
         self.assertLess(max(len(line) for line in debug_lines), 1024)
         self.assertEqual(decoded[0]["valid"], 0)  # frame-budget rejection
@@ -508,17 +544,31 @@ class SingleEdgeMainTests(unittest.TestCase):
         raw_single = main._normalize_fast_reference(38.0, 80)
         self.assertNotEqual(decoded[3]["error"], raw_single)
         raw_dual = main._normalize_fast_reference(36.0, 80)
-        weighted_dual = main._normalize_fast_reference(34.49, 80)
         self.assertEqual((decoded[4]["valid"], decoded[4]["quality"]),
                          (1, 1))  # single-to-dual transition stays filtered
         self.assertNotEqual(decoded[4]["error"], raw_dual)
-        self.assertEqual(decoded[2]["error"], weighted_dual)
+        for index, frame in enumerate(uart.frames):
+            sequence = frame[4] | frame[5] << 8
+            control = control_by_sequence[sequence]
+            preview_value = int(control["preview"].split(":", 1)[1])
+            expected_command = max(
+                -1000, min(1000, int(control["pd"]) + preview_value))
+            self.assertEqual(decoded[index]["error"],
+                             int(control["tx_cmd"]),
+                             "%s != %s for sequence %d" % (
+                                 decoded[index]["error"], control["tx_cmd"],
+                                 sequence))
+            if int(control["reset"]) != 9:  # UART error resets state post-write.
+                self.assertEqual(int(control["tx_cmd"]), expected_command,
+                                 "control=%r" % control)
+        self.assertEqual(decoded[2]["error"], int(control_by_sequence[2]["pd"]))
         self.assertNotEqual(decoded[2]["error"], raw_dual)
         self.assertEqual(decoded[5]["valid"], 0)  # late frame clears cache
         self.assertEqual(decoded[6]["valid"], 0)  # cache must reacquire
         self.assertEqual((decoded[7]["valid"], decoded[7]["quality"]),
                          (1, 1))
-        self.assertEqual(decoded[7]["error"], weighted_dual)  # RESET cleared EMA
+        self.assertEqual(int(control_by_sequence[7]["d_component"]), 0)
+        self.assertEqual(decoded[7]["error"], int(control_by_sequence[7]["p"]))
         self.assertEqual((decoded[8]["valid"], decoded[8]["quality"]),
                          (1, 56))
         self.assertNotEqual(decoded[8]["error"], raw_single)

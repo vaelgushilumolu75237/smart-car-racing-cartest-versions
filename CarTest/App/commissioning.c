@@ -2,11 +2,15 @@
 #include "car_calibration.h"
 #include "vision_protocol.h"
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 #define CAR_DEFAULT_VISION_TIMEOUT_MS 250u
 #define CAR_HARD_BENCH_LIMIT_PM       400u
-#define CAR_HARD_FOLLOW_LIMIT_PM      700u
+#define CAR_HARD_FOLLOW_LIMIT_PM      1000u
 #ifndef CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
-#define CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE 600u
+#define CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE 1000u
 #endif
 #define CAR_FOLLOW_NORMAL_LIMIT_PM    CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
 #define CAR_FOLLOW_BASE_TARGET_PM     500u
@@ -19,6 +23,50 @@
 #define CAR_RECOVERY_MAX_QUEUE_MS     100u
 #define CAR_FOLLOW_KP_PERMILLE        700u
 #define CAR_FOLLOW_RAMP_STEP_PM       10u
+
+/* The linker maps ordinary .bss to RAM_D1 at 0x24000000. Keep each exported
+   debugger scalar naturally aligned and zero-initialized for reset validity. */
+volatile uint32_t car_vision_hold_snapshot_entry;
+volatile int32_t car_vision_hold_snapshot_error_norm;
+volatile uint32_t car_vision_hold_snapshot_sequence;
+volatile uint32_t car_vision_hold_snapshot_source_rx_ms;
+volatile uint32_t car_vision_hold_snapshot_entered_ms;
+volatile uint32_t car_vision_hold_snapshot_target_us;
+volatile uint32_t car_vision_hold_snapshot_applied_us;
+volatile uint32_t car_vision_hold_snapshot_left_permille;
+volatile uint32_t car_vision_hold_snapshot_right_permille;
+
+static void hold_snapshot_publish_barrier(void)
+{
+#if defined(__arm__) || defined(__thumb__)
+    __asm volatile("dmb" ::: "memory");
+#elif defined(__GNUC__)
+    __asm volatile("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+}
+
+static void publish_hold_entry_snapshot(const car_control_t *control)
+{
+    if (control == 0 || control->vision_hold_entries == 0u) {
+        return;
+    }
+    car_vision_hold_snapshot_error_norm =
+        (int32_t)control->vision_hold_error_norm;
+    car_vision_hold_snapshot_sequence = control->vision_hold_source_sequence;
+    car_vision_hold_snapshot_source_rx_ms = control->vision_hold_source_rx_ms;
+    car_vision_hold_snapshot_entered_ms = control->vision_hold_started_ms;
+    car_vision_hold_snapshot_target_us = control->vision_hold_servo_pulse_us;
+    car_vision_hold_snapshot_applied_us =
+        control->vision_hold_applied_servo_pulse_us;
+    car_vision_hold_snapshot_left_permille =
+        control->vision_hold_motor_left_permille;
+    car_vision_hold_snapshot_right_permille =
+        control->vision_hold_motor_right_permille;
+    hold_snapshot_publish_barrier();
+    car_vision_hold_snapshot_entry = control->vision_hold_entries;
+}
 
 void car_config_init_application(car_config_t *config,
                                  uint8_t bench_mode_compiled,
@@ -56,7 +104,8 @@ void car_config_init_application(car_config_t *config,
         .follow_right_encoder_sign = CARTEST_ENCODER_RIGHT_SIGN,
         .follow_kp_permille = CARTEST_STEERING_GAIN_PERMILLE,
         .follow_max_duty_permille = CAR_FOLLOW_NORMAL_LIMIT_PM,
-        .follow_ramp_step_permille = CAR_FOLLOW_RAMP_STEP_PM
+        .follow_ramp_step_permille = CAR_FOLLOW_RAMP_STEP_PM,
+        .required_camera_profile_ack = CARTEST_TRACK_PROFILE
     };
 }
 
@@ -67,7 +116,8 @@ static uint8_t config_is_valid(const car_config_t *config)
 
     if (config == 0 || config->vision_timeout_ms == 0u ||
         config->vision_timeout_ms > 0x7fffffffu ||
-        config->motor_hardware_accepted > 1u) {
+        config->motor_hardware_accepted > 1u ||
+        config->required_camera_profile_ack > VP_PROFILE_ACK_MAX) {
         return 0u;
     }
 
@@ -75,6 +125,10 @@ static uint8_t config_is_valid(const car_config_t *config)
         (uint32_t)(config->bench_mode_compiled != 0u) +
             (uint32_t)(config->follow_mode_compiled != 0u) +
             (uint32_t)(config->debug_steering_mode_compiled != 0u) > 1u) {
+        return 0u;
+    }
+    if (config->required_camera_profile_ack != VP_PROFILE_ACK_UNKNOWN &&
+        config->follow_mode_compiled == 0u) {
         return 0u;
     }
 
@@ -222,6 +276,32 @@ static void request_reverse_control_reset(car_control_t *control)
     ++control->reverse_control_reset_generation;
     control->reverse_control_keep_seen = 0u;
     control->reverse_control_fresh_frames = 0u;
+    control->profile_ack_seen_after_reset = 0u;
+}
+
+uint8_t car_control_camera_profile_ack_ready(
+    const car_control_t *control,
+    const car_config_t *config,
+    uint32_t now_ms)
+{
+    uint32_t age_ms;
+
+    if (control == 0 || config == 0 ||
+        config->required_camera_profile_ack > VP_PROFILE_ACK_MAX) {
+        return 0u;
+    }
+    if (config->required_camera_profile_ack == VP_PROFILE_ACK_UNKNOWN) {
+        return 1u;
+    }
+    if (control->profile_ack_seen_after_reset == 0u ||
+        control->latest_rx_have_frame == 0u ||
+        control->latest_rx_protocol_version != VP_VERSION_V3 ||
+        control->latest_rx_profile_ack !=
+            config->required_camera_profile_ack) {
+        return 0u;
+    }
+    age_ms = (uint32_t)(now_ms - control->latest_rx_arrival_ms);
+    return age_ms < CAR_CAMERA_PROFILE_ACK_TIMEOUT_MS ? 1u : 0u;
 }
 
 static void note_reverse_control_frame(car_control_t *control)
@@ -249,6 +329,19 @@ void car_control_note_applied_outputs(car_control_t *control,
                                           ? servo_applied_us : 0u;
     control->applied_motor_left_permille = motor_left_applied_permille;
     control->applied_motor_right_permille = motor_right_applied_permille;
+}
+
+uint16_t car_control_follow_servo_output_target_us(
+    const car_control_t *control)
+{
+    if (control == 0) {
+        return 0u;
+    }
+    if (control->mode == CAR_MODE_FOLLOW_VISION_HOLD &&
+        control->vision_hold_active != 0u) {
+        return control->vision_hold_servo_pulse_us;
+    }
+    return control->follow_servo_target_us;
 }
 
 static void stop_outputs(car_control_t *control)
@@ -342,7 +435,10 @@ static void enter_soft_fault(car_control_t *control, car_fault_t fault)
     }
 
     control->fault = fault;
-    finish_vision_hold(control, CAR_VISION_HOLD_EXIT_COMM_FAULT);
+    finish_vision_hold(
+        control, fault == CAR_FAULT_SWITCH_RELEASE
+                     ? CAR_VISION_HOLD_EXIT_MANUAL_STOP
+                     : CAR_VISION_HOLD_EXIT_COMM_FAULT);
     control->fault_latched = 0u;
     ++control->fault_generation;
     if (fault != CAR_FAULT_SWITCH_RELEASE) {
@@ -431,11 +527,16 @@ static void store_trusted_observation(car_control_t *control,
                                       uint16_t sequence,
                                       uint8_t confidence,
                                       int16_t error_norm,
+                                      uint8_t curve_phase,
+                                      uint16_t slowdown_request_permille,
                                       uint32_t arrival_ms,
                                       uint8_t slope_hint)
 {
     control->vision_valid = 1u;
     control->vision_slope_hint = slope_hint != 0u ? 1u : 0u;
+    control->vision_curve_phase = curve_phase;
+    control->vision_slowdown_request_permille =
+        slowdown_request_permille;
     control->vision_timeout = 0u;
     control->vision_confidence = confidence;
     control->vision_error_norm = clamp_error(error_norm);
@@ -684,6 +785,7 @@ void car_control_reverse_control_reset_started(car_control_t *control)
         control->reverse_transport_have_sequence = 0u;
         control->reverse_transport_last_sequence = 0u;
         control->reverse_transport_last_arrival_ms = 0u;
+        control->profile_ack_seen_after_reset = 0u;
     }
 }
 
@@ -706,13 +808,79 @@ void car_control_reverse_control_keep_started(car_control_t *control)
     }
 }
 
-void car_control_on_vision_frame_at_with_flags(
+uint8_t car_control_begin_manual_follow_start(
+    car_control_t *control,
+    const car_config_t *config,
+    const car_inputs_t *inputs)
+{
+    if (control == 0 || config_is_valid(config) == 0u || inputs == 0 ||
+        config->follow_mode_compiled == 0u ||
+        inputs->manual_run_request == 0u ||
+        inputs->manual_stop_pending != 0u ||
+        inputs->loop_gap_fault != 0u ||
+        inputs->encoder_fault != 0u ||
+        inputs->clock_or_timer_fault != 0u ||
+        control->fault_latched != 0u ||
+        control->mode == CAR_MODE_FAULT_LATCHED ||
+        is_hard_fault(control->fault) != 0u ||
+        control->isr_stop_request != 0u ||
+        is_hard_fault((car_fault_t)control->isr_stop_fault) != 0u) {
+        return 0u;
+    }
+
+    /* A physical start is a new controller/camera lease. Stop any output
+       left by a stale local KEEP decision and discard the old route gate. */
+    finish_vision_hold(control, CAR_VISION_HOLD_EXIT_NONE);
+    control->vision_hold_restart_required = 0u;
+    stop_outputs(control);
+    control->follow_session_active = 0u;
+    control->mode = CAR_MODE_RECOVERY_WAIT;
+    control->recovery_active = 1u;
+    control->recovery_was_faulted = 0u;
+    control->recovery_frame_count = 0u;
+    control->recovery_have_sequence = 0u;
+    clear_trusted_observation(control);
+
+    request_reverse_control_reset(control);
+    control->reverse_reset_transport_gate_open = 0u;
+    control->reverse_transport_recovery_frame_count = 0u;
+    control->reverse_transport_have_sequence = 0u;
+    control->reverse_transport_last_sequence = 0u;
+    control->reverse_transport_last_arrival_ms = 0u;
+    control->rx_recovery_flush_required = 1u;
+    return 1u;
+}
+
+void car_control_on_vision_frame_at_with_flags_and_curve(
     car_control_t *control,
     const car_config_t *config,
     uint16_t sequence,
     uint8_t flags,
     uint8_t confidence,
     int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high)
+{
+    car_control_on_vision_frame_at_with_flags_curve_and_profile(
+        control, config, sequence, flags, confidence, error_norm,
+        curve_phase, slowdown_request_permille, VP_VERSION_V2,
+        VP_PROFILE_ACK_UNKNOWN, arrival_ms, now_ms, pe7_raw_high);
+}
+
+void car_control_on_vision_frame_at_with_flags_curve_and_profile(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
     uint32_t arrival_ms,
     uint32_t now_ms,
     uint8_t pe7_raw_high)
@@ -730,10 +898,20 @@ void car_control_on_vision_frame_at_with_flags(
     /* CRC/format-validated data remains visible during every control fault. */
     control->latest_rx_valid = valid != 0u ? 1u : 0u;
     control->latest_rx_slope_hint = slope_hint;
+    control->latest_rx_curve_phase = curve_phase;
+    control->latest_rx_slowdown_request_permille =
+        slowdown_request_permille;
     control->latest_rx_confidence = confidence;
     control->latest_rx_error_norm = error_norm;
     control->latest_rx_sequence = sequence;
     control->latest_rx_arrival_ms = arrival_ms;
+    control->latest_rx_protocol_version = protocol_version;
+    control->latest_rx_profile_ack =
+        protocol_version == VP_VERSION_V3
+            ? profile_ack : VP_PROFILE_ACK_UNKNOWN;
+    if (protocol_version == VP_VERSION_V3) {
+        control->latest_rx_profile_ack_arrival_ms = arrival_ms;
+    }
     control->latest_rx_have_frame = 1u;
     ++control->latest_rx_frame_count;
     ++control->rx_frame_count;
@@ -741,6 +919,23 @@ void car_control_on_vision_frame_at_with_flags(
     if (config_is_valid(config) == 0u) {
         enter_hard_fault(control, CAR_FAULT_CONFIG);
         return;
+    }
+
+    if (config->required_camera_profile_ack != VP_PROFILE_ACK_UNKNOWN) {
+        if (protocol_version == VP_VERSION_V3 &&
+            profile_ack == config->required_camera_profile_ack) {
+            control->profile_ack_seen_after_reset = 1u;
+        }
+        if (car_control_camera_profile_ack_ready(control, config,
+                                                 now_ms) == 0u) {
+            ++control->profile_ack_mismatch_count;
+            if (control->follow_session_active != 0u ||
+                control->mode == CAR_MODE_FOLLOW_RUNNING ||
+                control->mode == CAR_MODE_FOLLOW_VISION_HOLD) {
+                car_control_note_fault(control, CAR_FAULT_PROTOCOL);
+            }
+            return;
+        }
     }
 
     if (control->fault_latched != 0u ||
@@ -829,6 +1024,8 @@ void car_control_on_vision_frame_at_with_flags(
                 control->applied_servo_output_active == 0u ||
                 control->applied_servo_pulse_us < config->servo_min_us ||
                 control->applied_servo_pulse_us > config->servo_max_us ||
+                control->have_valid_vision == 0u ||
+                control->have_sequence == 0u ||
                 control->applied_motor_left_permille == 0u ||
                 control->applied_motor_right_permille == 0u ||
                 control->applied_motor_left_permille >
@@ -844,12 +1041,19 @@ void car_control_on_vision_frame_at_with_flags(
             control->vision_hold_restart_required = 0u;
             control->vision_hold_valid_count = 0u;
             control->vision_hold_have_sequence = 0u;
-            /* This is the route-trust timestamp that defines the 1000 ms
-               deadline, not the later valid=0 detector-arrival time. */
-            control->vision_hold_started_ms = control->vision_last_valid_ms;
+            /* Preserve source timing separately from the exact deadline. */
+            control->vision_hold_started_ms = now_ms;
+            control->vision_hold_error_norm = control->vision_error_norm;
+            control->vision_hold_source_sequence = control->vision_sequence;
+            control->vision_hold_source_rx_ms = control->vision_last_valid_ms;
             control->vision_hold_exit_cause = CAR_VISION_HOLD_EXIT_NONE;
             ++control->vision_hold_entries;
-            control->vision_hold_servo_pulse_us =
+            if (control->vision_hold_entries == 0u) {
+                ++control->vision_hold_entries;
+            }
+            control->vision_hold_servo_pulse_us = follow_servo_target(
+                config, control->vision_hold_error_norm);
+            control->vision_hold_applied_servo_pulse_us =
                 control->applied_servo_pulse_us;
             control->vision_hold_motor_left_permille =
                 control->applied_motor_left_permille;
@@ -857,6 +1061,7 @@ void car_control_on_vision_frame_at_with_flags(
                 control->applied_motor_right_permille;
             control->vision_hold_base_duty_permille =
                 control->follow_output_duty_permille;
+            publish_hold_entry_snapshot(control);
             control->road_drive_allowed = 1u;
             return;
         }
@@ -901,12 +1106,15 @@ void car_control_on_vision_frame_at_with_flags(
                normal first-servo-frame / motor-ramp gate from zero. */
             control->vision_hold_restart_required = 1u;
             control->follow_output_duty_permille = 0u;
+            control->road_drive_allowed = 0u;
         } else {
             control->follow_output_duty_permille =
                 control->vision_hold_base_duty_permille;
         }
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms, slope_hint);
+                                  error_norm, curve_phase,
+                                  slowdown_request_permille, arrival_ms,
+                                  slope_hint);
         control->vision_hold_active = 0u;
         control->vision_hold_expired = 0u;
         control->vision_hold_exit_cause = CAR_VISION_HOLD_EXIT_RECOVERED;
@@ -917,7 +1125,8 @@ void car_control_on_vision_frame_at_with_flags(
         control->recovery_have_sequence = 0u;
         control->follow_last_ramp_ms = now_ms;
         control->follow_session_active = 1u;
-        control->road_drive_allowed = 1u;
+        control->road_drive_allowed =
+            control->vision_hold_restart_required == 0u ? 1u : 0u;
         return;
     }
 
@@ -958,7 +1167,9 @@ void car_control_on_vision_frame_at_with_flags(
         }
 
         store_trusted_observation(control, config, sequence, confidence,
-                                  error_norm, arrival_ms, slope_hint);
+                                  error_norm, curve_phase,
+                                  slowdown_request_permille, arrival_ms,
+                                  slope_hint);
         if (control->mode == CAR_MODE_WAIT_NEW_FRAME) {
             control->ack_waiting_new_frame = 0u;
         }
@@ -977,7 +1188,25 @@ void car_control_on_vision_frame_at_with_flags(
 
     note_reverse_control_frame(control);
     store_trusted_observation(control, config, sequence, confidence,
-                              error_norm, arrival_ms, slope_hint);
+                              error_norm, curve_phase,
+                              slowdown_request_permille, arrival_ms,
+                              slope_hint);
+}
+
+void car_control_on_vision_frame_at_with_flags(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high)
+{
+    car_control_on_vision_frame_at_with_flags_and_curve(
+        control, config, sequence, flags, confidence, error_norm,
+        0u, 0u, arrival_ms, now_ms, pe7_raw_high);
 }
 
 void car_control_on_vision_frame_at(car_control_t *control,
@@ -1530,6 +1759,14 @@ void car_control_tick(car_control_t *control,
     if ((control->mode == CAR_MODE_FOLLOW_RUNNING ||
          control->mode == CAR_MODE_FOLLOW_VISION_HOLD) &&
         control->follow_session_active != 0u &&
+        car_control_camera_profile_ack_ready(
+            control, config, inputs->now_ms) == 0u) {
+        car_control_note_fault(control, CAR_FAULT_PROTOCOL);
+    }
+
+    if ((control->mode == CAR_MODE_FOLLOW_RUNNING ||
+         control->mode == CAR_MODE_FOLLOW_VISION_HOLD) &&
+        control->follow_session_active != 0u &&
         control->vision_have_frame_sequence != 0u &&
         (uint32_t)(inputs->now_ms - control->vision_last_frame_alive_ms) >=
             config->vision_timeout_ms) {
@@ -1578,7 +1815,9 @@ void car_control_tick(car_control_t *control,
                    control->manual_run_request != 0u &&
                    control->reverse_control_keep_seen != 0u &&
                    control->reverse_control_fresh_frames >=
-                       CAR_RECOVERY_REQUIRED_FRAMES) {
+                       CAR_RECOVERY_REQUIRED_FRAMES &&
+                   car_control_camera_profile_ack_ready(
+                       control, config, inputs->now_ms) != 0u) {
             control->mode = CAR_MODE_FOLLOW_RUNNING;
             control->follow_session_active = 1u;
             control->follow_last_ramp_ms = inputs->now_ms;

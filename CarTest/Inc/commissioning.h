@@ -2,15 +2,33 @@
 #define CARTEST_COMMISSIONING_H
 
 #include <stdint.h>
+#include "car_track_profile.h"
 
+#ifndef CARTEST_VISION_HOLD_MS
+#define CARTEST_VISION_HOLD_MS 3000u
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 enum {
     CAR_CONTROL_RECOVERY_REQUIRED_FRAMES = 3u,
-    CAR_CONTROL_VISION_HOLD_MS = 1000u
+    CAR_CAMERA_PROFILE_ACK_TIMEOUT_MS = 250u
 };
+
+#define CAR_CONTROL_VISION_HOLD_MS CARTEST_VISION_HOLD_MS
+
+/* D1 .bss RAM snapshot for CubeIDE Live Watch / debugger reads. Entry is the
+   publication token and is written after the associated data fields. */
+extern volatile uint32_t car_vision_hold_snapshot_entry;
+extern volatile int32_t car_vision_hold_snapshot_error_norm;
+extern volatile uint32_t car_vision_hold_snapshot_sequence;
+extern volatile uint32_t car_vision_hold_snapshot_source_rx_ms;
+extern volatile uint32_t car_vision_hold_snapshot_entered_ms;
+extern volatile uint32_t car_vision_hold_snapshot_target_us;
+extern volatile uint32_t car_vision_hold_snapshot_applied_us;
+extern volatile uint32_t car_vision_hold_snapshot_left_permille;
+extern volatile uint32_t car_vision_hold_snapshot_right_permille;
 
 /* Keep existing Live Watch numbers stable; append runtime states only. */
 typedef enum {
@@ -104,6 +122,8 @@ typedef struct {
     uint16_t follow_kp_permille;
     uint16_t follow_max_duty_permille;
     uint16_t follow_ramp_step_permille;
+    /* 0 keeps legacy V2 operation; 1..3 require a fresh matching V3 ack. */
+    uint8_t required_camera_profile_ack;
 } car_config_t;
 
 /* Shared production profile configuration used by target main and host tests. */
@@ -139,6 +159,8 @@ typedef struct {
     uint8_t vision_valid;
     /* Trusted only after the normal sequence, age, and recovery gates. */
     uint8_t vision_slope_hint;
+    uint8_t vision_curve_phase;
+    uint16_t vision_slowdown_request_permille;
     uint8_t vision_timeout;
     uint8_t vision_confidence;
     int16_t vision_error_norm;  /* Normalized image half-width / 1000. */
@@ -172,12 +194,19 @@ typedef struct {
     /* Latest CRC/format-valid UART observation, independent of trust. */
     uint8_t latest_rx_valid;
     uint8_t latest_rx_slope_hint;
+    uint8_t latest_rx_curve_phase;
+    uint16_t latest_rx_slowdown_request_permille;
     uint8_t latest_rx_confidence;
     int16_t latest_rx_error_norm;
     uint16_t latest_rx_sequence;
     uint32_t latest_rx_arrival_ms;
     uint32_t latest_rx_frame_count;
     uint8_t latest_rx_have_frame;
+    uint8_t latest_rx_protocol_version;
+    uint8_t latest_rx_profile_ack;
+    uint8_t profile_ack_seen_after_reset;
+    uint32_t profile_ack_mismatch_count;
+    uint32_t latest_rx_profile_ack_arrival_ms;
     /* Recovery accepts only a new uninterrupted set of fresh observations. */
     uint8_t recovery_frame_count;
     uint32_t auto_recovery_count;
@@ -212,7 +241,8 @@ typedef struct {
     volatile uint32_t isr_uart_generation;   /* USART1 ISR writer only. */
     /* Set once per reset when the physical Bench target is selected. */
     uint8_t profile_command_issued;
-    /* Follow camera-loss hold: only a sequenced valid=0 observation starts it. */
+    /* Follow camera-loss hold freezes the last trusted steering source and
+       the two currently applied wheel outputs at one qualified entry. */
     uint8_t manual_run_request;
     uint8_t vision_hold_active;
     uint8_t vision_hold_expired;
@@ -222,7 +252,10 @@ typedef struct {
     uint16_t vision_hold_last_sequence;
     uint32_t vision_hold_last_arrival_ms;
     uint32_t vision_hold_entries;
-    uint32_t vision_hold_started_ms;
+    uint32_t vision_hold_started_ms; /* Hold entry time; deadline uses valid RX. */
+    int16_t vision_hold_error_norm;
+    uint16_t vision_hold_source_sequence;
+    uint32_t vision_hold_source_rx_ms;
     uint8_t vision_hold_exit_cause;
     uint32_t vision_last_frame_alive_ms;
     uint16_t vision_last_frame_sequence;
@@ -232,7 +265,8 @@ typedef struct {
     uint16_t applied_servo_pulse_us;
     uint16_t applied_motor_left_permille;
     uint16_t applied_motor_right_permille;
-    uint16_t vision_hold_servo_pulse_us;
+    uint16_t vision_hold_servo_pulse_us; /* Held target mapped from saved error. */
+    uint16_t vision_hold_applied_servo_pulse_us; /* Entry pulse, diagnostics only. */
     uint16_t vision_hold_base_duty_permille;
     uint16_t vision_hold_motor_left_permille;
     uint16_t vision_hold_motor_right_permille;
@@ -275,6 +309,11 @@ void car_control_note_applied_outputs(car_control_t *control,
                                       uint16_t motor_left_applied_permille,
                                       uint16_t motor_right_applied_permille);
 
+/* Follow's servo safety layer keeps slewing toward the saved route target
+   throughout hold; this does not authorize output by itself. */
+uint16_t car_control_follow_servo_output_target_us(
+    const car_control_t *control);
+
 /* Feed only a complete vp_unpack()-validated frame from the UART parser. */
 void car_control_on_vision_frame(car_control_t *control,
                                  const car_config_t *config,
@@ -309,6 +348,42 @@ void car_control_on_vision_frame_at_with_flags(
     uint32_t now_ms,
     uint8_t pe7_raw_high);
 
+/* V2 parser path also supplies the strictly validated Ackermann request. */
+void car_control_on_vision_frame_at_with_flags_and_curve(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high);
+
+/* V2/V3 parser path with the byte-11 profile acknowledgement. */
+void car_control_on_vision_frame_at_with_flags_curve_and_profile(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high);
+
+/* True for legacy profiles, or a fresh matching V3 ack after latest RESET. */
+uint8_t car_control_camera_profile_ack_ready(
+    const car_control_t *control,
+    const car_config_t *config,
+    uint32_t now_ms);
+
 /* Call only after outputs are stopped and RX/UART queues are atomically flushed. */
 void car_control_rx_recovery_flush_complete(car_control_t *control);
 
@@ -316,6 +391,12 @@ void car_control_rx_recovery_flush_complete(car_control_t *control);
 void car_control_reverse_control_reset_started(car_control_t *control);
 void car_control_reverse_control_keep_started(car_control_t *control);
 void car_control_reverse_control_reset_phase_complete(car_control_t *control);
+
+/* Begin a new Follow session from one consumed physical PE7 start event. */
+uint8_t car_control_begin_manual_follow_start(
+    car_control_t *control,
+    const car_config_t *config,
+    const car_inputs_t *inputs);
 
 /* Recoverable receive errors stop outputs and require three fresh observations. */
 void car_control_note_fault(car_control_t *control, car_fault_t fault);

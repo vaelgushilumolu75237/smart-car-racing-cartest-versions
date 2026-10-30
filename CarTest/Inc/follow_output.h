@@ -4,26 +4,29 @@
 #include <stdint.h>
 
 #ifndef CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
-#define CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE 600u
+#define CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE 1000u
 #endif
 #ifndef CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
-#define CARTEST_FOLLOW_HARD_LIMIT_PERMILLE 700u
+#define CARTEST_FOLLOW_HARD_LIMIT_PERMILLE 1000u
 #endif
-#if CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 700u
-#error "Follow hard output limit is fixed at 700 permille."
+#if CARTEST_FOLLOW_HARD_LIMIT_PERMILLE != 1000u
+#error "Follow hard output limit is fixed at 1000 permille."
 #endif
 #ifndef CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE
 #define CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE 10u
 #endif
 #ifndef CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE
-#define CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE 10u
+#define CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE 40u
 #endif
 #ifndef CARTEST_FOLLOW_TURN_PROFILE_COMPILED
 #define CARTEST_FOLLOW_TURN_PROFILE_COMPILED 0
 #endif
+#ifndef CARTEST_VISION_HOLD_RAMP_MS
+#define CARTEST_VISION_HOLD_RAMP_MS 300u
+#endif
 #if CARTEST_FOLLOW_TURN_PROFILE_COMPILED && \
-    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 700u)
-#error "FollowTurn slope assist requires the 700-permille normal output cap."
+    (CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE != 1000u)
+#error "FollowTurn requires the 1000-permille normal output cap."
 #endif
 
 #ifdef __cplusplus
@@ -35,13 +38,16 @@ enum {
     CAR_FOLLOW_SLOPE_ASSIST_TARGET_PERMILLE = 700u,
     CAR_FOLLOW_SLOPE_ASSIST_STRAIGHT_U_MAX_PERMILLE = 100u,
     CAR_FOLLOW_NORMAL_MAX_PERMILLE = CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE,
-    CAR_FOLLOW_HARD_MAX_PERMILLE = 700u,
+    CAR_FOLLOW_HARD_MAX_PERMILLE = CARTEST_FOLLOW_HARD_LIMIT_PERMILLE,
     CAR_FOLLOW_DIFFERENTIAL_MAX_PERMILLE = 200u,
     CAR_FOLLOW_OUTPUT_STARTUP_RAMP_STEP_PERMILLE =
         CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE,
     CAR_FOLLOW_OUTPUT_RAMP_STEP_PERMILLE =
         CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE,
     CAR_FOLLOW_OUTPUT_RAMP_PERIOD_MS = 10u,
+    CAR_FOLLOW_VISION_HOLD_RAMP_MS = CARTEST_VISION_HOLD_RAMP_MS,
+    CAR_FOLLOW_VISION_HOLD_TARGET_PERMILLE = 400u,
+    CAR_FOLLOW_VISION_HOLD_MIN_TARGET_PERMILLE = 300u,
     CAR_FOLLOW_STEERING_GAIN_PERMILLE = 700u
 };
 
@@ -62,7 +68,11 @@ typedef struct {
     uint16_t differential_u_permille;
     uint16_t outer_delta_permille;
     uint16_t inner_delta_permille;
+    uint16_t hold_entry_left_permille;
+    uint16_t hold_entry_right_permille;
+    uint32_t hold_entry_generation;
     uint32_t last_ramp_ms;
+    uint32_t hold_started_ms;
     uint8_t have_ramp_time;
     uint8_t startup_qualified;
     /* Latched command state; hold preserves it with the frozen output. */
@@ -93,8 +103,17 @@ uint8_t car_follow_output_slope_assist_request(
 
 void car_follow_output_reset(car_follow_output_state_t *state);
 
-/* Freeze the exact software-applied side duties during a qualifying vision
-   hold.  This preserves the startup latch and moves the ramp clock forward. */
+/* Ramp each exact software-applied side duty toward its fixed hold target.
+   hold_started_ms and hold_entry_generation come from the controller entry,
+   so delayed service and a new hold immediately after recovery stay distinct. */
+void car_follow_output_hold_at(car_follow_output_state_t *state,
+                               uint32_t now_ms,
+                               uint32_t hold_started_ms,
+                               uint32_t hold_entry_generation,
+                               uint16_t left_applied_permille,
+                               uint16_t right_applied_permille);
+
+/* Convenience form for isolated callers whose hold starts at now_ms. */
 void car_follow_output_hold(car_follow_output_state_t *state,
                             uint32_t now_ms,
                             uint16_t left_applied_permille,
@@ -124,7 +143,7 @@ uint8_t car_follow_output_update(
     uint16_t *right_command_permille);
 
 /* FollowTurn-only overload. The helper independently enforces startup,
-   software-servo straightness, profile cap, and the fixed 700 hard ceiling. */
+   software-servo straightness, profile cap, and the fixed 1000 hard ceiling. */
 uint8_t car_follow_output_update_with_slope_assist(
     car_follow_output_state_t *state,
     uint32_t now_ms,

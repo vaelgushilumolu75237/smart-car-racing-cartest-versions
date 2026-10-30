@@ -1,12 +1,15 @@
 """Bounded current-frame ring-port and flat-baseline slope hint evidence.
 
-This module reports geometry candidates only. A ring route requires a fresh
-control lease and three consecutive current-frame arc+port observations. A
-slope hint requires ten stable straight frames to learn a flat baseline and
-three current-frame candidates after that baseline exists.
+A ring route requires a current convex inner edge, an independently measured
+outer edge, one connected crop-side port, a validated normal route, and three
+consecutive fresh KEEP frames. The outer edge may be straight (max line-fit
+residual <= 1.5 cells) or independently curved under the stricter bounded
+shape checks below. Ring identity can outlive qualified current geometry for
+at most one second; it never authorizes cached steering.
 """
 
 from array import array
+import math
 
 try:
     import micropython
@@ -32,7 +35,16 @@ except ImportError:
         return buffer
 
 
-RUNTIME_API_VERSION = 1
+RUNTIME_API_VERSION = 2
+_RING_GEOMETRY_LEASE_MS = 1000
+_STRAIGHT_OUTER_MAX_RESIDUAL = 1.5
+_COHERENT_OUTER_MIN_RESIDUAL = 0.75
+_COHERENT_PARALLEL_CORRELATION_MIN = 0.85
+_CURVED_OUTER_MAX_RESIDUAL = 3.5
+_INNER_CURVATURE_MIN_RESIDUAL = 6.0
+_OUTER_TO_INNER_RESIDUAL_RATIO_MAX = 0.5
+_CURVED_WIDTH_RANGE_MIN = 6
+_CURVED_RESIDUAL_DIFFERENCE_MIN = 6.0
 _WIDTH = micropython.const(80)
 _HEIGHT = micropython.const(60)
 _PIXELS = micropython.const(_WIDTH * _HEIGHT)
@@ -222,6 +234,17 @@ class FastRingSlope:
             "inner_edge_disappeared": False,
             "inner_edge_rows": 0,
             "outer_outlier_excluded_y": None,
+            "outer_fit_rows": 0,
+            "outer_fit_residual_max": None,
+            "inner_fit_residual_max": None,
+            "inner_outer_residual_correlation": None,
+            "residual_difference_max": None,
+            "width_range": None,
+            "fit_mode": None,
+            "entry_geometry_ok": False,
+            "current_geometry_ok": False,
+            "route_authorized": False,
+            "rejection_reason": None,
             "port_x": None, "port_y": None, "clip_endpoint_x": None,
             "port_inset_margin_cells": self.port_inset_margin_cells,
             "port_search_y_min": None, "port_search_y_max": None,
@@ -232,6 +255,8 @@ class FastRingSlope:
             "path_x_rows": self._path_x_rows,
             "path_valid_rows": self._path_valid_rows,
             "path_row_count": 0,
+            "path_y_min": None, "path_y_max": None,
+            "path_y_span": 0, "path_near_anchor": False,
         }
         self._ring_state = _STATE_IDLE
         self._ring_side = RING_NONE
@@ -244,6 +269,8 @@ class FastRingSlope:
         self._ring_reason = "RESET"
         self._ring_active = False
         self._last_inner_x = None
+        self._last_qualified_geometry_ms = None
+        self._arc_geometry_diag = None
         self.ring = {
             "candidate": self._candidate,
             "state": _STATE_IDLE,
@@ -254,6 +281,9 @@ class FastRingSlope:
             "pending_count": 0,
             "exit_count": 0,
             "cooldown_count": 0,
+            "route_authorized": False,
+            "current_geometry_ok": False,
+            "last_geometry_ms": None,
         }
 
         # Slope fit points are integer grid coordinates in y=30..50.
@@ -296,6 +326,7 @@ class FastRingSlope:
         self._ring_reason = reason
         self._ring_active = False
         self._last_inner_x = None
+        self._last_qualified_geometry_ms = None
         self._publish_ring_state()
 
     def _clear_slope_candidate(self, reason):
@@ -331,6 +362,9 @@ class FastRingSlope:
         self.ring["pending_count"] = self._pending_count
         self.ring["exit_count"] = self._exit_count
         self.ring["cooldown_count"] = self._cooldown_count
+        self.ring["route_authorized"] = False
+        self.ring["current_geometry_ok"] = False
+        self.ring["last_geometry_ms"] = self._last_qualified_geometry_ms
 
     def _reset_candidate(self, reason):
         candidate = self._candidate
@@ -356,6 +390,17 @@ class FastRingSlope:
         candidate["inner_edge_disappeared"] = False
         candidate["inner_edge_rows"] = 0
         candidate["outer_outlier_excluded_y"] = None
+        candidate["outer_fit_rows"] = 0
+        candidate["outer_fit_residual_max"] = None
+        candidate["inner_fit_residual_max"] = None
+        candidate["inner_outer_residual_correlation"] = None
+        candidate["residual_difference_max"] = None
+        candidate["width_range"] = None
+        candidate["fit_mode"] = None
+        candidate["entry_geometry_ok"] = False
+        candidate["current_geometry_ok"] = False
+        candidate["route_authorized"] = False
+        candidate["rejection_reason"] = None
         candidate["port_x"] = None
         candidate["port_y"] = None
         candidate["clip_endpoint_x"] = None
@@ -369,6 +414,10 @@ class FastRingSlope:
         candidate["boundary_source"] = "NONE"
         candidate["planned_center_source"] = "NONE"
         candidate["path_row_count"] = 0
+        candidate["path_y_min"] = None
+        candidate["path_y_max"] = None
+        candidate["path_y_span"] = 0
+        candidate["path_near_anchor"] = False
         for index in range(self.height):
             self._path_valid_rows[index] = 0
         self._row_count = 0
@@ -428,6 +477,145 @@ class FastRingSlope:
             row_count += 1
         self._row_count = row_count
         return row_count > 0
+
+    def _profile_line_fit(self, offset, excluded_index):
+        """Fit real current boundary samples to x(y), excluding one known spike."""
+        count = self._row_count
+        rows = self._rows
+        sample_count = 0
+        sum_y = 0.0
+        sum_x = 0.0
+        sum_yy = 0.0
+        sum_yx = 0.0
+        y_min = self.height
+        y_max = -1
+        for index in range(count):
+            if index == excluded_index:
+                continue
+            base = index * _ROW_STRIDE
+            y = rows[base]
+            x = rows[base + offset]
+            sample_count += 1
+            sum_y += y
+            sum_x += x
+            sum_yy += y * y
+            sum_yx += y * x
+            if y < y_min:
+                y_min = y
+            if y > y_max:
+                y_max = y
+        denominator = sample_count * sum_yy - sum_y * sum_y
+        if sample_count < 2 or denominator == 0.0:
+            return sample_count, y_min, y_max, 0.0, 0.0, None
+        slope = ((sample_count * sum_yx - sum_y * sum_x) /
+                 float(denominator))
+        intercept = (sum_x - slope * sum_y) / float(sample_count)
+        residual_max = 0.0
+        for index in range(count):
+            if index == excluded_index:
+                continue
+            base = index * _ROW_STRIDE
+            residual = abs(rows[base + offset] -
+                           (intercept + slope * rows[base]))
+            if residual > residual_max:
+                residual_max = residual
+        return (sample_count, y_min, y_max, intercept, slope,
+                residual_max)
+
+    def _curvature_relation(self, inner_offset, outer_offset,
+                            excluded_index, inner_fit, outer_fit):
+        """Measure whether two curved profiles are independent or parallel."""
+        rows = self._rows
+        count = self._row_count
+        inner_intercept, inner_slope = inner_fit
+        outer_intercept, outer_slope = outer_fit
+        width_min = self.width
+        width_max = -1
+        residual_difference_max = 0.0
+        inner_residual_sum = 0.0
+        outer_residual_sum = 0.0
+        residual_count = 0
+        for index in range(count):
+            if index == excluded_index:
+                continue
+            base = index * _ROW_STRIDE
+            y = rows[base]
+            inner = rows[base + inner_offset]
+            outer = rows[base + outer_offset]
+            width = (inner - outer if inner_offset == 2 else outer - inner)
+            if width < width_min:
+                width_min = width
+            if width > width_max:
+                width_max = width
+            inner_residual = inner - (inner_intercept + inner_slope * y)
+            outer_residual = outer - (outer_intercept + outer_slope * y)
+            difference = abs(inner_residual - outer_residual)
+            if difference > residual_difference_max:
+                residual_difference_max = difference
+            inner_residual_sum += inner_residual
+            outer_residual_sum += outer_residual
+            residual_count += 1
+        width_range = width_max - width_min
+        if residual_count < 2:
+            return ("OPPOSITE_EDGE_CURVED", "REJECT_CURVED_OUTER", {
+                "inner_fit_residual_max": None,
+                "outer_fit_residual_max": None,
+                "inner_outer_residual_correlation": None,
+                "residual_difference_max": residual_difference_max,
+                "width_range": width_range,
+            })
+
+        inner_mean = inner_residual_sum / float(residual_count)
+        outer_mean = outer_residual_sum / float(residual_count)
+        covariance = 0.0
+        inner_variance = 0.0
+        outer_variance = 0.0
+        inner_residual_max = 0.0
+        outer_residual_max = 0.0
+        for index in range(count):
+            if index == excluded_index:
+                continue
+            base = index * _ROW_STRIDE
+            y = rows[base]
+            inner_residual = rows[base + inner_offset] - (
+                inner_intercept + inner_slope * y)
+            outer_residual = rows[base + outer_offset] - (
+                outer_intercept + outer_slope * y)
+            inner_delta = inner_residual - inner_mean
+            outer_delta = outer_residual - outer_mean
+            covariance += inner_delta * outer_delta
+            inner_variance += inner_delta * inner_delta
+            outer_variance += outer_delta * outer_delta
+            if abs(inner_residual) > inner_residual_max:
+                inner_residual_max = abs(inner_residual)
+            if abs(outer_residual) > outer_residual_max:
+                outer_residual_max = abs(outer_residual)
+
+        correlation = None
+        if inner_variance > 0.0 and outer_variance > 0.0:
+            correlation = covariance / math.sqrt(
+                inner_variance * outer_variance)
+        diagnostics = {
+            "inner_fit_residual_max": inner_residual_max,
+            "outer_fit_residual_max": outer_residual_max,
+            "inner_outer_residual_correlation": correlation,
+            "residual_difference_max": residual_difference_max,
+            "width_range": width_range,
+        }
+        if correlation is not None and correlation > 0.0:
+            return "PARALLEL_CURVE", "REJECT_PARALLEL_CURVE", diagnostics
+
+        independent_curvature = (
+            outer_residual_max <= _CURVED_OUTER_MAX_RESIDUAL and
+            inner_residual_max >= _INNER_CURVATURE_MIN_RESIDUAL and
+            outer_residual_max <= (
+                _OUTER_TO_INNER_RESIDUAL_RATIO_MAX * inner_residual_max) and
+            correlation is not None and correlation <= 0.0 and
+            width_range >= _CURVED_WIDTH_RANGE_MIN and
+            residual_difference_max >= _CURVED_RESIDUAL_DIFFERENCE_MIN)
+        if independent_curvature:
+            return None, "INDEPENDENT_CURVATURE", diagnostics
+        return "OPPOSITE_EDGE_CURVED", "REJECT_CURVED_OUTER", diagnostics
 
     def _arc_candidate(self, side_id):
         count = self._row_count
@@ -531,6 +719,67 @@ class FastRingSlope:
                     abs(2 * x1 - x0 - x2) < 5):
                 return None
             excluded_outer_y = y1
+        inner_fit = self._profile_line_fit(inner_offset, outer_violation)
+        outer_fit = self._profile_line_fit(outer_offset, outer_violation)
+        outer_fit_rows, outer_y_min, outer_y_max = outer_fit[:3]
+        outer_residual = outer_fit[5]
+        if (outer_fit_rows < 10 or outer_y_max - outer_y_min < 12 or
+                outer_residual is None):
+            if self._arc_geometry_diag is None:
+                self._arc_geometry_diag = {
+                    "reason": "OUTER_EDGE_SUPPORT_INSUFFICIENT",
+                    "outer_fit_rows": outer_fit_rows,
+                    "outer_fit_residual_max": outer_residual,
+                }
+            return None
+        geometry_reason, fit_mode, fit_diagnostics = \
+            self._curvature_relation(
+                inner_offset, outer_offset, outer_violation,
+                (inner_fit[3], inner_fit[4]),
+                (outer_fit[3], outer_fit[4]))
+        correlation = fit_diagnostics[
+            "inner_outer_residual_correlation"]
+        coherent_straight_band = (
+            _COHERENT_OUTER_MIN_RESIDUAL <= outer_residual <=
+            _STRAIGHT_OUTER_MAX_RESIDUAL and
+            correlation is not None and
+            correlation >= _COHERENT_PARALLEL_CORRELATION_MIN)
+        if coherent_straight_band:
+            geometry_reason = "PARALLEL_CURVE"
+            fit_mode = "REJECT_PARALLEL_CURVE"
+            if self._arc_geometry_diag is None:
+                self._arc_geometry_diag = {
+                    "reason": geometry_reason,
+                    "outer_fit_rows": outer_fit_rows,
+                    "outer_fit_residual_max": outer_residual,
+                    "inner_fit_residual_max": fit_diagnostics[
+                        "inner_fit_residual_max"],
+                    "inner_outer_residual_correlation": correlation,
+                    "residual_difference_max": fit_diagnostics[
+                        "residual_difference_max"],
+                    "width_range": fit_diagnostics["width_range"],
+                    "fit_mode": fit_mode,
+                }
+            return None
+        if outer_residual > _STRAIGHT_OUTER_MAX_RESIDUAL:
+            if geometry_reason is not None:
+                if self._arc_geometry_diag is None:
+                    self._arc_geometry_diag = {
+                        "reason": geometry_reason,
+                        "outer_fit_rows": outer_fit_rows,
+                        "outer_fit_residual_max": outer_residual,
+                        "inner_fit_residual_max": fit_diagnostics[
+                            "inner_fit_residual_max"],
+                        "inner_outer_residual_correlation": fit_diagnostics[
+                            "inner_outer_residual_correlation"],
+                        "residual_difference_max": fit_diagnostics[
+                            "residual_difference_max"],
+                        "width_range": fit_diagnostics["width_range"],
+                        "fit_mode": fit_mode,
+                    }
+                return None
+        else:
+            fit_mode = "STRAIGHT_OUTER"
         return {
             "side_id": side_id,
             "vertex_index": vertex_index,
@@ -543,6 +792,16 @@ class FastRingSlope:
             "rows": count,
             "intrusion": intrusion,
             "outer_outlier_excluded_y": excluded_outer_y,
+            "outer_fit_rows": outer_fit_rows,
+            "outer_fit_residual_max": outer_residual,
+            "inner_fit_residual_max": fit_diagnostics[
+                "inner_fit_residual_max"],
+            "inner_outer_residual_correlation": fit_diagnostics[
+                "inner_outer_residual_correlation"],
+            "residual_difference_max": fit_diagnostics[
+                "residual_difference_max"],
+            "width_range": fit_diagnostics["width_range"],
+            "fit_mode": fit_mode,
         }
 
     def _flood_port(self, mask_info, arc):
@@ -798,6 +1057,8 @@ class FastRingSlope:
         if cell != seed:
             return False
         count = 0
+        path_y_min = self.height
+        path_y_max = -1
         for y in range(self.floor_y, self.height):
             if self._path_valid_rows[y]:
                 center = (self._path_x_min[y] + self._path_x_max[y]) // 2
@@ -810,8 +1071,25 @@ class FastRingSlope:
                     return False
                 self._path_x_rows[y] = center
                 count += 1
+                if y < path_y_min:
+                    path_y_min = y
+                if y > path_y_max:
+                    path_y_max = y
         self._candidate["path_row_count"] = count
-        return count >= 1
+        path_span = path_y_max - path_y_min if count else 0
+        self._candidate["path_y_min"] = (
+            path_y_min if count else None)
+        self._candidate["path_y_max"] = (
+            path_y_max if count else None)
+        self._candidate["path_y_span"] = path_span
+        seed_x = self._candidate.get("near_seed_x")
+        seed_y = self._candidate.get("near_seed_y")
+        near_anchor = bool(
+            seed_x is not None and seed_y is not None and
+            self._path_valid_rows[seed_y] and
+            self._path_x_min[seed_y] <= seed_x <= self._path_x_max[seed_y])
+        self._candidate["path_near_anchor"] = near_anchor
+        return count >= 8 and path_span >= 12 and near_anchor
 
     def _current_inner_evidence(self, side_id, road_result,
                                 support_rows, support_count,
@@ -901,6 +1179,7 @@ class FastRingSlope:
                               single_selection=None):
         """Extract a unique current-frame convex arc with a connected port."""
         candidate = self._reset_candidate("NO_CURRENT_BOUNDARIES")
+        self._arc_geometry_diag = None
         if not self._extract_supported_rows(
                 road_result or {}, support_rows, support_count):
             if self._ring_side != RING_NONE:
@@ -913,6 +1192,9 @@ class FastRingSlope:
         topology = (road_result or {}).get("topology_evidence") or {}
         if (topology.get("branch_evidence") or topology.get("branch") or
                 topology.get("ambiguous")):
+            candidate["ambiguous"] = True
+            candidate["rejection_reason"] = \
+                "TOPOLOGY_BRANCH_OR_AMBIGUITY"
             if self._ring_side != RING_NONE:
                 self._current_inner_evidence(
                     self._ring_side, road_result or {}, support_rows,
@@ -931,7 +1213,24 @@ class FastRingSlope:
                 self._current_inner_evidence(
                     self._ring_side, road_result or {}, support_rows,
                     support_count, single_selection)
-            candidate["reason"] = "NO_CONVEX_ARC"
+            diagnostic = self._arc_geometry_diag
+            if diagnostic is None:
+                candidate["reason"] = "NO_CONVEX_ARC"
+            else:
+                candidate["reason"] = diagnostic["reason"]
+                candidate["rejection_reason"] = diagnostic["reason"]
+                candidate["outer_fit_rows"] = diagnostic.get(
+                    "outer_fit_rows", 0)
+                candidate["outer_fit_residual_max"] = diagnostic.get(
+                    "outer_fit_residual_max")
+                candidate["inner_fit_residual_max"] = diagnostic.get(
+                    "inner_fit_residual_max")
+                candidate["inner_outer_residual_correlation"] = diagnostic.get(
+                    "inner_outer_residual_correlation")
+                candidate["residual_difference_max"] = diagnostic.get(
+                    "residual_difference_max")
+                candidate["width_range"] = diagnostic.get("width_range")
+                candidate["fit_mode"] = diagnostic.get("fit_mode")
             return candidate
         if (self._ring_side != RING_NONE and
                 arc["side_id"] != self._ring_side):
@@ -953,6 +1252,18 @@ class FastRingSlope:
         candidate["intrusion"] = arc["intrusion"]
         candidate["outer_outlier_excluded_y"] = arc.get(
             "outer_outlier_excluded_y")
+        candidate["outer_fit_rows"] = arc["outer_fit_rows"]
+        candidate["outer_fit_residual_max"] = arc[
+            "outer_fit_residual_max"]
+        candidate["inner_fit_residual_max"] = arc[
+            "inner_fit_residual_max"]
+        candidate["inner_outer_residual_correlation"] = arc[
+            "inner_outer_residual_correlation"]
+        candidate["residual_difference_max"] = arc[
+            "residual_difference_max"]
+        candidate["width_range"] = arc["width_range"]
+        candidate["fit_mode"] = arc["fit_mode"]
+        candidate["entry_geometry_ok"] = True
         rows = self._rows
         inner_offset = 1 if arc["side_id"] == RING_LEFT else 2
         candidate["near_inner_x"] = rows[
@@ -962,7 +1273,10 @@ class FastRingSlope:
         self._last_inner_x = candidate["near_inner_x"]
         candidate["port_segments"] = port_segments
         if not port_ok:
+            if (port_segments > 1 or port_reason == "MULTIPLE_PORTS"):
+                candidate["ambiguous"] = True
             candidate["reason"] = port_reason
+            candidate["rejection_reason"] = port_reason
             return candidate
 
         near_center = float(candidate["near_seed_x"])
@@ -973,6 +1287,16 @@ class FastRingSlope:
             (port_x - near_center) * 2000.0 / float(self.width - 1))
         candidate["valid"] = True
         candidate["reason"] = "ARC_AND_CONNECTED_PORT"
+        candidate["rejection_reason"] = None
+        candidate["current_geometry_ok"] = bool(
+            candidate["path_row_count"] >= 8 and
+            candidate["path_y_span"] >= 12 and
+            candidate["path_near_anchor"] and
+            candidate["port_segments"] == 1)
+        if not candidate["current_geometry_ok"]:
+            candidate["valid"] = False
+            candidate["reason"] = "CURRENT_PATH_GEOMETRY_UNQUALIFIED"
+            candidate["rejection_reason"] = candidate["reason"]
         candidate["port_x"] = port_x
         candidate["port_y"] = port_y
         candidate["clip_endpoint_x"] = clip_endpoint_x
@@ -985,14 +1309,31 @@ class FastRingSlope:
         candidate["planned_center_source"] = "CURRENT_CONNECTED_WHITE_PATH"
         return candidate
 
+    def _candidate_has_current_geometry(self, candidate):
+        return bool(
+            candidate.get("valid") and
+            candidate.get("entry_geometry_ok") and
+            candidate.get("current_geometry_ok") and
+            candidate.get("path_row_count", 0) >= 8 and
+            candidate.get("path_y_span", 0) >= 12 and
+            candidate.get("path_near_anchor") and
+            candidate.get("port_segments") == 1 and
+            candidate.get("near_seed_x") is not None and
+            candidate.get("near_seed_y") is not None and
+            candidate.get("port_x") is not None and
+            candidate.get("port_y") is not None)
+
     def update_ring_state(self, fresh_keep, generation, normal_route_valid,
-                          forward_continuation):
-        """Advance only on consecutive captured frames in one KEEP session."""
+                          forward_continuation, now_ms, ticks_diff):
+        """Update ring identity separately from current steering authorization."""
         if generation != self._generation:
             self.clear("CONTROL_GENERATION")
             self._generation = generation
         candidate = self._candidate
-        if candidate["ambiguous"]:
+        route_authorized = False
+        candidate_geometry_ok = self._candidate_has_current_geometry(candidate)
+
+        if candidate.get("ambiguous"):
             self._clear_ring("RING_SIDE_AMBIGUOUS")
             self._ring_reason = "RING_SIDE_AMBIGUOUS"
             self._publish_ring_state()
@@ -1006,98 +1347,117 @@ class FastRingSlope:
             self._publish_ring_state()
             return self.ring
 
-        candidate_side = candidate["side_id"] if candidate["valid"] else RING_NONE
-        candidate_port_y = candidate["port_y"] if candidate["valid"] else -1
-        if self._ring_state in (_STATE_IDLE, _STATE_PREVIEW):
-            if candidate_side == RING_NONE:
-                self._pending_side = RING_NONE
-                self._pending_port_y = -1
-                self._pending_count = 0
-                self._ring_state = (
-                    _STATE_PREVIEW if candidate.get("arc_detected") else
-                    _STATE_IDLE)
-                self._ring_active = False
-                self._ring_reason = (
-                    "ARC_WITHOUT_CONNECTED_PORT" if
-                    candidate.get("arc_detected") else candidate["reason"])
-            elif not fresh_keep or not normal_route_valid:
-                self._pending_side = RING_NONE
-                self._pending_port_y = -1
-                self._pending_count = 0
-                self._ring_state = _STATE_PREVIEW
-                self._ring_active = False
-                self._ring_reason = (
-                    "PREVIEW_REQUIRES_FRESH_KEEP" if not fresh_keep else
-                    "PREVIEW_REQUIRES_VALIDATED_CURRENT_ROUTE")
+        candidate_side = (candidate["side_id"] if candidate_geometry_ok
+                          else RING_NONE)
+        candidate_port_y = (candidate["port_y"]
+                            if candidate_geometry_ok else -1)
+        entry_eligible = bool(candidate_geometry_ok and fresh_keep and
+                              normal_route_valid)
+        identity_states = (_STATE_ENTRY_LEFT, _STATE_ENTRY_RIGHT,
+                           _STATE_INSIDE_LEFT, _STATE_INSIDE_RIGHT,
+                           _STATE_EXIT, _STATE_COOLDOWN)
+        suppress_entry_this_frame = False
+        identity_expired = False
+        if self._ring_state in identity_states:
+            if (candidate_side != RING_NONE and
+                    candidate_side != self._ring_side):
+                self._clear_ring("RING_SIDE_IDENTITY_CHANGED")
+                suppress_entry_this_frame = True
             else:
+                last_ms = self._last_qualified_geometry_ms
+                expired = (last_ms is None or
+                           ticks_diff(now_ms, last_ms) >=
+                           _RING_GEOMETRY_LEASE_MS)
+                if expired:
+                    self._clear_ring("RING_GEOMETRY_LEASE_EXPIRED")
+                    identity_expired = True
+
+        if self._ring_state in (_STATE_IDLE, _STATE_PREVIEW):
+            if entry_eligible and not suppress_entry_this_frame:
                 same = (candidate_side == self._pending_side and
                         abs(candidate_port_y - self._pending_port_y) <= 2)
                 self._pending_count = self._pending_count + 1 if same else 1
                 self._pending_side = candidate_side
                 self._pending_port_y = candidate_port_y
                 self._ring_state = _STATE_PREVIEW
-                self._ring_reason = "CONFIRMING_ARC_PORT"
+                self._ring_active = False
+                self._ring_reason = "CONFIRMING_CURRENT_GEOMETRY"
                 if self._pending_count >= 3:
                     self._ring_side = candidate_side
                     self._ring_state = (
                         _STATE_ENTRY_LEFT if candidate_side == RING_LEFT else
                         _STATE_ENTRY_RIGHT)
                     self._ring_active = True
-                    self._ring_reason = "ENTRY_CONFIRMED"
-        elif self._ring_state in (_STATE_ENTRY_LEFT, _STATE_ENTRY_RIGHT):
-            if not normal_route_valid:
-                self._clear_ring("CURRENT_BOUNDARY_LOST")
-            elif candidate_side == self._ring_side and fresh_keep:
-                self._ring_state = (
-                    _STATE_INSIDE_LEFT if self._ring_side == RING_LEFT else
-                    _STATE_INSIDE_RIGHT)
-                self._ring_active = True
-                self._ring_reason = "CURRENT_RING_ARC"
-            elif (candidate.get("partial_inner_current") and fresh_keep):
-                self._ring_state = (
-                    _STATE_INSIDE_LEFT if self._ring_side == RING_LEFT else
-                    _STATE_INSIDE_RIGHT)
-                self._ring_active = True
-                self._ring_reason = "CURRENT_PARTIAL_INNER_EDGE"
+                    self._ring_reason = "ENTRY_CONFIRMED_CURRENT_ROUTE"
+                    self._last_qualified_geometry_ms = now_ms
+                    route_authorized = True
             else:
-                self._clear_ring("RING_ENTRY_NOT_CURRENT")
-        elif self._ring_state in (_STATE_INSIDE_LEFT, _STATE_INSIDE_RIGHT):
-            same_arc = (candidate_side == self._ring_side and
-                        candidate.get("valid"))
-            if not normal_route_valid:
-                self._clear_ring("CURRENT_BOUNDARY_LOST")
-            elif not fresh_keep:
+                self._pending_side = RING_NONE
+                self._pending_port_y = -1
+                self._pending_count = 0
+                self._ring_state = (
+                    _STATE_PREVIEW if (candidate.get("arc_detected") or
+                                       candidate_geometry_ok) else
+                    _STATE_IDLE)
                 self._ring_active = False
-                self._ring_reason = "STALE_KEEP_DIAGNOSTIC_ONLY"
-            elif same_arc:
-                self._exit_count = 0
+                if suppress_entry_this_frame:
+                    self._ring_reason = "RING_SIDE_IDENTITY_CHANGED"
+                elif identity_expired and not candidate_geometry_ok:
+                    self._ring_reason = "RING_GEOMETRY_LEASE_EXPIRED"
+                elif not fresh_keep:
+                    self._ring_reason = "PREVIEW_REQUIRES_FRESH_KEEP"
+                elif not normal_route_valid:
+                    self._ring_reason = "PREVIEW_REQUIRES_VALIDATED_CURRENT_ROUTE"
+                elif candidate.get("arc_detected"):
+                    self._ring_reason = candidate.get(
+                        "rejection_reason") or "ARC_WITHOUT_QUALIFIED_PORT"
+                else:
+                    self._ring_reason = candidate.get("reason", "NO_CANDIDATE")
+        elif self._ring_state in (_STATE_ENTRY_LEFT, _STATE_ENTRY_RIGHT,
+                                  _STATE_INSIDE_LEFT, _STATE_INSIDE_RIGHT):
+            if (candidate_side != RING_NONE and
+                    candidate_side != self._ring_side):
+                self._clear_ring("RING_SIDE_IDENTITY_CHANGED")
+            elif not fresh_keep:
+                self._clear_ring("KEEP_STALE_STATE_CLEARED")
+            elif (candidate_geometry_ok and normal_route_valid and
+                  candidate_side == self._ring_side):
+                self._ring_state = (
+                    _STATE_INSIDE_LEFT if self._ring_side == RING_LEFT else
+                    _STATE_INSIDE_RIGHT)
                 self._ring_active = True
-                self._ring_reason = "CURRENT_RING_ARC"
-            elif candidate.get("partial_inner_current"):
                 self._exit_count = 0
-                self._ring_active = True
-                self._ring_reason = "CURRENT_PARTIAL_INNER_EDGE"
+                self._ring_reason = "CURRENT_RING_GEOMETRY_AND_ROUTE"
+                self._last_qualified_geometry_ms = now_ms
+                route_authorized = True
             elif (candidate.get("inner_edge_disappeared") and
                   candidate.get("inner_edge_receding") and
                   candidate.get("inner_edge_near_clip") and
-                  forward_continuation):
-                self._ring_active = False
+                  normal_route_valid and forward_continuation):
                 self._exit_count += 1
+                self._ring_active = False
                 self._ring_reason = "EXIT_EDGE_GONE_FORWARD_CURRENT"
                 if self._exit_count >= 3:
                     self._ring_state = _STATE_EXIT
-                    self._ring_active = False
                     self._ring_reason = "EXIT_CONFIRMED_CURRENT_GEOMETRY"
             else:
-                # Exit evidence must be consecutive current frames; an
-                # unknown edge or missing forward continuation breaks it.
                 self._exit_count = 0
-                self._ring_active = False
-                self._ring_reason = "INSIDE_EDGE_IDENTITY_UNKNOWN"
+                self._ring_active = True
+                self._ring_reason = (
+                    "CURRENT_GEOMETRY_NOT_AUTHORIZED" if
+                    candidate_geometry_ok and not normal_route_valid else
+                    "CURRENT_RING_GEOMETRY_MISSING")
+                last_ms = self._last_qualified_geometry_ms
+                expired = (last_ms is None or
+                           ticks_diff(now_ms, last_ms) >=
+                           _RING_GEOMETRY_LEASE_MS)
+                if expired:
+                    self._clear_ring("RING_GEOMETRY_LEASE_EXPIRED")
         elif self._ring_state == _STATE_EXIT:
             if normal_route_valid and fresh_keep and forward_continuation:
                 self._ring_state = _STATE_COOLDOWN
                 self._cooldown_count = 1
+                self._ring_active = False
                 self._ring_reason = "COOLDOWN_STABLE_ROUTE"
             else:
                 self._clear_ring("EXIT_ROUTE_NOT_STABLE")
@@ -1114,9 +1474,13 @@ class FastRingSlope:
                 self._cooldown_count = 0
                 self._ring_reason = "COOLDOWN_WAITING_STABLE_ROUTE"
 
-        # PREVIEW is diagnostic even when the lease is stale. It never marks
-        # a ring route active or supplies an inferred steering target.
+        # An active identity is diagnostic by itself. Only a current qualified
+        # geometry plus fresh KEEP and a validated normal route can authorize
+        # this frame's ring override.
         self._publish_ring_state()
+        self.ring["route_authorized"] = bool(route_authorized)
+        self.ring["current_geometry_ok"] = bool(candidate_geometry_ok)
+        self.ring["last_geometry_ms"] = self._last_qualified_geometry_ms
         return self.ring
 
     def _fit_current_bilateral(self, road_result, support_rows,

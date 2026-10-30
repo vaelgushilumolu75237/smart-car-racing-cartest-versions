@@ -1,0 +1,164 @@
+--- a/lib/micropython/extmod/machine_uart.c
++++ b/lib/micropython/extmod/machine_uart.c
+@@ -61,6 +61,35 @@
+ // The port provides implementations of the above in this file.
+ #include MICROPY_PY_MACHINE_UART_INCLUDEFILE
+ 
++#if defined(MICROPY_PY_MACHINE_UART_FIFO_API)
++// UART.write_fifo(data) accepts a single idle FIFO burst without waiting for TC.
++static mp_obj_t machine_uart_write_fifo(mp_obj_t self_in, mp_obj_t data_in) {
++    machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
++    mp_buffer_info_t bufinfo;
++    mp_get_buffer_raise(data_in, &bufinfo, MP_BUFFER_READ);
++    if (bufinfo.len == 0 || bufinfo.len > UART_TX_FIFO_SIZE) {
++        mp_raise_ValueError(MP_ERROR_TEXT("write_fifo expects 1..16 bytes"));
++    }
++
++    int errcode = 0;
++    size_t num_tx = uart_tx_fifo_data(self, bufinfo.buf, bufinfo.len, &errcode);
++    if (errcode == MP_EAGAIN) {
++        // None means no byte was accepted; a short integer is an explicit partial write.
++        return num_tx ? MP_OBJ_NEW_SMALL_INT(num_tx) : mp_const_none;
++    }
++    if (errcode != 0) {
++        mp_raise_OSError(errcode);
++    }
++    return MP_OBJ_NEW_SMALL_INT(num_tx);
++}
++static MP_DEFINE_CONST_FUN_OBJ_2(machine_uart_write_fifo_obj, machine_uart_write_fifo);
++
++static mp_obj_t machine_uart_fifo_txdone(mp_obj_t self_in) {
++    return mp_obj_new_bool(uart_fifo_txdone(MP_OBJ_TO_PTR(self_in)));
++}
++static MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_fifo_txdone_obj, machine_uart_fifo_txdone);
++#endif
++
+ // UART.init(...)
+ static mp_obj_t machine_uart_init(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args) {
+     mp_machine_uart_init_helper(MP_OBJ_TO_PTR(args[0]), n_args - 1, args + 1, kw_args);
+@@ -147,6 +176,11 @@
+ 
+     { MP_ROM_QSTR(MP_QSTR_any), MP_ROM_PTR(&machine_uart_any_obj) },
+     { MP_ROM_QSTR(MP_QSTR_txdone), MP_ROM_PTR(&machine_uart_txdone_obj) },
++
++    #if defined(MICROPY_PY_MACHINE_UART_FIFO_API)
++    { MP_ROM_QSTR(MP_QSTR_write_fifo), MP_ROM_PTR(&machine_uart_write_fifo_obj) },
++    { MP_ROM_QSTR(MP_QSTR_fifo_txdone), MP_ROM_PTR(&machine_uart_fifo_txdone_obj) },
++    #endif
+ 
+     #if MICROPY_PY_MACHINE_UART_SENDBREAK
+     { MP_ROM_QSTR(MP_QSTR_sendbreak), MP_ROM_PTR(&machine_uart_sendbreak_obj) },
+--- a/lib/micropython/ports/stm32/machine_uart.c
++++ b/lib/micropython/ports/stm32/machine_uart.c
+@@ -38,10 +38,14 @@
+ #include "pendsv.h"
+ 
+ #if defined(STM32H7)
++#define MICROPY_PY_MACHINE_UART_FIFO_API (1)
++#define MICROPY_PY_MACHINE_UART_FIFO_ENTRY \
++    { MP_ROM_QSTR(MP_QSTR_WRITE_FIFO_API), MP_ROM_INT(1) },
+ #define MICROPY_PY_MACHINE_UART_INV_ENTRY \
+     { MP_ROM_QSTR(MP_QSTR_INV_TX), MP_ROM_INT(UART_ADVFEATURE_TXINVERT_INIT) }, \
+     { MP_ROM_QSTR(MP_QSTR_INV_RX), MP_ROM_INT(UART_ADVFEATURE_RXINVERT_INIT) },
+ #else
++#define MICROPY_PY_MACHINE_UART_FIFO_ENTRY
+ #define MICROPY_PY_MACHINE_UART_INV_ENTRY
+ #endif
+ 
+@@ -50,6 +54,7 @@
+     { MP_ROM_QSTR(MP_QSTR_CTS), MP_ROM_INT(UART_HWCONTROL_CTS) }, \
+     { MP_ROM_QSTR(MP_QSTR_IRQ_RXIDLE), MP_ROM_INT(UART_FLAG_IDLE) }, \
+     { MP_ROM_QSTR(MP_QSTR_IRQ_RX), MP_ROM_INT(UART_FLAG_RXNE) }, \
++    MICROPY_PY_MACHINE_UART_FIFO_ENTRY \
+     MICROPY_PY_MACHINE_UART_INV_ENTRY \
+ 
+ static void mp_machine_uart_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
+--- a/lib/micropython/ports/stm32/uart.c
++++ b/lib/micropython/ports/stm32/uart.c
+@@ -1257,6 +1257,71 @@
+     *errcode = 0;
+     return num_tx;
+ }
++
++#if defined(STM32H7)
++// Fill only while the H7 TX FIFO reports space. Never wait for transmission completion.
++size_t uart_tx_fifo_data(machine_uart_obj_t *self, const void *src_in,
++    size_t num_bytes, int *errcode) {
++    if (num_bytes == 0 || num_bytes > UART_TX_FIFO_SIZE ||
++        self == NULL || src_in == NULL) {
++        *errcode = MP_EINVAL;
++        return 0;
++    }
++
++    size_t num_tx = 0;
++    int error = 0;
++    USART_TypeDef *uart = NULL;
++    mp_uint_t atomic_state = MICROPY_BEGIN_ATOMIC_SECTION();
++    if (!self->is_enabled || self->uartx == NULL) {
++        error = MP_EINVAL;
++        goto cleanup;
++    }
++
++    uart = self->uartx;
++    uint32_t cr1 = uart->CR1;
++    if ((cr1 & (USART_CR1_UE | USART_CR1_TE | USART_CR1_FIFOEN)) !=
++            (USART_CR1_UE | USART_CR1_TE | USART_CR1_FIFOEN) ||
++        (cr1 & (USART_CR1_M0 | USART_CR1_M1 | USART_CR1_PCE)) != 0 ||
++        (cr1 & (USART_CR1_TXEIE_TXFNFIE | USART_CR1_TCIE)) != 0 ||
++        (uart->CR2 & USART_CR2_STOP) != 0 ||
++        (uart->CR3 & (USART_CR3_RTSE | USART_CR3_CTSE | USART_CR3_DMAT)) != 0) {
++        error = MP_EINVAL;
++        goto cleanup;
++    }
++
++    // TC is the all-clear condition: if any earlier byte is pending, accept none.
++    if ((uart->ISR & USART_ISR_TC) == 0) {
++        error = MP_EAGAIN;
++        goto cleanup;
++    }
++
++    const uint8_t *src = (const uint8_t *)src_in;
++    while (num_tx < num_bytes) {
++        if ((uart->ISR & USART_ISR_TXE_TXFNF) == 0) {
++            error = MP_EAGAIN;
++            goto cleanup;
++        }
++        uart->TDR = src[num_tx++];
++    }
++
++cleanup:
++    MICROPY_END_ATOMIC_SECTION(atomic_state);
++    *errcode = error;
++    return num_tx;
++}
++
++bool uart_fifo_txdone(machine_uart_obj_t *self) {
++    if (self == NULL || !self->is_enabled || self->uartx == NULL) {
++        return false;
++    }
++    uint32_t cr1 = self->uartx->CR1;
++    if ((cr1 & (USART_CR1_UE | USART_CR1_TE | USART_CR1_FIFOEN)) !=
++            (USART_CR1_UE | USART_CR1_TE | USART_CR1_FIFOEN)) {
++        return false;
++    }
++    return (self->uartx->ISR & USART_ISR_TC) != 0;
++}
++#endif
+ 
+ void uart_tx_strn(machine_uart_obj_t *uart_obj, const char *str, uint len) {
+     int errcode;
+--- a/lib/micropython/ports/stm32/uart.h
++++ b/lib/micropython/ports/stm32/uart.h
+@@ -103,6 +103,12 @@
+ int uart_rx_char(machine_uart_obj_t *uart_obj);
+ bool uart_tx_wait(machine_uart_obj_t *self, uint32_t timeout);
+ size_t uart_tx_data(machine_uart_obj_t *self, const void *src_in, size_t num_chars, int *errcode);
++#if defined(STM32H7)
++#define UART_TX_FIFO_SIZE (16)
++size_t uart_tx_fifo_data(machine_uart_obj_t *self, const void *src_in,
++    size_t num_bytes, int *errcode);
++bool uart_fifo_txdone(machine_uart_obj_t *self);
++#endif
+ void uart_tx_strn(machine_uart_obj_t *uart_obj, const char *str, uint len);
+ 
+ static inline bool uart_tx_avail(machine_uart_obj_t *self) {

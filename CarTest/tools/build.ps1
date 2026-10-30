@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI")]
+    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI", "DebugFollowTurn65", "DebugFollowIncrementalPI", "DebugFollowIncrementalPIBaseline", "DebugFastNoRing", "DebugRingBase", "DebugRingFast")]
     [string] $Preset,
     [switch] $Fresh
 )
@@ -266,15 +266,25 @@ try {
     }
 
     $expectedProfileFlags = @{
-        'Debug' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
-        'DebugSteering' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'ON'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
-        'DebugBench' = @{ CARTEST_ENABLE_BENCH = 'ON'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
-        'DebugFollow' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
-        'DebugFollowNoLog' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'OFF'; CARTEST_FOLLOW_DIFF_PERMILLE = '0' }
-        'DebugFollowDiff5' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '50' }
-        'DebugFollowDiff10' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '100' }
-        'DebugFollowTurn' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200' }
-        'DebugFollowSpeedPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200' }
+        'Debug' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0'; CARTEST_VISION_HOLD_MS = '3000'; CARTEST_VISION_HOLD_RAMP_MS = '300' }
+        'DebugSteering' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'ON'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0'; CARTEST_VISION_HOLD_MS = '3000'; CARTEST_VISION_HOLD_RAMP_MS = '300' }
+        'DebugBench' = @{ CARTEST_ENABLE_BENCH = 'ON'; CARTEST_ENABLE_FOLLOW = 'OFF'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'OFF'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0'; CARTEST_VISION_HOLD_MS = '3000'; CARTEST_VISION_HOLD_RAMP_MS = '300' }
+        'DebugFollow' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '0'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowNoLog' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'OFF'; CARTEST_FOLLOW_DIFF_PERMILLE = '0'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowDiff5' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '50'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowDiff10' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'OFF'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '100'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowTurn' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowSpeedPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '200'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowTurn65' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'OFF'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'OFF'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowIncrementalPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+        'DebugFollowIncrementalPIBaseline' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
+    }
+    $trackProfileIds = @{ 'DebugFastNoRing' = '1'; 'DebugRingBase' = '2'; 'DebugRingFast' = '3' }
+    foreach ($trackPreset in $trackProfileIds.Keys) {
+        $expectedProfileFlags[$trackPreset] = $expectedProfileFlags['DebugFollowIncrementalPI'].Clone()
+        $expectedProfileFlags[$trackPreset]['CARTEST_TRACK_PROFILE'] = $trackProfileIds[$trackPreset]
+        $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4800' } else { '5600' }
+        $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } else { '4400' }
     }
     $configuredCache = Join-Path $buildDirectory 'CMakeCache.txt'
     foreach ($flagName in $expectedProfileFlags[$Preset].Keys) {
@@ -283,11 +293,60 @@ try {
             throw "Configured profile flag mismatch for $Preset`: $flagName=$actualFlag"
         }
     }
-    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI')) { 'ON' } else { 'OFF' }
+    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI', 'DebugFollowTurn65', 'DebugFollowIncrementalPI', 'DebugFollowIncrementalPIBaseline', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast')) { 'ON' } else { 'OFF' }
     $actualTurnProfile = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_FOLLOW_TURN'
     if ($actualTurnProfile -ne $expectedTurnProfile) {
         throw "Configured Follow turn profile mismatch for $Preset`: CARTEST_ENABLE_FOLLOW_TURN=$actualTurnProfile"
     }
+    $expectedAckermannOption = if ($Preset -eq 'DebugFollowIncrementalPIBaseline') { 'OFF' } else { 'ON' }
+    $actualAckermannOption = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_ACKERMANN_COORDINATION'
+    if ($actualAckermannOption -ne $expectedAckermannOption) {
+        throw "Configured Ackermann coordination mismatch for $Preset`: CARTEST_ENABLE_ACKERMANN_COORDINATION=$actualAckermannOption"
+    }
+    $compileCommandsPath = Join-Path $buildDirectory 'compile_commands.json'
+    if (-not (Test-Path -LiteralPath $compileCommandsPath -PathType Leaf)) {
+        throw "CMake compile commands are missing; cannot verify the effective profile defines: $compileCommandsPath"
+    }
+    $compileCommands = Get-Content -LiteralPath $compileCommandsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $mainCompile = $compileCommands | Where-Object { $_.file -match '[/\\]Src[/\\]main\.c$' } | Select-Object -First 1
+    if (-not $mainCompile -or [string]::IsNullOrWhiteSpace([string]$mainCompile.command)) {
+        throw "CMake compile command for Src/main.c is missing from $compileCommandsPath"
+    }
+    $expectedTurnBit = if ($expectedTurnProfile -eq 'ON') { '1' } else { '0' }
+    $expectedSpeedPiBit = if ($expectedProfileFlags[$Preset].CARTEST_ENABLE_FOLLOW_SPEED_PI -eq 'ON') { '1' } else { '0' }
+    $expectedIncrementalPiBit = if ($expectedProfileFlags[$Preset].CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI -eq 'ON') { '1' } else { '0' }
+    $expectedDiff = $expectedProfileFlags[$Preset].CARTEST_FOLLOW_DIFF_PERMILLE
+    $expectedFollowProfile = $expectedProfileFlags[$Preset].CARTEST_ENABLE_FOLLOW -eq 'ON'
+    $expectedTurnStep = if ($expectedFollowProfile) { '40' } else { '10' }
+    $coordinatedPresets = @('DebugFollowIncrementalPI', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast')
+    $expectedServoStep = if ($Preset -in $coordinatedPresets) { '160' } elseif ($expectedFollowProfile) { '120' } else { '40' }
+    $expectedAckermannBit = if ($Preset -in $coordinatedPresets) { '1' } else { '0' }
+    $expectedNormalLimit = if ($expectedFollowProfile) { '1000' } else { '600' }
+    $expectedDefines = @{
+        CARTEST_FOLLOW_DIFF_PERMILLE = $expectedDiff
+        CARTEST_FOLLOW_INNER_DIFF_PERMILLE = $expectedDiff
+        CARTEST_FOLLOW_TURN_PROFILE_COMPILED = $expectedTurnBit
+        CARTEST_FOLLOW_SPEED_PI_ENABLED = $expectedSpeedPiBit
+        CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED = $expectedIncrementalPiBit
+        CARTEST_ACKERMANN_COORDINATION_ENABLED = $expectedAckermannBit
+        CARTEST_FOLLOW_STARTUP_RAMP_STEP_PERMILLE = '10'
+        CARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE = $expectedTurnStep
+        CARTEST_FOLLOW_SERVO_SLEW_STEP_US = $expectedServoStep
+        CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE = $expectedNormalLimit
+        CARTEST_FOLLOW_HARD_LIMIT_PERMILLE = '1000'
+        CARTEST_VISION_HOLD_MS = $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_MS
+        CARTEST_VISION_HOLD_RAMP_MS = $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_RAMP_MS
+    }
+    $expectedDefines['CARTEST_TRACK_PROFILE'] = if ($trackProfileIds.ContainsKey($Preset)) { $trackProfileIds[$Preset] } else { '0' }
+    $expectedDefines['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast')) { '5600' } else { '4800' }
+    $expectedDefines['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast')) { '4400' } else { '4000' }
+    foreach ($defineName in $expectedDefines.Keys) {
+        $expectedDefine = "-D$defineName=$($expectedDefines[$defineName])"
+        if (-not ([string]$mainCompile.command).Contains($expectedDefine)) {
+            throw "Effective compile profile for $Preset is missing '$expectedDefine' in the Src/main.c compile command."
+        }
+    }
+    Write-Host "Verified $($expectedDefines.Count) effective compile definitions in Src/main.c for '$Preset'."
     Write-Host "Building target CarTest with preset '$Preset'..."
     & $cmakeExe --build --preset $Preset --target CarTest
     if ($LASTEXITCODE -ne 0) {
