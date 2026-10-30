@@ -30,7 +30,7 @@
   "OpenMV/track_elements.py": "0cdd54ca49298e3e849d43436de9410ec0c201ba2e48e695808acebf5ace6894",
   "OpenMV/vision_protocol.py": "30a5269ae9f5af96b66dacbc76798c0dc299031ba34ee56ec8487bc795a50fc1",
   "profiles.json": "b58cbabd3ce43aa56e0446c8e2d6e5170bf4ee10499cf0c6dda0d989d1511a3c",
-  "README.md": "f8eae8a23ddb969e1a8ae08fb82085285345987c1dc6bec06ff0e8c2c171fc2c",
+  "README.md": "bf9d91eb63411755a1877292ee52682568d1b37926c765fc1ea8d223fd0083fc",
   "validation/mpy/adaptive_detector.mpy": "0df052eaf388405890c90e495a927b79edc49c2d23201a5917877895c43c4535",
   "validation/mpy/adaptive_detector.py.exitcode": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
   "validation/mpy/adaptive_detector.py.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

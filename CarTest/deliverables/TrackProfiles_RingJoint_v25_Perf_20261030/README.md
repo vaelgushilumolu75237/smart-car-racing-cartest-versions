@@ -17,9 +17,10 @@ These sources remain a candidate. The stationary calibrated-straight RAM test
 measured 60.8?62.2 displayed new frames/s in ten consecutive 10-second actual
 IDE windows (6,160 new images, zero marker CRC failures). Preview-off board
 windows measured 77.0?77.6 FPS. The isolated performance probe uses virtual
-profile status, not physical vehicle UART. Board window summaries, real-link
-pairing, dynamic-scene FPS and full road/left/right ring acceptance remain
-separate pending checks. See docs/OPENMV-V25-PERFORMANCE-20261030.md in the
+profile status, not physical vehicle UART. The matching board log confirms 62.9?63.6 processing FPS with IDE open
+(seventeen complete active windows). Separate parked real-UART tests received
+V3/ACK3/ready=1; full RESET/KEEP startup, physical active-session pairing,
+dynamic-scene FPS and full road/left/right ring acceptance remain pending. See docs/OPENMV-V25-PERFORMANCE-20261030.md in the
 source checkpoint. Host/SDK/actual IDE are distinct.
 Keep the same-camera calibration; do not replace it with another camera's map.
 Upload all 23 Python sources as one matching set only when authorized; MPYs
