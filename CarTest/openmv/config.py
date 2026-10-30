@@ -47,7 +47,7 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_ENTRY_V26R9_20261031"
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_DIAG_V26R10_20261031"
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.
@@ -107,6 +107,8 @@ TRACK_ELEMENTS_CROSS_WIDTH_TOLERANCE_CELLS = 6
 
 STEERING_DIAG_ENABLED = True
 RING_DIAGNOSTICS_ENABLED = True
+# Fixed 115200-byte pre/failure/post raw capture; write only after Follow stops.
+RING_OUTER_FAILURE_RAW_ENABLED = True
 RING_DIAGNOSTICS_PATH = "ring_diagnostics.bin"
 RING_WIDTH_CALIBRATION_PATH = "ring_width_calibration.json"
 RING_WIDTH_CALIBRATION_REQUIRED = True

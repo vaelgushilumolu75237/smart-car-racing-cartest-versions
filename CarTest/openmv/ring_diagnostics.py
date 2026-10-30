@@ -993,3 +993,134 @@ __all__ = ("BASE_FIELD_COUNT", "EPISODE_CAPACITY", "FORMAT_VERSION",
            "FRAME_RECORD_SIZE", "MAX_FILE_BYTES", "POST_FRAMES",
            "PRE_FRAMES", "REJECT_COUNT", "RingDiagnostics",
            "STOP_SNAPSHOT_FLAG", "TIMESTAMP_TICK_MS")
+
+
+class OuterFailureCapture:
+    """Three bounded raw frames; capture only, never filesystem I/O in Follow.
+
+    Retain last actually transmitted valid outer route, first later invalid
+    observation, and the immediately following active frame. Metadata is the
+    same-frame final UART outcome, not merely a successful tracker candidate.
+    """
+    FIELDS = ("frame_index", "session_token", "state_id", "side",
+              "outer_tracking", "outer_stage", "outer_rejection",
+              "ring_target_rejection", "outer_count", "outer_near",
+              "outer_run", "outer_reference_gap", "outer_side_rows",
+              "outer_side_run", "outer_age_ms", "outer_center_delta2",
+              "target_side", "target_count", "target_center2",
+              "diagnostic_position_error", "diagnostic_sent_error",
+              "route_admission_reason", "reason", "outer_topology_complete",
+              "outer_topology_reason", "outer_topology_ambiguous",
+              "outer_topology_branch", "outer_topology_multiple_exits",
+              "diagnostic_selection_reason")
+
+    def __init__(self):
+        self.frames = [bytearray(320*120) for _ in range(3)]
+        self.meta = [[None]*(5+len(self.FIELDS)) for _ in range(3)]
+        self.reset()
+
+    def reset(self):
+        self.have_before = False
+        self.failed = False
+        self.have_after = False
+        self.identity = None
+        self.errors = 0
+        self.persisted = False
+        self.saved_slots = 0
+        self.save_base = None
+
+    def observe(self, pixels, now_ms, sequence, profile, valid, selection, result):
+        token = result.get("session_token", 0)
+        identity = (profile, token)
+        if self.identity is None:
+            self.identity = identity
+        elif self.identity != identity:
+            # No evidence may cross session/profile boundaries.
+            self.errors += 1
+            return False
+        if self.failed:
+            if self.have_after:
+                return False
+            slot = 2
+        elif not result.get("ring_confirmed"):
+            self.have_before = False
+            return False
+        elif (valid and selection.get("valid") and result.get("outer_tracking")
+              and selection.get("source") in ("ring_left", "ring_right")):
+            slot = 0
+        elif self.have_before and not valid:
+            slot = 1
+        else:
+            return False
+        if not isinstance(pixels, bytearray) or len(pixels) != 320*120:
+            self.errors += 1
+            return False
+        self.frames[slot][:] = pixels
+        meta = self.meta[slot]
+        meta[0] = now_ms
+        meta[1] = sequence
+        meta[2] = profile
+        meta[3] = bool(valid)
+        meta[4] = selection.get("source", "none")
+        for index in range(len(self.FIELDS)):
+            meta[5+index] = result.get(self.FIELDS[index])
+        if slot == 0:
+            self.have_before = True
+        elif slot == 1:
+            self.failed = True
+        else:
+            self.have_after = True
+        return True
+
+    @staticmethod
+    def _write_new(path, data, prefix=None):
+        if RingDiagnostics._path_exists(path):
+            raise OSError("outer evidence target already exists")
+        temporary = path + ".tmp"
+        try:
+            with open(temporary, "wb") as stream:
+                if prefix is not None:
+                    stream.write(prefix)
+                stream.write(data)
+                stream.flush()
+            RingDiagnostics._atomic_create(temporary, path)
+        except Exception:
+            try:
+                os.remove(temporary)
+            except Exception:
+                pass
+            raise
+
+    def save(self, base_path, build_id, frozen):
+        # Caller must provide a frozen paired recorder after a stop transition.
+        if not frozen:
+            raise RuntimeError("outer evidence requires parked freeze")
+        if not self.failed or self.persisted:
+            return False
+        try:
+            import ujson as json
+        except ImportError:
+            import json
+        if self.save_base is not None and self.save_base != base_path:
+            raise RuntimeError("outer evidence retry must use the same destination")
+        self.save_base = base_path
+        names = ("before", "failure", "after")
+        records = []
+        for slot in range(3 if self.have_after else 2):
+            path = base_path + ".outer-" + names[slot] + ".pgm"
+            if slot >= self.saved_slots:
+                self._write_new(path, self.frames[slot], b"P5\n320 120\n255\n")
+                self.saved_slots = slot + 1
+            meta = self.meta[slot]
+            record = dict(zip(self.FIELDS, meta[5:]))
+            record.update(time_ms=meta[0], sequence=meta[1], profile=meta[2],
+                          transmitted_valid=meta[3], source=meta[4],
+                          path=path, raw_crc32=_crc32(self.frames[slot]))
+            records.append(record)
+        # Manifest is written last; only a complete manifest is a committed set.
+        payload = json.dumps(dict(format=1, build_id=build_id,
+            paired_ring_bin=base_path, identity=self.identity,
+            capture_errors=self.errors, frames=records)).encode()
+        self._write_new(base_path + ".outer.json", payload)
+        self.persisted = True
+        return True

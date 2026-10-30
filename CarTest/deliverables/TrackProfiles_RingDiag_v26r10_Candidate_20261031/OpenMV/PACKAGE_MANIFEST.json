@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "7fcf8216373c5801f5f7a38bd2b12770c6e2cc292ac61b4f90318ced120da12c",
+      "source_sha256": "c792171fe6c14e7b761cf04058d8805de677c99ddf260b22115a2aac2af974a5",
       "exit_code": 0,
-      "mpy_sha256": "ea75ec2da450cf414c6a17743460f7856b841e48f78e700c3c0e7b262cb51a0e"
+      "mpy_sha256": "5589096bb8f5b87552ff0a4a493c4e055737b7629a80172d1a2b869d7d54c8a9"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "d7dce5f7cbda9fd48cd44b9d0419def12fabdfcb2a5df1926aa4505af6089bbc",
+      "source_sha256": "331d50875e0492caf4178f21e05bad504a255bf533364c41a4c5363ca5838cb7",
       "exit_code": 0,
-      "mpy_sha256": "556f8542a6284767b67c814312575eb6a11cb5ca638e577e87e514959389aa8e"
+      "mpy_sha256": "01fe8e4e584d493e1b731d8046392458c78d887a027d9be969827c96b521f7d3"
     },
     {
       "file": "reverse_control.py",
@@ -149,9 +149,9 @@
     },
     {
       "file": "track_elements.py",
-      "source_sha256": "8b76859353f1225e407cec078394504fb6b71debd46d184a21e6bcc381831fde",
+      "source_sha256": "ea231e04843bdb767cbde130c9e838242011fcfc2b8835e01a725aaa7b80ade7",
       "exit_code": 0,
-      "mpy_sha256": "61956c4632bf4ff1827308d98ff2d92e7f85a127578d150d3c733ab155424191"
+      "mpy_sha256": "c91ae46b5f97000dae013008570c73b4ef0c0e6aa032b56e8845efadddb8a5ba"
     },
     {
       "file": "ring_width_calibration.py",
@@ -161,9 +161,9 @@
     },
     {
       "file": "ring_diagnostics.py",
-      "source_sha256": "3c36899bf343ff9419162ef92cce57c8645d6f426c3d4a4e81f59dca1e14dd75",
+      "source_sha256": "3220fb024c379b7775f6b09b045ad1738777dd2b9206e06e7af564c492d282b5",
       "exit_code": 0,
-      "mpy_sha256": "260df1980603f37e790ec6345c2a7962cd9f1af91378a9b4edca2b57943c1fd9"
+      "mpy_sha256": "3a093b273a683f4bd4e30ed7eb8f0185adc022a8a95a3c5a1a4356f144ed3f69"
     },
     {
       "file": "fast_ring_slope.py",
@@ -172,13 +172,5 @@
       "mpy_sha256": "f28329ea8ad2c2ffc01a59200dcc4ad93fc9bad28c3dfc73e0e7bb6310c259dd"
     }
   ],
-  "mpy_output_policy": "validation_only_upload_python_sources",
-  "candidate_only": true,
-  "hardware_validation": false,
-  "deployment_eligible": false,
-  "board_fps_verified": false,
-  "road_validation": "pending",
-  "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
-  "vehicle_source_and_elf_unchanged": true,
-  "package_id": "v20261031-ring-entry-v26-r9"
+  "mpy_output_policy": "validation_only_upload_python_sources"
 }

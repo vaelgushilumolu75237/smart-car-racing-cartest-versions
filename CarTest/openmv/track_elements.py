@@ -1578,6 +1578,14 @@ class TrackElementsTracker:
         self._frame_index = (self._frame_index + 1) & 0x7fffffff
         self._ordinary_snapshot_active = False
         self._clear_frame_output()
+        topo = topology if isinstance(topology, dict) else {}
+        self._result["outer_topology_complete"] = bool(topo.get("complete"))
+        self._result["outer_topology_reason"] = topo.get("reason", "MISSING")
+        self._result["outer_topology_ambiguous"] = bool(topo.get("ambiguous"))
+        self._result["outer_topology_branch"] = bool(
+            topo.get("branch") or topo.get("branch_evidence"))
+        self._result["outer_topology_multiple_exits"] = bool(
+            topo.get("multiple_exits"))
         self._last_now_ms = int(now_ms)
         self._current_topology_clear = False
 
@@ -1832,6 +1840,16 @@ class TrackElementsTracker:
         result["ring_arc_growth_x2"] = 0
         result["growth_ready_but_target_rejected"] = False
         result["growth_target_rejection"] = "NONE"
+        result["outer_stage"] = "NOT_ATTEMPTED"
+        result["outer_rejection"] = "NOT_ATTEMPTED"
+        result["outer_count"] = 0
+        result["outer_near"] = 0
+        result["outer_run"] = 0
+        result["outer_reference_gap"] = -1
+        result["outer_side_rows"] = 0
+        result["outer_side_run"] = 0
+        result["outer_age_ms"] = -1
+        result["outer_center_delta2"] = -1
         result["ring_target_rejection"] = "NONE"
         result["ring_near_anchor_run"] = 0
         result["cross_candidate"] = False
@@ -3124,6 +3142,12 @@ class TrackElementsTracker:
 
     def _build_outer_route(self, mask_info, topology):
         """Continue an admitted inner route using the current observed outer edge."""
+        result = self._result
+        result["outer_stage"] = "ELIGIBILITY"
+        result["outer_rejection"] = "ELIGIBILITY"
+        if self._selected_route_ms is not None:
+            result["outer_age_ms"] = _ticks_diff(
+                self._last_now_ms, self._selected_route_ms)
         if (self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM) or
                 not self._inner_route_established or
                 not self._current_valid or not self._session_active or
@@ -3134,11 +3158,25 @@ class TrackElementsTracker:
             return False
         original_rejection = self._result["ring_target_rejection"]
         outer_side = SIDE_RIGHT if self._side == SIDE_LEFT else SIDE_LEFT
+        result["outer_stage"] = "BUILD"
+        result["outer_side_rows"] = (self._near_left_rows if outer_side == SIDE_LEFT
+                                     else self._near_right_rows)
+        result["outer_side_run"] = (self._near_left_run if outer_side == SIDE_LEFT
+                                    else self._near_right_run)
         if self._build_locked_target_rows(mask_info, topology, outer_side, True):
-            if (self._filter_outer_route_rows(mask_info) and
-                    self._handoff_continuous()):
-                self._result["outer_tracking"] = True
-                return True
+            result["outer_stage"] = "FILTER"
+            if self._filter_outer_route_rows(mask_info):
+                result["outer_stage"] = "HANDOFF"
+                result["outer_center_delta2"] = abs(
+                    result["target_center2"] - self._selected_route_center2)
+                result["outer_rejection"] = "HANDOFF_CONTINUITY"
+                if self._handoff_continuous():
+                    result["outer_stage"] = "READY"
+                    result["outer_rejection"] = "NONE"
+                    result["outer_tracking"] = True
+                    return True
+        elif result["outer_stage"] == "BUILD":
+            result["outer_rejection"] = result["ring_target_rejection"]
         self._clear_target_output()
         self._result["ring_target_rejection"] = original_rejection
         return False
@@ -3165,9 +3203,19 @@ class TrackElementsTracker:
             if delta < best_delta:
                 best_delta = delta
                 reference = i
+        result = self._result
+        result["outer_count"] = count
+        result["outer_near"] = near_count
+        result["outer_run"] = longest
+        result["outer_reference_gap"] = best_delta
         if (count < self.min_target_rows or near_count < self.min_near_support or
                 longest < self.min_side_contiguous or reference < 0 or
                 best_delta > self.max_cache_gap):
+            result["outer_rejection"] = (
+                "FILTER_MIN_ROWS" if count < self.min_target_rows else
+                "FILTER_NEAR_SUPPORT" if near_count < self.min_near_support else
+                "FILTER_CONTIGUOUS" if longest < self.min_side_contiguous else
+                "FILTER_REFERENCE_GAP")
             return False
         offset = reference*4
         left = int(self._target_rows[offset+1])
@@ -3639,6 +3687,9 @@ class TrackElementsTracker:
                 if self._target_rows[index*TARGET_ROW_STRIDE] >= near_start:
                     near_observed += 1
             inferred = count
+        if allow_virtual:
+            self._result["outer_count"] = count
+            self._result["outer_near"] = near_observed
         if count < self.min_target_rows:
             self._result["ring_target_rejection"] = "MIN_ROWS"
             self._reject(REJECT_SIDE_SUPPORT)

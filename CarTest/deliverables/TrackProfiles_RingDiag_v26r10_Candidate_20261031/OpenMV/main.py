@@ -1554,8 +1554,9 @@ def ring_diag_persist():
 class _RingDiagnosticsSession:
     """Gate recording and persistence on real Follow start/stop edges."""
 
-    def __init__(self, diagnostic, base_path, build_id):
+    def __init__(self, diagnostic, base_path, build_id, raw_capture=None):
         self.diagnostic = diagnostic
+        self.raw_capture = raw_capture
         self.base_path = base_path
         self.build_id = build_id
         self.active = False
@@ -1565,7 +1566,7 @@ class _RingDiagnosticsSession:
 
     def observe(self, now_ms, sequence, profile_id, active_follow,
                 observation_valid, selection, tracker_result, stop_reason,
-                ticks_diff=None):
+                ticks_diff=None, raw_image=None):
         diagnostic = self.diagnostic
         if diagnostic is None or self.blocked:
             return False
@@ -1580,9 +1581,19 @@ class _RingDiagnosticsSession:
                 self.blocked = True
                 self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
                 return False
+            if self.raw_capture is not None:
+                self.raw_capture.reset()
             self.active = True
         if not self.active:
             return False
+        if self.raw_capture is not None and active_follow and raw_image is not None:
+            try:
+                pixels, width = _preview_marker_image_buffer(raw_image)
+                self.raw_capture.observe(pixels, now_ms, sequence, profile_id,
+                                         observation_valid, selection, tracker_result)
+            except Exception:
+                # Diagnostics must never change the transmitted control outcome.
+                self.raw_capture.errors += 1
         diagnostic.record_frame(
             now_ms, sequence, profile_id, active_follow,
             observation_valid, selection, tracker_result, ticks_diff)
@@ -1592,6 +1603,10 @@ class _RingDiagnosticsSession:
         self.active = False
         try:
             path = diagnostic.save_next(self.base_path, self.build_id)
+            if self.raw_capture is not None:
+                if active_follow and self.raw_capture.failed:
+                    raise RuntimeError("raw evidence retained in RAM: Follow still active")
+                self.raw_capture.save(path, self.build_id, diagnostic.frozen)
         except Exception as exc:
             self.blocked = True
             self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
@@ -3540,7 +3555,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R9_20261031":
+            "CARTEST_H750_RING_DIAG_V26R10_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7121,7 +7136,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     _RING_DIAG_SESSION = (
         _RingDiagnosticsSession(
             _RING_DIAGNOSTICS, config.RING_DIAGNOSTICS_PATH,
-            config.TRACK_PACKAGE_BUILD_ID)
+            config.TRACK_PACKAGE_BUILD_ID,
+            raw_capture=(ring_diagnostics.OuterFailureCapture()
+                         if getattr(config, "RING_OUTER_FAILURE_RAW_ENABLED", False)
+                         and not fixture_mode else None))
         if _RING_DIAGNOSTICS is not None else None)
     calibration_status = (
         element_tracker.ring_calibration_reason
@@ -8391,6 +8409,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             if sent_error >= 32768:
                 sent_error -= 65536
             element_result["diagnostic_sent_error"] = sent_error
+            element_result["diagnostic_selection_reason"] = selection.get("reason")
             ring_diag_start_us = time.ticks_us()
             active_follow = bool(
                 reverse_fresh and reverse_parser.single_enabled and
@@ -8402,7 +8421,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             _RING_DIAG_SESSION.observe(
                 capture_end_ms, sequence, profile_id, active_follow,
                 bool(valid and full_write), selection, element_result,
-                ring_stop_reason, time.ticks_diff)
+                ring_stop_reason, time.ticks_diff, raw_image=img)
             ring_diag_us = time.ticks_diff(
                 time.ticks_us(), ring_diag_start_us)
         sequence_sent = sequence

@@ -905,6 +905,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             # Cached heap sampling policy; these tune GC telemetry cadence only.
             "PERF_GC_MAX_INTERVAL_FRAMES", "PERF_GC_MIN_FREE_BYTES",
             "RING_DIAGNOSTICS_ENABLED", "RING_DIAGNOSTICS_PATH",
+            "RING_OUTER_FAILURE_RAW_ENABLED",
             "RING_WIDTH_CALIBRATION_PATH", "RING_WIDTH_CALIBRATION_REQUIRED",
             "VEHICLE_PROFILE_UNKNOWN", "VEHICLE_PROFILE_A",
             "VEHICLE_PROFILE_B", "VEHICLE_PROFILE_C",

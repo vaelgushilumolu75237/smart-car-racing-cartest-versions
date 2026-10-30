@@ -1,8 +1,8 @@
 {
-  "version": "v20261031-ring-entry-v26-r9",
+  "version": "v20261031-ring-diag-v26-r10",
   "status": "experimental-software-tested-road-and-fps-pending",
   "branch": "experimental/ring-joint",
-  "files": 873,
+  "files": 875,
   "hardware_actions": "none",
   "openmv_native_v501_bundle": "deliverables/OpenMV_RingJoint_v25_NativeCandidate_20261029",
   "openmv_native_v501_runtime_root": "deliverables/TrackProfiles_RingJoint_v25_20261029/OpenMV"
