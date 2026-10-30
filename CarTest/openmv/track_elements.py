@@ -846,6 +846,12 @@ class TrackElementsTracker:
         self._current_edge2 = array("i", [0] * (2 * self.height))
         self._current_contrast = array("i", [0] * (2 * self.height))
         self._side_summary = array("i", [0] * 10)
+        # Ordinary-route counter-evidence must survive an independent raw
+        # boundary observation in the same confirmed-ring frame.
+        self._ordinary_status = bytearray(2 * self.height)
+        self._ordinary_edge2 = array("i", [0] * (2 * self.height))
+        self._ordinary_side_summary = array("i", [0] * 10)
+        self._ordinary_snapshot_active = False
         self._entry_dropout_summary = array("i", [0] * 8)
         self._outer_shift_samples = array("i", [0] * self.near_rows)
         self._outer_shift_x2 = array("i", [0] * 2)
@@ -1474,6 +1480,7 @@ class TrackElementsTracker:
         declares an entry, cross, or exit.
         """
         self._frame_index = (self._frame_index + 1) & 0x7fffffff
+        self._ordinary_snapshot_active = False
         self._clear_frame_output()
         self._last_now_ms = int(now_ms)
         self._current_topology_clear = False
@@ -1548,6 +1555,17 @@ class TrackElementsTracker:
         self._update_side_support()
         self._update_stable_baseline(
             self._current_road, cache_ok, topology)
+
+        if (self._current_road and single_rows_fresh and
+                self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                STATE_EXIT_REPAIR)):
+            # Accepted ordinary routes can omit the near rows. They remain
+            # independent counter-evidence, not the ring's boundary sensor.
+            self._retain_ordinary_observation()
+            if not self._load_single_rows(row_status, row_edge2, row_contrast):
+                self._current_valid = False
+                self._reject(REJECT_INPUT_INVALID)
+            self._update_side_support()
 
         ring_enabled = self._profile_id in (2, 3)
         aborted_this_frame = False
@@ -1684,6 +1702,7 @@ class TrackElementsTracker:
             self._baseline_right_by_y2[y] = -1
 
     def _clear_frame_output(self):
+        self._ordinary_snapshot_active = False
         result = self._result
         previous_target_count = int(result["target_count"])
         previous_cross_count = int(result["cross_route_count"])
@@ -1882,6 +1901,31 @@ class TrackElementsTracker:
         self._reference_left2 = summary[7]
         self._reference_right_y = summary[8]
         self._reference_right2 = summary[9]
+
+    @micropython.native
+    def _retain_ordinary_observation(self):
+        for i in range(2 * self.height):
+            self._ordinary_status[i] = self._current_status[i]
+            self._ordinary_edge2[i] = self._current_edge2[i]
+        for i in range(10):
+            self._ordinary_side_summary[i] = self._side_summary[i]
+        self._ordinary_snapshot_active = True
+
+    @micropython.native
+    def _ordinary_near_support_ok(self):
+        if self._ordinary_snapshot_active:
+            support = self._ordinary_side_summary
+            return (support[0] >= self.min_near_support and
+                    support[1] >= self.min_near_support and
+                    support[2] >= self.min_near_contiguous and
+                    support[3] >= self.min_near_contiguous and
+                    not support[4] and not support[5])
+        return (self._near_left_rows >= self.min_near_support and
+                self._near_right_rows >= self.min_near_support and
+                self._near_left_run >= self.min_near_contiguous and
+                self._near_right_run >= self.min_near_contiguous and
+                not self._near_left_ambiguous and
+                not self._near_right_ambiguous)
 
     def _update_stable_baseline(self, road_ok, cache_ok, topology):
         if self._state not in (STATE_OBSERVE, STATE_REACQUIRE):
@@ -2598,22 +2642,21 @@ class TrackElementsTracker:
     def _paired_aligned_frame(self, topology):
         if (not self._current_road or not self._current_valid or
                 not self._topology_clear(topology) or
-                self._near_left_rows < self.min_near_support or
-                self._near_right_rows < self.min_near_support or
-                self._near_left_run < self.min_near_contiguous or
-                self._near_right_run < self.min_near_contiguous or
-                self._near_left_ambiguous or self._near_right_ambiguous):
+                not self._ordinary_near_support_ok()):
             return False
+        status = (self._ordinary_status if self._ordinary_snapshot_active
+                  else self._current_status)
+        edge2 = (self._ordinary_edge2 if self._ordinary_snapshot_active
+                 else self._current_edge2)
         rows = 0
         min_y = self.height
         max_y = -1
         for y in range(self.floor_y, self.height):
             if (not self._baseline_row_valid[y] or
-                    self._current_status[y] != 1 or
-                    self._current_status[self.height + y] != 1):
+                    status[y] != 1 or status[self.height + y] != 1):
                 continue
-            left2 = int(self._current_edge2[y])
-            right2 = int(self._current_edge2[self.height + y])
+            left2 = int(edge2[y])
+            right2 = int(edge2[self.height + y])
             if (left2 >= right2 or
                     abs(left2 - self._baseline_left_by_y2[y]) > 4 or
                     abs(right2 - self._baseline_right_by_y2[y]) > 4):
@@ -2635,12 +2678,12 @@ class TrackElementsTracker:
         """Check accepted bilateral geometry without baseline alignment."""
         if (not self._current_road or not self._current_valid or
                 not self._current_topology_clear or
-                self._near_left_rows < self.min_near_support or
-                self._near_right_rows < self.min_near_support or
-                self._near_left_run < self.min_near_contiguous or
-                self._near_right_run < self.min_near_contiguous or
-                self._near_left_ambiguous or self._near_right_ambiguous):
+                not self._ordinary_near_support_ok()):
             return False
+        status = (self._ordinary_status if self._ordinary_snapshot_active
+                  else self._current_status)
+        edge2 = (self._ordinary_edge2 if self._ordinary_snapshot_active
+                 else self._current_edge2)
         if self.require_calibration and not (
                 self._calibration_ready and self._cal_check_ready):
             return False
@@ -2670,18 +2713,17 @@ class TrackElementsTracker:
             if (type(valid) is bytearray and len(valid) == self.height and
                     self._corridor_width_fast):
                 return bool(_ordinary_calibrated_corridor_viper(
-                    self._current_status, self._current_edge2, valid, widths,
+                    status, edge2, valid, widths,
                     self._ring_width_valid, self._ring_width,
                     1 if use_frozen_width else 0, self.floor_y, self.height))
         rows = 0
         min_y = self.height
         max_y = -1
         for y in range(self.floor_y, self.height):
-            if (self._current_status[y] != 1 or
-                    self._current_status[self.height + y] != 1):
+            if (status[y] != 1 or status[self.height + y] != 1):
                 continue
-            left2 = int(self._current_edge2[y])
-            right2 = int(self._current_edge2[self.height + y])
+            left2 = int(edge2[y])
+            right2 = int(edge2[self.height + y])
             if left2 >= right2:
                 continue
             if (self.require_calibration and
@@ -3795,6 +3837,11 @@ class TrackElementsTracker:
     @micropython.native
     def _publish(self):
         result = self._result
+        result["ring_observation_source"] = (
+            "NONE" if not self._current_valid else
+            "FRESH_RAW_WITH_ORDINARY_COUNTEREVIDENCE"
+            if self._ordinary_snapshot_active else
+            "ACCEPTED_ROAD" if self._current_road else "FRESH_RAW")
         result["state"] = _STATE_NAMES[self._state]
         result["state_id"] = self._state
         result["reason"] = self._reason

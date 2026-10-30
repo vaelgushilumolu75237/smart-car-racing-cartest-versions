@@ -3532,7 +3532,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R2_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R3_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7590,6 +7590,24 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     "reason": single_diagnostic_reason,
                     "source": "NONE",
                 }
+
+        # Once ring takeover is confirmed, a valid ordinary candidate must
+        # not suppress this frame's independent boundary observation. Its
+        # selected rows may cover only the far field. Do not select or commit
+        # this diagnostic single-edge candidate as the ordinary route.
+        prior_element = element_tracker.result
+        if (single_candidate is None and selection.get("valid") and
+                reverse_fresh and reverse_parser.profile_session_active and
+                mask_info is not None and
+                prior_element.get("ring_confirmed") and
+                prior_element.get("state_id") in (
+                    track_elements.STATE_INSIDE,
+                    track_elements.STATE_EXIT_CONFIRM,
+                    track_elements.STATE_EXIT_REPAIR) and
+                not getattr(single_edge_tracker, "_frame_scan_done", False)):
+            single_candidate = single_edge_tracker.detect(
+                mask_info, True, road_result.get("topology_evidence"))
+            single_diagnostic_reason = "CONFIRMED_RING_BOUNDARY_OBSERVATION"
 
         if single_candidate is None:
             single_edge_tracker.skip_frame(single_diagnostic_reason)
