@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "240444377bf6917261ff99d4661c4efd869e2c1ce1159d53b04e87fe912bfbf3",
+      "source_sha256": "7cda82e886c374b207f13ee5d2cd135a79c820966c7faed77f97c08aba410164",
       "exit_code": 0,
-      "mpy_sha256": "5393c06188be5137984991677c122c7726db1d6cd9d5808e0114dda263925d52"
+      "mpy_sha256": "944cb8b916bfd573096ae96bff63dcfb634434606945a608e65c8793b6cad6c9"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "287739f8057845cddf35cfced6800ac7825b54456f4afcb1a8287f6e715a6192",
+      "source_sha256": "06a711bf66d5ca1a759be346d239a23fbed65824736661f8396ca0aded275534",
       "exit_code": 0,
-      "mpy_sha256": "70d8a90b2f30c1da7369bf703074797f3f1591255d951cfc512abd6d6c5cd71f"
+      "mpy_sha256": "94754395667ad360b4e30a95d2b9135ee1e92cca86e40e83c4c67ebec3b1d6c9"
     },
     {
       "file": "reverse_control.py",
@@ -149,9 +149,9 @@
     },
     {
       "file": "track_elements.py",
-      "source_sha256": "9cda3fbf832d17974af9b1a57e805d342f8ea9cbd88b641789df5dc69201980c",
+      "source_sha256": "2fdfe528658ca822c9050881f022bdc2f3fa1e021bea6cf01a6a89857410e28f",
       "exit_code": 0,
-      "mpy_sha256": "c91ca7df3727c3f572e3a55fc777c30f3f2639cd7b367f5f761b150f21c8ec2c"
+      "mpy_sha256": "177fc71e336034bd47a17219146db7a5dcb5706583b97f93ba826f5d7f6b1e30"
     },
     {
       "file": "ring_width_calibration.py",
@@ -161,9 +161,9 @@
     },
     {
       "file": "ring_diagnostics.py",
-      "source_sha256": "2b42fbc0e7301aa0fdd0f8b2a9d0ebdec26f620ec7abd32c51489285fee35a8b",
+      "source_sha256": "3c36899bf343ff9419162ef92cce57c8645d6f426c3d4a4e81f59dca1e14dd75",
       "exit_code": 0,
-      "mpy_sha256": "ff60c7d7b344c7cc1d156db1c24da01c865267965ba229dd0118b6f1b0a664e5"
+      "mpy_sha256": "260df1980603f37e790ec6345c2a7962cd9f1af91378a9b4edca2b57943c1fd9"
     },
     {
       "file": "fast_ring_slope.py",
@@ -180,5 +180,5 @@
   "road_validation": "pending",
   "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
   "vehicle_source_and_elf_unchanged": true,
-  "package_id": "v20261030-ring-entry-v26-r6"
+  "package_id": "v20261030-ring-entry-v26-r7"
 }

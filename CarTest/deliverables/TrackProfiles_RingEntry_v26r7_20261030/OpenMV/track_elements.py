@@ -81,6 +81,7 @@ TARGET_WIDTH_FROM_CALIBRATION = 32
 TARGET_ENTRY_TRANSITION = 64
 ENTRY_TRANSITION_API_VERSION = 1
 RING_OUTER_ROUTE_API_VERSION = 1
+RING_ISLAND_TOPOLOGY_API_VERSION = 1
 
 RING_DIAG_STRIDE = 14
 
@@ -2586,17 +2587,33 @@ class TrackElementsTracker:
                                now_ms)
 
     def _ring_topology_precheck(self, topology):
+        return not self._ring_topology_rejection(topology)
+
+    def _ring_topology_rejection(self, topology):
         if not isinstance(topology, dict) or not topology.get("complete"):
-            return False
-        if (topology.get("ambiguous") or topology.get("branch_evidence") or
-                topology.get("branch") or
+            return "INCOMPLETE"
+        if topology.get("multiple_exits"):
+            return "MULTIPLE_EXITS"
+        if (topology.get("branch_evidence") or topology.get("branch") or
                 topology.get("independent_branch_ambiguous") or
-                topology.get("multi_branch_ambiguous") or
-                topology.get("multiple_exits")):
-            return False
+                topology.get("multi_branch_ambiguous")):
+            return "BRANCH"
         has_island = bool(topology.get("island_evidence") or
                           topology.get("island"))
-        return has_island or topology.get("reason") == "OK"
+        # FastTopologyGuard marks even pure ISLAND evidence ambiguous. Permit
+        # that exact contract only after confirmed, frozen-width ring entry;
+        # the current target must still pass all route/corridor checks below.
+        own_island = bool(has_island and topology.get("reason") == "ISLAND" and
+            self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) and
+            self._ring_cache_frozen and
+            (not self.require_calibration or
+             (self._calibration_ready and self._cal_check_ready and
+              self._ring_width_calibrated)))
+        if topology.get("ambiguous") and not own_island:
+            return "AMBIGUOUS"
+        if not has_island and topology.get("reason") != "OK":
+            return "REASON"
+        return ""
 
     def _ring_topology_safe(self, topology, route_ok):
         if not self._ring_topology_precheck(topology):
@@ -2861,6 +2878,9 @@ class TrackElementsTracker:
         self._reason = "RING_INSIDE_EXIT_UNOBSERVED"
         self._ring_diag_reason_code = 10
         if not self._ring_topology_safe(topology, route_ok):
+            topology_rejection = self._ring_topology_rejection(topology)
+            self._reason = "RING_TOPOLOGY_" + (
+                topology_rejection if topology_rejection else "ROUTE_UNSUPPORTED")
             self._reject(REJECT_TOPOLOGY_AMBIGUOUS)
             return
         if not self._current_valid:

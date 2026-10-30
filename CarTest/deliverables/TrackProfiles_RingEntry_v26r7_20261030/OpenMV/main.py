@@ -1751,6 +1751,8 @@ def _load_track_elements_runtime():
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
     if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 1:
         raise RuntimeError("V7 element bundle mismatch: ring outer-route API 1 required")
+    if getattr(track_elements, "RING_ISLAND_TOPOLOGY_API_VERSION", None) != 1:
+        raise RuntimeError("V7 element bundle mismatch: ring island-topology API 1 required")
     return track_elements
 
 
@@ -3536,7 +3538,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R6_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R7_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
