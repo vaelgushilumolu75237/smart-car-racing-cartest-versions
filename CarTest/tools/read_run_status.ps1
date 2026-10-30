@@ -379,6 +379,7 @@ try {
         $plannedReads = New-Object System.Collections.Generic.List[object]
         $plannedReads.Add([ordered]@{ purpose = '64-byte Flash ROM descriptor identity check'; arguments = @(Get-ReadArguments -Address $plan.descriptor_read.address -Size 64 -Destination $descriptorDestination) })
         $plannedReads.Add([ordered]@{ purpose = 'firmware status and available hold-entry snapshot scalars'; arguments = @(Get-ReadArguments -Address $plan.scalar_read.address -Size $plan.scalar_read.size -Destination $scalarDestination) })
+        $plannedReads.Add([ordered]@{ purpose = 'live H743 GPIOE IDR, PE7 bit 7; independent of cached firmware scalars'; arguments = @(Get-ReadArguments -Address '0x58021010' -Size 4 -Destination '<diagnostic-directory>\gpioe-idr.bin') })
         $plannedReads.Add([ordered]@{ purpose = '64-byte runtime-log header before diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.header_read.address -Size 64 -Destination $headerBeforeDestination) })
         if ($plan.runtime_diagnostic_snapshot.available) {
             $plannedReads.Add([ordered]@{ purpose = '64-byte generation/CRC-protected runtime diagnostic snapshot'; arguments = @(Get-ReadArguments -Address $plan.runtime_diagnostic_snapshot.address -Size 64 -Destination $diagnosticDestination) })
@@ -538,6 +539,23 @@ try {
     if ($null -eq $decoded) {
         throw "No valid status snapshot was decoded after three attempts. $decodeFailure"
     }
+    # H743 GPIOE base and IDR offset come from the project's CMSIS device header.
+    # Legacy car_pe7_raw_high is assigned during initialization only: it is not
+    # a live pin sample. Keep it for compatibility, but read the peripheral too.
+    $gpioeIdrPath = Join-Path $script:RunDirectory 'gpioe-idr.bin'
+    Invoke-StatusRead -Tag 'gpioe-idr' -Address '0x58021010' -Size 4 -Destination $gpioeIdrPath
+    $gpioeIdrBytes = [IO.File]::ReadAllBytes($gpioeIdrPath)
+    if ($gpioeIdrBytes.Length -ne 4) { throw 'GPIOE IDR read must contain exactly four bytes.' }
+    $gpioeIdrValue = [BitConverter]::ToUInt32($gpioeIdrBytes, 0)
+    $decoded | Add-Member -NotePropertyName pe7_gpio_snapshot -NotePropertyValue ([ordered]@{
+        source = 'H743 GPIOE->IDR bit 7, read-only HOTPLUG'
+        address = '0x58021010'
+        idr_u32 = $gpioeIdrValue
+        raw_high = [int](($gpioeIdrValue -shr 7) -band 1)
+        sampled_at_utc = [DateTime]::UtcNow.ToString('o')
+        raw_file = $gpioeIdrPath
+        atomic_with_firmware_snapshot = $false
+    })
     $decoded | Add-Member -NotePropertyName generated_at_utc -NotePropertyValue ([DateTime]::UtcNow.ToString('o'))
     $decoded | Add-Member -NotePropertyName connection -NotePropertyValue ([ordered]@{
         probe_sn = $script:SelectedProbeSN
@@ -570,7 +588,7 @@ try {
     Write-Output ("Target probe={0}; requested SWD={1} kHz; requested SWD rate reported by probe={2} kHz; shared={3}; CSV created={4}" -f $script:SelectedProbeSN, $ConnectionFrequencyKhz, $script:ActualFrequencyKhz, [bool]$script:SharedConnectionValue, $decoded.csv_created)
     if ($decoded.scalars.PSObject.Properties.Name -contains 'car_button_state_name') {
         $pe7Status = $decoded.scalars
-        Write-Output ("PE7: GPIO_high={0}; FSM={1}; RUN_request={2}; start_pending={3}; starts={4}; stops={5}; 1ms_samples={6}; sample_max_gap_ms={7}" -f $pe7Status.car_pe7_raw_high, $pe7Status.car_button_state_name, $pe7Status.car_manual_run_request, $pe7Status.car_start_pending, $pe7Status.car_button_start_event_count, $pe7Status.car_button_stop_generation, $pe7Status.car_pe7_sample_count, $pe7Status.car_pe7_sample_gap_max_ms)
+        Write-Output ("PE7: GPIO_high={0} (live IDR); firmware_cached_high={1}; FSM={2}; RUN_request={3}; start_pending={4}; starts={5}; stops={6}; 1ms_samples={7}; sample_max_gap_ms={8}" -f $decoded.pe7_gpio_snapshot.raw_high, $pe7Status.car_pe7_raw_high, $pe7Status.car_button_state_name, $pe7Status.car_manual_run_request, $pe7Status.car_start_pending, $pe7Status.car_button_start_event_count, $pe7Status.car_button_stop_generation, $pe7Status.car_pe7_sample_count, $pe7Status.car_pe7_sample_gap_max_ms)
         Write-Output ("Motor gates: block_reason={0}; drive_allowed={1}; hardware_lock={2}; servo_first_frame={3}; startup_qualified={4}; PWM_enabled={5}; TIM3_CCR2={6}; TIM3_CCR3={7}; TIM3_CCER={8}" -f $pe7Status.car_run_block_reason, $pe7Status.car_drive_allowed, $pe7Status.car_motor_hardware_lock_reason, $pe7Status.car_servo_frame_ready, $pe7Status.car_follow_startup_qualified, $pe7Status.car_motor_pwm_enabled, $pe7Status.car_motor_pwm_ccr2, $pe7Status.car_motor_pwm_ccr3, $pe7Status.car_motor_pwm_ccer)
     }
     if ($decoded.status_class -in @('neverstarted', 'legacy_idle')) { Write-Output 'IDLE: no run records are available; this status tool does not create a CSV.' }
