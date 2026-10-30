@@ -79,8 +79,9 @@ TARGET_INFERRED_RIGHT = 8
 TARGET_WIDTH_FROM_CACHE = 16
 TARGET_WIDTH_FROM_CALIBRATION = 32
 TARGET_ENTRY_TRANSITION = 64
+TARGET_OUTSIDE_VIEW = 128
 ENTRY_TRANSITION_API_VERSION = 1
-RING_OUTER_ROUTE_API_VERSION = 1
+RING_OUTER_ROUTE_API_VERSION = 2
 RING_ISLAND_TOPOLOGY_API_VERSION = 1
 
 RING_DIAG_STRIDE = 14
@@ -275,6 +276,59 @@ def _compact_full_corridor_rows_viper(road_object, known_object, rows_object,
             rows[destination + 1] = left
             rows[destination + 2] = right
             rows[destination + 3] = rows[offset + 3]
+            output += 1
+        source += 1
+    return output
+
+
+@micropython.viper
+def _compact_visible_outer_rows_viper(road_object, known_object, rows_object,
+                                     count: int, observed_side: int) -> int:
+    """Check the whole visible corridor; preserve virtual geometry and center."""
+    road = ptr8(road_object)
+    known = ptr8(known_object)
+    rows = ptr32(rows_object)
+    source = 0
+    output = 0
+    while source < count:
+        offset = source * 4
+        y = int(rows[offset])
+        left = int(rows[offset + 1])
+        right = int(rows[offset + 2])
+        flags = int(rows[offset + 3])
+        valid = 1
+        center2 = left + right
+        start = left
+        end = right
+        outside = left < 0 or right >= 80
+        if (y < 0 or y >= 60 or left >= right or center2 < 0 or center2 > 158 or
+                right - left < 7 or right - left > 70):
+            valid = 0
+        elif outside:
+            if (flags & 128) == 0:
+                valid = 0
+            elif observed_side == 0 and left >= 0 and left < 80 and right >= 80:
+                end = 79
+            elif observed_side == 1 and right >= 0 and right < 80 and left < 0:
+                start = 0
+            else:
+                valid = 0
+        elif (flags & 128) != 0:
+            valid = 0
+        if valid != 0:
+            index = y * 80 + start
+            last = y * 80 + end
+            while index <= last:
+                if known[index] == 0 or road[index] == 0:
+                    valid = 0
+                    break
+                index += 1
+        if valid != 0:
+            destination = output * 4
+            rows[destination] = y
+            rows[destination + 1] = left
+            rows[destination + 2] = right
+            rows[destination + 3] = flags
             output += 1
         source += 1
     return output
@@ -3080,7 +3134,7 @@ class TrackElementsTracker:
             return False
         original_rejection = self._result["ring_target_rejection"]
         outer_side = SIDE_RIGHT if self._side == SIDE_LEFT else SIDE_LEFT
-        if self._build_locked_target_rows(mask_info, topology, outer_side):
+        if self._build_locked_target_rows(mask_info, topology, outer_side, True):
             if (self._filter_outer_route_rows(mask_info) and
                     self._handoff_continuous()):
                 self._result["outer_tracking"] = True
@@ -3091,9 +3145,9 @@ class TrackElementsTracker:
 
     @micropython.native
     def _filter_outer_route_rows(self, mask_info):
-        count = _compact_full_corridor_rows_viper(mask_info["road_mask"],
+        count = _compact_visible_outer_rows_viper(mask_info["road_mask"],
             mask_info["known_region"], self._target_rows,
-            self._result["target_count"])
+            self._result["target_count"], self._result["target_side"])
         near_count = 0
         run = 0
         longest = 0
@@ -3486,7 +3540,8 @@ class TrackElementsTracker:
         result["entry_transition_near_rows"] = near_count
         return True
 
-    def _build_locked_target_rows(self, mask_info, topology, target_side):
+    def _build_locked_target_rows(self, mask_info, topology, target_side,
+                                  allow_virtual=False):
         self._result["ring_target_rejection"] = "NONE"
         if (not self._ring_cache_frozen or
                 self._side not in (SIDE_LEFT, SIDE_RIGHT) or
@@ -3552,12 +3607,19 @@ class TrackElementsTracker:
                 left2 = right2 - 2 * width
                 flags = (TARGET_OBSERVED_RIGHT | TARGET_INFERRED_LEFT |
                          width_source_flag)
-            if (left2 < -1 or right2 > (self.width - 1) * 2 + 1 or
-                    left2 >= right2):
+            if left2 >= right2:
                 continue
             left = (left2 + 1) // 2
             right = (right2 - 1) // 2
-            if left < 0 or right >= self.width or left > right:
+            outside = left < 0 or right >= self.width
+            if outside:
+                if (not allow_virtual or left+right < 0 or
+                        left+right > 2*(self.width-1) or
+                        (target_side == SIDE_LEFT and not 0 <= left < self.width) or
+                        (target_side == SIDE_RIGHT and not 0 <= right < self.width)):
+                    continue
+                flags |= TARGET_OUTSIDE_VIEW
+            if left > right:
                 continue
             offset = count * TARGET_ROW_STRIDE
             self._target_rows[offset] = y
@@ -3569,6 +3631,14 @@ class TrackElementsTracker:
                 near_observed += 1
             inferred += 1
 
+        if allow_virtual:
+            count = _compact_visible_outer_rows_viper(road_mask, known,
+                self._target_rows, count, target_side)
+            near_observed = 0
+            for index in range(count):
+                if self._target_rows[index*TARGET_ROW_STRIDE] >= near_start:
+                    near_observed += 1
+            inferred = count
         if count < self.min_target_rows:
             self._result["ring_target_rejection"] = "MIN_ROWS"
             self._reject(REJECT_SIDE_SUPPORT)
@@ -3589,8 +3659,9 @@ class TrackElementsTracker:
             self._result["ring_target_rejection"] = "LOCKED_SIDE_SUPPORT"
             self._reject(REJECT_SIDE_SUPPORT)
             return False
-        if _ring_corridor_viper(road_mask, known, self._target_rows, count,
-                                target_side) != 1:
+        if (not allow_virtual and
+                _ring_corridor_viper(road_mask, known, self._target_rows, count,
+                                     target_side) != 1):
             self._result["ring_target_rejection"] = "CORRIDOR"
             self._reject(REJECT_SIDE_SUPPORT)
             return False

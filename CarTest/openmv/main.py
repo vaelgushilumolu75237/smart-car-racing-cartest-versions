@@ -1749,7 +1749,7 @@ def _load_track_elements_runtime():
             "expected %d" % (
                 getattr(track_elements, "RUNTIME_API_VERSION", None),
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
-    if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 1:
+    if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 2:
         raise RuntimeError("V7 element bundle mismatch: ring outer-route API 1 required")
     if getattr(track_elements, "RING_ISLAND_TOPOLOGY_API_VERSION", None) != 1:
         raise RuntimeError("V7 element bundle mismatch: ring island-topology API 1 required")
@@ -3538,7 +3538,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R7A_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R8_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -4669,7 +4669,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     outer_requested = bool(element_result.get("outer_tracking"))
     outer_check = getattr(element_tracker, "outer_route_valid_for", None)
     outer_verified = bool(outer_requested and callable(outer_check) and
-        getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", 0) == 1 and
+        getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", 0) == 2 and
         calibration_verified and single_rows_fresh and
         outer_check(element_result))
     if outer_requested and not outer_verified:
@@ -4711,10 +4711,25 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         left_x = int(target_rows[source_offset + 1])
         right_x = int(target_rows[source_offset + 2])
         source_flags = int(target_rows[source_offset + 3])
+        outside_view = bool(source_flags & track_elements.TARGET_OUTSIDE_VIEW)
+        outside_geometry = left_x < 0 or right_x >= settings.SURFACE_GRID_WIDTH
         if (y < settings.SURFACE_ROI_FLOOR_Y or y >= height or
-                left_x < 0 or right_x >= settings.SURFACE_GRID_WIDTH or
                 left_x >= right_x):
             continue
+        if outside_geometry or outside_view:
+            if (not outside_view or not outside_geometry or not outer_verified or
+                    left_x+right_x < 0 or
+                    left_x+right_x > 2*(settings.SURFACE_GRID_WIDTH-1) or
+                    (target_side == track_elements.SIDE_LEFT and
+                     not (0 <= left_x < settings.SURFACE_GRID_WIDTH and
+                          right_x >= settings.SURFACE_GRID_WIDTH)) or
+                    (target_side == track_elements.SIDE_RIGHT and
+                     not (left_x < 0 and
+                          0 <= right_x < settings.SURFACE_GRID_WIDTH))):
+                route_result["valid"] = False
+                route_result["selected_row_count"] = 0
+                route_result["reason"] = "RING_OUTSIDE_VIEW_UNVERIFIED"
+                return 0
 
         has_left = bool(source_flags & observed_left)
         has_right = bool(source_flags & observed_right)
@@ -4749,7 +4764,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             if ((has_left and left_status[y] != 1) or
                     (has_right and left_status[right_base + y] != 1)):
                 continue
-            if transition_verified and (
+            if (transition_verified or outer_verified) and (
                     (has_left and abs(left_x * 2 - 1 - int(left_edges[y])) > 2) or
                     (has_right and abs(right_x * 2 + 1 -
                                       int(left_edges[right_base + y])) > 2)):
