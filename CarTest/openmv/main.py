@@ -1463,6 +1463,13 @@ def _steering_diag_source_code(source):
     return 0
 
 
+def _ring_slowdown_request(profile_id, state_id, entry_transition=False):
+    if (profile_id == config.VEHICLE_PROFILE_C and
+            state_id == track_elements.STATE_INSIDE and not entry_transition):
+        return config.RING_C_INSIDE_SLOWDOWN_PERMILLE
+    return 1000
+
+
 def _ring_calibration_gate_blocked(profile_id, calibration_passed):
     """Keep ring calibration gating limited to the two ring profiles."""
     return bool(profile_id in config.RING_ENABLED_PROFILE_IDS and
@@ -3561,8 +3568,12 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R16_20261031":
+            "CARTEST_H750_RING_EXIT_V26R17_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
+    if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
+            isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or
+            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 667):
+        raise ValueError("C ring inside slowdown request must be 667")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
     if getattr(config, "RING_WIDTH_CALIBRATION_REQUIRED", None) is not True:
@@ -8126,10 +8137,12 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             slowdown_request_permille = 0
         if (valid and element_route_selected and
                 control_source in ("ring_left", "ring_right")):
-            # H743 maps the full vision slowdown request to the selected
-            # profile's outer-wheel ring target (B 4.0, C 4.4 rps).
+            # Preserve B and all transition targets. Only confirmed C INSIDE
+            # guidance requests 4.8 rps; exit remains at the prior 4.4 rps.
             curve_phase = vision_protocol.CURVE_PHASE_TURN
-            slowdown_request_permille = 1000
+            slowdown_request_permille = _ring_slowdown_request(
+                profile_id, element_result.get("state_id"),
+                element_result.get("entry_transition", False))
         elif (element_route_selected and control_source == "road" and
                 control_boundary_source == "CROSS_STRAIGHT" and
                 element_result.get("cross_suppress_slowdown")):

@@ -902,6 +902,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "STEERING_CORE_RAW_Y_MAX", "STEERING_CORE_RAW_Y_MIN",
             "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
             "TRACK_PACKAGE_BUILD_ID",
+            # User-approved C INSIDE request; ordinary speed policy unchanged.
+            "RING_C_INSIDE_SLOWDOWN_PERMILLE",
             # Cached heap sampling policy; these tune GC telemetry cadence only.
             "PERF_GC_MAX_INTERVAL_FRAMES", "PERF_GC_MIN_FREE_BYTES",
             "RING_DIAGNOSTICS_ENABLED", "RING_DIAGNOSTICS_PATH",
