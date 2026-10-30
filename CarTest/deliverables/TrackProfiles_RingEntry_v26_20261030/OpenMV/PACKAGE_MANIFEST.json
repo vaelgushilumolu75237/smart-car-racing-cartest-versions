@@ -28,7 +28,7 @@
   "sensor": "MT9V034",
   "image_width": 320,
   "image_height": 120,
-  "camera_firmware_policy": "paired_native_app_required",
+  "camera_firmware_policy": "retain_current_vendor_firmware",
   "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
   "compiler_target": "armv7emsp",
   "compiler_version": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "cc14a5d8487f8b9515999c4802ac3a9054a2effdd8fff5e09abc3d801ffb9ff0",
+      "source_sha256": "f1628ec100bd90d7b482727b2cea73c6995c5aec961a14d0d5fa2c3b987a218e",
       "exit_code": 0,
-      "mpy_sha256": "5c69155de5351498df491059a9d8079d65df2de7cd2f244c396f4fc566abc961"
+      "mpy_sha256": "74fcf299bb10a1c8452b5b97318a61e62e9ed6d2c0809bbf550b80e570e97e97"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "ba2a37f10dc1617e062135b6deaaf92f16b70fd1c845454475553d604b72bd58",
+      "source_sha256": "f13c08bf9c0c8aa9706fc00ce65f2372143bb425e8a76ec73b8c47f125855b17",
       "exit_code": 0,
-      "mpy_sha256": "5ab6843de3c3025c658e6137bc19ed0999461c2d74d8513ffe6d1c134d2505c7"
+      "mpy_sha256": "67a428d35d233714c1fe5257587d93616153365d4c70acb6e05ddf5db60240dd"
     },
     {
       "file": "reverse_control.py",
@@ -149,9 +149,9 @@
     },
     {
       "file": "track_elements.py",
-      "source_sha256": "0cdd54ca49298e3e849d43436de9410ec0c201ba2e48e695808acebf5ace6894",
+      "source_sha256": "29c7539aed2b5de81bf7507c911a3e5b61dccb7dbc90787dda6927ed090803f5",
       "exit_code": 0,
-      "mpy_sha256": "affa7c0ea7d07bf3afe49a9b6bbc340298733a7ed4a4503c9243932309f3ffcc"
+      "mpy_sha256": "185869d33b0ae19789fc55b8a627f8544b52d6b0902be6ce9af6d8cb7cc0afec"
     },
     {
       "file": "ring_width_calibration.py",
@@ -161,9 +161,9 @@
     },
     {
       "file": "ring_diagnostics.py",
-      "source_sha256": "7d29c9514d45fb1e70c3a11dae0f71da13476050d909ca31198d5dfcdce34bf1",
+      "source_sha256": "e201324795a13e3c2a205721630da339ffe772b8a70e0d71d36c4a701b7583ed",
       "exit_code": 0,
-      "mpy_sha256": "251b760e28b650f23c21f4e7d081b6ca9560ffedb8861e0f1ef46bb2eca01635"
+      "mpy_sha256": "87d04e2945e0122f838fddfde01ff1fdd928a4f5a2452ce80d354e591dcfd6e7"
     },
     {
       "file": "fast_ring_slope.py",
@@ -173,16 +173,12 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "version": "v20261030-v25-corridor-viper",
-  "track_build": "CARTEST_H750_RING_JOINT_V25_PERF_20261030",
+  "package_id": "v20261030-ring-entry-v26-candidate",
   "candidate_only": true,
   "hardware_validation": false,
   "deployment_eligible": false,
   "board_fps_verified": false,
-  "ide_preview_fps_verified": false,
-  "minimum_required_fps_exclusive": 60,
-  "ring_diagnostics_format": 3,
-  "h743_equivalent_to": "v20261029-pe7-reference-restore-v24",
-  "camera_firmware_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
-  "native_app_bundle": "deliverables/OpenMV_RingJoint_v25_NativeCandidate_20261029"
+  "road_validation": "pending",
+  "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
+  "vehicle_source_and_elf_unchanged": true
 }

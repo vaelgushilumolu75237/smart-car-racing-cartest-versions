@@ -3526,11 +3526,13 @@ def _validate_fast_config():
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(track_elements, "JOINT_ROUTE_API_VERSION", None) != 1:
-        raise RuntimeError("v25 requires matching track_elements.py with route recovery")
+        raise RuntimeError("v26 requires matching track_elements.py with route recovery")
+    if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
+        raise RuntimeError("v26 requires matching track_elements.py with entry transition")
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
-        raise RuntimeError("v25 requires matching ring_diagnostics.py format3")
+        raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_JOINT_V25_PERF_20261030":
+            "CARTEST_H750_RING_ENTRY_V26_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -4658,6 +4660,33 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         getattr(element_tracker, "ring_calibration_check_ready", False))
     calibration_required = bool(getattr(
         element_tracker, "require_calibration", False))
+    transition_flag = getattr(track_elements, "TARGET_ENTRY_TRANSITION", 64)
+    transition_requested = bool(element_result.get("entry_transition"))
+    transition_check = getattr(element_tracker, "entry_transition_valid_for", None)
+    transition_verified = bool(
+        transition_requested and callable(transition_check) and
+        getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", 0) == 1 and
+        transition_check(element_result) and calibration_verified and
+        single_rows_fresh)
+    transition_far_y = int(element_result.get("entry_transition_far_y", -1))
+    transition_near_y = int(element_result.get("entry_transition_near_y", -1))
+    if transition_requested and (not transition_verified or
+            not (settings.SURFACE_ROI_FLOOR_Y <= transition_far_y <
+                 reference_y < transition_near_y < height)):
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
+        return 0
+    transition_inner_count = 0
+    transition_inner_run = 0
+    transition_inner_longest = 0
+    transition_inner_first = height
+    transition_inner_last = -1
+    transition_outer_count = 0
+    transition_outer_run = 0
+    transition_outer_longest = 0
+    transition_outer_last = -2
+    previous_transition_y = -1
 
     for index in range(target_count):
         source_offset = index * target_stride
@@ -4672,8 +4701,27 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
 
         has_left = bool(source_flags & observed_left)
         has_right = bool(source_flags & observed_right)
+        transition_row = bool(source_flags & transition_flag)
+        inferred_bridge = bool(
+            transition_verified and transition_row and
+            not has_left and not has_right and
+            source_flags & track_elements.TARGET_INFERRED_LEFT and
+            source_flags & track_elements.TARGET_INFERRED_RIGHT and
+            transition_far_y < y < transition_near_y)
+        if transition_row != transition_verified:
+            route_result["valid"] = False
+            route_result["selected_row_count"] = 0
+            route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
+            return 0
+        if transition_verified:
+            if y <= previous_transition_y:
+                route_result["valid"] = False
+                route_result["selected_row_count"] = 0
+                route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
+                return 0
+            previous_transition_y = y
         width_source = source_flags & width_sources
-        if ((not has_left and not has_right) or
+        if ((not has_left and not has_right and not inferred_bridge) or
                 width_source not in (from_cache, from_calibration) or
                 (width_source == from_calibration and
                  not calibration_verified) or
@@ -4683,6 +4731,11 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         if single_rows_fresh:
             if ((has_left and left_status[y] != 1) or
                     (has_right and left_status[right_base + y] != 1)):
+                continue
+            if transition_verified and (
+                    (has_left and abs(left_x * 2 - 1 - int(left_edges[y])) > 2) or
+                    (has_right and abs(right_x * 2 + 1 -
+                                      int(left_edges[right_base + y])) > 2)):
                 continue
         elif not road_accepted:
             continue
@@ -4694,7 +4747,10 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         else:
             left_edge2 = left_x * 2 - 1
             right_edge2 = right_x * 2 + 1
-        if has_left and not has_right:
+        if inferred_bridge:
+            observed_side = track_elements.SIDE_NONE
+            edge2 = left_x + right_x
+        elif has_left and not has_right:
             if not (source_flags & track_elements.TARGET_INFERRED_RIGHT):
                 continue
             observed_side = track_elements.SIDE_LEFT
@@ -4718,10 +4774,38 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         if ((observed_side == track_elements.SIDE_LEFT and not has_left) or
                 (observed_side == track_elements.SIDE_RIGHT and not has_right)):
             continue
-        if observed_side != target_side:
+        if not transition_verified and observed_side != target_side:
             continue
+        if transition_verified and not inferred_bridge:
+            expected_side = (target_side if y <= transition_far_y else
+                             (track_elements.SIDE_RIGHT if target_side ==
+                              track_elements.SIDE_LEFT else track_elements.SIDE_LEFT))
+            if (transition_far_y < y < transition_near_y or
+                    observed_side != expected_side or has_left == has_right):
+                continue
+            if y <= transition_far_y:
+                transition_inner_count += 1
+                if y == transition_inner_last + 1:
+                    transition_inner_run += 1
+                else:
+                    transition_inner_run = 1
+                transition_inner_longest = max(
+                    transition_inner_longest, transition_inner_run)
+                transition_inner_first = min(transition_inner_first, y)
+                transition_inner_last = y
+            elif y >= max(transition_near_y, height - element_tracker.near_rows):
+                transition_outer_count += 1
+                if y == transition_outer_last + 1:
+                    transition_outer_run += 1
+                else:
+                    transition_outer_run = 1
+                transition_outer_longest = max(
+                    transition_outer_longest, transition_outer_run)
+                transition_outer_last = y
 
-        if has_left and has_right:
+        if inferred_bridge:
+            boundary = "ENTRY_TRANSITION"
+        elif has_left and has_right:
             boundary = "OBSERVED_BOTH"
         elif observed_side == track_elements.SIDE_LEFT:
             edge2 = left_edge2
@@ -4761,9 +4845,20 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             reference_center2 = center2
             reference_edge2 = edge2
             reference_boundary = (
+                "ENTRY_TRANSITION" if inferred_bridge else
                 "LEFT" if observed_side == track_elements.SIDE_LEFT
                 else "RIGHT")
 
+    if transition_verified and (
+            transition_inner_count < element_tracker.ring_arc_min_rows or
+            transition_inner_longest < element_tracker.ring_arc_min_contiguous_rows or
+            transition_inner_last - transition_inner_first < element_tracker.ring_arc_min_span_rows or
+            transition_outer_count < element_tracker.min_side_support or
+            transition_outer_longest < element_tracker.min_side_contiguous):
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        route_result["reason"] = "RING_ENTRY_TRANSITION_ANCHORS"
+        return 0
     if output_count < element_tracker.min_target_rows or \
             reference_delta > element_tracker.max_cache_gap + 2:
         route_result["reason"] = ("RING_WIDTH_PROVENANCE_REJECTED"
@@ -4774,10 +4869,11 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         return 0
 
     center_x = reference_center2 * 0.5
-    quality = 40 + min(60, output_count * 2)
+    quality = 40 + min(45 if transition_verified else 60, output_count * 2)
     route_result["valid"] = True
     route_result["quality"] = quality
-    route_result["reason"] = "RING_WIDTH_CACHE_TARGET"
+    route_result["reason"] = ("RING_ENTRY_TRANSITION_TARGET" if transition_verified
+                              else "RING_WIDTH_CACHE_TARGET")
     route_result["scene"] = "RING_ACTIVE"
     route_result["lateral_error"] = _normalize_fast_reference(
         center_x, settings.SURFACE_GRID_WIDTH)
@@ -4788,6 +4884,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     route_result["reference_center_x"] = center_x
     route_result["reference_y"] = float(reference_row_y)
     route_result["reference_provenance"] = (
+        "RING_ENTRY_INTERPOLATED" if reference_boundary == "ENTRY_TRANSITION" else
         "RING_WIDTH_CACHE_LEFT" if reference_boundary == "LEFT" else
         "RING_WIDTH_CACHE_RIGHT")
     route_result["boundary_source"] = route_result[
@@ -4802,8 +4899,11 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             element_result.get("inferred_rows", 0))
     route_result["inferred_rows"] = int(
         element_result.get("inferred_rows", 0))
-    route_result["actual_boundary"] = reference_boundary
-    route_result["actual_boundary_x"] = reference_edge2 * 0.5
+    route_result["actual_boundary"] = ("NONE" if reference_boundary ==
+                                       "ENTRY_TRANSITION" else reference_boundary)
+    route_result["actual_boundary_x"] = (None if reference_boundary ==
+                                         "ENTRY_TRANSITION" else reference_edge2 * 0.5)
+    route_result["entry_transition"] = transition_verified
     route_result["weak_support"] = False
     return output_count
 
@@ -7652,7 +7752,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 ring_selection["quality"] = ring_route_result["quality"]
                 ring_selection["lateral_error"] = ring_route_result[
                     "lateral_error"]
-                ring_selection["reason"] = "RING_WIDTH_CACHE_TARGET"
+                ring_selection["reason"] = ring_route_result["reason"]
                 ring_selection["source"] = ring_source
                 ring_selection["rejected_source"] = None
                 ring_selection["boundary_source"] = ring_route_result[

@@ -78,6 +78,8 @@ TARGET_INFERRED_LEFT = 4
 TARGET_INFERRED_RIGHT = 8
 TARGET_WIDTH_FROM_CACHE = 16
 TARGET_WIDTH_FROM_CALIBRATION = 32
+TARGET_ENTRY_TRANSITION = 64
+ENTRY_TRANSITION_API_VERSION = 1
 
 RING_DIAG_STRIDE = 14
 
@@ -85,7 +87,7 @@ _RING_DIAG_REASON_NAMES = (
     "NONE", "CALIBRATION_REQUIRED", "BASELINE_NOT_READY", "INPUT_INVALID",
     "TOPOLOGY_UNCLEAR", "NO_RING_DROPOUT", "DROPOUT_CANDIDATE",
     "DROPOUT_CONFIRMED", "ARC_WAIT", "ARC_CONFIRMED", "EXIT_WAIT",
-    "EXIT_FIT", "NORMAL_REACQUIRE",
+    "EXIT_FIT", "NORMAL_REACQUIRE", "ENTRY_TRANSITION",
 )
 
 EVENT_ENTRY_CANDIDATE = 1
@@ -207,6 +209,31 @@ def _ring_corridor_viper(road_object, known_object, rows_object,
             end = right
         index = y * 80 + x
         last = y * 80 + end
+        while index <= last:
+            if known[index] == 0 or road[index] == 0:
+                return 0
+            index += 1
+        row_index += 1
+    return 1
+
+
+@micropython.viper
+def _ring_full_corridor_viper(road_object, known_object, rows_object,
+                              count: int) -> int:
+    """Require every cell across each transition row to be known road."""
+    road = ptr8(road_object)
+    known = ptr8(known_object)
+    rows = ptr32(rows_object)
+    row_index = 0
+    while row_index < count:
+        offset = row_index * 4
+        y = rows[offset]
+        left = rows[offset + 1]
+        right = rows[offset + 2]
+        if y < 0 or y >= 60 or left < 0 or right >= 80 or left > right:
+            return 0
+        index = y * 80 + left
+        last = y * 80 + right
         while index <= last:
             if known[index] == 0 or road[index] == 0:
                 return 0
@@ -441,14 +468,14 @@ def _measure_entry_dropout_viper(status_object, edge_object,
             left_lost = status[y] == 0
             left_moved = False
             if status[y] == 1:
-                outward = edges[y] - baseline_left[y]
+                outward = baseline_left[y] - edges[y]
                 if status[height + y] == 1:
                     # Remove same-row motion shared with the outside edge.
                     outer_delta = edges[height + y] - baseline_right[y]
                     residual = outer_delta - outer_shift[1]
                     if residual < 0:
                         residual = -residual
-                    outward -= outer_delta
+                    outward += outer_delta
                     if (residual <= opposite_tolerance2 and
                             outward >= reappear_shift2):
                         left_moved = True
@@ -456,7 +483,7 @@ def _measure_entry_dropout_viper(status_object, edge_object,
                       outer_shift_valid[1] != 0):
                     # The far outside edge may be cropped; use its validated
                     # continuous near-anchor median shift instead.
-                    outward -= outer_shift[1]
+                    outward += outer_shift[1]
                     if outward >= reappear_shift2:
                         left_moved = True
             if status[height + y] == 2:
@@ -475,20 +502,20 @@ def _measure_entry_dropout_viper(status_object, edge_object,
             right_lost = status[height + y] == 0
             right_moved = False
             if status[height + y] == 1:
-                outward = baseline_right[y] - edges[height + y]
+                outward = edges[height + y] - baseline_right[y]
                 if status[y] == 1:
-                    # For a right inner edge, rightward common motion has the
-                    # opposite sign in the outward-left coordinate.
+                    # Remove shared motion before measuring rightward
+                    # expansion toward a right-side ring.
                     outer_delta = edges[y] - baseline_left[y]
                     residual = outer_delta - outer_shift[0]
                     if residual < 0:
                         residual = -residual
-                    outward += outer_delta
+                    outward -= outer_delta
                     if (residual <= opposite_tolerance2 and
                             outward >= reappear_shift2):
                         right_moved = True
                 elif status[y] == 0 and outer_shift_valid[0] != 0:
-                    outward += outer_shift[0]
+                    outward -= outer_shift[0]
                     if outward >= reappear_shift2:
                         right_moved = True
             if status[y] == 2:
@@ -876,6 +903,9 @@ class TrackElementsTracker:
         self._entry_growth_frames = 0
         self._entry_growth_origin_x2 = -1
         self._entry_growth_last_x2 = -1
+        self._entry_transition_active = False
+        self._entry_transition_start_ms = 0
+        self._entry_transition_side = SIDE_NONE
         self._growth_confirmation_latched = False
         self._entry_confirmation_path = "NONE"
         self._scratch_left = array("i", [0] * self.height)
@@ -910,6 +940,12 @@ class TrackElementsTracker:
             "target_lateral_error": 0,
             "observed_rows": 0,
             "inferred_rows": 0,
+            "entry_transition": False,
+            "entry_transition_frame": -1,
+            "entry_transition_far_y": -1,
+            "entry_transition_near_y": -1,
+            "entry_transition_inner_rows": 0,
+            "entry_transition_near_rows": 0,
             "exit_experimental": False,
             "exit_reobserved": False,
             "cross_candidate": False,
@@ -1085,6 +1121,7 @@ class TrackElementsTracker:
         dictionary returned by its ``finalize()`` method. This setter keeps
         the map separate from the ordinary per-session width cache.
         """
+        self._release_entry_transition()
         self.require_calibration = bool(require_calibration)
         if self.require_calibration:
             self.exit_confirm_frames = 3
@@ -1359,6 +1396,7 @@ class TrackElementsTracker:
     def reset(self, reason="EXPLICIT_RESET"):
         """Clear temporal state, fixed counters, events, and output rows."""
         self._reset_route_outcome()
+        self._release_entry_transition()
         self._clear_frame_output()
         self._identity_set = False
         self._profile_id = 0
@@ -1452,6 +1490,7 @@ class TrackElementsTracker:
         self._session_active = bool(session_active)
         self._session_token = session_token
         self._identity_set = True
+        self._entry_transition_lease_valid(self._last_now_ms)
         self._result["profile_id"] = self._profile_id
         self._result["profile_seq"] = profile_seq if _is_int(profile_seq) else 0
         self._result["session_token"] = session_token
@@ -1580,6 +1619,8 @@ class TrackElementsTracker:
                 self._result["ring_target_rejection"]
                 if inside_target_attempted else
                 "TARGET_NOT_BUILT")
+        if self._result["entry_transition"]:
+            self._ring_diag_reason_code = 13
         self._publish()
         return self._result
 
@@ -1599,6 +1640,37 @@ class TrackElementsTracker:
         result["target_lateral_error"] = 0
         result["observed_rows"] = 0
         result["inferred_rows"] = 0
+        self._clear_entry_transition_output()
+
+    def _clear_entry_transition_output(self):
+        result = self._result
+        result["entry_transition"] = False
+        result["entry_transition_frame"] = -1
+        result["entry_transition_far_y"] = -1
+        result["entry_transition_near_y"] = -1
+        result["entry_transition_inner_rows"] = 0
+        result["entry_transition_near_rows"] = 0
+
+    def _release_entry_transition(self):
+        self._entry_transition_active = False
+        self._entry_transition_start_ms = 0
+        self._entry_transition_side = SIDE_NONE
+
+    def _entry_transition_lease_valid(self, now_ms):
+        if (not self._entry_transition_active or
+                self._entry_transition_side not in (SIDE_LEFT, SIDE_RIGHT)):
+            return False
+        elapsed = _ticks_diff(int(now_ms),
+                              int(self._entry_transition_start_ms))
+        if elapsed < 0 or elapsed > self.max_entry_ms:
+            self._release_entry_transition()
+            return False
+        return True
+
+    def _start_entry_transition(self, now_ms):
+        self._entry_transition_active = True
+        self._entry_transition_start_ms = int(now_ms)
+        self._entry_transition_side = self._side
 
     def _clear_baseline_rows(self):
         for y in range(self.height):
@@ -1619,6 +1691,7 @@ class TrackElementsTracker:
         result["target_lateral_error"] = 0
         result["observed_rows"] = 0
         result["inferred_rows"] = 0
+        self._clear_entry_transition_output()
         result["exit_experimental"] = False
         result["exit_reobserved"] = False
         self._ring_diag_arc_rows = 0
@@ -2091,12 +2164,12 @@ class TrackElementsTracker:
                 if not correctly_ordered:
                     run = 0
                     continue
-            outward = (inner_edge - inner_baseline if ring_side == SIDE_LEFT
-                       else inner_baseline - inner_edge)
+            outward = (inner_baseline - inner_edge if ring_side == SIDE_LEFT
+                       else inner_edge - inner_baseline)
             if ring_side == SIDE_LEFT:
-                outward -= outer_delta
-            else:
                 outward += outer_delta
+            else:
+                outward -= outer_delta
             minimum_outward = (self.ring_entry_reappear_shift2 if
                                self._reappear_count == 0 else 1)
             if outward < minimum_outward:
@@ -2219,6 +2292,7 @@ class TrackElementsTracker:
         return True
 
     def _release_ring_width(self):
+        self._release_entry_transition()
         self._ring_cache_frozen = False
         self._ring_width_calibrated = False
         if hasattr(self, "_result"):
@@ -2390,6 +2464,7 @@ class TrackElementsTracker:
                 self.ring_arc_growing_support_frames and
                 self._ring_diag_growth_x2 >= self.ring_arc_min_growth2):
             self._set_state(STATE_INSIDE, "GROWING_ARC_CONFIRMED", now_ms)
+            self._start_entry_transition(now_ms)
             self._growth_confirmation_latched = True
             self._entry_confirmation_path = "GROWING_ARC"
             self._ring_diag_reason_code = 9
@@ -2408,6 +2483,7 @@ class TrackElementsTracker:
             self._reverse_count = 0
         if self._reverse_count >= self.peak_confirm_frames:
             self._set_state(STATE_INSIDE, "RING_ARC_CONFIRMED", now_ms)
+            self._start_entry_transition(now_ms)
             self._entry_confirmation_path = "PEAK_REVERSAL"
             self._ring_diag_reason_code = 9
             self._record_event(EVENT_RING_CONFIRMED, REJECT_NONE, edge2,
@@ -2773,6 +2849,8 @@ class TrackElementsTracker:
         self._cross_count = 0
 
     def _set_state(self, state, reason, now_ms):
+        if state != STATE_INSIDE and self._entry_transition_active:
+            self._release_entry_transition()
         if state == STATE_ENTER:
             self._reset_entry_growth()
         elif state != STATE_INSIDE:
@@ -2816,6 +2894,379 @@ class TrackElementsTracker:
         self._record_event(EVENT_ABORT, reject_code, 0, now_ms)
 
     def _build_target_rows(self, mask_info, topology, target_side):
+        """Build a locked-side target, then try the bounded entry lease."""
+        if self._build_locked_target_rows(mask_info, topology, target_side):
+            if (self._state == STATE_INSIDE and
+                    target_side == self._entry_transition_side):
+                self._release_entry_transition()
+            return True
+
+        rejection = self._result["ring_target_rejection"]
+        self._clear_target_output()
+        self._result["ring_target_rejection"] = rejection
+        if not (rejection == "MIN_ROWS" or
+                rejection == "NEAR_SUPPORT" or
+                rejection == "LOCKED_SIDE_SUPPORT" or
+                rejection == "REFERENCE_GAP"):
+            return False
+        if (self._state != STATE_INSIDE or
+                target_side != self._side or
+                not self._entry_transition_lease_valid(self._last_now_ms) or
+                self._entry_transition_side != self._side or
+                not self._calibration_ready or not self._cal_check_ready or
+                not self._ring_width_calibrated or
+                not self._ring_cache_frozen or
+                self._calibration_width_valid is None or
+                self._calibration_width_cells is None or
+                not self._ring_topology_precheck(topology)):
+            return False
+        if self._build_entry_transition_rows(
+                mask_info, topology, target_side):
+            return True
+        self._clear_target_output()
+        self._result["ring_target_rejection"] = rejection
+        return False
+
+    @micropython.native
+    def entry_transition_valid_for(self, result):
+        """Validate the same-frame, same-buffer transition certificate."""
+        if result is not self._result:
+            return False
+        if (result["target_rows"] is not self._target_rows or
+                not result["entry_transition"] or
+                result["entry_transition_frame"] != self._frame_index or
+                result["frame_index"] != self._frame_index or
+                not result["target_valid"] or
+                result["target_count"] < self.min_target_rows or
+                result["target_side"] != self._side or
+                self._state != STATE_INSIDE or
+                result["state_id"] != STATE_INSIDE or
+                result["side"] != self._side or
+                self._side not in (SIDE_LEFT, SIDE_RIGHT) or
+                not self._entry_transition_lease_valid(self._last_now_ms) or
+                self._entry_transition_side != self._side or
+                not self._calibration_ready or not self._cal_check_ready or
+                not self._ring_width_calibrated or
+                not self._ring_cache_frozen):
+            return False
+        far_y = result["entry_transition_far_y"]
+        near_y = result["entry_transition_near_y"]
+        return (far_y >= self.floor_y and
+                far_y < self.reference_y < near_y < self.height and
+                result["entry_transition_inner_rows"] >=
+                self.ring_arc_min_rows and
+                result["entry_transition_near_rows"] >=
+                self.min_side_support)
+
+    @micropython.native
+    def _entry_transition_width(self, y):
+        nearest = int(self._ring_nearest_y[y])
+        if (nearest < 0 or abs(nearest - y) > self.max_cache_gap or
+                not self._ring_width_valid[nearest]):
+            return 0
+        width = int(self._ring_width[nearest])
+        return width if 8 <= width <= 70 else 0
+
+    @micropython.native
+    def _entry_transition_row_outward(self, y, ring_side, outer_anchor_ok):
+        """Return corrected outward support for one observed inner row."""
+        if not self._baseline_row_valid[y]:
+            return 0
+        inner_base = ring_side * self.height
+        outer_side = SIDE_RIGHT if ring_side == SIDE_LEFT else SIDE_LEFT
+        outer_base = outer_side * self.height
+        inner_slot = inner_base + y
+        outer_slot = outer_base + y
+        if self._current_status[inner_slot] != 1:
+            return 0
+        outer_status = self._current_status[outer_slot]
+        if outer_status not in (0, 1):
+            return 0
+        inner_baseline = int(
+            self._baseline_left_by_y2[y] if ring_side == SIDE_LEFT else
+            self._baseline_right_by_y2[y])
+        outer_baseline = int(
+            self._baseline_right_by_y2[y] if outer_side == SIDE_RIGHT else
+            self._baseline_left_by_y2[y])
+        inner_edge = int(self._current_edge2[inner_slot])
+        if outer_status == 1:
+            outer_edge = int(self._current_edge2[outer_slot])
+            ordered = (inner_edge < outer_edge if ring_side == SIDE_LEFT
+                       else outer_edge < inner_edge)
+            if not ordered:
+                return 0
+            outer_delta = outer_edge - outer_baseline
+        else:
+            if not outer_anchor_ok:
+                return 0
+            outer_delta = int(self._outer_shift_x2[outer_side])
+            outer_edge = outer_baseline + outer_delta
+            ordered = (inner_edge < outer_edge if ring_side == SIDE_LEFT
+                       else outer_edge < inner_edge)
+            if not ordered:
+                return 0
+        outward = (inner_baseline - inner_edge if ring_side == SIDE_LEFT
+                   else inner_edge - inner_baseline)
+        if ring_side == SIDE_LEFT:
+            outward += outer_delta
+        else:
+            outward -= outer_delta
+        minimum = (self.ring_entry_reappear_shift2 if
+                   self._reappear_count == 0 else 1)
+        return outward if outward >= minimum else 0
+
+    @micropython.native
+    def _entry_transition_bounds(self, observed_side, edge2, width):
+        if observed_side == SIDE_LEFT:
+            left2 = edge2
+            right2 = edge2 + 2 * width
+        else:
+            right2 = edge2
+            left2 = edge2 - 2 * width
+        if (left2 < -1 or right2 > (self.width - 1) * 2 + 1 or
+                left2 >= right2):
+            return -1, -1
+        left = (left2 + 1) // 2
+        right = (right2 - 1) // 2
+        if left < 0 or right >= self.width or left > right:
+            return -1, -1
+        return left, right
+
+    @micropython.native
+    def _entry_transition_store_row(self, count, y, left, right, flags):
+        if (count >= self.height or y < 0 or y >= self.height or
+                left < 0 or right >= self.width or left > right):
+            return -1
+        offset = count * TARGET_ROW_STRIDE
+        self._target_rows[offset] = y
+        self._target_rows[offset + 1] = left
+        self._target_rows[offset + 2] = right
+        self._target_rows[offset + 3] = flags
+        return count + 1
+
+    def _build_entry_transition_rows(self, mask_info, topology,
+                                     target_side):
+        if (not isinstance(mask_info, dict) or
+                not self._ring_topology_precheck(topology)):
+            return False
+        try:
+            road_mask = mask_info.get("road_mask")
+            known = mask_info.get("known_region")
+            if (mask_info.get("valid", True) is False or
+                    mask_info.get("width") != self.width or
+                    mask_info.get("height") != self.height or
+                    mask_info.get("floor") != self.floor_y or
+                    not isinstance(road_mask, bytearray) or
+                    not isinstance(known, bytearray) or
+                    len(road_mask) != self.width * self.height or
+                    len(known) != self.width * self.height):
+                return False
+        except (TypeError, AttributeError):
+            return False
+
+        outer_side = (SIDE_RIGHT if target_side == SIDE_LEFT else SIDE_LEFT)
+        outer_rows = (self._near_right_rows if outer_side == SIDE_RIGHT else
+                      self._near_left_rows)
+        outer_run = (self._near_right_run if outer_side == SIDE_RIGHT else
+                     self._near_left_run)
+        outer_ambiguous = (
+            self._near_right_ambiguous if outer_side == SIDE_RIGHT else
+            self._near_left_ambiguous)
+        if (outer_rows < self.min_side_support or
+                outer_run < self.min_side_contiguous or outer_ambiguous):
+            return False
+
+        arc_rows, peak, peak_edge2, arc_span, arc_ok = \
+            self._entry_arc_profile(target_side)
+        if not arc_ok:
+            return False
+        outer_anchor_ok = bool(self._outer_shift_valid[outer_side])
+        if not outer_anchor_ok:
+            return False
+
+        near_start = max(self.floor_y, self.height - self.near_rows,
+                         self.reference_y + 1)
+        outer_base = outer_side * self.height
+        near_y = -1
+        near_count = 0
+        near_run = 0
+        near_longest = 0
+        for y in range(near_start, self.height):
+            slot = outer_base + y
+            if self._current_status[slot] == 1:
+                width = self._entry_transition_width(y)
+                edge2 = int(self._current_edge2[slot])
+                left, right = self._entry_transition_bounds(
+                    outer_side, edge2, width) if width else (-1, -1)
+                if width and left >= 0:
+                    if near_y < 0:
+                        near_y = y
+                    near_count += 1
+                    near_run += 1
+                    if near_run > near_longest:
+                        near_longest = near_run
+                    continue
+            near_run = 0
+        if (near_y < 0 or near_count < self.min_side_support or
+                near_longest < self.min_side_contiguous or
+                near_y <= self.reference_y):
+            return False
+
+        far_limit = self.reference_y - (self.max_cache_gap + 3)
+        far_y = -1
+        end_y = min(48, far_limit + 1)
+        for y in range(self.floor_y, end_y):
+            if self._entry_transition_row_outward(
+                    y, target_side, outer_anchor_ok):
+                width = self._entry_transition_width(y)
+                slot = target_side * self.height + y
+                edge2 = int(self._current_edge2[slot])
+                left, right = self._entry_transition_bounds(
+                    target_side, edge2, width) if width else (-1, -1)
+                if width and left >= 0:
+                    far_y = y
+        if far_y < self.floor_y or far_y >= self.reference_y:
+            return False
+
+        far_slot = target_side * self.height + far_y
+        far_width = self._entry_transition_width(far_y)
+        far_left, far_right = self._entry_transition_bounds(
+            target_side, int(self._current_edge2[far_slot]), far_width)
+        if far_left < 0:
+            return False
+        far_center2 = far_left + far_right
+        near_slot = outer_base + near_y
+        near_width = self._entry_transition_width(near_y)
+        near_left, near_right = self._entry_transition_bounds(
+            outer_side, int(self._current_edge2[near_slot]), near_width)
+        if near_left < 0:
+            return False
+        near_center2 = near_left + near_right
+
+        far_inner_rows = 0
+        far_run = 0
+        far_max_run = 0
+        far_first = -1
+        far_last = -1
+        count = 0
+        observed_far_flag = (
+            TARGET_OBSERVED_LEFT | TARGET_INFERRED_RIGHT
+            if target_side == SIDE_LEFT else
+            TARGET_OBSERVED_RIGHT | TARGET_INFERRED_LEFT)
+        observed_near_flag = (
+            TARGET_OBSERVED_RIGHT | TARGET_INFERRED_LEFT
+            if target_side == SIDE_LEFT else
+            TARGET_OBSERVED_LEFT | TARGET_INFERRED_RIGHT)
+        common_flags = (TARGET_WIDTH_FROM_CALIBRATION |
+                        TARGET_ENTRY_TRANSITION)
+        for y in range(self.floor_y, far_y + 1):
+            outward = self._entry_transition_row_outward(
+                y, target_side, outer_anchor_ok)
+            if outward:
+                width = self._entry_transition_width(y)
+                if not width:
+                    return False
+                slot = target_side * self.height + y
+                left, right = self._entry_transition_bounds(
+                    target_side, int(self._current_edge2[slot]), width)
+                if left < 0:
+                    return False
+                count = self._entry_transition_store_row(
+                    count, y, left, right,
+                    common_flags | observed_far_flag)
+                if count < 0:
+                    return False
+                far_inner_rows += 1
+                far_run += 1
+                if far_first < 0:
+                    far_first = y
+                far_last = y
+                if far_run > far_max_run:
+                    far_max_run = far_run
+            else:
+                far_run = 0
+        far_span = far_last - far_first if far_first >= 0 else 0
+        if (far_inner_rows < self.ring_arc_min_rows or
+                far_max_run < self.ring_arc_min_contiguous_rows or
+                far_span < self.ring_arc_min_span_rows):
+            return False
+
+        bridge_span = near_y - far_y
+        y = far_y + 1
+        bridge_flags = (common_flags | TARGET_INFERRED_LEFT |
+                        TARGET_INFERRED_RIGHT)
+        while y < near_y:
+            width = self._entry_transition_width(y)
+            if not width:
+                return False
+            center2 = far_center2 + (
+                (near_center2 - far_center2) * (y - far_y)) // bridge_span
+            left = (center2 - width + 1) // 2
+            right = left + width - 1
+            count = self._entry_transition_store_row(
+                count, y, left, right, bridge_flags)
+            if count < 0:
+                return False
+            y += 1
+
+        near_count = 0
+        y = near_y
+        while y < self.height:
+            slot = outer_base + y
+            if self._current_status[slot] == 1:
+                width = self._entry_transition_width(y)
+                if not width:
+                    return False
+                left, right = self._entry_transition_bounds(
+                    outer_side, int(self._current_edge2[slot]), width)
+                if left < 0:
+                    return False
+                count = self._entry_transition_store_row(
+                    count, y, left, right,
+                    common_flags | observed_near_flag)
+                if count < 0:
+                    return False
+                near_count += 1
+            y += 1
+
+        if count < self.min_target_rows or near_count < self.min_side_support:
+            return False
+        if _ring_full_corridor_viper(road_mask, known,
+                                     self._target_rows, count) != 1:
+            return False
+
+        reference_index = -1
+        for index in range(count):
+            offset = index * TARGET_ROW_STRIDE
+            if self._target_rows[offset] == self.reference_y:
+                reference_index = index
+                break
+        if reference_index < 0:
+            return False
+        offset = reference_index * TARGET_ROW_STRIDE
+        left = int(self._target_rows[offset + 1])
+        right = int(self._target_rows[offset + 2])
+        center2 = left + right
+        result = self._result
+        result["target_valid"] = True
+        result["target_count"] = count
+        result["target_side"] = target_side
+        result["target_left2"] = left * 2 - 1
+        result["target_right2"] = right * 2 + 1
+        result["target_center2"] = center2
+        result["target_lateral_error"] = self._normalize_error(center2)
+        result["observed_rows"] = far_inner_rows + near_count
+        result["inferred_rows"] = count
+        result["ring_target_rejection"] = "NONE"
+        result["entry_transition"] = True
+        result["entry_transition_frame"] = self._frame_index
+        result["entry_transition_far_y"] = far_y
+        result["entry_transition_near_y"] = near_y
+        result["entry_transition_inner_rows"] = far_inner_rows
+        result["entry_transition_near_rows"] = near_count
+        return True
+
+    def _build_locked_target_rows(self, mask_info, topology, target_side):
         self._result["ring_target_rejection"] = "NONE"
         if (not self._ring_cache_frozen or
                 self._side not in (SIDE_LEFT, SIDE_RIGHT) or

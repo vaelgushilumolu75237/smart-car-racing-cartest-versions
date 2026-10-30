@@ -47,7 +47,7 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_JOINT_V25_PERF_20261030"
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_ENTRY_V26_20261030"
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.
@@ -60,7 +60,7 @@ PROFILE_STATE_REVISION = 1
 PROFILE_STATE_TIMEOUT_MS = 250
 CAMERA_UART_DIAG_ENABLED = True
 CAMERA_UART_DIAG_INTERVAL_MS = 1000
-CAMERA_UART_DIAG_BUILD_CODE = 0x20261029
+CAMERA_UART_DIAG_BUILD_CODE = 0x20261030
 
 # Bounded element-tracker settings. These conservative software defaults are
 # adjustable; they are not thresholds calibrated against a recorded track run.

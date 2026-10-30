@@ -118,9 +118,9 @@ class TrackElementsHarness:
                 self.tracker._baseline_left_by_y2[y]
                 if side == te.SIDE_LEFT else
                 self.tracker._baseline_right_by_y2[y])
-            inner_edge2 = (baseline_inner + common2 + outward2
+            inner_edge2 = (baseline_inner + common2 - outward2
                            if side == te.SIDE_LEFT else
-                           baseline_inner + common2 - outward2)
+                           baseline_inner + common2 + outward2)
             status[inner_base + y] = 1
             edge2[inner_base + y] = inner_edge2
             baseline_outer = int(
@@ -471,7 +471,7 @@ class TrackElementsTests(unittest.TestCase):
         h = TrackElementsHarness()
         h.complete_left_ring()
         for _ in range(3):
-            h.frame(left_by_y=lambda y: 28 if 20 <= y < 36 else 25,
+            h.frame(left_by_y=lambda y: 22 if 20 <= y < 36 else 25,
                     right_by_y=lambda y: 55)
             self.assertFalse(h.tracker.observe_route_outcome(
                 h.now, False, True))
@@ -765,7 +765,7 @@ class TrackElementsTests(unittest.TestCase):
         left = TrackElementsHarness()
         left.prime()
         for y in range(20, 32):
-            left.tracker._current_edge2[y] += left.tracker.reappear_shift2
+            left.tracker._current_edge2[y] -= left.tracker.reappear_shift2
         self.assertEqual(left.tracker._find_entry_dropout_side(),
                          te.SIDE_LEFT)
         self.assertEqual(left.tracker._ring_diag_arc_rows, 12)
@@ -774,7 +774,7 @@ class TrackElementsTests(unittest.TestCase):
         right.prime()
         for y in range(20, 32):
             index = right.HEIGHT + y
-            right.tracker._current_edge2[index] -= \
+            right.tracker._current_edge2[index] += \
                 right.tracker.reappear_shift2
         self.assertEqual(right.tracker._find_entry_dropout_side(),
                          te.SIDE_RIGHT)
