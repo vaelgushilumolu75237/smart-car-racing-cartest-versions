@@ -1,9 +1,9 @@
 {
-  "version": "v20261029-v25-native-build-fixed",
-  "status": "experimental-software-built-native-hardware-fps-road-pending",
+  "version": "v20261030-v25-corridor-viper",
+  "status": "experimental-stationary-ide60-measured-real-uart-road-pending",
   "branch": "experimental/ring-joint",
-  "files": 832,
-  "hardware_actions": "none",
+  "files": 860,
+  "hardware_actions": "stationary-camera-app-flash-no-python-upload-no-h743-flash-no-motor-start",
   "openmv_native_v501_bundle": "deliverables/OpenMV_RingJoint_v25_NativeCandidate_20261029",
   "openmv_native_v501_runtime_root": "deliverables/TrackProfiles_RingJoint_v25_20261029/OpenMV"
 }

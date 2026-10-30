@@ -634,6 +634,54 @@ def _sort_prefix(values, count):
         index += 1
 
 
+@micropython.viper
+def _ordinary_calibrated_corridor_viper(status_object, edge_object,
+                                        valid_object, width_object,
+                                        frozen_valid_object, frozen_width_object,
+                                        use_frozen: int, floor: int,
+                                        height: int) -> int:
+    status = ptr8(status_object)
+    edges = ptr32(edge_object)
+    valid = ptr8(valid_object)
+    widths = ptr32(width_object)
+    frozen_valid = ptr8(frozen_valid_object)
+    frozen_widths = ptr32(frozen_width_object)
+    rows = 0
+    min_y = height
+    max_y = -1
+    y = floor
+    while y < height:
+        if status[y] == 1 and status[height + y] == 1:
+            left = edges[y]
+            right = edges[height + y]
+            if left < right:
+                width = 0
+                if valid[y] != 0:
+                    width = widths[y]
+                elif use_frozen != 0 and frozen_valid[y] != 0:
+                    width = frozen_widths[y]
+                # Legal measured edges are 0..159 half-grid coordinates.
+                # Widths above 100 cannot satisfy the 20% test, and bounding
+                # here also rejects corrupt signed values read through ptr32.
+                if width >= 8 and width <= 100:
+                    measured = (right - left) // 2
+                    delta = measured - width
+                    if delta < 0:
+                        delta = -delta
+                    # Exact integer equivalent of abs(delta)*5 <= width;
+                    # division avoids int32 multiplication overflow.
+                    if delta <= width // 5:
+                        rows += 1
+                        if y < min_y:
+                            min_y = y
+                        if y > max_y:
+                            max_y = y
+        y += 1
+    if rows >= 8 and max_y - min_y >= 12:
+        return 1
+    return 0
+
+
 class TrackElementsTracker:
     """Bounded temporal element observer with reusable buffers and results.
 
@@ -797,6 +845,9 @@ class TrackElementsTracker:
         self._calibration_source = None
         self._calibration_width_valid = None
         self._calibration_width_cells = None
+        self._corridor_width_owner = None
+        self._corridor_width_length = -1
+        self._corridor_width_fast = False
         self._calibration_ready = False
         self._calibration_reason = "NO_CALIBRATION"
         self._cal_check_prev_valid = bytearray(self.height)
@@ -2512,6 +2563,35 @@ class TrackElementsTracker:
         if self.require_calibration and not (
                 self._calibration_ready and self._cal_check_ready):
             return False
+        # Production calibration owns exact typed buffers. Preserve the
+        # object-safe reference path for list/dict calibration adapters.
+        if self.require_calibration:
+            valid = self._calibration_width_valid
+            widths = self._calibration_width_cells
+            width_length = len(widths) if widths is not None else -1
+            if (widths is not self._corridor_width_owner or
+                    width_length != self._corridor_width_length):
+                self._corridor_width_owner = widths
+                self._corridor_width_length = width_length
+                # MicroPython omits array.typecode on this port. Exact array
+                # type plus repr identifies signed i; available view metadata
+                # must agree. This is classified only on owner/length changes.
+                fast = False
+                if type(widths) is array and width_length == self.height:
+                    view = memoryview(widths)
+                    typecode = getattr(widths, "typecode", "i")
+                    itemsize = getattr(view, "itemsize", 4)
+                    nbytes = getattr(view, "nbytes", self.height * 4)
+                    fast = (typecode == "i" and itemsize == 4 and
+                            nbytes == self.height * 4 and
+                            repr(widths).startswith("array('i',"))
+                self._corridor_width_fast = fast
+            if (type(valid) is bytearray and len(valid) == self.height and
+                    self._corridor_width_fast):
+                return bool(_ordinary_calibrated_corridor_viper(
+                    self._current_status, self._current_edge2, valid, widths,
+                    self._ring_width_valid, self._ring_width,
+                    1 if use_frozen_width else 0, self.floor_y, self.height))
         rows = 0
         min_y = self.height
         max_y = -1

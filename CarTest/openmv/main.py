@@ -3530,7 +3530,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v25 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_JOINT_V25_20261029":
+            "CARTEST_H750_RING_JOINT_V25_PERF_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")

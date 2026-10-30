@@ -47,11 +47,5 @@
   "forward_wire": "V3/16-byte/profile-ack",
   "reverse_state_wire": "V2/20-byte/revision1",
   "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
-  "hardware_acceptance": "pending_manual_road_tests",
-  "camera_diagnostic_wire": "D1/16-byte/1Hz-capability-negotiated",
-  "h743_unchanged_from": "v24",
-  "camera_runtime": "v25-complete-production-package-required",
-  "pe7_control": "exact_reference_toggle",
-  "vision_hold_ms": 2000,
-  "vision_hold_ramp_ms": 200
+  "hardware_acceptance": "pending_manual_road_tests"
 }
