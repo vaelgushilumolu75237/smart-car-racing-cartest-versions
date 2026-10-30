@@ -28,11 +28,17 @@ class ExitTranslationTests(unittest.TestCase):
                                          'EXIT_REPAIR' if i == 2 else 'EXIT_CONFIRM')
                     self.assertEqual(list(h.tracker._baseline_left_by_y2), baseline)
                     self.assertEqual(list(h.tracker._ring_width), widths)
-                    result = h.frame(left=25+shift, right=55+shift)
+                    # Match the actual moved corridor in the raw mask too.
+                    for _ in range(h.tracker.exit_repair_frames):
+                        result = h.frame(left=25+shift, right=55+shift,
+                            mask_info=h.mask(left_by_y=lambda y:25+shift,
+                                             right_by_y=lambda y:55+shift))
                     self.assertEqual(result['state'], 'REACQUIRE')
                     self.assertTrue(result['exit_reobserved'])
                     for _ in range(2):
-                        result = h.frame(left=25+shift, right=55+shift)
+                        result = h.frame(left=25+shift, right=55+shift,
+                            mask_info=h.mask(left_by_y=lambda y:25+shift,
+                                             right_by_y=lambda y:55+shift))
                     self.assertEqual(result['state'], 'OBSERVE')
                     self.assertFalse(h.tracker._ring_cache_frozen)
 

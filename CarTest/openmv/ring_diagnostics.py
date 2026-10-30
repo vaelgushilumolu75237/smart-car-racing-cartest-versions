@@ -62,6 +62,7 @@ from array import array
 
 
 FORMAT_VERSION = 3
+CONTINUATION_API_VERSION = 1
 LEGACY_FORMAT_VERSION = 1
 TIMESTAMP_TICK_MS = 20
 MAGIC = b"RNGD"
@@ -425,7 +426,7 @@ class RingDiagnostics:
         self._episode_meta[meta + 2] = 0
         return count
 
-    def _start_episode(self, frame_index, sequence):
+    def _start_episode(self, frame_index, sequence, continuation=False):
         if self._episode_count < EPISODE_CAPACITY:
             slot = self._episode_count
             self._episode_count += 1
@@ -447,7 +448,8 @@ class RingDiagnostics:
         self._episode_meta[meta + 1] = pre_count
         self._episode_meta[meta + 2] = 0
         self._open_episode = slot
-        self._candidate_episodes += 1
+        if not continuation:
+            self._candidate_episodes += 1
 
     def _append_episode_frame(self, slot, sequence, state_id,
                               candidate, confirmed):
@@ -628,6 +630,17 @@ class RingDiagnostics:
             if event_active and self._open_episode < 0:
                 self._start_episode(frame_index, values[1] & 0xFFFF)
             if self._open_episode >= 0:
+                meta = self._open_episode * 11
+                if (self._episode_meta[meta] >=
+                        EPISODE_FRAME_CAPACITY):
+                    # Keep the fixed per-episode capacity, but continue the
+                    # recording with an overlapping prehistory window. This
+                    # also captures the first post-event frames when the
+                    # active episode ended exactly at the capacity boundary.
+                    self._open_episode = -1
+                    self._start_episode(
+                        frame_index, values[1] & 0xFFFF,
+                        continuation=True)
                 self._append_episode_frame(
                     self._open_episode, values[1] & 0xFFFF,
                     state_id, candidate, confirmed)
@@ -648,7 +661,7 @@ class RingDiagnostics:
         """Freeze only when the caller has confirmed a real stop transition."""
         if self._frozen:
             return False
-        if self._episode_count == 0 and self._pre_count > 0:
+        if self._pre_count > 0:
             self._start_stop_snapshot()
         self._frozen = True
         self._freeze_reason = _code(reason, _FREEZE_REASONS)
@@ -657,8 +670,8 @@ class RingDiagnostics:
         return True
 
     def _start_stop_snapshot(self):
-        """Persist the remaining prehistory when no candidate ever fired."""
-        if self._pre_count <= 0 or self._episode_count > 0:
+        """Append the newest prehistory window at a confirmed stop."""
+        if self._pre_count <= 0:
             return False
         if self._episode_count < EPISODE_CAPACITY:
             slot = self._episode_count

@@ -52,6 +52,7 @@ RING_REFERENCE_Y = 40
 RUNTIME_API_VERSION = 2
 JOINT_ROUTE_API_VERSION = 1
 EXIT_TRANSLATION_API_VERSION = 1
+EXIT_ROUTE_API_VERSION = 1
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -1623,7 +1624,13 @@ class TrackElementsTracker:
             return self._result
         if not frame_fresh:
             self._reject(REJECT_FRAME_INVALID)
-            if self._state not in (STATE_OBSERVE, STATE_REACQUIRE):
+            if (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) or
+                    (self._state == STATE_REACQUIRE and self._ring_cache_frozen)):
+                self._exit_reappear_count = 0
+                self._repair_count = 0
+                self._reacquire_count = 0
+                self._reason = "FRAME_INVALID"
+            elif self._state not in (STATE_OBSERVE, STATE_REACQUIRE):
                 self._abort("FRAME_INVALID", now_ms, REJECT_FRAME_INVALID)
             else:
                 self._reason = "FRAME_INVALID"
@@ -1663,7 +1670,7 @@ class TrackElementsTracker:
 
         if (self._current_road and single_rows_fresh and
                 self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
-                                STATE_EXIT_REPAIR)):
+                                STATE_EXIT_REPAIR, STATE_REACQUIRE)):
             # Accepted ordinary routes can omit the near rows. They remain
             # independent counter-evidence, not the ring's boundary sensor.
             self._retain_ordinary_observation()
@@ -1684,6 +1691,14 @@ class TrackElementsTracker:
                         (STATE_ENTRY_CONFIRM, STATE_ENTER) else
                         self.max_active_ms)
             if elapsed_ms > limit_ms:
+                if self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR):
+                    self._reject(REJECT_STATE_TIMEOUT)
+                    self._reason = "STATE_TIMEOUT"
+                    self._exit_reappear_count = 0
+                    self._repair_count = 0
+                    self._clear_target_output()
+                    self._publish()
+                    return self._result
                 self._abort("STATE_TIMEOUT", now_ms, REJECT_STATE_TIMEOUT)
                 aborted_this_frame = True
             elif self._odom_limit_exceeded():
@@ -1693,6 +1708,7 @@ class TrackElementsTracker:
 
         inside_target_built = False
         inside_target_attempted = False
+        exit_target_attempted = False
         if not ring_enabled:
             # A is explicitly ring-off. Keep the accepted-road baseline alive
             # for the independent cross observer, without running ring states.
@@ -1712,9 +1728,15 @@ class TrackElementsTracker:
         elif self._state == STATE_EXIT_CONFIRM:
             self._confirm_exit(now_ms, topology, cache_ok)
         elif self._state == STATE_EXIT_REPAIR:
-            self._repair_exit(now_ms, topology, cache_ok)
+            exit_route_ok = self._build_target_rows(mask_info, topology, self._side)
+            exit_target_attempted = True
+            self._repair_exit(now_ms, topology, cache_ok, exit_route_ok)
         elif self._state == STATE_REACQUIRE and not aborted_this_frame:
-            self._reacquire(now_ms, topology, cache_ok)
+            exit_route_ok = True
+            if self._side in (SIDE_LEFT, SIDE_RIGHT) and self._ring_cache_frozen:
+                exit_route_ok = self._build_target_rows(mask_info, topology, self._side)
+                exit_target_attempted = True
+            self._reacquire(now_ms, topology, cache_ok, exit_route_ok)
 
         self._update_cross(
             now_ms, self._current_road, road_ok, road_candidate_tracks,
@@ -1733,12 +1755,12 @@ class TrackElementsTracker:
                 # current inner edge only when this frame passes all normal
                 # locked-side, calibration and road-corridor checks.
                 self._build_target_rows(mask_info, topology, self._side)
-            elif self._state == STATE_EXIT_REPAIR:
-                exit_target_side = (SIDE_RIGHT if self._side == SIDE_LEFT else
-                                    SIDE_LEFT)
-                if self._result["target_side"] == SIDE_NONE:
-                    self._build_target_rows(
-                        mask_info, topology, exit_target_side)
+            elif self._state in (STATE_EXIT_REPAIR, STATE_REACQUIRE):
+                # Keep the same measured inner-edge/width construction throughout
+                # exit. Outer fallback must use the same guarded handoff path.
+                if (self._side in (SIDE_LEFT, SIDE_RIGHT) and
+                        not exit_target_attempted):
+                    self._build_target_rows(mask_info, topology, self._side)
         if (self._state == STATE_INSIDE and
                 self._growth_confirmation_latched and
                 not self._result["target_valid"]):
@@ -2045,6 +2067,8 @@ class TrackElementsTracker:
                 not self._near_right_ambiguous)
 
     def _update_stable_baseline(self, road_ok, cache_ok, topology):
+        if self._state == STATE_REACQUIRE and self._ring_cache_frozen:
+            return
         if self._state not in (STATE_OBSERVE, STATE_REACQUIRE):
             return
         if self._state == STATE_OBSERVE and self._baseline_ready:
@@ -2993,7 +3017,8 @@ class TrackElementsTracker:
         previous = self._route_outcome_last_frame
         self._route_outcome_last_frame = frame
         if (ring_route_selected and self._result.get("target_valid") and
-                self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+                self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                STATE_EXIT_REPAIR, STATE_REACQUIRE) and
                 not self._result.get("entry_transition")):
             selected_side = self._result["target_side"]
             if selected_side == self._side:
@@ -3007,8 +3032,7 @@ class TrackElementsTracker:
 
         if (self._profile_id not in (2, 3) or not self._session_active or
                 not self._result.get("ring_confirmed") or
-                self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM,
-                                    STATE_EXIT_REPAIR) or
+                self._state != STATE_INSIDE or
                 ring_route_selected or not ordinary_route_valid or
                 not self._ordinary_reacquired_frame()):
             self._route_outcome_count = 0
@@ -3082,22 +3106,55 @@ class TrackElementsTracker:
             self._exit_reappear_count = 0
             self._result["exit_experimental"] = True
 
-    def _repair_exit(self, now_ms, topology, cache_ok):
+    def _repair_exit(self, now_ms, topology, cache_ok, route_ok):
         self._reason = "EXIT_EXPERIMENTAL_REOBSERVATION"
         self._result["exit_experimental"] = True
         self._ring_diag_reason_code = 11
-        if self._paired_aligned_frame(topology):
+        if (route_ok and self._paired_aligned_frame(topology) and
+                self._exit_route_continuous()):
+            self._repair_count += 1
+            if self._repair_count < self.exit_repair_frames:
+                return
             self._set_state(STATE_REACQUIRE,
                             "EXIT_VISUALLY_REOBSERVED", now_ms)
             self._reacquire_count = 1
             self._record_event(EVENT_EXIT_REOBSERVED, REJECT_NONE, 0, now_ms)
             self._result["exit_experimental"] = True
             self._result["exit_reobserved"] = True
+        else:
+            self._repair_count = 0
 
-    def _reacquire(self, now_ms, topology, cache_ok):
+    def _exit_route_continuous(self):
+        """Match a current accepted bilateral exit to recent ring guidance."""
+        if not self._ordinary_near_support_ok():
+            return False
+        if self._selected_route_ms is None:
+            # Host/non-calibrated adapters have no physical UART admission.
+            return not self.require_calibration
+        age = _ticks_diff(self._last_now_ms, self._selected_route_ms)
+        if age < 0 or age > self.handoff_max_age_ms:
+            return False
+        status = (self._ordinary_status if self._ordinary_snapshot_active
+                  else self._current_status)
+        edges = (self._ordinary_edge2 if self._ordinary_snapshot_active
+                 else self._current_edge2)
+        best = self.height + 1
+        center2 = -1
+        for y in range(self.floor_y, self.height):
+            if status[y] == 1 and status[self.height+y] == 1:
+                delta = abs(y-self.reference_y)
+                if delta < best:
+                    best = delta
+                    center2 = (int(edges[y])+int(edges[self.height+y]))//2
+        return (best <= self.max_cache_gap and center2 >= 0 and
+                abs(center2-self._selected_route_center2) <=
+                self.handoff_max_center_delta2)
+
+    def _reacquire(self, now_ms, topology, cache_ok, route_ok):
         self._reason = "WAITING_FOR_NORMAL_ROAD_REACQUIRE"
         self._ring_diag_reason_code = 12
-        if self._paired_aligned_frame(topology):
+        if (route_ok and self._paired_aligned_frame(topology) and
+                (self._side == SIDE_NONE or self._exit_route_continuous())):
             self._reacquire_count += 1
             if self._reacquire_count >= self.reacquire_frames:
                 self._reset_to_observe("NORMAL_ROAD_REACQUIRED", now_ms)
@@ -3143,7 +3200,10 @@ class TrackElementsTracker:
         self._reason = reason
         self._state_frames = 0
         self._state_start_ms = int(now_ms)
-        if state in (STATE_OBSERVE, STATE_REACQUIRE):
+        if state == STATE_OBSERVE:
+            self._exit_count = 0
+            self._release_ring_width()
+        elif state == STATE_REACQUIRE and self._side == SIDE_NONE:
             self._exit_count = 0
             self._release_ring_width()
 
@@ -3179,11 +3239,14 @@ class TrackElementsTracker:
     def _build_target_rows(self, mask_info, topology, target_side):
         """Build a locked-side target, then try the bounded entry lease."""
         if self._build_locked_target_rows(mask_info, topology, target_side):
-            if (self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+            if (self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                STATE_EXIT_REPAIR, STATE_REACQUIRE) and
                     self._selected_route_side not in (SIDE_NONE, target_side) and
                     self._selected_route_ms is not None and
-                    0 <= _ticks_diff(self._last_now_ms, self._selected_route_ms)
-                    <= self.handoff_max_age_ms and
+                    (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
+                                     STATE_REACQUIRE) or
+                     0 <= _ticks_diff(self._last_now_ms, self._selected_route_ms)
+                     <= self.handoff_max_age_ms) and
                     not self._handoff_continuous()):
                 self._clear_target_output()
                 self._result["ring_target_rejection"] = "HANDOFF_CONTINUITY"
@@ -3234,7 +3297,8 @@ class TrackElementsTracker:
         if self._selected_route_ms is not None:
             result["outer_age_ms"] = _ticks_diff(
                 self._last_now_ms, self._selected_route_ms)
-        if (self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM) or
+        if (self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                STATE_EXIT_REPAIR, STATE_REACQUIRE) or
                 not self._inner_route_established or
                 not self._current_valid or not self._session_active or
                 not self.require_calibration or not self._calibration_ready or
@@ -4243,13 +4307,13 @@ class TrackElementsTracker:
         result["candidate"] = self._state in (
             STATE_ENTRY_CONFIRM, STATE_ENTER, STATE_INSIDE,
             STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR)
-        result["ring_confirmed"] = self._state in (
-            STATE_INSIDE, STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR)
+        result["ring_confirmed"] = (self._state in (
+            STATE_INSIDE, STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) or
+            (self._state == STATE_REACQUIRE and self._ring_cache_frozen and
+             self._side in (SIDE_LEFT, SIDE_RIGHT)))
         result["control_eligible"] = bool(
             self._profile_id in (2, 3) and
-            self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
-                            STATE_EXIT_REPAIR) and
-            result["target_valid"])
+            result["ring_confirmed"] and result["target_valid"])
         result["target_rows"] = self._target_rows
         result["cross_route_rows"] = self._cross_route_rows
         result["reject_counts"] = self._reject_counts

@@ -3550,14 +3550,18 @@ def _validate_fast_config():
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(track_elements, "JOINT_ROUTE_API_VERSION", None) != 1:
         raise RuntimeError("v26 requires matching track_elements.py with route recovery")
+    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 1:
+        raise RuntimeError("v26-r14 requires matching exit route module")
     if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
         raise RuntimeError("v26-r13 requires matching exit translation module")
     if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
         raise RuntimeError("v26 requires matching track_elements.py with entry transition")
+    if getattr(ring_diagnostics, "CONTINUATION_API_VERSION", None) != 1:
+        raise RuntimeError("v26-r14 requires matching diagnostic continuation")
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R13_20261031":
+            "CARTEST_H750_RING_EXIT_V26R14_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7463,7 +7467,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                         prior_ring.get("state_id") in (
                             track_elements.STATE_INSIDE,
                             track_elements.STATE_EXIT_CONFIRM,
-                            track_elements.STATE_EXIT_REPAIR) and
+                            track_elements.STATE_EXIT_REPAIR,
+                            track_elements.STATE_REACQUIRE) and
                         element_tracker.ring_calibration_ready and
                         element_tracker.ring_calibration_check_ready and
                         getattr(element_tracker, "_ring_cache_frozen", False)):
@@ -7589,7 +7594,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             prior_element.get("state_id") in (
                 track_elements.STATE_INSIDE,
                 track_elements.STATE_EXIT_CONFIRM,
-                track_elements.STATE_EXIT_REPAIR))
+                track_elements.STATE_EXIT_REPAIR,
+                track_elements.STATE_REACQUIRE))
         if not selection.get("valid") and not ring_observation_only:
             if not reverse_fresh:
                 if mask_info is not None:
@@ -7870,7 +7876,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_confirmed_state = element_result.get("state_id") in (
             track_elements.STATE_INSIDE,
             track_elements.STATE_EXIT_CONFIRM,
-            track_elements.STATE_EXIT_REPAIR)
+            track_elements.STATE_EXIT_REPAIR,
+            track_elements.STATE_REACQUIRE)
         ring_target_blocked = bool(
             ring_profile_enabled and
             element_result.get("ring_confirmed") and

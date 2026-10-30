@@ -81,7 +81,8 @@ class RingDiagnosticsTests(unittest.TestCase):
             decoded = ring_diagnostics.RingDiagnostics.decode_file(
                 path.read_bytes())
             self.assertEqual(decoded["build_id"], "RING45_HOST")
-            self.assertEqual(decoded["episode_count"], 1)
+            self.assertEqual(decoded["episode_count"], 2)
+            self.assertEqual(decoded["stop_snapshot_count"], 1)
             self.assertTrue(diagnostic.persisted)
 
             damaged = bytearray(path.read_bytes())

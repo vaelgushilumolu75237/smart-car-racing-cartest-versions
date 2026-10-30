@@ -1178,10 +1178,11 @@ class TrackElementsTests(unittest.TestCase):
         self.assertEqual(result["state"], "EXIT_REPAIR")
         self.assertTrue(result["exit_experimental"])
         self.assertEqual(result["side"], te.SIDE_LEFT)
-        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
         self.assertTrue(result["target_valid"])
         self.assertTrue(result["control_eligible"])
-        result = h.frame(left=25, right=55)
+        for _ in range(h.tracker.exit_repair_frames):
+            result = h.frame(left=25, right=55)
         self.assertEqual(result["state"], "REACQUIRE")
         self.assertTrue(result["exit_reobserved"])
         for _ in range(2):
