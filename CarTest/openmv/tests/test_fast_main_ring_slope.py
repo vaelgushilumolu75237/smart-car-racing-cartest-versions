@@ -249,6 +249,9 @@ class _SingleEdgeTracker:
     def detect(*_args):
         return {"valid": False, "reason": "NOT_USED"}
 
+    def commit_ring_observation(self, candidate):
+        return 0
+
     def observe_ring_boundaries(self, *args):
         return self.detect(*args)
 
@@ -887,8 +890,13 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         output = io.StringIO()
         cache_commits = []
         weighted_routes = []
+        ring_commits = []
 
         class _RecordingSingleEdgeTracker(_SingleEdgeTracker):
+            def commit_ring_observation(self, candidate):
+                ring_commits.append(candidate.get("selected_row_count"))
+                return 0
+
             def observe_bilateral(self, *args):
                 cache_commits.append(args)
 
@@ -939,12 +947,13 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_RING_REFERENCE_V26R11_20261031 "
+            "TRACK_BUILD=CARTEST_H750_RING_ANCHOR_V26R12_20261031 "
             "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
         self.assertEqual(cache_commits, [])
         self.assertEqual(len(weighted_routes), 1)
+        self.assertEqual(ring_commits, [52])
         weight_info, source, boundary_source, ring_rows = weighted_routes[0]
         self.assertTrue(weight_info["valid"], weight_info)
         self.assertEqual(source, "ring_right")

@@ -44,7 +44,7 @@ except ImportError:  # Host tests only; OpenMV provides the real module.
 
 
 RUNTIME_API_VERSION = 2
-RING_OBSERVATION_API_VERSION = 2
+RING_OBSERVATION_API_VERSION = 3
 WIDTH = 80
 HEIGHT = 60
 MAX_ROWS = 60
@@ -760,6 +760,62 @@ def _scan_single_edges_viper(self) -> int:
     return 0
 
 
+@micropython.viper
+def _commit_ring_anchors_viper(self, route_rows, count: int) -> int:
+    rows = ptr32(route_rows)
+    cache_valid = ptr8(self._cache_valid)
+    status = ptr8(self._row_status)
+    edges = ptr32(self._row_edge2)
+    left = ptr32(self._anchor_left2)
+    right = ptr32(self._anchor_right2)
+    floor = int(self.floor_y)
+    height = int(self.height)
+    minimum = int(self.min_rows)
+    matched = 0
+    previous_y = -1
+    # Validate the whole route before mutating any anchor.
+    for index in range(count):
+        offset = index * 5
+        y = int(rows[offset])
+        side = int(rows[offset + 3])
+        flags = int(rows[offset + 4])
+        if y < floor or y >= height or y <= previous_y:
+            return 0
+        previous_y = y
+        if side == -1 and not (flags & 3):
+            continue  # Explicitly inferred entry bridge.
+        if (side < 0 or side > 1) or not (flags & (1 << side)):
+            return 0
+        slot = side * height + y
+        if (not cache_valid[y] or status[slot] != 1 or
+                int(rows[offset + 2]) != int(edges[slot])):
+            return 0
+        matched += 1
+    if matched < minimum:
+        return 0
+    for index in range(count):
+        offset = index * 5
+        side = int(rows[offset + 3])
+        if side < 0:
+            continue
+        y = int(rows[offset])
+        anchor = int(left[y]) if side == 0 else int(right[y])
+        delta = int(rows[offset + 2]) - anchor
+        if delta > 4:
+            delta = 4
+        elif delta < -4:
+            delta = -4
+        if delta >= 0:
+            anchor = anchor + (delta + 1) // 2
+        else:
+            anchor = anchor - ((-delta + 1) // 2)
+        if side == 0:
+            left[y] = anchor
+        else:
+            right[y] = anchor
+    return matched
+
+
 class FastSingleEdgeTracker:
     """Keep validated bilateral widths and infer one current visible side."""
 
@@ -841,6 +897,7 @@ class FastSingleEdgeTracker:
         self._row_edge2 = array("i", [0] * (2 * self.height))
         self._row_center2 = array("i", [0] * (2 * self.height))
         self._row_contrast = array("i", [0] * (2 * self.height))
+        self._ring_commit_validated_rows = None
         self._ring_observation_mode = 0
         self._side_valid = bytearray(2)
         self._side_ambiguous = bytearray(2)
@@ -1145,6 +1202,42 @@ class FastSingleEdgeTracker:
         self._pending_switch_count = 0
         self._pending_switch_frame = -1
         return before != side
+
+    @micropython.native
+    def commit_ring_observation(self, candidate):
+        """Advance only measured edges in a successfully transmitted ring route.
+
+        The caller owns the final UART admission. Widths and bilateral baseline
+        positions stay frozen. Guessed edges and entry bridges never become
+        identity anchors; every update must match this frame's accepted scan.
+        """
+        if (not self._frame_scan_done or
+                self._route_mode_id != _ROUTE_CACHED_WIDTH or
+                not candidate or not candidate.get("valid")):
+            return 0
+        rows = candidate.get("selected_row_ints")
+        count = candidate.get("selected_row_count")
+        if (not isinstance(rows, array) or isinstance(count, bool) or
+                not isinstance(count, int) or count < self.min_rows or
+                count > self.height or
+                candidate.get("selected_row_stride") != ROW_STRIDE or
+                len(rows) < count * ROW_STRIDE):
+            return 0
+        if rows is not self._ring_commit_validated_rows:
+            # Validate physical word size once per private producer buffer.
+            # OpenMV omits array/memoryview type metadata on some ports.
+            try:
+                typecode = getattr(rows, "typecode", None)
+                if typecode is not None and typecode != "i":
+                    return 0
+                if not isinstance(rows[0], int):
+                    return 0
+                if len(bytes(memoryview(rows))) != len(rows) * 4:
+                    return 0
+            except (TypeError, ValueError, MemoryError):
+                return 0
+            self._ring_commit_validated_rows = rows
+        return int(_commit_ring_anchors_viper(self, rows, count))
 
     @micropython.native
     def _switch_overlap(self, side):

@@ -1742,8 +1742,8 @@ def _load_singleedge_runtime():
         ("fast_single_edge.py", fast_single_edge),
         ("reverse_control.py", reverse_control),
     )
-    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 2:
-        raise ImportError("single-edge bundle mismatch: ring observation API 2 required")
+    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 3:
+        raise ImportError("single-edge bundle mismatch: ring observation API 3 required")
     return _SINGLEEDGE_RUNTIME_MODULES
 
 
@@ -3555,7 +3555,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_REFERENCE_V26R11_20261031":
+            "CARTEST_H750_RING_ANCHOR_V26R12_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -8456,6 +8456,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                   single_candidate is not None and
                   single_candidate.get("valid")):
                 single_edge_tracker.commit_single(single_candidate)
+            elif (reverse_fresh and selection.get("valid") and
+                  selection.get("source") in ("ring_left", "ring_right")):
+                single_edge_tracker.commit_ring_observation(
+                    selection.get("result"))
 
         heap_sample_us = 0
         heap_sample_now_ms = time.ticks_ms()
