@@ -2604,6 +2604,7 @@ class TrackElementsTracker:
         # that exact contract only after confirmed, frozen-width ring entry;
         # the current target must still pass all route/corridor checks below.
         own_island = bool(has_island and topology.get("reason") == "ISLAND" and
+            topology.get("independent_branch_checked") and
             self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) and
             self._ring_cache_frozen and
             (not self.require_calibration or

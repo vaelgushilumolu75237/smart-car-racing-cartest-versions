@@ -45,6 +45,18 @@ class RingIslandTopologyContractTests(unittest.TestCase):
             h.tracker._state=state
             self.assertFalse(h.tracker._ring_topology_precheck(evidence))
 
+    def test_island_does_not_skip_independent_branch_kernel_or_trust_old_output(self):
+        h=self.setup_ring();mask,evidence=self.island_mask(h)
+        self.assertTrue(evidence['independent_branch_checked'])
+        evidence.pop('independent_branch_checked')
+        self.assertFalse(h.tracker._ring_topology_precheck(evidence))
+        with patch.object(FastTopologyGuard,'_open_band_host',return_value=True) as kernel:
+            evidence=dict(FastTopologyGuard(config).check(mask))
+        kernel.assert_called()
+        self.assertTrue(evidence['island_evidence'])
+        self.assertTrue(evidence['branch_evidence'])
+        self.assertEqual(h.tracker._ring_topology_rejection(evidence),'BRANCH')
+
     def test_independent_branch_and_multiple_exit_flags_still_fail_closed(self):
         for name in ('branch_evidence','branch','independent_branch_ambiguous',
                      'multi_branch_ambiguous','multiple_exits'):

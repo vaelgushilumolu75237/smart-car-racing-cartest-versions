@@ -939,7 +939,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_RING_ENTRY_V26R7_20261030 "
+            "TRACK_BUILD=CARTEST_H750_RING_ENTRY_V26R7A_20261030 "
             "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
