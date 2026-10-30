@@ -49,6 +49,51 @@ class RingDarkBlockTests(unittest.TestCase):
         self.assertFalse(b.resolve_confirmed_ring_dark_block(info))
         self.assertFalse(any(info['known_region'][8*80:20*80]))
 
+    def sliver_frame(self, populations):
+        cells=bytearray([55]*4800)
+        for block,(x0,y0,x1,y1) in enumerate(config.GRAY_THRESHOLD_BLOCKS):
+            if not block:continue
+            n=populations[block-1]
+            for j in range((x1-x0)*(y1-y0)):
+                y=y0+j//(x1-x0);x=x0+j%(x1-x0)
+                cells[y*80+x]=220 if j<n else 50
+        return _BufferImage(_expanded_frame(cells))
+
+    def test_crossing_five_percent_in_one_peer_keeps_two_strong_references(self):
+        for n in (49,48,47,46,1):
+            b=fast_gray.FastGrayMasks(config)
+            info=b.build(self.sliver_frame((n,400,600)))
+            before=bytes(info['road_mask'])
+            self.assertTrue(b.resolve_confirmed_ring_dark_block(info),n)
+            self.assertEqual(bytes(info['road_mask']),before)
+            self.assertTrue(fast_topology.FastTopologyGuard(config).check(info)['complete'])
+
+    def test_one_populated_reference_is_insufficient(self):
+        b=fast_gray.FastGrayMasks(config)
+        info=b.build(self.sliver_frame((46,1,600)))
+        self.assertTrue(all(b.trusted[1:]))
+        self.assertFalse(b.resolve_confirmed_ring_dark_block(info))
+        self.assertFalse(info['complete'])
+
+    def test_unpopulated_peer_dark_disagreement_still_rejects(self):
+        b=fast_gray.FastGrayMasks(config)
+        info=b.build(self.sliver_frame((46,400,600)))
+        b.class_means[1]=(100.,220.)
+        self.assertFalse(b.resolve_confirmed_ring_dark_block(info))
+
+    def test_unpopulated_but_weak_contrast_peer_still_rejects(self):
+        b=fast_gray.FastGrayMasks(config)
+        info=b.build(self.sliver_frame((46,400,600)))
+        b.contrasts[1]=b.min_contrast
+        self.assertFalse(b.resolve_confirmed_ring_dark_block(info))
+
+    def test_ring_resolver_is_opt_in_and_does_not_change_ordinary_mask(self):
+        b=fast_gray.FastGrayMasks(config)
+        info=b.build(self.sliver_frame((46,400,600)))
+        self.assertFalse(info['complete'])
+        self.assertFalse(any(info['known_region'][8*80:20*80]))
+        self.assertFalse(info['ring_dark_block_resolved'])
+
     def test_mixed_gray_runtime_is_rejected(self):
         import test_fast_main_ring_slope
         import main

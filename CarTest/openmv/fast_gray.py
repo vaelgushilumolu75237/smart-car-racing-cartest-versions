@@ -1579,22 +1579,29 @@ class FastGrayMasks:
                 self.reasons[0] not in ("CONSTANT", "LOW_CONTRAST", "NO_CONTRAST") or
                 self.min_contrast <= 0):
             return False
-        # Require every other block to have a strong, populated current split.
+        # Every other block must remain trusted and strongly separated. Require
+        # at least two populated current-frame splits for the dark reference;
+        # a third block's shrinking white sliver must not veto those references.
+        # All peer dark means still participate in the consistency bound.
         # Never propagate through another unknown block or an internal gap.
         low_min = 256.0
         low_max = -1.0
         dark_limit = 256.0
+        populated_references = 0
         for block in range(1, self._block_count):
             count = self._block_stats[block*4]
             classes = self.classes[block]
             contrast = self.contrasts[block]
-            if (not self.trusted[block] or contrast < self.min_contrast*2 or
-                    min(classes)*20 < count):
+            if not self.trusted[block] or contrast < self.min_contrast*2:
                 return False
+            if min(classes)*20 >= count:
+                populated_references += 1
             low = self.class_means[block][0]
             low_min = min(low_min, low)
             low_max = max(low_max, low)
             dark_limit = min(dark_limit, low + contrast/8.0)
+        if populated_references < 2:
+            return False
         minimum = self._block_stats[2]
         maximum = self._block_stats[3]
         if (low_max-low_min > self.min_contrast or
