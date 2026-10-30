@@ -6,7 +6,7 @@ import track_elements as te
 
 
 class PendingExitRouteTests(unittest.TestCase):
-    def tracker(self, side):
+    def tracker(self, side, wire_seed=False):
         h = TrackElementsHarness()
         class Calibration:
             ready = True
@@ -20,12 +20,16 @@ class PendingExitRouteTests(unittest.TestCase):
         h.prime()
         self.assertTrue(h.tracker._freeze_ring_width())
         h.tracker._side = side
+        if wire_seed:
+            h.tracker._state = te.STATE_INSIDE
+            h.frame()
+            self.assertTrue(h.tracker.commit_transmitted_route(h.now, True, True))
         h.tracker._state = te.STATE_EXIT_CONFIRM
         return h
 
     def test_pending_exit_retains_fresh_inner_route_on_both_sides(self):
         for side in (te.SIDE_LEFT, te.SIDE_RIGHT):
-            h = self.tracker(side)
+            h = self.tracker(side, wire_seed=True)
             result = h.frame(road_accepted=False, raw_side=side)
             self.assertEqual(result['state_id'], te.STATE_EXIT_CONFIRM)
             self.assertTrue(result['target_valid'])

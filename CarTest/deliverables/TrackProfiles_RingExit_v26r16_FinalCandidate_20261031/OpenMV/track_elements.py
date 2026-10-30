@@ -52,7 +52,7 @@ RING_REFERENCE_Y = 40
 RUNTIME_API_VERSION = 2
 JOINT_ROUTE_API_VERSION = 1
 EXIT_TRANSLATION_API_VERSION = 1
-EXIT_ROUTE_API_VERSION = 2
+EXIT_ROUTE_API_VERSION = 3
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -1018,6 +1018,12 @@ class TrackElementsTracker:
         self._band_summary = array("i", [0] * 12)
         self._cross_summary = array("i", [0] * 5)
         self._target_rows = array("i", [0] * (self.height * TARGET_ROW_STRIDE))
+        # Successful wire geometry, frozen throughout exit. Candidate routes
+        # cannot walk this anchor toward another branch in small steps.
+        self._wire_centers2 = array("i", [-1] * self.height)
+        self._exit_pair_centers2 = array("i", [-1] * self.height)
+        self._wire_route_ms = None
+        self._wire_commit_frame = -1
         self._cross_route_rows = array(
             "i", [0] * (self.height * TARGET_ROW_STRIDE))
         self._events = array("i", [0] * (EVENT_CAPACITY * EVENT_STRIDE))
@@ -1853,6 +1859,7 @@ class TrackElementsTracker:
         self._clear_entry_transition_output()
         result["exit_experimental"] = False
         result["exit_reobserved"] = False
+        result["exit_admission_reason"] = "NOT_CHECKED"
         self._ring_diag_arc_rows = 0
         self._ring_diag_anchor_rows = 0
         self._ring_diag_arc_span = 0
@@ -2489,6 +2496,12 @@ class TrackElementsTracker:
 
     def _release_ring_width(self):
         self._release_entry_transition()
+        self._wire_route_ms = None
+        self._wire_commit_frame = -1
+        if hasattr(self, "_wire_centers2"):
+            for y in range(self.height):
+                self._wire_centers2[y] = -1
+                self._exit_pair_centers2[y] = -1
         self._inner_route_established = False
         self._selected_route_ms = None
         self._selected_route_center2 = 0
@@ -3026,17 +3039,6 @@ class TrackElementsTracker:
             return False
         previous = self._route_outcome_last_frame
         self._route_outcome_last_frame = frame
-        if (ring_route_selected and self._result.get("target_valid") and
-                self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
-                                STATE_EXIT_REPAIR, STATE_REACQUIRE) and
-                not self._result.get("entry_transition")):
-            selected_side = self._result["target_side"]
-            if selected_side == self._side:
-                self._inner_route_established = True
-            if self._inner_route_established:
-                self._selected_route_ms = int(now_ms)
-                self._selected_route_center2 = self._result["target_center2"]
-                self._selected_route_side = selected_side
         if previous >= 0 and frame != ((previous + 1) & 0x7fffffff):
             self._route_outcome_count = 0
 
@@ -3065,6 +3067,36 @@ class TrackElementsTracker:
                     REJECT_RING_SEQUENCE)
         self._clear_target_output()
         self._publish()
+        return True
+
+    @micropython.native
+    def commit_transmitted_route(self, now_ms, valid, full_write):
+        """Promote only a current ring route actually sent as valid V3."""
+        if (not valid or not full_write or not self._session_active or
+                self._profile_id not in (2, 3) or
+                self._wire_commit_frame == self._frame_index or
+                self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                    STATE_EXIT_REPAIR, STATE_REACQUIRE) or
+                not self._result.get("target_valid") or
+                self._result.get("entry_transition")):
+            return False
+        self._wire_commit_frame = self._frame_index
+        side = self._result["target_side"]
+        if side == self._side:
+            self._inner_route_established = True
+        if not self._inner_route_established:
+            return False
+        self._selected_route_ms = int(now_ms)
+        self._selected_route_center2 = self._result["target_center2"]
+        self._selected_route_side = side
+        if self._state == STATE_INSIDE:
+            for y in range(self.height):
+                self._wire_centers2[y] = -1
+            for i in range(self._result["target_count"]):
+                off = i * TARGET_ROW_STRIDE
+                self._wire_centers2[self._target_rows[off]] = (
+                    self._target_rows[off+1] + self._target_rows[off+2])
+            self._wire_route_ms = int(now_ms)
         return True
 
     def _observe_inside_exit(self, now_ms, topology, cache_ok, route_ok):
@@ -3165,6 +3197,23 @@ class TrackElementsTracker:
             0 <= _ticks_diff(self._last_now_ms,self._exit_reobserve_ms) < 250 and
             abs(center2-self._exit_reobserve_center2) <=
             self.handoff_max_center_delta2)
+        # A stable reference point alone cannot certify a changing branch.
+        status = (self._ordinary_status if self._ordinary_snapshot_active
+                  else self._current_status)
+        edges = (self._ordinary_edge2 if self._ordinary_snapshot_active
+                 else self._current_edge2)
+        common = 0
+        for y in range(self.floor_y, self.height):
+            current = ((int(edges[y])+int(edges[self.height+y]))//2
+                       if status[y] == 1 and status[self.height+y] == 1 else -1)
+            old = self._exit_pair_centers2[y]
+            if current >= 0 and old >= 0:
+                common += 1
+                if abs(current-old) > self.handoff_max_center_delta2:
+                    continuous = False
+            self._exit_pair_centers2[y] = current
+        if common < self.min_target_rows:
+            continuous = False
         self._exit_reobserve_count = (min(self.exit_repair_frames,
             self._exit_reobserve_count+1) if continuous else 1)
         self._exit_reobserve_center2 = center2
@@ -3291,6 +3340,55 @@ class TrackElementsTracker:
         self._record_event(EVENT_ABORT, reject_code, 0, now_ms)
 
     def _build_target_rows(self, mask_info, topology, target_side):
+        built = self._build_candidate_target_rows(mask_info, topology, target_side)
+        if (built and self.require_calibration and
+                self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
+                                STATE_REACQUIRE) and
+                not self._exit_target_admitted()):
+            self._clear_target_output()
+            self._result["ring_target_rejection"] = "EXIT_GUIDANCE_UNTRUSTED"
+            self._result["exit_admission_reason"] = "EXIT_GUIDANCE_UNTRUSTED"
+            return False
+        return built
+
+    @micropython.native
+    def _exit_target_matches(self, centers):
+        """Check all weighted target rows, including near and reference rows."""
+        common = near = 0
+        reference = False
+        near_start = max(self.floor_y, self.height-self.near_rows)
+        for i in range(self._result["target_count"]):
+            off = i * TARGET_ROW_STRIDE
+            y = self._target_rows[off]
+            old = centers[y]
+            if old < 0:
+                return False
+            center = self._target_rows[off+1] + self._target_rows[off+2]
+            if abs(center-old) > self.handoff_max_center_delta2:
+                return False
+            common += 1
+            if y >= near_start:
+                near += 1
+            if abs(y-self.reference_y) <= self.max_cache_gap:
+                reference = True
+        return (common >= self.min_target_rows and
+                near >= self.min_near_support and reference)
+
+    def _exit_target_admitted(self):
+        # Fresh paired geometry may legitimately straighten the route.
+        if (self._exit_reobserve_ready() and
+                self._exit_target_matches(self._exit_pair_centers2)):
+            self._result["exit_admission_reason"] = "EXIT_CURRENT_PAIRED"
+            return True
+        age = (_ticks_diff(self._last_now_ms, self._wire_route_ms)
+               if self._wire_route_ms is not None else -1)
+        if (0 <= age <= self.handoff_max_age_ms and
+                self._exit_target_matches(self._wire_centers2)):
+            self._result["exit_admission_reason"] = "EXIT_ANCHORED_CURRENT_EDGE"
+            return True
+        return False
+
+    def _build_candidate_target_rows(self, mask_info, topology, target_side):
         """Build a locked-side target, then try the bounded entry lease."""
         if self._build_locked_target_rows(mask_info, topology, target_side):
             if (self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,

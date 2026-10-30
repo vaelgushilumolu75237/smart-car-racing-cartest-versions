@@ -3550,8 +3550,8 @@ def _validate_fast_config():
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(track_elements, "JOINT_ROUTE_API_VERSION", None) != 1:
         raise RuntimeError("v26 requires matching track_elements.py with route recovery")
-    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 2:
-        raise RuntimeError("v26-r14 requires matching exit route module")
+    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 3:
+        raise RuntimeError("v26-r16 requires matching exit route module")
     if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
         raise RuntimeError("v26-r13 requires matching exit translation module")
     if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
@@ -3561,7 +3561,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R15_20261031":
+            "CARTEST_H750_RING_EXIT_V26R16_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -7127,6 +7127,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         require_calibration=config.RING_WIDTH_CALIBRATION_REQUIRED)
     observe_element_route_outcome = getattr(
         element_tracker, "observe_route_outcome", None)
+    commit_element_route = getattr(
+        element_tracker, "commit_transmitted_route", None)
     ring_calibration_passed = bool(
         element_tracker.ring_calibration_ready and
         element_tracker.ring_calibration_check_ready)
@@ -7826,6 +7828,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 profile_now_ms, time.ticks_diff))
 
         element_result["route_admission_reason"] = "RING_NOT_ELIGIBLE"
+        if element_result.get("exit_admission_reason") == "EXIT_GUIDANCE_UNTRUSTED":
+            element_result["route_admission_reason"] = "EXIT_GUIDANCE_UNTRUSTED"
         if ring_profile_enabled and element_result.get("control_eligible"):
             ring_count = _fill_ring_control_route(
                 element_result, element_tracker, single_edge_tracker,
@@ -7834,6 +7838,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             element_result["route_admission_reason"] = ring_route_result.get(
                 "reason", "RING_TARGET_ROWS_OR_REFERENCE")
             if ring_count:
+                exit_admission = element_result.get("exit_admission_reason")
+                if exit_admission in ("EXIT_CURRENT_PAIRED",
+                                       "EXIT_ANCHORED_CURRENT_EDGE"):
+                    element_result["route_admission_reason"] = exit_admission
                 ring_target_side = element_result.get(
                     "target_side", element_result.get("side"))
                 if element_result.get("outer_tracking"):
@@ -8350,6 +8358,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         # and total_cycle accounts for it separately after this point.
         send_end_us = time.ticks_us()
         send_end_ms = time.ticks_ms()
+        if commit_element_route is not None and element_route_selected:
+            commit_element_route(capture_end_ms,
+                                 bool(valid and (packet[6] & 1)), full_write)
         pack_uart_us = time.ticks_diff(send_end_us, pack_start_us)
         capture_to_send_us = time.ticks_diff(
             send_end_us, cycle_start_us)

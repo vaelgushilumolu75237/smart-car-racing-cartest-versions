@@ -78,6 +78,8 @@ class FreshRingObservationTests(unittest.TestCase):
     def test_pending_exit_also_uses_current_raw_inner_boundary(self):
         for side in (te.SIDE_LEFT, te.SIDE_RIGHT):
             h = self.setup_ring(side)
+            self.update(h, side)
+            self.assertTrue(h.tracker.commit_transmitted_route(h.now, True, True))
             h.tracker._state = te.STATE_EXIT_CONFIRM
             result = self.update(h, side)
             self.assertEqual(result['state_id'], te.STATE_EXIT_CONFIRM)

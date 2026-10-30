@@ -7,7 +7,7 @@ import track_elements as te
 
 class ExitGuidanceTests(unittest.TestCase):
     def tracker(self, side, state=te.STATE_EXIT_REPAIR):
-        h = pending.PendingExitRouteTests().tracker(side)
+        h = pending.PendingExitRouteTests().tracker(side, wire_seed=True)
         t = h.tracker
         t._state = state
         t._exit_side = 1-side

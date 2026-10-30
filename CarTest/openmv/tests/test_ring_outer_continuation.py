@@ -35,7 +35,7 @@ class OuterContinuationTests(unittest.TestCase):
         result, edges = self.frame(h, side, side)
         self.assertTrue(result['target_valid'])
         if selected:
-            h.tracker.observe_route_outcome(h.now, True, False)
+            h.tracker.commit_transmitted_route(h.now, True, True)
         return h
 
     def outside_outer(self, side):
@@ -44,7 +44,7 @@ class OuterContinuationTests(unittest.TestCase):
         direction=1 if side==te.SIDE_RIGHT else -1
         result,_=self.frame(h,side,side,shift=18*direction)
         self.assertTrue(result['target_valid'])
-        h.tracker.observe_route_outcome(h.now,True,False)
+        h.tracker.commit_transmitted_route(h.now,True,True)
         result,edges=self.frame(h,side,1-side,shift=22*direction)
         return h,result,edges
 
@@ -130,7 +130,7 @@ class OuterContinuationTests(unittest.TestCase):
             for _ in range(3):
                 result, _ = self.frame(h, side, 1-side, advance_ms=600)
                 self.assertTrue(result['outer_tracking'])
-                h.tracker.observe_route_outcome(h.now, True, False)
+                h.tracker.commit_transmitted_route(h.now, True, True)
             result, _ = self.frame(h, side, side)
             self.assertTrue(result['target_valid'])
             self.assertFalse(result['outer_tracking'])
@@ -141,7 +141,7 @@ class OuterContinuationTests(unittest.TestCase):
         for side in (0, 1):
             h = self.setup_inner(side)
             result, _ = self.frame(h, side, 1-side)
-            h.tracker.observe_route_outcome(h.now, True, False)
+            h.tracker.commit_transmitted_route(h.now, True, True)
             result, _ = self.frame(h, side, side, shift=8)
             self.assertFalse(result['target_valid'])
 
@@ -149,7 +149,7 @@ class OuterContinuationTests(unittest.TestCase):
         for side in (0, 1):
             h=self.setup_inner(side)
             result,_=self.frame(h,side,1-side)
-            h.tracker.observe_route_outcome(h.now,True,False)
+            h.tracker.commit_transmitted_route(h.now,True,True)
             result,_=self.frame(h,side,side,advance_ms=2001)
             self.assertTrue(result['target_valid'])
             self.assertFalse(result['outer_tracking'])
