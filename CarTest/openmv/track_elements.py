@@ -1605,6 +1605,11 @@ class TrackElementsTracker:
                 inside_target_built = self._build_target_rows(
                     mask_info, topology, self._side)
                 inside_target_attempted = True
+            elif self._state == STATE_EXIT_CONFIRM:
+                # Exit evidence is still provisional. Keep following the
+                # current inner edge only when this frame passes all normal
+                # locked-side, calibration and road-corridor checks.
+                self._build_target_rows(mask_info, topology, self._side)
             elif self._state == STATE_EXIT_REPAIR:
                 exit_target_side = (SIDE_RIGHT if self._side == SIDE_LEFT else
                                     SIDE_LEFT)

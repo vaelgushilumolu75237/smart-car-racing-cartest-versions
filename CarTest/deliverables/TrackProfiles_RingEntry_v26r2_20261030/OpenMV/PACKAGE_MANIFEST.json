@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "f1628ec100bd90d7b482727b2cea73c6995c5aec961a14d0d5fa2c3b987a218e",
+      "source_sha256": "0b37edba58f8b94208aa3ab5ab42c9eac78fa86d5c52caa64b0429fd82d29bcc",
       "exit_code": 0,
-      "mpy_sha256": "74fcf299bb10a1c8452b5b97318a61e62e9ed6d2c0809bbf550b80e570e97e97"
+      "mpy_sha256": "2d70c6b2d6976b0db845bea3abc6a869df1c0f999329bdd4fb3b2feb55da9665"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "1322618b14d2abf95a065d4d8492c57ef61dc23cbed721b254f22b1069c2b264",
+      "source_sha256": "0593a6ed9ef1fa7234667af20bff5238c3c06974dc5ffd79b7f695d831820cf8",
       "exit_code": 0,
-      "mpy_sha256": "cf5e374c384f2f4d0f4404abf99d2a4073d5f992669ec6c803991205478f940e"
+      "mpy_sha256": "1c1491c3bc2e22d7bebebd7377f579cdc39f4736e8ca92956fa0b7f4cbb78804"
     },
     {
       "file": "reverse_control.py",
@@ -149,9 +149,9 @@
     },
     {
       "file": "track_elements.py",
-      "source_sha256": "29c7539aed2b5de81bf7507c911a3e5b61dccb7dbc90787dda6927ed090803f5",
+      "source_sha256": "a1d51ce8dafdbc7055d750425a800b39dc8c1538604ca720536ce44598c01ab1",
       "exit_code": 0,
-      "mpy_sha256": "185869d33b0ae19789fc55b8a627f8544b52d6b0902be6ce9af6d8cb7cc0afec"
+      "mpy_sha256": "c8c9fdb38e445008e0d39b356299de2b542dab6867a9e52ada8dff5de32f4a13"
     },
     {
       "file": "ring_width_calibration.py",
@@ -180,5 +180,5 @@
   "road_validation": "pending",
   "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
   "vehicle_source_and_elf_unchanged": true,
-  "package_id": "v20261030-ring-entry-v26-r1"
+  "package_id": "v20261030-ring-entry-v26-r2"
 }
