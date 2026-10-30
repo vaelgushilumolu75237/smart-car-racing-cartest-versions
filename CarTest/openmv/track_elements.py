@@ -80,6 +80,7 @@ TARGET_WIDTH_FROM_CACHE = 16
 TARGET_WIDTH_FROM_CALIBRATION = 32
 TARGET_ENTRY_TRANSITION = 64
 ENTRY_TRANSITION_API_VERSION = 1
+RING_OUTER_ROUTE_API_VERSION = 1
 
 RING_DIAG_STRIDE = 14
 
@@ -240,6 +241,42 @@ def _ring_full_corridor_viper(road_object, known_object, rows_object,
             index += 1
         row_index += 1
     return 1
+
+
+@micropython.viper
+def _compact_full_corridor_rows_viper(road_object, known_object, rows_object,
+                                      count: int) -> int:
+    """Retain only wholly known-white rows, without inventing gap rows."""
+    road = ptr8(road_object)
+    known = ptr8(known_object)
+    rows = ptr32(rows_object)
+    source = 0
+    output = 0
+    while source < count:
+        offset = source * 4
+        y = rows[offset]
+        left = rows[offset + 1]
+        right = rows[offset + 2]
+        valid = 1
+        if y >= 60 or right >= 80 or left > right:
+            valid = 0
+        else:
+            index = y * 80 + left
+            last = y * 80 + right
+            while index <= last:
+                if known[index] == 0 or road[index] == 0:
+                    valid = 0
+                    break
+                index += 1
+        if valid != 0:
+            destination = output * 4
+            rows[destination] = y
+            rows[destination + 1] = left
+            rows[destination + 2] = right
+            rows[destination + 3] = rows[offset + 3]
+            output += 1
+        source += 1
+    return output
 
 
 @micropython.viper
@@ -804,6 +841,10 @@ class TrackElementsTracker:
             settings, "TRACK_ELEMENTS_MAX_ACTIVE_FRAMES", 180, 2, 2000)
         self.max_entry_ms = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MAX_ENTRY_MS", 4000, 1, 60000)
+        self.handoff_max_center_delta2 = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_HANDOFF_MAX_CENTER_DELTA_X2", 12, 1, 40)
+        self.handoff_max_age_ms = self._bounded_setting(
+            settings, "TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS", 1500, 1, 1500)
         self.max_active_ms = self._bounded_setting(
             settings, "TRACK_ELEMENTS_MAX_ACTIVE_MS", 16000, 1, 600000)
         self.exit_confirm_frames = self._bounded_setting(
@@ -1653,6 +1694,7 @@ class TrackElementsTracker:
 
     def _clear_target_output(self):
         result = self._result
+        result["outer_tracking"] = False
         result["target_valid"] = False
         result["target_count"] = 0
         result["target_side"] = SIDE_NONE
@@ -1703,6 +1745,7 @@ class TrackElementsTracker:
 
     def _clear_frame_output(self):
         self._ordinary_snapshot_active = False
+        self._result["outer_tracking"] = False
         result = self._result
         previous_target_count = int(result["target_count"])
         previous_cross_count = int(result["cross_route_count"])
@@ -2342,6 +2385,10 @@ class TrackElementsTracker:
 
     def _release_ring_width(self):
         self._release_entry_transition()
+        self._inner_route_established = False
+        self._selected_route_ms = None
+        self._selected_route_center2 = 0
+        self._selected_route_side = SIDE_NONE
         self._ring_cache_frozen = False
         self._ring_width_calibrated = False
         if hasattr(self, "_result"):
@@ -2769,6 +2816,16 @@ class TrackElementsTracker:
             return False
         previous = self._route_outcome_last_frame
         self._route_outcome_last_frame = frame
+        if (ring_route_selected and self._result.get("target_valid") and
+                self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+                not self._result.get("entry_transition")):
+            selected_side = self._result["target_side"]
+            if selected_side == self._side:
+                self._inner_route_established = True
+            if self._inner_route_established:
+                self._selected_route_ms = int(now_ms)
+                self._selected_route_center2 = self._result["target_center2"]
+                self._selected_route_side = selected_side
         if previous >= 0 and frame != ((previous + 1) & 0x7fffffff):
             self._route_outcome_count = 0
 
@@ -2943,6 +3000,15 @@ class TrackElementsTracker:
     def _build_target_rows(self, mask_info, topology, target_side):
         """Build a locked-side target, then try the bounded entry lease."""
         if self._build_locked_target_rows(mask_info, topology, target_side):
+            if (self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+                    self._selected_route_side not in (SIDE_NONE, target_side) and
+                    self._selected_route_ms is not None and
+                    0 <= _ticks_diff(self._last_now_ms, self._selected_route_ms)
+                    <= self.handoff_max_age_ms and
+                    not self._handoff_continuous()):
+                self._clear_target_output()
+                self._result["ring_target_rejection"] = "HANDOFF_CONTINUITY"
+                return self._build_outer_route(mask_info, topology)
             if (self._state == STATE_INSIDE and
                     target_side == self._entry_transition_side):
                 self._release_entry_transition()
@@ -2956,23 +3022,109 @@ class TrackElementsTracker:
                 rejection == "LOCKED_SIDE_SUPPORT" or
                 rejection == "REFERENCE_GAP"):
             return False
-        if (self._state != STATE_INSIDE or
-                target_side != self._side or
-                not self._entry_transition_lease_valid(self._last_now_ms) or
-                self._entry_transition_side != self._side or
-                not self._calibration_ready or not self._cal_check_ready or
-                not self._ring_width_calibrated or
-                not self._ring_cache_frozen or
-                self._calibration_width_valid is None or
-                self._calibration_width_cells is None or
-                not self._ring_topology_precheck(topology)):
-            return False
-        if self._build_entry_transition_rows(
-                mask_info, topology, target_side):
-            return True
+        if (self._state == STATE_INSIDE and target_side == self._side and
+                self._entry_transition_lease_valid(self._last_now_ms) and
+                self._entry_transition_side == self._side and
+                self._calibration_ready and self._cal_check_ready and
+                self._ring_width_calibrated and self._ring_cache_frozen and
+                self._calibration_width_valid is not None and
+                self._calibration_width_cells is not None and
+                self._ring_topology_precheck(topology)):
+            if self._build_entry_transition_rows(mask_info, topology, target_side):
+                return True
         self._clear_target_output()
         self._result["ring_target_rejection"] = rejection
+        if target_side == self._side and self._build_outer_route(mask_info, topology):
+            return True
         return False
+
+    @micropython.native
+    def _handoff_continuous(self):
+        if not self._inner_route_established or self._selected_route_ms is None:
+            return False
+        age = _ticks_diff(self._last_now_ms, self._selected_route_ms)
+        return (0 <= age <= self.handoff_max_age_ms and
+                abs(self._result["target_center2"] - self._selected_route_center2)
+                <= self.handoff_max_center_delta2)
+
+    def _build_outer_route(self, mask_info, topology):
+        """Continue an admitted inner route using the current observed outer edge."""
+        if (self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM) or
+                not self._inner_route_established or
+                not self._current_valid or not self._session_active or
+                not self.require_calibration or not self._calibration_ready or
+                not self._cal_check_ready or not self._ring_width_calibrated or
+                not self._ring_cache_frozen or
+                self._side not in (SIDE_LEFT, SIDE_RIGHT)):
+            return False
+        original_rejection = self._result["ring_target_rejection"]
+        outer_side = SIDE_RIGHT if self._side == SIDE_LEFT else SIDE_LEFT
+        if self._build_locked_target_rows(mask_info, topology, outer_side):
+            if (self._filter_outer_route_rows(mask_info) and
+                    self._handoff_continuous()):
+                self._result["outer_tracking"] = True
+                return True
+        self._clear_target_output()
+        self._result["ring_target_rejection"] = original_rejection
+        return False
+
+    @micropython.native
+    def _filter_outer_route_rows(self, mask_info):
+        count = _compact_full_corridor_rows_viper(mask_info["road_mask"],
+            mask_info["known_region"], self._target_rows,
+            self._result["target_count"])
+        near_count = 0
+        run = 0
+        longest = 0
+        previous = -2
+        best_delta = self.height + 1
+        reference = -1
+        for i in range(count):
+            y = int(self._target_rows[i*4])
+            if y >= self.height-self.near_rows:
+                near_count += 1
+                run = run+1 if y == previous+1 else 1
+                longest = max(longest, run)
+                previous = y
+            delta = abs(y-self.reference_y)
+            if delta < best_delta:
+                best_delta = delta
+                reference = i
+        if (count < self.min_target_rows or near_count < self.min_near_support or
+                longest < self.min_side_contiguous or reference < 0 or
+                best_delta > self.max_cache_gap):
+            return False
+        offset = reference*4
+        left = int(self._target_rows[offset+1])
+        right = int(self._target_rows[offset+2])
+        result = self._result
+        result["target_count"] = count
+        result["observed_rows"] = count
+        result["inferred_rows"] = count
+        result["target_left2"] = left*2-1
+        result["target_right2"] = right*2+1
+        result["target_center2"] = left+right
+        result["target_lateral_error"] = self._normalize_error(left+right)
+        return True
+
+    @micropython.native
+    def outer_route_valid_for(self, result):
+        """Same-frame certificate for a calibrated, continuous outer-edge route."""
+        return bool(result is self._result and result.get("outer_tracking") and
+            result.get("target_valid") and
+            result.get("frame_index") == self._frame_index and
+            result.get("target_rows") is self._target_rows and
+            self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+            result.get("state_id") == self._state and
+            result.get("side") == self._side and
+            result.get("session_token") == self._session_token and
+            result.get("profile_id") == self._profile_id and
+            self._side in (SIDE_LEFT, SIDE_RIGHT) and
+            result.get("target_side") == 1-self._side and
+            self._session_active and self._profile_id in (2, 3) and
+            self._calibration_ready and self._cal_check_ready and
+            self._ring_width_calibrated and self._ring_cache_frozen and
+            self._handoff_continuous())
 
     @micropython.native
     def entry_transition_valid_for(self, result):

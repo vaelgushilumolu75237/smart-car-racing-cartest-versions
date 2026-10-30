@@ -1749,6 +1749,8 @@ def _load_track_elements_runtime():
             "expected %d" % (
                 getattr(track_elements, "RUNTIME_API_VERSION", None),
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
+    if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 1:
+        raise RuntimeError("V7 element bundle mismatch: ring outer-route API 1 required")
     return track_elements
 
 
@@ -3534,7 +3536,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_ENTRY_V26R4_20261030":
+            "CARTEST_H750_RING_ENTRY_V26R5_20261030":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
@@ -4662,6 +4664,17 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         getattr(element_tracker, "ring_calibration_check_ready", False))
     calibration_required = bool(getattr(
         element_tracker, "require_calibration", False))
+    outer_requested = bool(element_result.get("outer_tracking"))
+    outer_check = getattr(element_tracker, "outer_route_valid_for", None)
+    outer_verified = bool(outer_requested and callable(outer_check) and
+        getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", 0) == 1 and
+        calibration_verified and single_rows_fresh and
+        outer_check(element_result))
+    if outer_requested and not outer_verified:
+        route_result["valid"] = False
+        route_result["selected_row_count"] = 0
+        route_result["reason"] = "RING_OUTER_EDGE_UNVERIFIED"
+        return 0
     transition_flag = getattr(track_elements, "TARGET_ENTRY_TRANSITION", 64)
     transition_requested = bool(element_result.get("entry_transition"))
     transition_check = getattr(element_tracker, "entry_transition_valid_for", None)
@@ -4875,6 +4888,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     route_result["valid"] = True
     route_result["quality"] = quality
     route_result["reason"] = ("RING_ENTRY_TRANSITION_TARGET" if transition_verified
+                              else "RING_OUTER_EDGE_CONTINUATION_TARGET" if outer_verified
                               else "RING_WIDTH_CACHE_TARGET")
     route_result["scene"] = "RING_ACTIVE"
     route_result["lateral_error"] = _normalize_fast_reference(
@@ -7765,6 +7779,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             if ring_count:
                 ring_target_side = element_result.get(
                     "target_side", element_result.get("side"))
+                if element_result.get("outer_tracking"):
+                    # The observed boundary side differs from ring direction.
+                    ring_target_side = element_result.get("side")
                 ring_source = ("ring_left" if ring_target_side ==
                                track_elements.SIDE_LEFT else "ring_right")
                 ring_selection["valid"] = True
