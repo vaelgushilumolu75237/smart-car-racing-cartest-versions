@@ -52,7 +52,7 @@ RING_REFERENCE_Y = 40
 RUNTIME_API_VERSION = 2
 JOINT_ROUTE_API_VERSION = 1
 EXIT_TRANSLATION_API_VERSION = 1
-EXIT_ROUTE_API_VERSION = 1
+EXIT_ROUTE_API_VERSION = 2
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -1679,6 +1679,7 @@ class TrackElementsTracker:
                 self._reject(REJECT_INPUT_INVALID)
             self._update_side_support()
 
+        self._observe_exit_corridor(topology)
         ring_enabled = self._profile_id in (2, 3)
         aborted_this_frame = False
         if (ring_enabled and
@@ -1696,10 +1697,15 @@ class TrackElementsTracker:
                     self._reason = "STATE_TIMEOUT"
                     self._exit_reappear_count = 0
                     self._repair_count = 0
-                    self._clear_target_output()
-                    self._publish()
-                    return self._result
-                self._abort("STATE_TIMEOUT", now_ms, REJECT_STATE_TIMEOUT)
+                    if self._exit_reobserve_ready():
+                        # Restart only with new consecutive measured geometry.
+                        self._state_start_ms = int(now_ms)
+                    else:
+                        self._clear_target_output()
+                        self._publish()
+                        return self._result
+                else:
+                    self._abort("STATE_TIMEOUT", now_ms, REJECT_STATE_TIMEOUT)
                 aborted_this_frame = True
             elif self._odom_limit_exceeded():
                 self._abort("ODOM_PROGRESS_LIMIT", now_ms,
@@ -2487,6 +2493,10 @@ class TrackElementsTracker:
         self._selected_route_ms = None
         self._selected_route_center2 = 0
         self._selected_route_side = SIDE_NONE
+        self._exit_reobserve_count = 0
+        self._exit_reobserve_ms = None
+        self._exit_reobserve_frame = -1
+        self._exit_reobserve_center2 = -1
         self._ring_cache_frozen = False
         self._ring_width_calibrated = False
         if hasattr(self, "_result"):
@@ -3124,6 +3134,48 @@ class TrackElementsTracker:
         else:
             self._repair_count = 0
 
+    def _observe_exit_corridor(self, topology):
+        """Build independent temporal evidence after an open exit gap.
+
+        No guessed edge or unselected single route may refresh this evidence.
+        Both measured edges must fit the frozen width/registered exit profile.
+        """
+        previous = self._exit_reobserve_frame
+        center2 = -1
+        if (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
+                           STATE_REACQUIRE) and
+                self.require_calibration and self._ring_cache_frozen and
+                self._ring_width_calibrated and
+                self._ordinary_corridor_frame(True) and
+                self._paired_aligned_frame(topology)):
+            status = (self._ordinary_status if self._ordinary_snapshot_active
+                      else self._current_status)
+            edges = (self._ordinary_edge2 if self._ordinary_snapshot_active
+                     else self._current_edge2)
+            y = self.reference_y
+            if status[y] == 1 and status[self.height+y] == 1:
+                center2 = (int(edges[y])+int(edges[self.height+y]))//2
+        if center2 < 0:
+            self._exit_reobserve_count = 0
+            self._exit_reobserve_ms = None
+            self._exit_reobserve_frame = self._frame_index
+            return
+        continuous = (self._exit_reobserve_ms is not None and
+            self._frame_index == ((previous+1) & 0x7fffffff) and
+            0 <= _ticks_diff(self._last_now_ms,self._exit_reobserve_ms) < 250 and
+            abs(center2-self._exit_reobserve_center2) <=
+            self.handoff_max_center_delta2)
+        self._exit_reobserve_count = (min(self.exit_repair_frames,
+            self._exit_reobserve_count+1) if continuous else 1)
+        self._exit_reobserve_center2 = center2
+        self._exit_reobserve_ms = self._last_now_ms
+        self._exit_reobserve_frame = self._frame_index
+
+    def _exit_reobserve_ready(self):
+        return (self._exit_reobserve_count >= self.exit_repair_frames and
+                self._exit_reobserve_frame == self._frame_index and
+                self._exit_reobserve_ms == self._last_now_ms)
+
     def _exit_route_continuous(self):
         """Match a current accepted bilateral exit to recent ring guidance."""
         if not self._ordinary_near_support_ok():
@@ -3132,6 +3184,8 @@ class TrackElementsTracker:
             # Host/non-calibrated adapters have no physical UART admission.
             return not self.require_calibration
         age = _ticks_diff(self._last_now_ms, self._selected_route_ms)
+        if self._exit_reobserve_ready():
+            return True
         if age < 0 or age > self.handoff_max_age_ms:
             return False
         status = (self._ordinary_status if self._ordinary_snapshot_active
@@ -3248,6 +3302,11 @@ class TrackElementsTracker:
                      0 <= _ticks_diff(self._last_now_ms, self._selected_route_ms)
                      <= self.handoff_max_age_ms) and
                     not self._handoff_continuous()):
+                if (self._exit_reobserve_ready() and
+                        abs(self._result["target_center2"] -
+                            self._exit_reobserve_center2) <=
+                        self.handoff_max_center_delta2):
+                    return True
                 self._clear_target_output()
                 self._result["ring_target_rejection"] = "HANDOFF_CONTINUITY"
                 return self._build_outer_route(mask_info, topology)

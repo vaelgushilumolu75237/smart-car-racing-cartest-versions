@@ -98,9 +98,18 @@ class ExitGuidanceTests(unittest.TestCase):
             h = self.tracker(1)
             h.tracker._selected_route_center2 = 40 if kind == 'jump' else 80
             if kind == 'stale': h.tracker._selected_route_ms = h.now-2001
-            for _ in range(8): r = h.frame()
+            for _ in range(h.tracker.exit_repair_frames-1):
+                r = h.frame()
+                self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR)
+                self.assertEqual(h.tracker._repair_count, 0)
+            # Fresh independent paired evidence permits a bounded restart,
+            # but still cannot skip the configured repair/reacquire sequence.
+            r = h.frame()
+            self.assertEqual(h.tracker._exit_reobserve_count,
+                             h.tracker.exit_repair_frames)
             self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR)
-            self.assertEqual(h.tracker._repair_count, 0)
+            for _ in range(h.tracker.exit_repair_frames): r = h.frame()
+            self.assertEqual(r['state_id'], te.STATE_REACQUIRE)
             self.assertTrue(h.tracker._ring_cache_frozen)
 
     def test_timeout_and_false_entry_recovery_do_not_bypass_exit(self):
@@ -114,6 +123,36 @@ class ExitGuidanceTests(unittest.TestCase):
         for _ in range(5):
             self.assertFalse(h.tracker.observe_route_outcome(h.now, False, True))
         self.assertEqual(h.tracker._state, te.STATE_EXIT_REPAIR)
+
+    def test_bilateral_reobservation_breaks_on_gap_width_or_branch(self):
+        for kind in ('time', 'width', 'branch', 'single', 'shift'):
+            h = self.tracker(1)
+            self.seed_previous(h, 40, 0)
+            for _ in range(3): h.frame()
+            self.assertEqual(h.tracker._exit_reobserve_count, 3)
+            args = {}
+            if kind == 'time': args['advance_ms'] = 251
+            if kind == 'width': args['right'] = 64
+            if kind == 'branch':
+                args['topology'] = dict(reason='BRANCH', complete=True,
+                                        branch_evidence=True)
+            if kind == 'single': args.update(road_accepted=False, raw_side=1)
+            if kind == 'shift':
+                args.update(left=33, right=63,
+                    mask_info=h.mask(left_by_y=lambda y:33,
+                                     right_by_y=lambda y:63))
+            r = h.frame(**args)
+            self.assertLess(h.tracker._exit_reobserve_count, 4)
+            self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR)
+            self.assertEqual(h.tracker._repair_count, 0)
+
+    def test_current_paired_reobservation_cannot_authorize_unseen_inner_edge(self):
+        h = self.tracker(1)
+        self.seed_previous(h, 40, 0)
+        for _ in range(3): h.frame()
+        r = h.frame(road_accepted=False, raw_side=0)
+        self.assertEqual(h.tracker._exit_reobserve_count, 0)
+        self.assertFalse(r['target_valid'])
 
     def test_actual_inner_targets_reach_final_uart_with_mirrored_errors(self):
         import config

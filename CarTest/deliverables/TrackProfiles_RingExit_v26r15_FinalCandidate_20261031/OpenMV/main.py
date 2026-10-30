@@ -3550,7 +3550,7 @@ def _validate_fast_config():
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
     if getattr(track_elements, "JOINT_ROUTE_API_VERSION", None) != 1:
         raise RuntimeError("v26 requires matching track_elements.py with route recovery")
-    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 1:
+    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 2:
         raise RuntimeError("v26-r14 requires matching exit route module")
     if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
         raise RuntimeError("v26-r13 requires matching exit translation module")
@@ -3561,7 +3561,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R14_20261031":
+            "CARTEST_H750_RING_EXIT_V26R15_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
