@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "f13c08bf9c0c8aa9706fc00ce65f2372143bb425e8a76ec73b8c47f125855b17",
+      "source_sha256": "1322618b14d2abf95a065d4d8492c57ef61dc23cbed721b254f22b1069c2b264",
       "exit_code": 0,
-      "mpy_sha256": "67a428d35d233714c1fe5257587d93616153365d4c70acb6e05ddf5db60240dd"
+      "mpy_sha256": "cf5e374c384f2f4d0f4404abf99d2a4073d5f992669ec6c803991205478f940e"
     },
     {
       "file": "reverse_control.py",
@@ -173,12 +173,12 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "package_id": "v20261030-ring-entry-v26-candidate",
   "candidate_only": true,
   "hardware_validation": false,
   "deployment_eligible": false,
   "board_fps_verified": false,
   "road_validation": "pending",
   "paired_native_app_sha256": "c693f1ce035f8ff12796e2b21c21d347d5ef8aac7b4a78f6343a089ad45dc154",
-  "vehicle_source_and_elf_unchanged": true
+  "vehicle_source_and_elf_unchanged": true,
+  "package_id": "v20261030-ring-entry-v26-r1"
 }

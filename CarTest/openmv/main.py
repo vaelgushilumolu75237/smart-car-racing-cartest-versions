@@ -4894,9 +4894,9 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         fast_single_edge.INFERENCE_USED_WIDTH_CACHE |
         fast_single_edge.INFERENCE_USED_CURRENT_EDGE |
         fast_single_edge.INFERENCE_USED_CONTINUITY)
-    route_result["observed_both_rows"] = int(
-        element_result.get("observed_rows", 0)) - int(
-            element_result.get("inferred_rows", 0))
+    route_result["observed_both_rows"] = (0 if transition_verified else max(0,
+        int(element_result.get("observed_rows", 0)) - int(
+            element_result.get("inferred_rows", 0))))
     route_result["inferred_rows"] = int(
         element_result.get("inferred_rows", 0))
     route_result["actual_boundary"] = ("NONE" if reference_boundary ==

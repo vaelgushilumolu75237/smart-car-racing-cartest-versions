@@ -53,7 +53,8 @@ def transition_vector(side):
                    target_rows=rows, target_count=52, target_stride=4,
                    entry_transition=True, entry_transition_frame=1,
                    entry_transition_far_y=20, entry_transition_near_y=48,
-                   session_token=1, profile_id=3, profile_seq=11)
+                   session_token=1, profile_id=3, profile_seq=11,
+                   observed_rows=25, inferred_rows=52)
     tracker = types.SimpleNamespace(min_target_rows=5, max_cache_gap=3, near_rows=12,
         require_calibration=True, ring_calibration_ready=True, ring_calibration_check_ready=True,
         ring_arc_min_rows=4, ring_arc_min_contiguous_rows=3, ring_arc_min_span_rows=4,
@@ -79,6 +80,7 @@ class MainEntryTransitionTests(unittest.TestCase):
             self.assertEqual(count, 52)
             self.assertEqual(result['actual_boundary'], 'NONE')
             self.assertIsNone(result['actual_boundary_x'])
+            self.assertEqual(result['observed_both_rows'], 0)
             row40 = (40-8)*5
             self.assertEqual(output[row40+3], main.track_elements.SIDE_NONE)
             self.assertEqual(output[row40+4] & 3, 0)  # no fabricated observed edge
