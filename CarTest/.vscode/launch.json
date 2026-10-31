@@ -1,144 +1,144 @@
 {
-    "version":  "0.2.0",
-    "configurations":  [
-                           {
-                               "name":  "新A 提速无环岛 5.6/4.4",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build 新A 提速无环岛 5.6/4.4",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "新B 原速环岛 4.8/4.0",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build 新B 原速环岛 4.8/4.0",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugRingBase/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugRingBase/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "新C 提速环岛 5.6/4.4",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build 新C 提速环岛 5.6/4.4",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugRingFast/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugRingFast/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "诊断 - 电机与舵机输出关闭",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build Debug",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/Debug/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/Debug/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "A - 当前基线 70%/30%（日志开启）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "B - 65%/35% 开环对照（2秒丢线截止）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowTurn65 (65/35 turn; hold 2000 ms; decel 200 ms; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           },
-                           {
-                               "name":  "C - 增量式PI上坡保速试验（65%/35%基础差速）",
-                               "type":  "stlinkgdbtarget",
-                               "request":  "launch",
-                               "cwd":  "${workspaceFolder}",
-                               "preLaunchTask":  "CarTest: Build DebugFollowIncrementalPI (65/35 turn; incremental encoder PI; RAM log ON)",
-                               "serverInterface":  "SWD",
-                               "serverInterfaceFrequency":  "4000",
-                               "serverReset":  "Software system reset",
-                               "imagesAndSymbols":  [
-                                                        {
-                                                            "imageFileName":  "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf",
-                                                            "symbolFileName":  "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf"
-                                                        }
-                                                    ],
-                               "liveWatch":  {
-                                                 "enabled":  true,
-                                                 "samplesPerSecond":  "4"
-                                             }
-                           }
-                       ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "r22 (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r22 (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r22 (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 (r20改版) 新C - 环内+20% 5.28 rps [丢线3s/减速300ms; 右环岛左边补线]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r22 (r20改版) 新C - 环内+20% 5.28 rps [丢线3s/减速300ms; 右环岛左边补线]",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFast/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFast/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 诊断 - 电机/舵机输出关闭",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r22 诊断 - 电机/舵机输出关闭",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/Debug/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/Debug/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 历史A - 20261019冻结ELF [非新A]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 历史B - 开环65/35 [非新B]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "r22 历史对照 Build: DebugFollowTurn65",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r22 历史C - 旧增量PI [非环岛新C]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "r22 历史对照 Build: DebugFollowIncrementalPI",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    }
+  ]
 }

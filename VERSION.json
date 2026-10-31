@@ -1,7 +1,7 @@
 {
-  "version": "v20261031-r20-ring-tune-v26-r22",
+  "version": "v20261031-r20-ring-tune-v26-r22-debug-labels",
   "status": "experimental-software-tested",
   "branch": "experimental/r20-ring-tune",
-  "files": 863,
+  "files": 864,
   "hardware_actions": "none"
 }
