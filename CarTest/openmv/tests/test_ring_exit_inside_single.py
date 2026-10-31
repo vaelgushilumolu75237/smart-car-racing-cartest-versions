@@ -33,10 +33,13 @@ class InsideSingleExitTests(unittest.TestCase):
     def test_real_entry_then_three_outer_frames_admit_exit_without_inner_anchor(self):
         for side in (0, 1):
             h = self.fixture(side)
-            for i in range(3):
+            if side == te.SIDE_RIGHT:
+                from test_ring_exit_ownership import ExitOwnershipTests
+                ExitOwnershipTests().depart(h)
+            for i in range(1 if side == te.SIDE_RIGHT else 3):
                 r = self.outer(h)
                 self.assertEqual(r['exit_single_count'], i+1)
-                self.assertEqual(r['state_id'], te.STATE_EXIT_CONFIRM if i == 2
+                self.assertEqual(r['state_id'], te.STATE_EXIT_CONFIRM if (side == te.SIDE_RIGHT or i == 2)
                                  else te.STATE_INSIDE)
                 self.assertEqual(h.tracker._near_left_rows if side == 0 else
                                  h.tracker._near_right_rows, 0)
@@ -51,6 +54,9 @@ class InsideSingleExitTests(unittest.TestCase):
     def test_progress_to_reacquire_then_require_bilateral_release(self):
         for side in (0, 1):
             h = self.fixture(side)
+            if side == te.SIDE_RIGHT:
+                from test_ring_exit_ownership import ExitOwnershipTests
+                ExitOwnershipTests().depart(h)
             states = []
             for _ in range(15):
                 r = self.outer(h)

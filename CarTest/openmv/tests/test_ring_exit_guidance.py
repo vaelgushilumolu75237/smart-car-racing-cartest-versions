@@ -64,7 +64,7 @@ class ExitGuidanceTests(unittest.TestCase):
                     _, left, right, _ = r['target_rows'][i*4:i*4+4]
                     self.assertEqual(right-left+1, 31)
 
-    def test_jump_stale_missing_unknown_or_branch_fails_closed(self):
+    def test_current_right_exit_and_rejected_missing_unknown_or_branch(self):
         for kind in ('jump', 'stale', 'missing', 'unknown', 'branch'):
             for side in (0, 1):
                 h = self.tracker(side)
@@ -82,7 +82,11 @@ class ExitGuidanceTests(unittest.TestCase):
                     args['topology'] = dict(reason='BRANCH', complete=True,
                                             branch_evidence=True)
                 r = h.frame(**args)
-                self.assertFalse(r['target_valid'], (kind, side))
+                if side == 1 and kind in ('jump', 'stale'):
+                    self.assertTrue(r['target_valid'], (kind, side))
+                    self.assertEqual(r['target_side'], te.SIDE_LEFT)
+                else:
+                    self.assertFalse(r['target_valid'], (kind, side))
                 self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR)
 
     def test_inner_restoration_cannot_jump_from_outer_route(self):
@@ -146,13 +150,15 @@ class ExitGuidanceTests(unittest.TestCase):
             self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR)
             self.assertEqual(h.tracker._repair_count, 0)
 
-    def test_current_paired_reobservation_cannot_authorize_unseen_inner_edge(self):
+    def test_current_left_exit_replaces_unseen_inner_edge(self):
         h = self.tracker(1)
         self.seed_previous(h, 40, 0)
         for _ in range(3): h.frame()
         r = h.frame(road_accepted=False, raw_side=0)
         self.assertEqual(h.tracker._exit_reobserve_count, 0)
-        self.assertFalse(r['target_valid'])
+        self.assertTrue(r['target_valid'])
+        self.assertEqual(r['target_side'], te.SIDE_LEFT)
+        self.assertEqual(r['exit_admission_reason'], 'EXIT_CURRENT_SINGLE')
 
     def test_actual_inner_targets_reach_final_uart_with_mirrored_errors(self):
         import config

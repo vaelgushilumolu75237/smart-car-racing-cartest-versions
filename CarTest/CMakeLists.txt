@@ -91,10 +91,17 @@ if(NOT CARTEST_TRACK_PROFILE STREQUAL "0")
      NOT CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI OR
      NOT CARTEST_ENABLE_ACKERMANN_COORDINATION OR
      NOT CARTEST_HARDWARE_ACCEPTED OR NOT CARTEST_RUNTIME_LOG_ENABLED OR
-     NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "150" OR
-     NOT CARTEST_VISION_HOLD_MS STREQUAL "2000" OR
-     NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "200")
-    message(FATAL_ERROR "Track profiles 1..3 require the logged, hardware-accepted 65/35 incremental-PI Ackermann Follow configuration with the established 2000/200 ms hold.")
+     NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "150")
+    message(FATAL_ERROR "Track profiles require the logged, hardware-accepted 65/35 incremental-PI Ackermann Follow configuration.")
+  endif()
+endif()
+if(CARTEST_TRACK_PROFILE STREQUAL "3")
+  if(NOT CARTEST_VISION_HOLD_MS STREQUAL "3000" OR NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "300")
+    message(FATAL_ERROR "r22 C requires the 3000/300 ms hold profile.")
+  endif()
+elseif(CARTEST_TRACK_PROFILE MATCHES "^(1|2)$")
+  if(NOT CARTEST_VISION_HOLD_MS STREQUAL "2000" OR NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "200")
+    message(FATAL_ERROR "A/B retain the 2000/200 ms hold profile.")
   endif()
 endif()
 set(_cartest_enable_ackermann_coordination OFF)

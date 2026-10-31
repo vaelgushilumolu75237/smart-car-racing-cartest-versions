@@ -176,31 +176,78 @@
     },
     {
       "name": "DebugRingFast",
-      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann; r22 vision hold 3000ms / ramp 300ms",
       "inherits": "DebugFollowIncrementalPI",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CARTEST_TRACK_PROFILE": "3",
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
-        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400"
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
     }
   ],
   "buildPresets": [
-    { "name": "Debug", "configurePreset": "Debug" },
-    { "name": "DebugSteering", "configurePreset": "DebugSteering" },
-    { "name": "DebugBench", "configurePreset": "DebugBench" },
-    { "name": "DebugFollow", "configurePreset": "DebugFollow" },
-    { "name": "DebugFollowNoLog", "configurePreset": "DebugFollowNoLog" },
-    { "name": "DebugFollowDiff5", "configurePreset": "DebugFollowDiff5" },
-    { "name": "DebugFollowDiff10", "configurePreset": "DebugFollowDiff10" },
-    { "name": "DebugFollowTurn", "configurePreset": "DebugFollowTurn" },
-    { "name": "DebugFollowSpeedPI", "configurePreset": "DebugFollowSpeedPI" },
-    { "name": "DebugFollowTurn65", "configurePreset": "DebugFollowTurn65" },
-    { "name": "DebugFollowIncrementalPI", "configurePreset": "DebugFollowIncrementalPI" },
-    { "name": "DebugFollowIncrementalPIBaseline", "configurePreset": "DebugFollowIncrementalPIBaseline" },
-    { "name": "DebugFastNoRing", "configurePreset": "DebugFastNoRing" },
-    { "name": "DebugRingBase", "configurePreset": "DebugRingBase" },
-    { "name": "DebugRingFast", "configurePreset": "DebugRingFast" }
+    {
+      "name": "Debug",
+      "configurePreset": "Debug"
+    },
+    {
+      "name": "DebugSteering",
+      "configurePreset": "DebugSteering"
+    },
+    {
+      "name": "DebugBench",
+      "configurePreset": "DebugBench"
+    },
+    {
+      "name": "DebugFollow",
+      "configurePreset": "DebugFollow"
+    },
+    {
+      "name": "DebugFollowNoLog",
+      "configurePreset": "DebugFollowNoLog"
+    },
+    {
+      "name": "DebugFollowDiff5",
+      "configurePreset": "DebugFollowDiff5"
+    },
+    {
+      "name": "DebugFollowDiff10",
+      "configurePreset": "DebugFollowDiff10"
+    },
+    {
+      "name": "DebugFollowTurn",
+      "configurePreset": "DebugFollowTurn"
+    },
+    {
+      "name": "DebugFollowSpeedPI",
+      "configurePreset": "DebugFollowSpeedPI"
+    },
+    {
+      "name": "DebugFollowTurn65",
+      "configurePreset": "DebugFollowTurn65"
+    },
+    {
+      "name": "DebugFollowIncrementalPI",
+      "configurePreset": "DebugFollowIncrementalPI"
+    },
+    {
+      "name": "DebugFollowIncrementalPIBaseline",
+      "configurePreset": "DebugFollowIncrementalPIBaseline"
+    },
+    {
+      "name": "DebugFastNoRing",
+      "configurePreset": "DebugFastNoRing"
+    },
+    {
+      "name": "DebugRingBase",
+      "configurePreset": "DebugRingBase"
+    },
+    {
+      "name": "DebugRingFast",
+      "configurePreset": "DebugRingFast"
+    }
   ]
 }

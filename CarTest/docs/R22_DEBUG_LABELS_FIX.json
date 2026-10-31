@@ -1,0 +1,7 @@
+{
+  "change": "VS Code debug/task display labels and workspace folder name only",
+  "ELF_changes": false,
+  "linked_new_C_preset": "DebugRingFast",
+  "base_firmware_tag": "v20261031-r20-ring-tune-v26-r22",
+  "check": "all 7 debug image/symbol paths exist; every preLaunchTask resolves; new C task builds DebugRingFast"
+}

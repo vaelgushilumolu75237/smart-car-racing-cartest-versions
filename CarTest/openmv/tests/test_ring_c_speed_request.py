@@ -17,13 +17,13 @@ class RingCSpeedRequestTests(unittest.TestCase):
         return wire.FastMainRingSlopeWireTests()._run_profile_element_case(
             Ring, profile)[0]
 
-    def test_c_inside_preserves_r16_request_in_actual_uart_packet(self):
+    def test_c_inside_twenty_percent_faster_request_in_actual_uart_packet(self):
         main._load_track_elements_runtime()
         p = self.packet(3, main.track_elements.STATE_INSIDE)
         self.assertTrue(p[6] & 1)
         self.assertEqual(p[11], 3)
         self.assertEqual(p[10], main.vision_protocol.CURVE_PHASE_TURN)
-        self.assertEqual(int.from_bytes(p[12:14], 'little'), 1000)
+        self.assertEqual(int.from_bytes(p[12:14], 'little'), 267)
 
     def test_c_entry_exit_and_reacquire_keep_previous_request(self):
         main._load_track_elements_runtime()

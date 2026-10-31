@@ -47,9 +47,10 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_EXIT_V26R20_20261031"
-# Keep the r16 wheel-speed request while validating exit geometry.
-RING_C_INSIDE_SLOWDOWN_PERMILLE = 1000
+TRACK_PACKAGE_BUILD_ID = "TRACK_RING_EXIT_V26_R23_20261101"
+# C INSIDE: 5600 - round((5600-4400)*267/1000) = 5280 milli-RPS.
+# Entry transition, exit and profile B retain the full slowdown request.
+RING_C_INSIDE_SLOWDOWN_PERMILLE = 267
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.

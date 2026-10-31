@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "label": "A_FastNoRing",
+      "preset": "DebugFastNoRing",
+      "profile_id": 1,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": false,
+      "ring_outer_target_millirps": null,
+      "build_id": "fc8bf2ece119338809e53597cabf2baa",
+      "elf_sha256": "bde08090b9db37636ad091a113e2acced05533fe6f4196f63ccd7789c21084a9",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests",
+      "vision_hold_ms": 2000,
+      "vision_hold_ramp_ms": 200,
+      "steady_inside_target_millirps": null,
+      "steady_inside_slowdown_request": 1000
+    },
+    {
+      "label": "B_RingBase",
+      "preset": "DebugRingBase",
+      "profile_id": 2,
+      "straight_target_millirps": 4800,
+      "curve_outer_target_millirps": 4000,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4000,
+      "build_id": "17c7ee3982570a36fdc12049eaaa751d",
+      "elf_sha256": "b0fed96230e89c7abb54d59a5aab22c115f592af0223fc1571bdfdc48c4a7c5f",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests",
+      "vision_hold_ms": 2000,
+      "vision_hold_ramp_ms": 200,
+      "steady_inside_target_millirps": 4000,
+      "steady_inside_slowdown_request": 1000
+    },
+    {
+      "label": "C_RingFast",
+      "preset": "DebugRingFast",
+      "profile_id": 3,
+      "straight_target_millirps": 5600,
+      "curve_outer_target_millirps": 4400,
+      "ring_enabled": true,
+      "ring_outer_target_millirps": 4400,
+      "build_id": "4b238b225406507facb6b509ce841b98",
+      "elf_sha256": "2c4c232eed44f24055cf986a7657a919e682b0b36978ca58d497503d024614ce",
+      "runtime_log_record_size": 64,
+      "runtime_log_header_size": 64,
+      "vehicle_acceptance": "pending_manual_road_tests",
+      "vision_hold_ms": 3000,
+      "vision_hold_ramp_ms": 300,
+      "steady_inside_target_millirps": 5280,
+      "steady_inside_slowdown_request": 267
+    }
+  ],
+  "forward_wire": "V3/16-byte/profile-ack",
+  "reverse_state_wire": "V2/20-byte/revision1",
+  "reverse_heartbeat_wire": "V1/8-byte/RESET-KEEP",
+  "hardware_acceptance": "pending_manual_road_tests"
+}

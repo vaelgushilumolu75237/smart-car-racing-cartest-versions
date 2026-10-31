@@ -2,124 +2,285 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "CarTest: Build Debug",
+      "label": "Build: r23 camera + r22 H743 诊断 - 电机/舵机输出关闭",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "Debug"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
-      "group": { "kind": "build", "isDefault": true }
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
     },
     {
-      "label": "CarTest: Build 新A 提速无环岛 5.6/4.4",
+      "label": "Build: r23 camera + r22 H743 (r20改版) 新A - 无环岛 5.6/4.4 rps",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFastNoRing"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFastNoRing"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build 新B 原速环岛 4.8/4.0",
+      "label": "Build: r23 camera + r22 H743 (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugRingBase"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugRingBase"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build 新C 提速环岛 5.6/4.4",
+      "label": "Build: r23 camera + r22 H743 (r20改版) 新C - 环内+20% 5.28 rps [丢线3s/减速300ms; 右环岛左边补线]",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugRingFast"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugRingFast"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugSteering (motors locked; vision steering diagnostic)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugSteering",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugSteering"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugSteering"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugBench (motor outputs locked pending hardware acceptance)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugBench",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugBench"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugBench"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollow (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollow",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollow"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollow"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowNoLog (motors enabled; PE7 toggle; straight 50%; hard cap 70%; diff=0; RAM log OFF)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowNoLog",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowNoLog"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowNoLog"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowDiff5 (motors enabled; d=50; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowDiff5",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowDiff5"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowDiff5"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowDiff10 (motors enabled; d=100; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowDiff10",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowDiff10"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowDiff10"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowTurn (motors enabled; 70/30 turn; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowTurn",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowTurn"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowTurn"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowTurn65 (65/35 turn; hold 2000 ms; decel 200 ms; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowTurn65",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowTurn65"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowTurn65"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowIncrementalPI (65/35 turn; incremental encoder PI; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowIncrementalPI",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowIncrementalPI"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowIncrementalPI"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Build DebugFollowSpeedPI (experimental encoder PI; RAM log ON)",
+      "label": "r23 camera + r22 H743 历史对照 Build: DebugFollowSpeedPI",
       "type": "process",
       "command": "powershell.exe",
-      "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Preset", "DebugFollowSpeedPI"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/tools/build.ps1",
+        "-Preset",
+        "DebugFollowSpeedPI"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     },
     {
-      "label": "CarTest: Host tests",
+      "label": "r23 camera + r22 H743: Host tests",
       "type": "process",
       "command": "python",
-      "args": ["${workspaceFolder}/tools/run_host_tests.py"],
-      "options": { "cwd": "${workspaceFolder}" },
+      "args": [
+        "${workspaceFolder}/tools/run_host_tests.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": []
     }
   ]

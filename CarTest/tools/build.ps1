@@ -287,6 +287,10 @@ try {
         $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } else { '4400' }
     }
     $configuredCache = Join-Path $buildDirectory 'CMakeCache.txt'
+    if ($Preset -eq 'DebugRingFast') {
+        $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_MS = '3000'
+        $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_RAMP_MS = '300'
+    }
     foreach ($flagName in $expectedProfileFlags[$Preset].Keys) {
         $actualFlag = Get-CacheValue -CachePath $configuredCache -Name $flagName
         if ($actualFlag -ne $expectedProfileFlags[$Preset][$flagName]) {

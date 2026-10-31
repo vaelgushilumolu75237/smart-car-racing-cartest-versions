@@ -3561,6 +3561,8 @@ def _validate_fast_config():
         raise RuntimeError("v26-r16 requires matching exit route module")
     if getattr(track_elements, "EXIT_INSIDE_API_VERSION", None) != 1:
         raise RuntimeError("v26-r20 requires matching independent exit admission")
+    if getattr(track_elements, "EXIT_IMMEDIATE_RIGHT_API_VERSION", None) != 2:
+        raise RuntimeError("v26-r23 requires matching exit discovery and ownership")
     if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
         raise RuntimeError("v26-r13 requires matching exit translation module")
     if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
@@ -3570,12 +3572,12 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R20_20261031":
+            "TRACK_RING_EXIT_V26_R23_20261101":
         raise ValueError("V7 track package identity is missing or mismatched")
     if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
             isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or
-            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 1000):
-        raise ValueError("C ring inside slowdown request must remain r16 value 1000")
+            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 267):
+        raise ValueError("C ring inside slowdown request must match r22 value 267")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
     if getattr(config, "RING_WIDTH_CALIBRATION_REQUIRED", None) is not True:
@@ -8824,7 +8826,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 print("V7RING seq=%d st=%s sd=%s arc=%d/%d near=%d/%d "
                       "gf=%d dx2=%+d path=%s tgt=%d rej=%s/%s "
                       "target_side=%s center2=%d cmd=%d source=%s admit=%s "
-                      "exit_single=%s/%d residual2=%d" % (
+                      "exit_single=%s/%d residual2=%d search=%d lock=%d geometry=%s" % (
                           sequence_sent,
                           ring_state,
                           ring_info.get("side_name", "NONE"),
@@ -8846,7 +8848,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                           ring_info.get("route_admission_reason", "NOT_RUN"),
                           ring_info.get("exit_single_reason", "NOT_RUN"),
                           ring_info.get("exit_single_count", 0),
-                          ring_info.get("exit_single_residual_x2", -1)))
+                          ring_info.get("exit_single_residual_x2", -1),
+                          1 if ring_info.get("exit_search_armed") else 0,
+                          1 if ring_info.get("exit_guidance_latched") else 0,
+                          ring_info.get("exit_single_geometry_rejection", "NONE")))
             if single_diagnostic_reason == "AMBIGUOUS_BOTH_SIDES":
                 pair_record = getattr(
                     single_edge_tracker, "pair_diagnostic_record", None)

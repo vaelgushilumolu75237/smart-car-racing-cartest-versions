@@ -24,14 +24,14 @@ class SingleExitTests(unittest.TestCase):
                 h.tracker.commit_transmitted_route(h.now, True, True)
         return h
 
-    def test_three_new_single_frames_confirm_without_bilateral(self):
+    def test_left_exit_three_frames_right_exit_first_frame(self):
         for side in (0, 1):
             h = self.fixture(side)
             for i in range(3):
                 r = self.single(h)
-                self.assertEqual(r['exit_single_count'], i+1)
-                self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR if i == 2
-                                 else te.STATE_EXIT_CONFIRM)
+                self.assertEqual(r['exit_single_count'], i+1 if side == 0 else 1)
+                self.assertEqual(r['state_id'], te.STATE_EXIT_REPAIR if
+                                 (side == 1 or i == 2) else te.STATE_EXIT_CONFIRM)
             self.assertTrue(r['target_valid'])
             self.assertTrue(r['outer_tracking'])
             self.assertEqual(r['target_side'], 1-side)
@@ -69,7 +69,7 @@ class SingleExitTests(unittest.TestCase):
 
     def test_interruption_restarts_three_frame_confirmation(self):
         for kind in ('gap', 'duplicate_time', 'branch', 'missing', 'invalid'):
-            h = self.fixture(1)
+            h = self.fixture(0)
             self.single(h); self.single(h)
             if kind == 'gap': self.single(h, advance_ms=250)
             elif kind == 'duplicate_time': self.single(h, advance_ms=0)
@@ -86,7 +86,7 @@ class SingleExitTests(unittest.TestCase):
             r = self.single(h)
             self.assertLess(r['exit_single_count'], 3, kind)
 
-    def test_curve_unknown_dark_island_and_unanchored_line_do_not_certify(self):
+    def test_spatial_rejections_and_right_current_edge_over_frozen_anchor(self):
         for kind in ('curve', 'unknown', 'dark', 'island', 'stale', 'jump',
                      'ambiguous', 'wrong_width', 'no_gap', 'no_calibration'):
             h = self.fixture(1); t = h.tracker
@@ -97,7 +97,7 @@ class SingleExitTests(unittest.TestCase):
             if kind == 'island':
                 args['topology']=dict(complete=True,reason='ISLAND',island=True,
                                      ambiguous=True, independent_branch_checked=True)
-            if kind == 'stale': t._selected_route_ms=h.now-2001
+            if kind == 'stale': t._selected_route_ms=h.now-3001
             if kind == 'jump':
                 for y in range(t.height): t._wire_centers2[y]-=30
             if kind == 'no_gap': t._exit_side=te.SIDE_NONE
@@ -119,7 +119,10 @@ class SingleExitTests(unittest.TestCase):
                               mask_info=h.mask());call.update(args);r=h.frame(**call)
             # One blocked row can be discarded by the pre-existing visible
             # corridor filter; it cannot be represented as an observed target.
-            if kind=='dark':
+            if kind=='jump':
+                self.assertTrue(t._exit_single_ready())
+                self.assertEqual(r['target_side'], te.SIDE_LEFT)
+            elif kind=='dark':
                 self.assertTrue(all(r['target_rows'][i*4]!=55
                                     for i in range(r['target_count'])))
             else:
@@ -127,7 +130,7 @@ class SingleExitTests(unittest.TestCase):
 
     def test_no_valid_write_or_old_geometry_cannot_extend_last_sent_deadline(self):
         h=self.ready(1);t=h.tracker;stamp=t._selected_route_ms
-        for _ in range(70):
+        for _ in range(110):
             self.single(h)
             self.assertFalse(t.commit_transmitted_route(h.now, True, False))
         self.assertEqual(t._selected_route_ms,stamp)
