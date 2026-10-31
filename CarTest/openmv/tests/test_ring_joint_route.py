@@ -145,6 +145,7 @@ class CalibratedRingRouteTests(unittest.TestCase):
         from unittest.mock import patch
         main._load_track_elements_runtime();main._load_ring_runtime()
         for module,attribute in ((main.track_elements,"JOINT_ROUTE_API_VERSION"),
+                                 (main.track_elements,"EXIT_INSIDE_API_VERSION"),
                                  (main.ring_diagnostics,"FORMAT_VERSION")):
             with patch.object(module,attribute,0):
                 with self.assertRaises(RuntimeError):main._validate_fast_config()

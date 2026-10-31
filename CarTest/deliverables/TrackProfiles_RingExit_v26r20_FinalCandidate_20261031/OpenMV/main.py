@@ -3559,6 +3559,8 @@ def _validate_fast_config():
         raise RuntimeError("v26 requires matching track_elements.py with route recovery")
     if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 3:
         raise RuntimeError("v26-r16 requires matching exit route module")
+    if getattr(track_elements, "EXIT_INSIDE_API_VERSION", None) != 1:
+        raise RuntimeError("v26-r20 requires matching independent exit admission")
     if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
         raise RuntimeError("v26-r13 requires matching exit translation module")
     if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
@@ -3568,7 +3570,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R19_20261031":
+            "CARTEST_H750_RING_EXIT_V26R20_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
             isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or

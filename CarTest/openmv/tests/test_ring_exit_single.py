@@ -133,8 +133,9 @@ class SingleExitTests(unittest.TestCase):
         self.assertEqual(t._selected_route_ms,stamp)
         self.assertFalse(t._exit_single_ready())
 
-    def test_inside_single_line_cannot_invent_exit(self):
+    def test_inside_without_transmitted_inner_route_cannot_invent_exit(self):
         h=self.fixture(1);h.tracker._state=te.STATE_INSIDE
+        h.tracker._inner_route_established=False
         for _ in range(6):r=self.single(h)
         self.assertEqual(r['state_id'],te.STATE_INSIDE)
         self.assertFalse(h.tracker._exit_single_ready())

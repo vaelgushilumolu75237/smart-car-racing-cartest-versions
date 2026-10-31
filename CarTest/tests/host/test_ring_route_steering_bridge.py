@@ -40,6 +40,9 @@ def run(zig, output):
     import test_ring_exit_single as exit_single
     for side, shift in ((0, -8), (1, 7)):
         packets.append(exit_single.SingleExitTests().uart_packet(side, shift))
+    import test_ring_exit_inside_single as inside_single
+    for side, shift in ((0, -8), (1, 7)):
+        packets.append(inside_single.InsideSingleExitTests().uart_packet(side, shift))
     for error in (-400,0,400):
         packets.append(camera.vision_protocol.pack_frame_v3(100+error%100,True,99,error,0,
                                                        profile_ack=3))
@@ -77,7 +80,7 @@ int main() {
         std::printf("error=%d target_us=%u\n",frame.lateral_error,target);++cases;
     }
     std::printf("RING_DIRECTION_BRIDGE cases=%u failures=%u (host parser/mapping only)\n",cases,failures);
-    return failures || cases!=9;
+    return failures || cases!=11;
 }
 '''
     output=Path(output);output.mkdir(parents=True,exist_ok=True)

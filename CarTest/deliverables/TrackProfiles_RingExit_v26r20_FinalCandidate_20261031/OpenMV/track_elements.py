@@ -53,6 +53,7 @@ RUNTIME_API_VERSION = 2
 JOINT_ROUTE_API_VERSION = 1
 EXIT_TRANSLATION_API_VERSION = 1
 EXIT_ROUTE_API_VERSION = 3
+EXIT_INSIDE_API_VERSION = 1
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -3158,6 +3159,16 @@ class TrackElementsTracker:
     def _observe_inside_exit(self, now_ms, topology, cache_ok, route_ok):
         self._reason = "RING_INSIDE_EXIT_UNOBSERVED"
         self._ring_diag_reason_code = 10
+        if self._exit_single_ready():
+            # A measured outer exit corridor is independent of the old
+            # opposite-dropout/inner-anchor path. Keep the ring identity and
+            # run the same repair/reacquire sequence after this admission.
+            self._exit_side = 1-self._side
+            self._set_state(STATE_EXIT_CONFIRM,
+                            "EXIT_SINGLE_CORRIDOR_OBSERVED", now_ms)
+            self._exit_reappear_count = 0
+            self._result["exit_experimental"] = True
+            return
         if not self._ring_topology_safe(topology, route_ok):
             self._exit_drop_count = 0
             topology_rejection = self._ring_topology_rejection(topology)
@@ -3296,8 +3307,8 @@ class TrackElementsTracker:
     def _observe_exit_single(self, mask_info, topology):
         """Confirm a straight, white exit corridor from its observed outer edge.
 
-        Only an already observed exit gap can enable this path. Three fresh
-        frames must agree, initially with the actually transmitted ring lane.
+        An established ring lane or already observed exit gap enables this
+        path. Three fresh frames must agree with the transmitted ring lane.
         The current measured edge and calibrated width rebuild the route every
         frame. No cached error or inferred edge counts as a new observation.
         """
@@ -3311,18 +3322,26 @@ class TrackElementsTracker:
         self._exit_single_count = 0
         self._exit_single_frame = self._frame_index
         self._exit_single_ms = self._last_now_ms
-        if (self._state not in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
+        inside = self._state == STATE_INSIDE
+        if (self._state not in (STATE_INSIDE, STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
                                STATE_REACQUIRE) or
                 not self.require_calibration or not self._ring_cache_frozen or
                 not self._ring_width_calibrated or not self._calibration_ready or
                 not self._cal_check_ready or not self._inner_route_established or
                 self._side not in (SIDE_LEFT, SIDE_RIGHT) or
-                self._exit_side != 1-self._side or
+                (not inside and self._exit_side != 1-self._side) or
                 not self._current_valid or self._current_road or
                 not self._session_active or
                 not self._topology_clear(topology) or
                 not self._ring_topology_precheck(topology)):
             return
+        if inside:
+            if self._entry_transition_lease_valid(self._last_now_ms):
+                result["exit_single_reason"] = "ENTRY_NOT_FINISHED"
+                return
+            if _ticks_diff(self._last_now_ms, self._state_start_ms) > self.max_active_ms:
+                result["exit_single_reason"] = "INSIDE_TIMEOUT"
+                return
         age = (_ticks_diff(self._last_now_ms, self._selected_route_ms)
                if self._selected_route_ms is not None else -1)
         if not 0 <= age <= self.handoff_max_age_ms:
