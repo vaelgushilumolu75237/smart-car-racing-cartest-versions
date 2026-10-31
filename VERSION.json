@@ -1,7 +1,7 @@
 {
-  "version": "v20261031-v24-speed-120-130-140",
+  "version": "v20261031-v25-speed-120-130-140",
   "status": "experimental-software-tested",
   "branch": "experimental/speed-variants",
-  "files": 823,
+  "files": 830,
   "hardware_actions": "none"
 }

@@ -1,6 +1,6 @@
 # CarTest：H743 车载工程
 
-2026-10-29: v24 restores the exact PE7 reference module and switch integration from the user-specified 10月25_3.51_perfect directory. Follow uses high20ms rearm and low-event RUN/STOP toggle; release alone does not stop. Later FSM/50ms/1s changes removed. See [restoration proof and validation](docs/PE7-REFERENCE-RESTORE-20261029.md). No automatic hardware action.
+2026-10-29: v25 camera candidate adds common-motion entry rejection, validated ordinary-route recovery and calibrated ring target admission. v24 PE7, H743 parameters and ELFs unchanged. See [implementation and verification](docs/RING-JOINT-V25-20261029.md). Road, actual steering and >60FPS with IDE preview remain unverified; no automatic hardware action.
 
 
 ## 2026-10-26 当前配套版本

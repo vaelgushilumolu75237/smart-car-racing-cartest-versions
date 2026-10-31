@@ -7,7 +7,7 @@
   "ring_enabled": true,
   "ring_outer_target_millirps": 4400,
   "build_id": "48cdb4d7b858198a9698705197c6cc7b",
-  "elf_sha256": "701ad78de094d6a24b397f94431cceb46ae29b321f47ce07f663607e7bfffb12",
+  "elf_sha256": "19604a2ab1d4ba2fec6ad56bd09ccde6437f59757cfa17eef6654a65482ddbb2",
   "runtime_log_record_size": 64,
   "runtime_log_header_size": 64,
   "vehicle_acceptance": "pending_manual_road_tests"

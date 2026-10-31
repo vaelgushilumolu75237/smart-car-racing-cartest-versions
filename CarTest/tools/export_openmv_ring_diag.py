@@ -39,6 +39,8 @@ _BASE_COLUMNS = (
     "ring_diag_support_rows", "ring_diag_span_rows",
     "ring_diag_median_error_permille", "ring_diag_midfar_arc_rows",
     "ring_diag_near_anchor_rows", "ring_diag_exit_fit_rows",
+    "target_side_id", "target_center_x2", "weighted_position_error",
+    "sent_error", "route_admission_reason",
 )
 
 _RING_DIAG_COLUMNS = (
@@ -85,7 +87,7 @@ def _load_runtime(runtime_root=None):
 
 def _episode_kind(format_version, flags, candidate_count, confirmed_count,
                   stop_snapshot_flag):
-    if format_version == 2 and flags & stop_snapshot_flag:
+    if format_version >= 2 and flags & stop_snapshot_flag:
         return "STOP_SNAPSHOT"
     if candidate_count or confirmed_count:
         return "RING_CANDIDATE"
@@ -106,7 +108,10 @@ def _decode_candidate(data, decoder):
     episode_format = getattr(decoder, "EPISODE_META_FORMAT", "<HHHHHIHHHHH")
     episode_meta_size = getattr(decoder, "EPISODE_META_SIZE", 24)
     stop_snapshot_flag = getattr(decoder, "STOP_SNAPSHOT_FLAG", 1)
-    expected_record_size = base_field_count * 2 + reject_count * 2
+    raw_version = struct.unpack_from("<H", data, 4)[0] if len(data) >= 6 else 0
+    base_field_count = 53 if raw_version == 3 else 48
+    record_size = base_field_count * 2 + reject_count * 2
+    expected_record_size = record_size
 
     if len(data) < header_size or len(data) > max_file_bytes:
         raise ValueError("FILE_SIZE_OUT_OF_BOUNDS")
@@ -134,7 +139,7 @@ def _decode_candidate(data, decoder):
         struct.unpack_from("<4s10H2I", data, 0)
     if magic != b"RNGD":
         raise ValueError("MAGIC_MISMATCH")
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         raise ValueError("UNSUPPORTED_FORMAT_VERSION_%d" % version)
     if (declared_header != header_size or declared_record != record_size or
             declared_record != expected_record_size or
@@ -189,7 +194,7 @@ def _decode_candidate(data, decoder):
                 pre_count > pre_capacity or post_count > post_capacity or
                 frame_count != pre_count + post_count):
             raise ValueError("INVALID_EPISODE_BOUNDS_%d" % episode_index)
-        if version == 2:
+        if version >= 2:
             if flags & ~stop_snapshot_flag:
                 raise ValueError("INVALID_EPISODE_FLAGS_%d" % episode_index)
             if flags & stop_snapshot_flag:
@@ -227,11 +232,16 @@ def _decode_candidate(data, decoder):
             rejects = struct.unpack_from(
                 "<%dH" % reject_count, payload,
                 offset + base_field_count * 2)
+            if version >= 3 and (
+                    values[48] not in (-1, 0, 1) or not -1 <= values[49] <= 158 or
+                    not -1000 <= values[50] <= 1000 or not -1000 <= values[51] <= 1000 or
+                    not 0 <= values[52] < len(getattr(decoder, "_ROUTE_ADMISSION_REASONS", ()))):
+                raise ValueError("INVALID_DIRECTION_FIELDS")
             elapsed_raw = values[0]
             if elapsed_raw < 0:
                 raise ValueError("NEGATIVE_ELAPSED_TIME_EPISODE_%d_FRAME_%d" %
                                  (episode_index, frame_index))
-            unit_ms = 20 if version == 2 else 1
+            unit_ms = 20 if version >= 2 else 1
             row = {
                 "episode_index": episode_index,
                 "episode_kind": episode_info["kind"],
@@ -282,6 +292,13 @@ def _decode_candidate(data, decoder):
                 "port_x": values[32],
                 "port_y": values[33],
             }
+            row["target_side_id"] = values[48] if version >= 3 else ""
+            row["target_center_x2"] = values[49] if version >= 3 else ""
+            row["weighted_position_error"] = values[50] if version >= 3 else ""
+            row["sent_error"] = values[51] if version >= 3 else ""
+            row["route_admission_reason"] = (_code_name(
+                values[52], getattr(decoder, "_ROUTE_ADMISSION_REASONS", ()))
+                if version >= 3 else "")
             for ring_index, column in enumerate(_RING_DIAG_COLUMNS):
                 row[column] = values[34 + ring_index]
             row["source"] = _code_name(
@@ -317,7 +334,7 @@ def _decode_candidate(data, decoder):
     freeze_reasons = getattr(decoder, "_FREEZE_REASONS", ())
     summary = {
         "format_version": version,
-        "timestamp_unit_ms": 20 if version == 2 else 1,
+        "timestamp_unit_ms": 20 if version >= 2 else 1,
         "header_size": header_size,
         "frame_record_size": record_size,
         "episode_count": episode_count,

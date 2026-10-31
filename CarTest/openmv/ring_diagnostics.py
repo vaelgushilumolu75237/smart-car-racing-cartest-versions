@@ -5,7 +5,8 @@ bounded posthistory for up to eight episodes. It does not print or touch the
 filesystem from ``record_frame``. A caller freezes and saves only after a
 fresh actual Follow-to-stopped transition, while camera power is still on.
 
-Format 2 files use 20 ms timestamp ticks in the packed frame records. Format 1
+Format 3 adds per-frame target side/center, weighted and sent error, and
+route-admission reason. Format 2/3 files use 20 ms timestamp ticks in the packed frame records. Format 1
 files remain readable with their original millisecond timestamp units. Both
 formats use a 32-byte ``RNGD`` header followed by a bounded build-id field,
 episode metadata, packed signed 16-bit frame fields, and the 13 cumulative
@@ -60,7 +61,7 @@ except ImportError:  # pragma: no cover
 from array import array
 
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 LEGACY_FORMAT_VERSION = 1
 TIMESTAMP_TICK_MS = 20
 MAGIC = b"RNGD"
@@ -70,12 +71,13 @@ PRE_FRAMES = 64
 POST_FRAMES = 192
 EPISODE_FRAME_CAPACITY = PRE_FRAMES + POST_FRAMES
 REJECT_COUNT = 13
-BASE_FIELD_COUNT = 48  # includes the track-elements 14-int diagnostic view
+LEGACY_BASE_FIELD_COUNT = 48
+BASE_FIELD_COUNT = 53  # adds target side/center and actual control direction
 FRAME_RECORD_SIZE = BASE_FIELD_COUNT * 2 + REJECT_COUNT * 2
 EPISODE_META_FORMAT = "<HHHHHIHHHHH"
 EPISODE_META_SIZE = _struct.calcsize(EPISODE_META_FORMAT)
 BUILD_ID_BYTES = 63
-MAX_FILE_BYTES = 262144
+MAX_FILE_BYTES = 294912
 STOP_SNAPSHOT_FLAG = 1
 
 # The OpenMV build used by the camera may omit ``array.typecode`` and the
@@ -255,12 +257,19 @@ _TRACK_REASONS = (
     "WAITING_FOR_NORMAL_ROAD_REACQUIRE", "SESSION_INACTIVE",
     "PROFILE_UNAVAILABLE", "FRAME_INVALID", "CACHE_INVALID",
     "RING_TARGET_UNSUPPORTED", "TEST_RING_ACTIVE",
+    "GROWING_ARC_CONFIRMED", "RING_ARC_CONFIRMED",
+    "ORDINARY_ROUTE_REACQUIRED", "COMMON_MOTION_NOT_RING",
+    "ORDINARY_CORRIDOR_VETO",
 )
 _REJECT_REASONS = (
     "NONE", "INPUT_INVALID", "FRAME_INVALID", "SESSION_INACTIVE",
     "PROFILE_UNAVAILABLE", "CACHE_INVALID", "ROAD_ROWS_INVALID",
     "SINGLE_ROWS_STALE", "TOPOLOGY_AMBIGUOUS", "SIDE_SUPPORT",
     "RING_SEQUENCE", "CROSS_EVIDENCE", "STATE_TIMEOUT",
+)
+_ROUTE_ADMISSION_REASONS = (
+    "NOT_RUN", "RING_NOT_ELIGIBLE", "RING_WIDTH_CACHE_TARGET",
+    "RING_WIDTH_PROVENANCE_REJECTED", "RING_TARGET_ROWS_OR_REFERENCE",
 )
 _FREEZE_REASONS = ("NONE", "REVERSE_RESET", "PROFILE_INACTIVE",
                    "EXPLICIT_STOP", "CONTROLLED_STOP")
@@ -565,6 +574,13 @@ class RingDiagnostics:
             for index in range(14):
                 value = ring_diag[index] if index < ring_diag_count else 0
                 values[34 + index] = _clamp(value, -32768, 32767)
+            values[48] = _clamp(tracker_result.get("target_side", -1), -1, 1, -1)
+            values[49] = (_clamp(tracker_result.get("target_center2", -1), -1, 158, -1)
+                          if tracker_result.get("target_valid") else -1)
+            values[50] = _clamp(tracker_result.get("diagnostic_position_error", 0), -1000, 1000)
+            values[51] = _clamp(tracker_result.get("diagnostic_sent_error", 0), -1000, 1000)
+            admission = tracker_result.get("route_admission_reason", "NOT_RUN")
+            values[52] = _code(admission, _ROUTE_ADMISSION_REASONS)
             reject_counts = tracker_result.get("reject_counts")
             reject_total = 0
             reject_offset = BASE_FIELD_COUNT * 2
@@ -749,11 +765,13 @@ class RingDiagnostics:
                         (data[26] << 16) | (data[27] << 24))
         expected_crc = (data[28] | (data[29] << 8) |
                         (data[30] << 16) | (data[31] << 24))
-        if (version not in (LEGACY_FORMAT_VERSION, FORMAT_VERSION) or
+        expected_record_size = (FRAME_RECORD_SIZE if version == FORMAT_VERSION else
+                                LEGACY_BASE_FIELD_COUNT * 2 + REJECT_COUNT * 2)
+        if (version not in (LEGACY_FORMAT_VERSION, 2, FORMAT_VERSION) or
                 header_size != HEADER_SIZE or
-                record_size != FRAME_RECORD_SIZE or
+                record_size != expected_record_size or
                 episode_count > EPISODE_CAPACITY or
-                (version == FORMAT_VERSION and episode_count == 0) or
+                (version >= 2 and episode_count == 0) or
                 payload_size > MAX_FILE_BYTES - HEADER_SIZE or
                 len(data) != HEADER_SIZE + payload_size):
             raise ValueError("ring diagnostic header is invalid")
@@ -777,7 +795,7 @@ class RingDiagnostics:
                     pre_count > PRE_FRAMES or post_count > POST_FRAMES or
                     frame_count != pre_count + post_count):
                 raise ValueError("ring diagnostic episode metadata is invalid")
-            if version == FORMAT_VERSION:
+            if version >= 2:
                 if flags & ~STOP_SNAPSHOT_FLAG:
                     raise ValueError("ring diagnostic episode flags are invalid")
                 if flags & STOP_SNAPSHOT_FLAG:
@@ -795,7 +813,7 @@ class RingDiagnostics:
             "format_version": version,
             "record_size": record_size,
             "timestamp_unit_ms": (
-                TIMESTAMP_TICK_MS if version == FORMAT_VERSION else 1),
+                TIMESTAMP_TICK_MS if version >= 2 else 1),
             "episode_count": episode_count,
             "stop_snapshot_count": stop_snapshot_count,
             "episode_overflow": payload[BUILD_ID_BYTES + 1] |

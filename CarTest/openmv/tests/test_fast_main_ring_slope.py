@@ -263,7 +263,7 @@ class _ActiveRingElements:
         self.rows = array("i")
         flags = (main.track_elements.TARGET_INFERRED_LEFT |
                  main.track_elements.TARGET_OBSERVED_RIGHT |
-                 main.track_elements.TARGET_WIDTH_FROM_CACHE)
+                 main.track_elements.TARGET_WIDTH_FROM_CALIBRATION)
         for y in range(config.SURFACE_ROI_FLOOR_Y, HEIGHT):
             self.rows.extend((y, 25, 49, flags))
         self.result = {
@@ -936,7 +936,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_RING45_OFFLINE_V17_20261027 "
+            "TRACK_BUILD=CARTEST_H750_RING_JOINT_V25_20261029 "
             "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())

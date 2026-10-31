@@ -10,7 +10,7 @@
       "ring_enabled": false,
       "ring_outer_target_millirps": null,
       "build_id": "e55960baa18b2cc792efa5f718c4727e",
-      "elf_sha256": "3c745b0206f248b5f6ae76df070f8f4903bbb737f0b8ad370be30dbcdb37eff2",
+      "elf_sha256": "0191c9ac9bae0aa7f1ceeca2d41be55d12169743de915a0481582884f0052b73",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -24,7 +24,7 @@
       "ring_enabled": true,
       "ring_outer_target_millirps": 4000,
       "build_id": "bfa141b4a158dba3acfa27fe233dd04b",
-      "elf_sha256": "d250df6477a6e407f8be8b97aace1bd0503cec3eeed38daa05fbf41d1375bff6",
+      "elf_sha256": "0f87506827d0d90c2cf0a037e096d8040d8594e0c15ac7bd103219077ad1429e",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
@@ -38,7 +38,7 @@
       "ring_enabled": true,
       "ring_outer_target_millirps": 4400,
       "build_id": "48cdb4d7b858198a9698705197c6cc7b",
-      "elf_sha256": "701ad78de094d6a24b397f94431cceb46ae29b321f47ce07f663607e7bfffb12",
+      "elf_sha256": "19604a2ab1d4ba2fec6ad56bd09ccde6437f59757cfa17eef6654a65482ddbb2",
       "runtime_log_record_size": 64,
       "runtime_log_header_size": 64,
       "vehicle_acceptance": "pending_manual_road_tests"
