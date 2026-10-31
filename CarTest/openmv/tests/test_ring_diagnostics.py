@@ -117,6 +117,18 @@ class RingDiagnosticsTests(unittest.TestCase):
                 diagnostic.save("ring-diagnostics.bin", "host")
         self.assertFalse(diagnostic.persisted)
 
+    def test_save_creates_dedicated_subdirectory(self):
+        diagnostic = ring_diagnostics.RingDiagnostics()
+        self._record(diagnostic, 0, {"candidate": True, "state_id": 1})
+        diagnostic.freeze("REVERSE_RESET")
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "ring_diag" / "ring-diagnostics.bin"
+            self.assertTrue(diagnostic.save(target, "RING_DIAG_HOST"))
+            self.assertTrue(target.is_file())
+            decoded = ring_diagnostics.RingDiagnostics.decode_file(
+                target.read_bytes())
+            self.assertEqual(decoded["build_id"], "RING_DIAG_HOST")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

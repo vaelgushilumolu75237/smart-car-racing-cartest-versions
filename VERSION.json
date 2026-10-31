@@ -1,7 +1,7 @@
 {
-  "version": "v20261031-ring-exit-v26-r17",
+  "version": "v20261031-ring-exit-v26-r18",
   "status": "experimental-software-tested",
   "branch": "experimental/pi-trial",
-  "files": 854,
+  "files": 855,
   "hardware_actions": "none"
 }

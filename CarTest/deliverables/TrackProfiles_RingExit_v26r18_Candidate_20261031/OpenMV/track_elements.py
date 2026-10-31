@@ -1630,7 +1630,10 @@ class TrackElementsTracker:
             return self._result
         if not frame_fresh:
             self._reject(REJECT_FRAME_INVALID)
+            self._exit_drop_count = 0
             if (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) or
+                    (self.require_calibration and self._ring_cache_frozen and
+                     self._state == STATE_INSIDE) or
                     (self._state == STATE_REACQUIRE and self._ring_cache_frozen)):
                 self._exit_reappear_count = 0
                 self._repair_count = 0
@@ -1698,9 +1701,12 @@ class TrackElementsTracker:
                         (STATE_ENTRY_CONFIRM, STATE_ENTER) else
                         self.max_active_ms)
             if elapsed_ms > limit_ms:
-                if self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR):
+                if (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) or
+                        (self.require_calibration and self._ring_cache_frozen and
+                         self._state == STATE_INSIDE)):
                     self._reject(REJECT_STATE_TIMEOUT)
                     self._reason = "STATE_TIMEOUT"
+                    self._exit_drop_count = 0
                     self._exit_reappear_count = 0
                     self._repair_count = 0
                     if self._exit_reobserve_ready():
@@ -1714,6 +1720,15 @@ class TrackElementsTracker:
                     self._abort("STATE_TIMEOUT", now_ms, REJECT_STATE_TIMEOUT)
                 aborted_this_frame = True
             elif self._odom_limit_exceeded():
+                if (self.require_calibration and self._ring_cache_frozen and
+                        self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                                        STATE_EXIT_REPAIR)):
+                    self._reject(REJECT_STATE_TIMEOUT)
+                    self._reason = "ODOM_PROGRESS_LIMIT"
+                    self._exit_drop_count = 0
+                    self._clear_target_output()
+                    self._publish()
+                    return self._result
                 self._abort("ODOM_PROGRESS_LIMIT", now_ms,
                             REJECT_STATE_TIMEOUT)
                 aborted_this_frame = True
@@ -2757,7 +2772,7 @@ class TrackElementsTracker:
             if not self._baseline_row_valid[y]:
                 run = 0
                 continue
-            if self._current_status[base + y] != 1:
+            if self._current_status[base + y] == 0:
                 run += 1
                 missing_rows += 1
                 if run > longest:
@@ -2766,17 +2781,46 @@ class TrackElementsTracker:
                 run = 0
         anchor_base = anchor_side * self.height
         anchor_rows = 0
+        anchor_run = 0
+        anchor_longest = 0
+        wire_anchor = bool(self.require_calibration)
+        wire_age = (_ticks_diff(self._last_now_ms, self._wire_route_ms)
+                    if self._wire_route_ms is not None else -1)
+        wire_ready = bool(
+            self._inner_route_established and self._ring_width_calibrated and
+            self._ring_cache_frozen and self._result["target_valid"] and
+            self._result["target_side"] == anchor_side and
+            not self._result["outer_tracking"] and
+            0 <= wire_age <= self.handoff_max_age_ms)
         for y in range(self.height - self.near_rows, self.height):
-            baseline = int(
-                self._baseline_left_by_y2[y] if anchor_side == SIDE_LEFT else
-                self._baseline_right_by_y2[y])
+            if wire_anchor:
+                # Entry image coordinates cease to be a stationary reference
+                # once the vehicle turns. Compare current measured inner rows
+                # with the last successfully transmitted lane at each row.
+                if (not wire_ready or not self._ring_width_valid[y] or
+                        self._wire_centers2[y] < 0):
+                    anchor_run = 0
+                    continue
+                width = int(self._ring_width[y])
+                baseline = int(self._wire_centers2[y]) + (
+                    -width if anchor_side == SIDE_LEFT else width)
+                tolerance = self.handoff_max_center_delta2
+            else:
+                baseline = int(
+                    self._baseline_left_by_y2[y] if anchor_side == SIDE_LEFT else
+                    self._baseline_right_by_y2[y])
+                tolerance = self.opposite_position_tolerance2
             if (self._baseline_row_valid[y] and
                     self._current_status[anchor_base + y] == 1 and
-                    abs(int(self._current_edge2[anchor_base + y]) - baseline) <=
-                    self.opposite_position_tolerance2):
+                    abs(int(self._current_edge2[anchor_base + y]) - baseline) <= tolerance):
                 anchor_rows += 1
+                anchor_run += 1
+                anchor_longest = max(anchor_longest, anchor_run)
+            else:
+                anchor_run = 0
         return (missing_rows >= 4 and longest >= 4 and
-                anchor_rows >= self.min_near_support,
+                anchor_rows >= self.min_near_support and
+                (not wire_anchor or anchor_longest >= self.min_side_contiguous),
                 missing_rows, anchor_rows)
 
     def _exit_profile_fit(self, topology):
@@ -3045,6 +3089,7 @@ class TrackElementsTracker:
         if (self._profile_id not in (2, 3) or not self._session_active or
                 not self._result.get("ring_confirmed") or
                 self._state != STATE_INSIDE or
+                self._reason in ("STATE_TIMEOUT", "ODOM_PROGRESS_LIMIT") or
                 ring_route_selected or not ordinary_route_valid or
                 not self._ordinary_reacquired_frame()):
             self._route_outcome_count = 0
@@ -3103,12 +3148,14 @@ class TrackElementsTracker:
         self._reason = "RING_INSIDE_EXIT_UNOBSERVED"
         self._ring_diag_reason_code = 10
         if not self._ring_topology_safe(topology, route_ok):
+            self._exit_drop_count = 0
             topology_rejection = self._ring_topology_rejection(topology)
             self._reason = "RING_TOPOLOGY_" + (
                 topology_rejection if topology_rejection else "ROUTE_UNSUPPORTED")
             self._reject(REJECT_TOPOLOGY_AMBIGUOUS)
             return
         if not self._current_valid:
+            self._exit_drop_count = 0
             self._reject(REJECT_SINGLE_ROWS_STALE)
             return
         actual_exit_side = (SIDE_RIGHT if self._side == SIDE_LEFT else

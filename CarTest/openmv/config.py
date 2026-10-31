@@ -47,10 +47,9 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_EXIT_V26R17_20261031"
-# Only confirmed C-profile INSIDE guidance uses this request. With the paired
-# H743 5600/4400 milli-RPS endpoints, 667 selects 4800 milli-RPS.
-RING_C_INSIDE_SLOWDOWN_PERMILLE = 667
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_EXIT_V26R18_20261031"
+# Keep the r16 wheel-speed request while validating exit geometry.
+RING_C_INSIDE_SLOWDOWN_PERMILLE = 1000
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.
@@ -112,7 +111,9 @@ STEERING_DIAG_ENABLED = True
 RING_DIAGNOSTICS_ENABLED = True
 # Fixed 115200-byte pre/failure/post raw capture; write only after Follow stops.
 RING_OUTER_FAILURE_RAW_ENABLED = True
-RING_DIAGNOSTICS_PATH = "ring_diagnostics.bin"
+# Keep numbered evidence out of the FAT root directory.  The recorder creates
+# this directory before its first save; existing root files remain untouched.
+RING_DIAGNOSTICS_PATH = "ring_diag/ring_diagnostics.bin"
 RING_WIDTH_CALIBRATION_PATH = "ring_width_calibration.json"
 RING_WIDTH_CALIBRATION_REQUIRED = True
 V7_RUNTIME_API_VERSION = 7

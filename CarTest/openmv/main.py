@@ -3568,12 +3568,12 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R17_20261031":
+            "CARTEST_H750_RING_EXIT_V26R18_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
             isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or
-            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 667):
-        raise ValueError("C ring inside slowdown request must be 667")
+            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 1000):
+        raise ValueError("C ring inside slowdown request must remain r16 value 1000")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
     if getattr(config, "RING_WIDTH_CALIBRATION_REQUIRED", None) is not True:
@@ -8137,8 +8137,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             slowdown_request_permille = 0
         if (valid and element_route_selected and
                 control_source in ("ring_left", "ring_right")):
-            # Preserve B and all transition targets. Only confirmed C INSIDE
-            # guidance requests 4.8 rps; exit remains at the prior 4.4 rps.
+            # Preserve the r16 request in every ring phase during exit validation.
             curve_phase = vision_protocol.CURVE_PHASE_TURN
             slowdown_request_permille = _ring_slowdown_request(
                 profile_id, element_result.get("state_id"),

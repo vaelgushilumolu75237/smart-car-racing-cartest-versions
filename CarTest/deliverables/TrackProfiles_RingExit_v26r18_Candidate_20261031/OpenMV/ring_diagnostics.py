@@ -867,6 +867,37 @@ class RingDiagnostics:
             raise OSError("directory scan is unavailable")
         return listdir(directory)
 
+    @staticmethod
+    def _ensure_directory(directory):
+        """Create the bounded diagnostic directory before scanning it.
+
+        OpenMV's FAT root has a fixed directory-entry budget.  Keeping the
+        numbered evidence files in a subdirectory avoids consuming that
+        budget, while the stat-after-mkdir check also handles a directory
+        created by a previous boot or by another recorder instance.
+        """
+        directory = str(directory)
+        if directory in ("", ".", "/"):
+            return
+        stat = getattr(os, "stat", None)
+        mkdir = getattr(os, "mkdir", None)
+        if not callable(stat) or not callable(mkdir):
+            raise OSError("diagnostic directory support is unavailable")
+        try:
+            stat(directory)
+            return
+        except OSError:
+            pass
+        try:
+            mkdir(directory)
+        except OSError:
+            # Another caller may have created it between stat and mkdir.
+            try:
+                stat(directory)
+                return
+            except OSError:
+                raise
+
     @classmethod
     def next_available_path(cls, base_path):
         """Choose max existing numbered file + 1, with a fixed upper bound."""
@@ -929,6 +960,8 @@ class RingDiagnostics:
         if self._episode_count <= 0:
             raise RuntimeError("ring diagnostics contain no stopped frames")
         target = str(path)
+        directory, _stem, _extension = self._split_path(target)
+        self._ensure_directory(directory)
         if self._path_exists(target):
             raise OSError("ring diagnostic target already exists")
         payload = self._payload(build_id)
