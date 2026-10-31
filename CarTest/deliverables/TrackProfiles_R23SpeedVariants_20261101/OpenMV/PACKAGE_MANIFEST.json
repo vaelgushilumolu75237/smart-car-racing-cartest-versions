@@ -178,8 +178,15 @@
   "hardware_validation": false,
   "board_fps_verified": false,
   "ide_preview_fps_verified": false,
-  "h743_changed": false,
+  "h743_changed": true,
   "c_inside_outer_target_millirps": 5280,
   "c_inside_slowdown_request": 267,
-  "build_id": "TRACK_RING_EXIT_V26_R23_20261101"
+  "build_id": "TRACK_RING_EXIT_V26_R23_20261101",
+  "delivery_version": "v26-r23-speed20-30-40",
+  "supported_c_speed_percent": [
+    100,
+    120,
+    130,
+    140
+  ]
 }

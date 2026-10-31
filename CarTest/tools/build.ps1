@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI", "DebugFollowTurn65", "DebugFollowIncrementalPI", "DebugFollowIncrementalPIBaseline", "DebugFastNoRing", "DebugRingBase", "DebugRingFast")]
+    [ValidateSet("Debug", "DebugSteering", "DebugBench", "DebugFollow", "DebugFollowNoLog", "DebugFollowDiff5", "DebugFollowDiff10", "DebugFollowTurn", "DebugFollowSpeedPI", "DebugFollowTurn65", "DebugFollowIncrementalPI", "DebugFollowIncrementalPIBaseline", "DebugFastNoRing", "DebugRingBase", "DebugRingFast", "DebugRingFastSpeed120", "DebugRingFastSpeed130", "DebugRingFastSpeed140")]
     [string] $Preset,
     [switch] $Fresh
 )
@@ -279,7 +279,7 @@ try {
         'DebugFollowIncrementalPI' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
         'DebugFollowIncrementalPIBaseline' = @{ CARTEST_ENABLE_BENCH = 'OFF'; CARTEST_ENABLE_FOLLOW = 'ON'; CARTEST_ENABLE_FOLLOW_TURN = 'ON'; CARTEST_ENABLE_FOLLOW_SPEED_PI = 'ON'; CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI = 'ON'; CARTEST_ENABLE_STEERING = 'OFF'; CARTEST_HARDWARE_ACCEPTED = 'ON'; CARTEST_RUNTIME_LOG_ENABLED = 'ON'; CARTEST_FOLLOW_DIFF_PERMILLE = '150'; CARTEST_VISION_HOLD_MS = '2000'; CARTEST_VISION_HOLD_RAMP_MS = '200' }
     }
-    $trackProfileIds = @{ 'DebugFastNoRing' = '1'; 'DebugRingBase' = '2'; 'DebugRingFast' = '3' }
+    $trackProfileIds = @{ 'DebugFastNoRing' = '1'; 'DebugRingBase' = '2'; 'DebugRingFast' = '3'; 'DebugRingFastSpeed120' = '3'; 'DebugRingFastSpeed130' = '3'; 'DebugRingFastSpeed140' = '3' }
     foreach ($trackPreset in $trackProfileIds.Keys) {
         $expectedProfileFlags[$trackPreset] = $expectedProfileFlags['DebugFollowIncrementalPI'].Clone()
         $expectedProfileFlags[$trackPreset]['CARTEST_TRACK_PROFILE'] = $trackProfileIds[$trackPreset]
@@ -287,17 +287,19 @@ try {
         $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } else { '4400' }
     }
     $configuredCache = Join-Path $buildDirectory 'CMakeCache.txt'
-    if ($Preset -eq 'DebugRingFast') {
+    if ($Preset -like 'DebugRingFast*') {
         $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_MS = '3000'
         $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_RAMP_MS = '300'
     }
+    $expectedSpeedPercent = if ($Preset -match 'Speed(120|130|140)$') { $Matches[1] } else { '100' }
+    $expectedProfileFlags[$Preset]['CARTEST_SPEED_PERCENT'] = $expectedSpeedPercent
     foreach ($flagName in $expectedProfileFlags[$Preset].Keys) {
         $actualFlag = Get-CacheValue -CachePath $configuredCache -Name $flagName
         if ($actualFlag -ne $expectedProfileFlags[$Preset][$flagName]) {
             throw "Configured profile flag mismatch for $Preset`: $flagName=$actualFlag"
         }
     }
-    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI', 'DebugFollowTurn65', 'DebugFollowIncrementalPI', 'DebugFollowIncrementalPIBaseline', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast')) { 'ON' } else { 'OFF' }
+    $expectedTurnProfile = if ($Preset -in @('DebugFollowTurn', 'DebugFollowSpeedPI', 'DebugFollowTurn65', 'DebugFollowIncrementalPI', 'DebugFollowIncrementalPIBaseline', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast', 'DebugRingFastSpeed120', 'DebugRingFastSpeed130', 'DebugRingFastSpeed140')) { 'ON' } else { 'OFF' }
     $actualTurnProfile = Get-CacheValue -CachePath $configuredCache -Name 'CARTEST_ENABLE_FOLLOW_TURN'
     if ($actualTurnProfile -ne $expectedTurnProfile) {
         throw "Configured Follow turn profile mismatch for $Preset`: CARTEST_ENABLE_FOLLOW_TURN=$actualTurnProfile"
@@ -322,7 +324,7 @@ try {
     $expectedDiff = $expectedProfileFlags[$Preset].CARTEST_FOLLOW_DIFF_PERMILLE
     $expectedFollowProfile = $expectedProfileFlags[$Preset].CARTEST_ENABLE_FOLLOW -eq 'ON'
     $expectedTurnStep = if ($expectedFollowProfile) { '40' } else { '10' }
-    $coordinatedPresets = @('DebugFollowIncrementalPI', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast')
+    $coordinatedPresets = @('DebugFollowIncrementalPI', 'DebugFastNoRing', 'DebugRingBase', 'DebugRingFast', 'DebugRingFastSpeed120', 'DebugRingFastSpeed130', 'DebugRingFastSpeed140')
     $expectedServoStep = if ($Preset -in $coordinatedPresets) { '160' } elseif ($expectedFollowProfile) { '120' } else { '40' }
     $expectedAckermannBit = if ($Preset -in $coordinatedPresets) { '1' } else { '0' }
     $expectedNormalLimit = if ($expectedFollowProfile) { '1000' } else { '600' }
@@ -341,9 +343,10 @@ try {
         CARTEST_VISION_HOLD_MS = $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_MS
         CARTEST_VISION_HOLD_RAMP_MS = $expectedProfileFlags[$Preset].CARTEST_VISION_HOLD_RAMP_MS
     }
+    $expectedDefines['CARTEST_SPEED_PERCENT'] = $expectedSpeedPercent
     $expectedDefines['CARTEST_TRACK_PROFILE'] = if ($trackProfileIds.ContainsKey($Preset)) { $trackProfileIds[$Preset] } else { '0' }
-    $expectedDefines['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast')) { '5600' } else { '4800' }
-    $expectedDefines['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast')) { '4400' } else { '4000' }
+    $expectedDefines['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast', 'DebugRingFastSpeed120', 'DebugRingFastSpeed130', 'DebugRingFastSpeed140')) { '5600' } else { '4800' }
+    $expectedDefines['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($Preset -in @('DebugFastNoRing', 'DebugRingFast', 'DebugRingFastSpeed120', 'DebugRingFastSpeed130', 'DebugRingFastSpeed140')) { '4400' } else { '4000' }
     foreach ($defineName in $expectedDefines.Keys) {
         $expectedDefine = "-D$defineName=$($expectedDefines[$defineName])"
         if (-not ([string]$mainCompile.command).Contains($expectedDefine)) {

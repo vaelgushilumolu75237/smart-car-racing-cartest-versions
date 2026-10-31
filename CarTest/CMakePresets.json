@@ -12,7 +12,8 @@
         "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "OFF",
         "CARTEST_ENABLE_ACKERMANN_COORDINATION": "ON",
         "CARTEST_VISION_HOLD_MS": "3000",
-        "CARTEST_VISION_HOLD_RAMP_MS": "300"
+        "CARTEST_VISION_HOLD_RAMP_MS": "300",
+        "CARTEST_SPEED_PERCENT": "100"
       }
     },
     {
@@ -186,6 +187,30 @@
         "CARTEST_VISION_HOLD_MS": "3000",
         "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
+    },
+    {
+      "name": "DebugRingFastSpeed120",
+      "displayName": "r23 C +20% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "120"
+      }
+    },
+    {
+      "name": "DebugRingFastSpeed130",
+      "displayName": "r23 C +30% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "130"
+      }
+    },
+    {
+      "name": "DebugRingFastSpeed140",
+      "displayName": "r23 C +40% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "140"
+      }
     }
   ],
   "buildPresets": [
@@ -248,6 +273,18 @@
     {
       "name": "DebugRingFast",
       "configurePreset": "DebugRingFast"
+    },
+    {
+      "name": "DebugRingFastSpeed120",
+      "configurePreset": "DebugRingFastSpeed120"
+    },
+    {
+      "name": "DebugRingFastSpeed130",
+      "configurePreset": "DebugRingFastSpeed130"
+    },
+    {
+      "name": "DebugRingFastSpeed140",
+      "configurePreset": "DebugRingFastSpeed140"
     }
   ]
 }

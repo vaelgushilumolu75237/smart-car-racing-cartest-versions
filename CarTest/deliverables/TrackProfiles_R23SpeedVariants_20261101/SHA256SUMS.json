@@ -1,6 +1,6 @@
 {
-  "profiles.json": "a13766018becfde4d1db3643a13f93c4b4ea40ed830efdc4c7a47606f1386a5a",
-  "README.md": "b7114ce4e2fd016aba7bb8908cecdcf4843b79f6bbd2b4613a0065d8288c1805",
+  "profiles.json": "db9853cecf9fca6e2be08b49dbf1ca9fd263ab1afc697d768ed4665dfd92822d",
+  "README.md": "ac83242d15319b37d5c7fd8411eef2f9fd36a42b4f3a6e1360e77295ba57bfaa",
   "OpenMV/adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
   "OpenMV/boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
   "OpenMV/config.py": "2eeb7b6669f2af84a8dcff97659fad72497ba012d7cafa31d3b7dae49a1cc468",
@@ -15,7 +15,7 @@
   "OpenMV/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
   "OpenMV/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
   "OpenMV/main.py": "68d843e8df361580583a67ee89ea5c5a3362cb77166b0c94b1d656a09097dd53",
-  "OpenMV/PACKAGE_MANIFEST.json": "5624db34e4cbd8031bfb9e2a561e12bf3121dbd65acd8f0420c7dc9ad31f213a",
+  "OpenMV/PACKAGE_MANIFEST.json": "1300dd3dd1785f9bc770dd9093898595e1c0ad8de2acdb43c2ef26263d6f9685",
   "OpenMV/reverse_control.py": "a8ced2ee5c67ef5d0b4394b57372b5d12dbda9b40b5081207d49d25368efd1d1",
   "OpenMV/ring_diagnostics.py": "081179080acdc046cb4f9cb2702ed4b7e7480edeafff3df31d2a81936ff48e94",
   "OpenMV/ring_width_calibration.py": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
@@ -94,10 +94,10 @@
   "validation/mpy/vision_protocol.mpy": "d436376a82a26bab0f6db3be15066b9aa4a082dbc26266264cff168fa1221799",
   "validation/mpy/vision_protocol.py.exitcode": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
   "validation/mpy/vision_protocol.py.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "H743/A_FastNoRing/CarTest.elf": "bde08090b9db37636ad091a113e2acced05533fe6f4196f63ccd7789c21084a9",
-  "H743/A_FastNoRing/manifest.json": "9bd674b1217f5c23294c60f9387110bd4ba167dee3de096acae55f6d20c24ac6",
-  "H743/B_RingBase/CarTest.elf": "b0fed96230e89c7abb54d59a5aab22c115f592af0223fc1571bdfdc48c4a7c5f",
-  "H743/B_RingBase/manifest.json": "3097769de317e8ee2856835ef899f2008476e9666f838fefd8bdd7cd17abeeeb",
-  "H743/C_RingFast/CarTest.elf": "2c4c232eed44f24055cf986a7657a919e682b0b36978ca58d497503d024614ce",
-  "H743/C_RingFast/manifest.json": "8675299430748d77066a77415158043a85db364432a6f0fcbebc5cfea546e445"
+  "H743/A_FastNoRing/CarTest.elf": "f6aeaa043bd9321ae55206485dee8b9aee5cc17154fa4ad9bdabb529a6206e76",
+  "H743/A_FastNoRing/manifest.json": "df7cb15c440175dfd39ef547b2a3d5035622dfeda2714173099ea79645e5881d",
+  "H743/B_RingBase/CarTest.elf": "8c4a04665366b5612ea58830f3ae33513545d8f48afde823b629f84b1e6e9923",
+  "H743/B_RingBase/manifest.json": "dc4d6e5fab54e23c4dd7e700a40e7931c12956b8aaa8463b8a342d3591443218",
+  "H743/C_RingFast/CarTest.elf": "b082ca025b00808d9091759705bab5779f78308c3ed5bb1ff22a2456b153f4ca",
+  "H743/C_RingFast/manifest.json": "0780287cf5f84dd3f7f4aea6ef47c572f5a24208f719841d6c4d0c2f6f335819"
 }

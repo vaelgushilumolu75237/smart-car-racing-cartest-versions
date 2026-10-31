@@ -1,7 +1,7 @@
 {
-  "version": "v20261101-ring-exit-v26-r23",
+  "version": "v20261101-v26-r23-speed20-30-40",
   "status": "experimental-software-tested",
   "branch": "experimental/pi-trial",
-  "files": 866,
+  "files": 873,
   "hardware_actions": "none"
 }

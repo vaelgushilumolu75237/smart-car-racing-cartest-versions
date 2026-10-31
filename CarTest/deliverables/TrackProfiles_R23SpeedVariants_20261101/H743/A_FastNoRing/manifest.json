@@ -6,13 +6,14 @@
   "curve_outer_target_millirps": 4400,
   "ring_enabled": false,
   "ring_outer_target_millirps": null,
-  "build_id": "fc8bf2ece119338809e53597cabf2baa",
-  "elf_sha256": "bde08090b9db37636ad091a113e2acced05533fe6f4196f63ccd7789c21084a9",
+  "build_id": "fb002251f9663c73a6c0e5222fcc0ba6",
+  "elf_sha256": "f6aeaa043bd9321ae55206485dee8b9aee5cc17154fa4ad9bdabb529a6206e76",
   "runtime_log_record_size": 64,
   "runtime_log_header_size": 64,
   "vehicle_acceptance": "pending_manual_road_tests",
   "vision_hold_ms": 2000,
   "vision_hold_ramp_ms": 200,
   "steady_inside_target_millirps": null,
-  "steady_inside_slowdown_request": 1000
+  "steady_inside_slowdown_request": 1000,
+  "speed_percent": 100
 }

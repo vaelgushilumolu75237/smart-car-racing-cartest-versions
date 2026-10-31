@@ -1,54 +1,40 @@
-# v26-r23 exit candidate (2026-11-01)
+# r23 C whole-speed variants: +20%, +30%, +40% (2026-11-01)
 
-Camera identity: TRACK_RING_EXIT_V26_R23_20261101.
-Paired H743: unchanged r22 C_RingFast ELF, SHA256
-2c4c232eed44f24055cf986a7657a919e682b0b36978ca58d497503d024614ce.
+Open CarTest/CarTest.code-workspace. Debug entries show percentage, straight/ring
+wheel targets, and the retained 3s hold / 300ms hold deceleration. Each entry has
+its own checked preLaunchTask, build preset and ELF path. The baseline and
+historical entries remain labeled separately.
 
-Changes
-- Discover a qualified right-ring exit while still INSIDE. Entry transition must
-  finish and an inner route must actually have been transmitted. Three adjacent
-  eligible frames with an absent/curved outer exit corridor AND a valid current
-  inner corridor establish departure from the entry straight. This is not a lap
-  counter or proof of a full circle. The subsequent qualified left exit edge
-  can take over in its first frame, without the old frozen-turn anchor.
-- Latch exit ownership only after a valid complete UART write. Rebuild the target
-  from the current left edge and calibrated per-row width. Do not return to the
-  island edge during gaps. Invalid frames leave H743 to hold the last transmitted
-  exit error under the existing 3000ms deadline and 300ms deceleration; invalid
-  frames never refresh that deadline or become fabricated valid routes.
-- Preserve stable bilateral recovery and ordinary-route release. Left-ring rules,
-  entry detector, steering gain, speed values, PE7 and H743 source/ELFs remain.
-- Sampled IDE diagnostics add search, lock, and the actual geometry rejection.
-  main/config/track_elements identity checks require the matching full package.
+| Variant | Straight rps | Steady ring outer rps | Full slowdown outer rps |
+| --- | ---: | ---: | ---: |
+| Base | 5.600 | 5.280 | 4.400 |
+| +20% | 6.720 | 6.336 | 5.280 |
+| +30% | 7.280 | 6.864 | 5.720 |
+| +40% | 7.840 | 7.392 | 6.160 |
 
-Validation
-- 519 camera tests: 515 passed, 4 skipped; 23/23 armv7emsp cross-compiles.
-- 72 MCU host cases / 7713 assertions passed. 2000/200 and C 3000/300 hold
-  boundary fixtures passed. 13 camera V3 packets passed the real H743 parser
-  and extracted production servo mapping, including first INSIDE-exit targets.
-- 238 MCU source/config files and all 15 existing actual r22 ELF builds verified
-  byte-identical. MCU binaries were reused, not rebuilt or flashed.
-- Saved original-image geometry reviewed across five historical hand-push runs.
-  Records are sampled; eligible previous state was explicitly assumed for these
-  isolated checks. They are NOT a complete temporal replay. One retained exit
-  image produced 52 accepted route rows; other ring/gap images remained rejected
-  for curvature, missing observed rows, or ordinary-road ownership. The new
-  ownership sequence itself is covered by frame/UART regression tests.
-- The supplied 5ide.txt has 27 INSIDE records and no TRACK_BUILD header. Its sparse
-  output cannot prove every intermediate state or exact video synchronization.
-  5.mp4 is compressed visual evidence, not a raw algorithm replay.
+These are wheel-speed targets, not measured vehicle speed. Inner-wheel targets
+retain the steering-derived Ackermann ratio. Request interpolation occurs at
+the baseline speed before percentage scaling, so the existing ring slowdown
+request 267 produces the exact values above. PWM limits, PI gains, steering
+mapping/slew, PE7, pairing/ACK checks, hard faults and hold times are retained.
+Percentage is included in the MCU build fingerprint. Only C allows speed >100%.
 
-Limits and manual acceptance
-No camera program was uploaded, no board reset/flashed, and no motor started.
-This is a candidate, NOT a road-accepted release. Current left-edge geometry can
-still be unusable/outside view at the exit; this change cannot make an unseen
-boundary valid. Full right-ring ground exit must still be verified. Actual board
-FPS and IDE-preview >=60FPS remain UNVERIFIED; host runtime is not board FPS.
+All variants share the EXACT r23 camera runtime (23 Python source hashes match).
+Camera TRACK_BUILD remains TRACK_RING_EXIT_V26_R23_20261101. Each local Install
+folder includes its own complete OpenMV subdirectory, main.py and the unchanged
+calibration JSON. H743 is different for each percentage: flash ONE corresponding
+ELF or HEX, using its matching debug entry. No board has been flashed/reset and
+no camera uploaded by this packaging task.
 
-Local delivery
-Install/OpenMV contains all 23 Python files, main.py, manifests and the original
-camera calibration JSON. CarTest is the complete source, including Src/main.c.
-Use the existing r22 C ELF if that exact version is already on the vehicle.
-Do not mix Python versions. Camera installation requires explicit authorization.
-Keep the old r22 folder as rollback. Private calibration/images/logs are excluded
-from the public checkpoint.
+Validation: all 18 actual ELF builds passed; 4x15 actual Ackermann control cases
+verified target values and per-wheel scaling/geometry; 4 negative header builds
+and 3 negative CMake configurations rejected; 72 MCU host cases / 7713 assertions
+passed; C 3000/300 boundary fixture passed. Debug launch/task/path correspondence
+verified. Camera source is byte-identical to tested r23 (519 tests, 4 skipped;
+23 cross-compiles); no claim of a new board camera measurement is made.
+
+Road exit and high-speed tracking remain unverified. Actual board and IDE-preview
+>=60FPS remain unverified. Host tests/builds do not establish road behavior.
+The original r23 source/configuration/paired ELFs remain preserved; hashes are
+in R23_BASELINE_SHA256.json. Private calibration/logs/images are excluded from
+public checkpoints. Use the included base C firmware to restore base speed.

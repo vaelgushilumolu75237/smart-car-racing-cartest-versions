@@ -101,11 +101,14 @@ static uint16_t ramp_value_at(const car_ackermann_control_state_t *state,
 
 static uint16_t requested_fastest_target(uint16_t request_permille)
 {
+    /* Resolve the original camera request before scaling. This preserves
+       exact +20/+30/+40% of r23's 5280 milli-RPS ring target, including rounding. */
     uint32_t reduction =
-        ((uint32_t)(CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS -
-                    CAR_ACKERMANN_SLOWEST_REQUEST_MILLIRPS) *
+        ((uint32_t)(CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS -
+                    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS) *
          request_permille + 500u) / CAR_ACKERMANN_REQUEST_MAX_PERMILLE;
-    return (uint16_t)(CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS - reduction);
+    uint32_t base_target = CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS - reduction;
+    return (uint16_t)CARTEST_SCALE_WHEEL_TARGET(base_target);
 }
 
 void car_ackermann_control_reset(car_ackermann_control_state_t *state)

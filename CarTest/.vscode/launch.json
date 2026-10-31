@@ -2,11 +2,71 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "r23 camera + r22 H743 (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "name": "r23 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 camera + r22 H743 (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "preLaunchTask": "Build: r23 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r23 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r23 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r23 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r23 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r23 SpeedVariants (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r23 SpeedVariants (r20改版) 新A - 无环岛 5.6/4.4 rps",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -22,11 +82,11 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "name": "r23 SpeedVariants (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 camera + r22 H743 (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "preLaunchTask": "Build: r23 SpeedVariants (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -42,11 +102,11 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 (r20改版) 新C - 环内+20% 5.28 rps [丢线3s/减速300ms; 右环岛左边补线]",
+      "name": "r23 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 camera + r22 H743 (r20改版) 新C - 环内+20% 5.28 rps [丢线3s/减速300ms; 右环岛左边补线]",
+      "preLaunchTask": "Build: r23 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -62,11 +122,11 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 诊断 - 电机/舵机输出关闭",
+      "name": "r23 SpeedVariants 诊断 - 电机/舵机输出关闭",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 camera + r22 H743 诊断 - 电机/舵机输出关闭",
+      "preLaunchTask": "Build: r23 SpeedVariants 诊断 - 电机/舵机输出关闭",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -82,7 +142,7 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 历史A - 20261019冻结ELF [非新A]",
+      "name": "r23 SpeedVariants 历史A - 20261019冻结ELF [非新A]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
@@ -101,11 +161,11 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 历史B - 开环65/35 [非新B]",
+      "name": "r23 SpeedVariants 历史B - 开环65/35 [非新B]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "r23 camera + r22 H743 历史对照 Build: DebugFollowTurn65",
+      "preLaunchTask": "r23 SpeedVariants 历史对照 Build: DebugFollowTurn65",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -121,11 +181,11 @@
       }
     },
     {
-      "name": "r23 camera + r22 H743 历史C - 旧增量PI [非环岛新C]",
+      "name": "r23 SpeedVariants 历史C - 旧增量PI [非环岛新C]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "r23 camera + r22 H743 历史对照 Build: DebugFollowIncrementalPI",
+      "preLaunchTask": "r23 SpeedVariants 历史对照 Build: DebugFollowIncrementalPI",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
