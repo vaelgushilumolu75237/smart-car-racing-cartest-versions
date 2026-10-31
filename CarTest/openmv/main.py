@@ -1463,13 +1463,6 @@ def _steering_diag_source_code(source):
     return 0
 
 
-def _ring_slowdown_request(profile_id, state_id, entry_transition=False):
-    if (profile_id == config.VEHICLE_PROFILE_C and
-            state_id == track_elements.STATE_INSIDE and not entry_transition):
-        return config.RING_C_INSIDE_SLOWDOWN_PERMILLE
-    return 1000
-
-
 def _ring_calibration_gate_blocked(profile_id, calibration_passed):
     """Keep ring calibration gating limited to the two ring profiles."""
     return bool(profile_id in config.RING_ENABLED_PROFILE_IDS and
@@ -1561,9 +1554,8 @@ def ring_diag_persist():
 class _RingDiagnosticsSession:
     """Gate recording and persistence on real Follow start/stop edges."""
 
-    def __init__(self, diagnostic, base_path, build_id, raw_capture=None):
+    def __init__(self, diagnostic, base_path, build_id):
         self.diagnostic = diagnostic
-        self.raw_capture = raw_capture
         self.base_path = base_path
         self.build_id = build_id
         self.active = False
@@ -1573,7 +1565,7 @@ class _RingDiagnosticsSession:
 
     def observe(self, now_ms, sequence, profile_id, active_follow,
                 observation_valid, selection, tracker_result, stop_reason,
-                ticks_diff=None, raw_image=None):
+                ticks_diff=None):
         diagnostic = self.diagnostic
         if diagnostic is None or self.blocked:
             return False
@@ -1588,19 +1580,9 @@ class _RingDiagnosticsSession:
                 self.blocked = True
                 self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
                 return False
-            if self.raw_capture is not None:
-                self.raw_capture.reset()
             self.active = True
         if not self.active:
             return False
-        if self.raw_capture is not None and active_follow and raw_image is not None:
-            try:
-                pixels, width = _preview_marker_image_buffer(raw_image)
-                self.raw_capture.observe(pixels, now_ms, sequence, profile_id,
-                                         observation_valid, selection, tracker_result)
-            except Exception:
-                # Diagnostics must never change the transmitted control outcome.
-                self.raw_capture.errors += 1
         diagnostic.record_frame(
             now_ms, sequence, profile_id, active_follow,
             observation_valid, selection, tracker_result, ticks_diff)
@@ -1610,10 +1592,6 @@ class _RingDiagnosticsSession:
         self.active = False
         try:
             path = diagnostic.save_next(self.base_path, self.build_id)
-            if self.raw_capture is not None:
-                if active_follow and self.raw_capture.failed:
-                    raise RuntimeError("raw evidence retained in RAM: Follow still active")
-                self.raw_capture.save(path, self.build_id, diagnostic.frozen)
         except Exception as exc:
             self.blocked = True
             self.last_error = "%s:%s" % (type(exc).__name__, str(exc))
@@ -1749,8 +1727,6 @@ def _load_singleedge_runtime():
         ("fast_single_edge.py", fast_single_edge),
         ("reverse_control.py", reverse_control),
     )
-    if getattr(fast_single_edge, "RING_OBSERVATION_API_VERSION", None) != 3:
-        raise ImportError("single-edge bundle mismatch: ring observation API 3 required")
     return _SINGLEEDGE_RUNTIME_MODULES
 
 
@@ -1771,12 +1747,6 @@ def _load_track_elements_runtime():
             "expected %d" % (
                 getattr(track_elements, "RUNTIME_API_VERSION", None),
                 TRACK_ELEMENTS_RUNTIME_API_VERSION))
-    if getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", None) != 2:
-        raise RuntimeError("V7 element bundle mismatch: ring outer-route API 2 required")
-    if getattr(track_elements, "RING_ISLAND_TOPOLOGY_API_VERSION", None) != 1:
-        raise RuntimeError("V7 element bundle mismatch: ring island-topology API 1 required")
-    if getattr(__import__("fast_gray"), "RING_DARK_BLOCK_API_VERSION", None) != 1:
-        raise RuntimeError("V7 element bundle mismatch: ring dark-block API 1 required")
     return track_elements
 
 
@@ -3555,27 +3525,9 @@ def _validate_fast_config():
     _validate_v7_runtime_apis()
     if not isinstance(getattr(config, "STEERING_DIAG_ENABLED", None), bool):
         raise ValueError("V7 STEERING_DIAG_ENABLED must be bool")
-    if getattr(track_elements, "JOINT_ROUTE_API_VERSION", None) != 1:
-        raise RuntimeError("v26 requires matching track_elements.py with route recovery")
-    if getattr(track_elements, "EXIT_ROUTE_API_VERSION", None) != 3:
-        raise RuntimeError("v26-r16 requires matching exit route module")
-    if getattr(track_elements, "EXIT_INSIDE_API_VERSION", None) != 1:
-        raise RuntimeError("v26-r20 requires matching independent exit admission")
-    if getattr(track_elements, "EXIT_TRANSLATION_API_VERSION", None) != 1:
-        raise RuntimeError("v26-r13 requires matching exit translation module")
-    if getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", None) != 1:
-        raise RuntimeError("v26 requires matching track_elements.py with entry transition")
-    if getattr(ring_diagnostics, "CONTINUATION_API_VERSION", None) != 1:
-        raise RuntimeError("v26-r14 requires matching diagnostic continuation")
-    if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
-        raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R20_20261031":
+            "CARTEST_H750_RING45_OFFLINE_V17_20261027":
         raise ValueError("V7 track package identity is missing or mismatched")
-    if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
-            isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or
-            config.RING_C_INSIDE_SLOWDOWN_PERMILLE != 1000):
-        raise ValueError("C ring inside slowdown request must remain r16 value 1000")
     if not isinstance(getattr(config, "RING_DIAGNOSTICS_ENABLED", None), bool):
         raise ValueError("V7 RING_DIAGNOSTICS_ENABLED must be bool")
     if getattr(config, "RING_WIDTH_CALIBRATION_REQUIRED", None) is not True:
@@ -4655,7 +4607,6 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             not element_result.get("control_eligible") or
             not element_result.get("target_valid")):
         route_result["valid"] = False
-        route_result["reason"] = "RING_NOT_ELIGIBLE"
         route_result["selected_row_count"] = 0
         return 0
 
@@ -4678,7 +4629,6 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     left_edges = edge_tracker._row_edge2
     right_base = height
     output_count = 0
-    width_source_rejected = False
     target_side = element_result.get(
         "target_side", element_result.get("side"))
     if target_side not in (track_elements.SIDE_LEFT,
@@ -4695,51 +4645,6 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     observed_left = track_elements.TARGET_OBSERVED_LEFT
     observed_right = track_elements.TARGET_OBSERVED_RIGHT
     from_cache = track_elements.TARGET_WIDTH_FROM_CACHE
-    from_calibration = track_elements.TARGET_WIDTH_FROM_CALIBRATION
-    width_sources = from_cache | from_calibration
-    calibration_verified = bool(
-        getattr(element_tracker, "ring_calibration_ready", False) and
-        getattr(element_tracker, "ring_calibration_check_ready", False))
-    calibration_required = bool(getattr(
-        element_tracker, "require_calibration", False))
-    outer_requested = bool(element_result.get("outer_tracking"))
-    outer_check = getattr(element_tracker, "outer_route_valid_for", None)
-    outer_verified = bool(outer_requested and callable(outer_check) and
-        getattr(track_elements, "RING_OUTER_ROUTE_API_VERSION", 0) == 2 and
-        calibration_verified and single_rows_fresh and
-        outer_check(element_result))
-    if outer_requested and not outer_verified:
-        route_result["valid"] = False
-        route_result["selected_row_count"] = 0
-        route_result["reason"] = "RING_OUTER_EDGE_UNVERIFIED"
-        return 0
-    transition_flag = getattr(track_elements, "TARGET_ENTRY_TRANSITION", 64)
-    transition_requested = bool(element_result.get("entry_transition"))
-    transition_check = getattr(element_tracker, "entry_transition_valid_for", None)
-    transition_verified = bool(
-        transition_requested and callable(transition_check) and
-        getattr(track_elements, "ENTRY_TRANSITION_API_VERSION", 0) == 1 and
-        transition_check(element_result) and calibration_verified and
-        single_rows_fresh)
-    transition_far_y = int(element_result.get("entry_transition_far_y", -1))
-    transition_near_y = int(element_result.get("entry_transition_near_y", -1))
-    if transition_requested and (not transition_verified or
-            not (settings.SURFACE_ROI_FLOOR_Y <= transition_far_y <
-                 reference_y < transition_near_y < height)):
-        route_result["valid"] = False
-        route_result["selected_row_count"] = 0
-        route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
-        return 0
-    transition_inner_count = 0
-    transition_inner_run = 0
-    transition_inner_longest = 0
-    transition_inner_first = height
-    transition_inner_last = -1
-    transition_outer_count = 0
-    transition_outer_run = 0
-    transition_outer_longest = 0
-    transition_outer_last = -2
-    previous_transition_y = -1
 
     for index in range(target_count):
         source_offset = index * target_stride
@@ -4747,63 +4652,19 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         left_x = int(target_rows[source_offset + 1])
         right_x = int(target_rows[source_offset + 2])
         source_flags = int(target_rows[source_offset + 3])
-        outside_view = bool(source_flags & track_elements.TARGET_OUTSIDE_VIEW)
-        outside_geometry = left_x < 0 or right_x >= settings.SURFACE_GRID_WIDTH
         if (y < settings.SURFACE_ROI_FLOOR_Y or y >= height or
+                left_x < 0 or right_x >= settings.SURFACE_GRID_WIDTH or
                 left_x >= right_x):
             continue
-        if outside_geometry or outside_view:
-            if (not outside_view or not outside_geometry or not outer_verified or
-                    left_x+right_x < 0 or
-                    left_x+right_x > 2*(settings.SURFACE_GRID_WIDTH-1) or
-                    (target_side == track_elements.SIDE_LEFT and
-                     not (0 <= left_x < settings.SURFACE_GRID_WIDTH and
-                          right_x >= settings.SURFACE_GRID_WIDTH)) or
-                    (target_side == track_elements.SIDE_RIGHT and
-                     not (left_x < 0 and
-                          0 <= right_x < settings.SURFACE_GRID_WIDTH))):
-                route_result["valid"] = False
-                route_result["selected_row_count"] = 0
-                route_result["reason"] = "RING_OUTSIDE_VIEW_UNVERIFIED"
-                return 0
 
         has_left = bool(source_flags & observed_left)
         has_right = bool(source_flags & observed_right)
-        transition_row = bool(source_flags & transition_flag)
-        inferred_bridge = bool(
-            transition_verified and transition_row and
-            not has_left and not has_right and
-            source_flags & track_elements.TARGET_INFERRED_LEFT and
-            source_flags & track_elements.TARGET_INFERRED_RIGHT and
-            transition_far_y < y < transition_near_y)
-        if transition_row != transition_verified:
-            route_result["valid"] = False
-            route_result["selected_row_count"] = 0
-            route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
-            return 0
-        if transition_verified:
-            if y <= previous_transition_y:
-                route_result["valid"] = False
-                route_result["selected_row_count"] = 0
-                route_result["reason"] = "RING_ENTRY_TRANSITION_UNVERIFIED"
-                return 0
-            previous_transition_y = y
-        width_source = source_flags & width_sources
-        if ((not has_left and not has_right and not inferred_bridge) or
-                width_source not in (from_cache, from_calibration) or
-                (width_source == from_calibration and
-                 not calibration_verified) or
-                (calibration_required and width_source != from_calibration)):
-            width_source_rejected = True
+        if ((not has_left and not has_right) or
+                not (source_flags & from_cache)):
             continue
         if single_rows_fresh:
             if ((has_left and left_status[y] != 1) or
                     (has_right and left_status[right_base + y] != 1)):
-                continue
-            if (transition_verified or outer_verified) and (
-                    (has_left and abs(left_x * 2 - 1 - int(left_edges[y])) > 2) or
-                    (has_right and abs(right_x * 2 + 1 -
-                                      int(left_edges[right_base + y])) > 2)):
                 continue
         elif not road_accepted:
             continue
@@ -4815,10 +4676,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         else:
             left_edge2 = left_x * 2 - 1
             right_edge2 = right_x * 2 + 1
-        if inferred_bridge:
-            observed_side = track_elements.SIDE_NONE
-            edge2 = left_x + right_x
-        elif has_left and not has_right:
+        if has_left and not has_right:
             if not (source_flags & track_elements.TARGET_INFERRED_RIGHT):
                 continue
             observed_side = track_elements.SIDE_LEFT
@@ -4842,38 +4700,10 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         if ((observed_side == track_elements.SIDE_LEFT and not has_left) or
                 (observed_side == track_elements.SIDE_RIGHT and not has_right)):
             continue
-        if not transition_verified and observed_side != target_side:
+        if observed_side != target_side:
             continue
-        if transition_verified and not inferred_bridge:
-            expected_side = (target_side if y <= transition_far_y else
-                             (track_elements.SIDE_RIGHT if target_side ==
-                              track_elements.SIDE_LEFT else track_elements.SIDE_LEFT))
-            if (transition_far_y < y < transition_near_y or
-                    observed_side != expected_side or has_left == has_right):
-                continue
-            if y <= transition_far_y:
-                transition_inner_count += 1
-                if y == transition_inner_last + 1:
-                    transition_inner_run += 1
-                else:
-                    transition_inner_run = 1
-                transition_inner_longest = max(
-                    transition_inner_longest, transition_inner_run)
-                transition_inner_first = min(transition_inner_first, y)
-                transition_inner_last = y
-            elif y >= max(transition_near_y, height - element_tracker.near_rows):
-                transition_outer_count += 1
-                if y == transition_outer_last + 1:
-                    transition_outer_run += 1
-                else:
-                    transition_outer_run = 1
-                transition_outer_longest = max(
-                    transition_outer_longest, transition_outer_run)
-                transition_outer_last = y
 
-        if inferred_bridge:
-            boundary = "ENTRY_TRANSITION"
-        elif has_left and has_right:
+        if has_left and has_right:
             boundary = "OBSERVED_BOTH"
         elif observed_side == track_elements.SIDE_LEFT:
             edge2 = left_edge2
@@ -4900,7 +4730,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             row_flags |= fast_single_edge.FLAG_OBSERVED_RIGHT
         else:
             row_flags |= fast_single_edge.FLAG_INFERRED_RIGHT
-        if source_flags & width_sources:
+        if source_flags & from_cache:
             row_flags |= (fast_single_edge.FLAG_WIDTH_CACHE |
                           fast_single_edge.FLAG_IDENTITY_ANCHORED)
         route_rows[target_offset + 4] = row_flags
@@ -4913,36 +4743,20 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
             reference_center2 = center2
             reference_edge2 = edge2
             reference_boundary = (
-                "ENTRY_TRANSITION" if inferred_bridge else
                 "LEFT" if observed_side == track_elements.SIDE_LEFT
                 else "RIGHT")
 
-    if transition_verified and (
-            transition_inner_count < element_tracker.ring_arc_min_rows or
-            transition_inner_longest < element_tracker.ring_arc_min_contiguous_rows or
-            transition_inner_last - transition_inner_first < element_tracker.ring_arc_min_span_rows or
-            transition_outer_count < element_tracker.min_side_support or
-            transition_outer_longest < element_tracker.min_side_contiguous):
-        route_result["valid"] = False
-        route_result["selected_row_count"] = 0
-        route_result["reason"] = "RING_ENTRY_TRANSITION_ANCHORS"
-        return 0
     if output_count < element_tracker.min_target_rows or \
             reference_delta > element_tracker.max_cache_gap + 2:
-        route_result["reason"] = ("RING_WIDTH_PROVENANCE_REJECTED"
-                                  if width_source_rejected else
-                                  "RING_TARGET_ROWS_OR_REFERENCE")
         route_result["valid"] = False
         route_result["selected_row_count"] = 0
         return 0
 
     center_x = reference_center2 * 0.5
-    quality = 40 + min(45 if transition_verified else 60, output_count * 2)
+    quality = 40 + min(60, output_count * 2)
     route_result["valid"] = True
     route_result["quality"] = quality
-    route_result["reason"] = ("RING_ENTRY_TRANSITION_TARGET" if transition_verified
-                              else "RING_OUTER_EDGE_CONTINUATION_TARGET" if outer_verified
-                              else "RING_WIDTH_CACHE_TARGET")
+    route_result["reason"] = "RING_WIDTH_CACHE_TARGET"
     route_result["scene"] = "RING_ACTIVE"
     route_result["lateral_error"] = _normalize_fast_reference(
         center_x, settings.SURFACE_GRID_WIDTH)
@@ -4953,7 +4767,6 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
     route_result["reference_center_x"] = center_x
     route_result["reference_y"] = float(reference_row_y)
     route_result["reference_provenance"] = (
-        "RING_ENTRY_INTERPOLATED" if reference_boundary == "ENTRY_TRANSITION" else
         "RING_WIDTH_CACHE_LEFT" if reference_boundary == "LEFT" else
         "RING_WIDTH_CACHE_RIGHT")
     route_result["boundary_source"] = route_result[
@@ -4963,16 +4776,13 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
         fast_single_edge.INFERENCE_USED_WIDTH_CACHE |
         fast_single_edge.INFERENCE_USED_CURRENT_EDGE |
         fast_single_edge.INFERENCE_USED_CONTINUITY)
-    route_result["observed_both_rows"] = (0 if transition_verified else max(0,
-        int(element_result.get("observed_rows", 0)) - int(
-            element_result.get("inferred_rows", 0))))
+    route_result["observed_both_rows"] = int(
+        element_result.get("observed_rows", 0)) - int(
+            element_result.get("inferred_rows", 0))
     route_result["inferred_rows"] = int(
         element_result.get("inferred_rows", 0))
-    route_result["actual_boundary"] = ("NONE" if reference_boundary ==
-                                       "ENTRY_TRANSITION" else reference_boundary)
-    route_result["actual_boundary_x"] = (None if reference_boundary ==
-                                         "ENTRY_TRANSITION" else reference_edge2 * 0.5)
-    route_result["entry_transition"] = transition_verified
+    route_result["actual_boundary"] = reference_boundary
+    route_result["actual_boundary_x"] = reference_edge2 * 0.5
     route_result["weak_support"] = False
     return output_count
 
@@ -7071,19 +6881,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
               getattr(fast_single_edge, "COMPILER_BACKEND", "UNKNOWN"),
               1 if _NATIVE_ACCELERATION_ENABLED else 0,
               config.PROFILE_STATE_TIMEOUT_MS))
-    path_accel_status = "unavailable"
-    try:
-        path_accel = fast_path._path_accel_backend()
-        if fast_path._path_accel_supported(path_detector, path_accel):
-            path_accel_status = "cartest_path_accel-api1"
-    except Exception:
-        path_accel_status = "unverified"
-    print("V25_CAPS path_accel=%s topology_accel=%s native_emit=%d "
-          "native_preview=%d perf_ref_includes=ring,row_weight" % (
-              path_accel_status,
-              getattr(fast_topology, "NATIVE_ACCEL_BACKEND", "unavailable"),
-              1 if _NATIVE_ACCELERATION_ENABLED else 0,
-              1 if native_preview_api else 0))
     print("TRACK_BUILD=%s forward=V3/16 reverse=V1/8+V2/20 "
           "profile=awaiting_state ring=profile_gated_experimental "
           "cross=experimental" % config.TRACK_PACKAGE_BUILD_ID)
@@ -7138,10 +6935,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     element_tracker = track_elements.TrackElementsTracker(
         config, calibration_for_tracker,
         require_calibration=config.RING_WIDTH_CALIBRATION_REQUIRED)
-    observe_element_route_outcome = getattr(
-        element_tracker, "observe_route_outcome", None)
-    commit_element_route = getattr(
-        element_tracker, "commit_transmitted_route", None)
     ring_calibration_passed = bool(
         element_tracker.ring_calibration_ready and
         element_tracker.ring_calibration_check_ready)
@@ -7157,10 +6950,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     _RING_DIAG_SESSION = (
         _RingDiagnosticsSession(
             _RING_DIAGNOSTICS, config.RING_DIAGNOSTICS_PATH,
-            config.TRACK_PACKAGE_BUILD_ID,
-            raw_capture=(ring_diagnostics.OuterFailureCapture()
-                         if getattr(config, "RING_OUTER_FAILURE_RAW_ENABLED", False)
-                         and not fixture_mode else None))
+            config.TRACK_PACKAGE_BUILD_ID)
         if _RING_DIAGNOSTICS is not None else None)
     calibration_status = (
         element_tracker.ring_calibration_reason
@@ -7475,19 +7265,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         if image_size_valid:
             try:
                 mask_info = gray_builder.build(img)
-                prior_ring = element_tracker.result
-                if (reverse_fresh and reverse_parser.profile_session_active and
-                        prior_ring.get("profile_id") in (2, 3) and
-                        prior_ring.get("ring_confirmed") and
-                        prior_ring.get("state_id") in (
-                            track_elements.STATE_INSIDE,
-                            track_elements.STATE_EXIT_CONFIRM,
-                            track_elements.STATE_EXIT_REPAIR,
-                            track_elements.STATE_REACQUIRE) and
-                        element_tracker.ring_calibration_ready and
-                        element_tracker.ring_calibration_check_ready and
-                        getattr(element_tracker, "_ring_cache_frozen", False)):
-                    gray_builder.resolve_confirmed_ring_dark_block(mask_info)
             except Exception as exc:
                 detector_error = "MASK:%s" % exc
         else:
@@ -7602,16 +7379,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         single_candidate = None
         single_diagnostic_reason = (
             "NOT_NEEDED" if selection.get("valid") else "NOT_ATTEMPTED")
-        prior_element = element_tracker.result
-        ring_observation_only = bool(
-            reverse_fresh and reverse_parser.profile_session_active and
-            mask_info is not None and prior_element.get("ring_confirmed") and
-            prior_element.get("state_id") in (
-                track_elements.STATE_INSIDE,
-                track_elements.STATE_EXIT_CONFIRM,
-                track_elements.STATE_EXIT_REPAIR,
-                track_elements.STATE_REACQUIRE))
-        if not selection.get("valid") and not ring_observation_only:
+        if not selection.get("valid"):
             if not reverse_fresh:
                 if mask_info is not None:
                     single_candidate = single_edge_tracker.detect(
@@ -7686,15 +7454,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     "reason": single_diagnostic_reason,
                     "source": "NONE",
                 }
-
-        # Once ring takeover is confirmed, a valid ordinary candidate must
-        # not suppress this frame's independent boundary observation. Its
-        # selected rows may cover only the far field. Do not select or commit
-        # this diagnostic single-edge candidate as the ordinary route.
-        if ring_observation_only:
-            single_candidate = single_edge_tracker.observe_ring_boundaries(
-                mask_info, True, road_result.get("topology_evidence"))
-            single_diagnostic_reason = "CONFIRMED_RING_BOUNDARY_OBSERVATION"
 
         if single_candidate is None:
             single_edge_tracker.skip_frame(single_diagnostic_reason)
@@ -7825,49 +7584,27 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_candidate = element_result
         ring_info = element_result
         control_road_result = road_result
-        # Keep the already validated ordinary route untouched until the ring
-        # admission/recovery decision is complete. No row buffers are copied.
-        ordinary_selection = selection
-        ordinary_reference = reference
-        ordinary_boundary_reference = boundary_reference
-        ordinary_route_valid = bool(
-            normal_cache_commit_allowed and selection.get("valid") and
-            selection.get("source") == "road" and reference is not None and
-            boundary_reference.get("valid") and not capture_interrupted)
         element_route_selected = False
         ring_profile_enabled = bool(
             profile_session_active and
             reverse_parser.ring_profile_enabled(
                 profile_now_ms, time.ticks_diff))
 
-        element_result["route_admission_reason"] = "RING_NOT_ELIGIBLE"
-        if element_result.get("exit_admission_reason") == "EXIT_GUIDANCE_UNTRUSTED":
-            element_result["route_admission_reason"] = "EXIT_GUIDANCE_UNTRUSTED"
         if ring_profile_enabled and element_result.get("control_eligible"):
             ring_count = _fill_ring_control_route(
                 element_result, element_tracker, single_edge_tracker,
                 normal_cache_commit_allowed, single_rows_fresh,
                 ring_route_result, ring_route_rows, config)
-            element_result["route_admission_reason"] = ring_route_result.get(
-                "reason", "RING_TARGET_ROWS_OR_REFERENCE")
             if ring_count:
-                exit_admission = element_result.get("exit_admission_reason")
-                if exit_admission in ("EXIT_CURRENT_PAIRED",
-                                       "EXIT_ANCHORED_CURRENT_EDGE",
-                                       "EXIT_CURRENT_SINGLE"):
-                    element_result["route_admission_reason"] = exit_admission
                 ring_target_side = element_result.get(
                     "target_side", element_result.get("side"))
-                if element_result.get("outer_tracking"):
-                    # The observed boundary side differs from ring direction.
-                    ring_target_side = element_result.get("side")
                 ring_source = ("ring_left" if ring_target_side ==
                                track_elements.SIDE_LEFT else "ring_right")
                 ring_selection["valid"] = True
                 ring_selection["quality"] = ring_route_result["quality"]
                 ring_selection["lateral_error"] = ring_route_result[
                     "lateral_error"]
-                ring_selection["reason"] = ring_route_result["reason"]
+                ring_selection["reason"] = "RING_WIDTH_CACHE_TARGET"
                 ring_selection["source"] = ring_source
                 ring_selection["rejected_source"] = None
                 ring_selection["boundary_source"] = ring_route_result[
@@ -7884,22 +7621,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     "source": ring_source,
                 }
 
-        if observe_element_route_outcome is not None:
-            recovered_ordinary = observe_element_route_outcome(
-                profile_now_ms, element_route_selected, ordinary_route_valid)
-            if recovered_ordinary:
-                # The tracker requires three independent current-frame
-                # counter-observations; restore only this validated frame.
-                selection = ordinary_selection
-                reference = ordinary_reference
-                boundary_reference = ordinary_boundary_reference
-                element_route_selected = False
-
         ring_confirmed_state = element_result.get("state_id") in (
             track_elements.STATE_INSIDE,
             track_elements.STATE_EXIT_CONFIRM,
-            track_elements.STATE_EXIT_REPAIR,
-            track_elements.STATE_REACQUIRE)
+            track_elements.STATE_EXIT_REPAIR)
         ring_target_blocked = bool(
             ring_profile_enabled and
             element_result.get("ring_confirmed") and
@@ -8140,11 +7865,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             slowdown_request_permille = 0
         if (valid and element_route_selected and
                 control_source in ("ring_left", "ring_right")):
-            # Preserve the r16 request in every ring phase during exit validation.
+            # H743 maps the full vision slowdown request to the selected
+            # profile's outer-wheel ring target (B 4.0, C 4.4 rps).
             curve_phase = vision_protocol.CURVE_PHASE_TURN
-            slowdown_request_permille = _ring_slowdown_request(
-                profile_id, element_result.get("state_id"),
-                element_result.get("entry_transition", False))
+            slowdown_request_permille = 1000
         elif (element_route_selected and control_source == "road" and
                 control_boundary_source == "CROSS_STRAIGHT" and
                 element_result.get("cross_suppress_slowdown")):
@@ -8373,9 +8097,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         # and total_cycle accounts for it separately after this point.
         send_end_us = time.ticks_us()
         send_end_ms = time.ticks_ms()
-        if commit_element_route is not None and element_route_selected:
-            commit_element_route(capture_end_ms,
-                                 bool(valid and (packet[6] & 1)), full_write)
         pack_uart_us = time.ticks_diff(send_end_us, pack_start_us)
         capture_to_send_us = time.ticks_diff(
             send_end_us, cycle_start_us)
@@ -8436,15 +8157,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         # STEERING_DIAG_TRACE_END
         ring_diag_us = 0
         if _RING_DIAG_SESSION is not None:
-            # Pair geometry with the actual signed value written in this V3,
-            # not an earlier candidate that may have been rejected afterward.
-            element_result["diagnostic_position_error"] = int(
-                weight_info.get("position_error", 0))
-            sent_error = packet[8] | (packet[9] << 8)
-            if sent_error >= 32768:
-                sent_error -= 65536
-            element_result["diagnostic_sent_error"] = sent_error
-            element_result["diagnostic_selection_reason"] = selection.get("reason")
             ring_diag_start_us = time.ticks_us()
             active_follow = bool(
                 reverse_fresh and reverse_parser.single_enabled and
@@ -8456,7 +8168,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             _RING_DIAG_SESSION.observe(
                 capture_end_ms, sequence, profile_id, active_follow,
                 bool(valid and full_write), selection, element_result,
-                ring_stop_reason, time.ticks_diff, raw_image=img)
+                ring_stop_reason, time.ticks_diff)
             ring_diag_us = time.ticks_diff(
                 time.ticks_us(), ring_diag_start_us)
         sequence_sent = sequence
@@ -8491,10 +8203,6 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                   single_candidate is not None and
                   single_candidate.get("valid")):
                 single_edge_tracker.commit_single(single_candidate)
-            elif (reverse_fresh and selection.get("valid") and
-                  selection.get("source") in ("ring_left", "ring_right")):
-                single_edge_tracker.commit_ring_observation(
-                    selection.get("result"))
 
         heap_sample_us = 0
         heap_sample_now_ms = time.ticks_ms()
@@ -8822,9 +8530,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             if (ring_state != "OBSERVE" or ring_arc_rejection != "NONE" or
                     ring_growth_rejected):
                 print("V7RING seq=%d st=%s sd=%s arc=%d/%d near=%d/%d "
-                      "gf=%d dx2=%+d path=%s tgt=%d rej=%s/%s "
-                      "target_side=%s center2=%d cmd=%d source=%s admit=%s "
-                      "exit_single=%s/%d residual2=%d" % (
+                      "gf=%d dx2=%+d path=%s tgt=%d rej=%s/%s" % (
                           sequence_sent,
                           ring_state,
                           ring_info.get("side_name", "NONE"),
@@ -8837,16 +8543,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                           ring_info.get("entry_confirmation_path", "NONE"),
                           1 if ring_info.get("target_valid") else 0,
                           ring_arc_rejection,
-                          ring_info.get("growth_target_rejection", "NONE"),
-                          ring_info.get("target_side_name", "NONE"),
-                          int(ring_info.get("target_center2", -1))
-                              if ring_info.get("target_valid") else -1,
-                          final_control if valid else 0,
-                          selection.get("source", "NONE"),
-                          ring_info.get("route_admission_reason", "NOT_RUN"),
-                          ring_info.get("exit_single_reason", "NOT_RUN"),
-                          ring_info.get("exit_single_count", 0),
-                          ring_info.get("exit_single_residual_x2", -1)))
+                          ring_info.get("growth_target_rejection", "NONE")))
             if single_diagnostic_reason == "AMBIGUOUS_BOTH_SIDES":
                 pair_record = getattr(
                     single_edge_tracker, "pair_diagnostic_record", None)

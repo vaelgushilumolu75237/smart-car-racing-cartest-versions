@@ -708,12 +708,10 @@ def _verify_artifact_manifest(
     package_name: str,
     files: dict[str, Path],
 ) -> None:
-    software_only = manifest.get("artifact_class") == "software-build-only-hardware-pending"
     if (type(manifest.get("schema_version")) is not int or manifest.get("schema_version") != 1 or
             manifest.get("package_id") != package_name or
             manifest.get("target") != TARGET or
-            manifest.get("artifact_class") not in (
-                "bench-only-road-pending", "software-build-only-hardware-pending") or
+            manifest.get("artifact_class") != "bench-only-road-pending" or
             manifest.get("motor_start") is not False or
             manifest.get("road_acceptance") is not False or
             manifest.get("deployment_eligible") is not False):
@@ -739,18 +737,6 @@ def _verify_artifact_manifest(
             _error(f"artifact-manifest hash mismatch: {name}")
 
     evidence = manifest.get("evidence_refs")
-    if software_only:
-        # A fresh software build must never inherit another camera/version's
-        # flash, readback or FPS evidence just to satisfy the historical schema.
-        for flag in ("hardware_validation", "flash_performed", "board_fps_verified",
-                     "ide_preview_fps_verified"):
-            if manifest.get(flag) is not False:
-                _error(f"software-only artifact must record {flag}=false")
-        if manifest.get("rollback_scope") != "historical-j-reference-not-replacement-camera-backup":
-            _error("software-only artifact must identify its historical rollback scope")
-        if evidence != {}:
-            _error("software-only artifact must not claim device evidence")
-        return
     if not isinstance(evidence, dict) or set(evidence) != {"flash", "readback", "bench"}:
         _error("artifact-manifest must provide hash-only flash, readback, and bench references")
     for kind, record in evidence.items():

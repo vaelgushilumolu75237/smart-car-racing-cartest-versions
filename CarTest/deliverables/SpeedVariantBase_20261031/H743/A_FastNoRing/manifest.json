@@ -1,0 +1,14 @@
+{
+  "label": "A_FastNoRing",
+  "preset": "DebugFastNoRing",
+  "profile_id": 1,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_enabled": false,
+  "ring_outer_target_millirps": null,
+  "build_id": "e55960baa18b2cc792efa5f718c4727e",
+  "elf_sha256": "3c745b0206f248b5f6ae76df070f8f4903bbb737f0b8ad370be30dbcdb37eff2",
+  "runtime_log_record_size": 64,
+  "runtime_log_header_size": 64,
+  "vehicle_acceptance": "pending_manual_road_tests"
+}

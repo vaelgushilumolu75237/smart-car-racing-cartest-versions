@@ -1,7 +1,7 @@
 {
-  "version": "v20261031-ring-exit-v26-r20",
+  "version": "v20261031-v24-speed-120-130-140",
   "status": "experimental-software-tested",
-  "branch": "experimental/pi-trial",
-  "files": 859,
+  "branch": "experimental/speed-variants",
+  "files": 823,
   "hardware_actions": "none"
 }

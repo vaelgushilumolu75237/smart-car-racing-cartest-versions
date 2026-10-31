@@ -1,0 +1,86 @@
+[
+  {
+    "version": "v24",
+    "profile": 1,
+    "percent": 100,
+    "exit_code": 0,
+    "output": "PASS profile=1 percent=100 straight=5600 slowdown=4400 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 1,
+    "percent": 120,
+    "exit_code": 0,
+    "output": "PASS profile=1 percent=120 straight=6720 slowdown=5280 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 1,
+    "percent": 130,
+    "exit_code": 0,
+    "output": "PASS profile=1 percent=130 straight=7280 slowdown=5720 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 1,
+    "percent": 140,
+    "exit_code": 0,
+    "output": "PASS profile=1 percent=140 straight=7840 slowdown=6160 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 2,
+    "percent": 100,
+    "exit_code": 0,
+    "output": "PASS profile=2 percent=100 straight=4800 slowdown=4000 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 2,
+    "percent": 120,
+    "exit_code": 0,
+    "output": "PASS profile=2 percent=120 straight=5760 slowdown=4800 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 2,
+    "percent": 130,
+    "exit_code": 0,
+    "output": "PASS profile=2 percent=130 straight=6240 slowdown=5200 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 2,
+    "percent": 140,
+    "exit_code": 0,
+    "output": "PASS profile=2 percent=140 straight=6720 slowdown=5600 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 3,
+    "percent": 100,
+    "exit_code": 0,
+    "output": "PASS profile=3 percent=100 straight=5600 slowdown=4400 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 3,
+    "percent": 120,
+    "exit_code": 0,
+    "output": "PASS profile=3 percent=120 straight=6720 slowdown=5280 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 3,
+    "percent": 130,
+    "exit_code": 0,
+    "output": "PASS profile=3 percent=130 straight=7280 slowdown=5720 PI=accepted hold=preserved snapshot=valid"
+  },
+  {
+    "version": "v24",
+    "profile": 3,
+    "percent": 140,
+    "exit_code": 0,
+    "output": "PASS profile=3 percent=140 straight=7840 slowdown=6160 PI=accepted hold=preserved snapshot=valid"
+  }
+]

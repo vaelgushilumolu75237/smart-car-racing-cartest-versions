@@ -1501,10 +1501,9 @@ def main():
     parser.add_argument("--hardware-actions", default="none",
                         choices=("none",
                                  "stationary-camera-upload-h743-flash-no-motor-start",
-                                 "stationary-camera-app-flash-no-python-upload-no-h743-flash-no-motor-start",
                                  "stationary-camera-app-flash-python-upload-no-h743-flash-no-motor-start"),
                         help=("Record completed hardware actions accurately in VERSION.json; "
-                              "APP-only and APP/Python options record that H743 was not reflashed."))
+                              "the app/Python option records that H743 was not reflashed."))
     parser.add_argument("--track-profiles", type=Path,
                         help="Validate and include an explicit three-profile H750 delivery under deliverables.")
     args = parser.parse_args()

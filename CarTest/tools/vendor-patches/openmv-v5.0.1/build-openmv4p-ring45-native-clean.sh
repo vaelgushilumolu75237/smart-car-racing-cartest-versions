@@ -59,9 +59,7 @@ canonical_future_path() {
         return 1
     }
     parent_abs="$(cd -- "$parent" && pwd -P)"
-    # A mapped drive root such as /w has parent /. Avoid producing //w,
-    # which MSYS treats as a UNC host rather than the mapped drive.
-    printf '%s/%s\n' "${parent_abs%/}" "$base"
+    printf '%s/%s\n' "$parent_abs" "$base"
 }
 
 source_root="$(canonical_dir "$source_input")"
