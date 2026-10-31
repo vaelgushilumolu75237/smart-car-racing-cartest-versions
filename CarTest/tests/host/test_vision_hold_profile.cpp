@@ -105,12 +105,20 @@ int main()
     check(control.vision_hold_active != 0u,
           "profile fixture enters Follow vision hold");
     const uint32_t last_valid_ms = control.vision_last_valid_ms;
+    const uint16_t held_target =
+        car_control_follow_servo_output_target_us(&control);
+    check(control.vision_hold_error_norm == 545,
+          "exit line loss holds the last trusted signed error");
     uint16_t sequence = 105u;
     for (uint32_t elapsed_ms = 200u; elapsed_ms <= 1800u;
          elapsed_ms += 200u) {
         const uint32_t frame_ms = last_valid_ms + elapsed_ms;
         send_frame(&control, &config, sequence++, 0u, 0u, 0,
                    frame_ms, 0u);
+        check(control.vision_hold_error_norm == 545 &&
+                  car_control_follow_servo_output_target_us(&control) == held_target &&
+                  control.vision_last_valid_ms == last_valid_ms,
+              "continued exit invalid frames neither centre steering nor renew deadline");
     }
 
     car_inputs_t before_deadline = inputs_at(last_valid_ms + 1999u);

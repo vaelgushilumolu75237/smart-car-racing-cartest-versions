@@ -118,9 +118,9 @@ class TrackElementsHarness:
                 self.tracker._baseline_left_by_y2[y]
                 if side == te.SIDE_LEFT else
                 self.tracker._baseline_right_by_y2[y])
-            inner_edge2 = (baseline_inner + common2 + outward2
+            inner_edge2 = (baseline_inner + common2 - outward2
                            if side == te.SIDE_LEFT else
-                           baseline_inner + common2 - outward2)
+                           baseline_inner + common2 + outward2)
             status[inner_base + y] = 1
             edge2[inner_base + y] = inner_edge2
             baseline_outer = int(
@@ -471,7 +471,7 @@ class TrackElementsTests(unittest.TestCase):
         h = TrackElementsHarness()
         h.complete_left_ring()
         for _ in range(3):
-            h.frame(left_by_y=lambda y: 28 if 20 <= y < 36 else 25,
+            h.frame(left_by_y=lambda y: 22 if 20 <= y < 36 else 25,
                     right_by_y=lambda y: 55)
             self.assertFalse(h.tracker.observe_route_outcome(
                 h.now, False, True))
@@ -765,7 +765,7 @@ class TrackElementsTests(unittest.TestCase):
         left = TrackElementsHarness()
         left.prime()
         for y in range(20, 32):
-            left.tracker._current_edge2[y] += left.tracker.reappear_shift2
+            left.tracker._current_edge2[y] -= left.tracker.reappear_shift2
         self.assertEqual(left.tracker._find_entry_dropout_side(),
                          te.SIDE_LEFT)
         self.assertEqual(left.tracker._ring_diag_arc_rows, 12)
@@ -774,7 +774,7 @@ class TrackElementsTests(unittest.TestCase):
         right.prime()
         for y in range(20, 32):
             index = right.HEIGHT + y
-            right.tracker._current_edge2[index] -= \
+            right.tracker._current_edge2[index] += \
                 right.tracker.reappear_shift2
         self.assertEqual(right.tracker._find_entry_dropout_side(),
                          te.SIDE_RIGHT)
@@ -1164,9 +1164,10 @@ class TrackElementsTests(unittest.TestCase):
         self.assertEqual(result["state"], "EXIT_CONFIRM")
         self.assertTrue(result["exit_experimental"])
         self.assertEqual(result["side"], te.SIDE_LEFT)
-        self.assertEqual(result["target_side"], te.SIDE_NONE)
-        self.assertFalse(result["target_valid"])
-        self.assertFalse(result["control_eligible"])
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+        self.assertFalse(result["exit_reobserved"])
 
         self.assertEqual(list(h.cache_width), live_width_before_exit)
         for _ in range(3):
@@ -1177,10 +1178,11 @@ class TrackElementsTests(unittest.TestCase):
         self.assertEqual(result["state"], "EXIT_REPAIR")
         self.assertTrue(result["exit_experimental"])
         self.assertEqual(result["side"], te.SIDE_LEFT)
-        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
         self.assertTrue(result["target_valid"])
         self.assertTrue(result["control_eligible"])
-        result = h.frame(left=25, right=55)
+        for _ in range(h.tracker.exit_repair_frames):
+            result = h.frame(left=25, right=55)
         self.assertEqual(result["state"], "REACQUIRE")
         self.assertTrue(result["exit_reobserved"])
         for _ in range(2):
@@ -1193,8 +1195,9 @@ class TrackElementsTests(unittest.TestCase):
         result = mirror.lose(te.SIDE_LEFT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
         self.assertEqual(result["side"], te.SIDE_RIGHT)
-        self.assertEqual(result["target_side"], te.SIDE_NONE)
-        self.assertFalse(result["target_valid"])
+        self.assertEqual(result["target_side"], te.SIDE_RIGHT)
+        self.assertTrue(result["target_valid"])
+        self.assertFalse(result["exit_reobserved"])
         for _ in range(3):
             result = mirror.frame(left=25, right=55)
         self.assertEqual(result["state"], "EXIT_REPAIR")
@@ -1205,16 +1208,18 @@ class TrackElementsTests(unittest.TestCase):
         h.complete_left_ring()
         result = h.lose(te.SIDE_RIGHT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
-        self.assertFalse(result["target_valid"])
+        self.assertTrue(result["target_valid"])
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
 
-        # Only the locked ring side is visible now; exit guidance needs the
-        # opposite real edge, so no target may be published.
+        # The exit is still provisional. The fresh inner edge can continue
+        # ring following, but does not authorize opposite-side exit guidance.
         result = h.frame(road_accepted=False, raw_side=te.SIDE_LEFT)
         self.assertEqual(result["state"], "EXIT_CONFIRM")
         self.assertEqual(result["side"], te.SIDE_LEFT)
-        self.assertEqual(result["target_side"], te.SIDE_NONE)
-        self.assertFalse(result["target_valid"])
-        self.assertFalse(result["control_eligible"])
+        self.assertEqual(result["target_side"], te.SIDE_LEFT)
+        self.assertTrue(result["target_valid"])
+        self.assertTrue(result["control_eligible"])
+        self.assertFalse(result["exit_reobserved"])
 
         # Restore the opposite edge, but break its centerline corridor.
         result = h.frame(road_accepted=False, raw_side=te.SIDE_RIGHT,

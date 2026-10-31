@@ -12,8 +12,7 @@
         "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "OFF",
         "CARTEST_ENABLE_ACKERMANN_COORDINATION": "ON",
         "CARTEST_VISION_HOLD_MS": "3000",
-        "CARTEST_VISION_HOLD_RAMP_MS": "300",
-        "CARTEST_SPEED_PERCENT": "100"
+        "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
     },
     {
@@ -177,94 +176,15 @@
     },
     {
       "name": "DebugRingFast",
-      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann; r22 vision hold 3000ms / ramp 300ms",
       "inherits": "DebugFollowIncrementalPI",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CARTEST_TRACK_PROFILE": "3",
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
-        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400"
-      }
-    },
-    {
-      "name": "DebugFastNoRing_Plus20",
-      "displayName": "DebugFastNoRing wheel targets +20%",
-      "inherits": "DebugFastNoRing",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "120"
-      }
-    },
-    {
-      "name": "DebugFastNoRing_Plus30",
-      "displayName": "DebugFastNoRing wheel targets +30%",
-      "inherits": "DebugFastNoRing",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "130"
-      }
-    },
-    {
-      "name": "DebugFastNoRing_Plus40",
-      "displayName": "DebugFastNoRing wheel targets +40%",
-      "inherits": "DebugFastNoRing",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "140"
-      }
-    },
-    {
-      "name": "DebugRingBase_Plus20",
-      "displayName": "DebugRingBase wheel targets +20%",
-      "inherits": "DebugRingBase",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "120"
-      }
-    },
-    {
-      "name": "DebugRingBase_Plus30",
-      "displayName": "DebugRingBase wheel targets +30%",
-      "inherits": "DebugRingBase",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "130"
-      }
-    },
-    {
-      "name": "DebugRingBase_Plus40",
-      "displayName": "DebugRingBase wheel targets +40%",
-      "inherits": "DebugRingBase",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "140"
-      }
-    },
-    {
-      "name": "DebugRingFast_Plus20",
-      "displayName": "DebugRingFast wheel targets +20%",
-      "inherits": "DebugRingFast",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "120"
-      }
-    },
-    {
-      "name": "DebugRingFast_Plus30",
-      "displayName": "DebugRingFast wheel targets +30%",
-      "inherits": "DebugRingFast",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "130"
-      }
-    },
-    {
-      "name": "DebugRingFast_Plus40",
-      "displayName": "DebugRingFast wheel targets +40%",
-      "inherits": "DebugRingFast",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CARTEST_SPEED_PERCENT": "140"
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300"
       }
     }
   ],
@@ -328,42 +248,6 @@
     {
       "name": "DebugRingFast",
       "configurePreset": "DebugRingFast"
-    },
-    {
-      "name": "DebugFastNoRing_Plus20",
-      "configurePreset": "DebugFastNoRing_Plus20"
-    },
-    {
-      "name": "DebugFastNoRing_Plus30",
-      "configurePreset": "DebugFastNoRing_Plus30"
-    },
-    {
-      "name": "DebugFastNoRing_Plus40",
-      "configurePreset": "DebugFastNoRing_Plus40"
-    },
-    {
-      "name": "DebugRingBase_Plus20",
-      "configurePreset": "DebugRingBase_Plus20"
-    },
-    {
-      "name": "DebugRingBase_Plus30",
-      "configurePreset": "DebugRingBase_Plus30"
-    },
-    {
-      "name": "DebugRingBase_Plus40",
-      "configurePreset": "DebugRingBase_Plus40"
-    },
-    {
-      "name": "DebugRingFast_Plus20",
-      "configurePreset": "DebugRingFast_Plus20"
-    },
-    {
-      "name": "DebugRingFast_Plus30",
-      "configurePreset": "DebugRingFast_Plus30"
-    },
-    {
-      "name": "DebugRingFast_Plus40",
-      "configurePreset": "DebugRingFast_Plus40"
     }
   ]
 }

@@ -47,7 +47,10 @@ STEERING_CONTROL_PROFILE_BUILD_IDS = (
 )
 BUILD_ID = dict(STEERING_CONTROL_PROFILE_BUILD_IDS).get(
     STEERING_CONTROL_PROFILE, "OPENMV_ACKERMANN320_INVALID_20261022")
-TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_JOINT_V25_20261029"
+TRACK_PACKAGE_BUILD_ID = "CARTEST_H750_RING_TUNE_V26R22_20261031"
+# C INSIDE: 5600 - round((5600-4400)*267/1000) = 5280 milli-RPS.
+# Entry transition, exit and profile B retain the full slowdown request.
+RING_C_INSIDE_SLOWDOWN_PERMILLE = 267
 # Vehicle behavior profiles are selected by the H743 and acknowledged in the
 # V3 forward frame. The camera stays fail-closed (profile 0) until a fresh,
 # revision-1 V2 profile-state frame arrives.
@@ -60,11 +63,13 @@ PROFILE_STATE_REVISION = 1
 PROFILE_STATE_TIMEOUT_MS = 250
 CAMERA_UART_DIAG_ENABLED = True
 CAMERA_UART_DIAG_INTERVAL_MS = 1000
-CAMERA_UART_DIAG_BUILD_CODE = 0x20261029
+CAMERA_UART_DIAG_BUILD_CODE = 0x20261030
 
 # Bounded element-tracker settings. These conservative software defaults are
 # adjustable; they are not thresholds calibrated against a recorded track run.
 TRACK_ELEMENTS_MAX_ENTRY_MS = 4000
+TRACK_ELEMENTS_RING_HANDOFF_MAX_CENTER_DELTA_X2 = 12
+TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS = 2000
 TRACK_ELEMENTS_MAX_ACTIVE_MS = 16000
 TRACK_ELEMENTS_MAX_ACTIVE_MILLIREV = 60000
 TRACK_ELEMENTS_NEAR_ROWS = 12
@@ -105,7 +110,11 @@ TRACK_ELEMENTS_CROSS_WIDTH_TOLERANCE_CELLS = 6
 
 STEERING_DIAG_ENABLED = True
 RING_DIAGNOSTICS_ENABLED = True
-RING_DIAGNOSTICS_PATH = "ring_diagnostics.bin"
+# Fixed 115200-byte pre/failure/post raw capture; write only after Follow stops.
+RING_OUTER_FAILURE_RAW_ENABLED = True
+# Keep numbered evidence out of the FAT root directory.  The recorder creates
+# this directory before its first save; existing root files remain untouched.
+RING_DIAGNOSTICS_PATH = "ring_diag/ring_diagnostics.bin"
 RING_WIDTH_CALIBRATION_PATH = "ring_width_calibration.json"
 RING_WIDTH_CALIBRATION_REQUIRED = True
 V7_RUNTIME_API_VERSION = 7

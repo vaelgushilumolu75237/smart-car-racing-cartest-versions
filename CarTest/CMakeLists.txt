@@ -34,10 +34,6 @@ option(CARTEST_ENABLE_ACKERMANN_COORDINATION "Coordinate Follow incremental PI t
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
-set(CARTEST_SPEED_PERCENT "100" CACHE STRING "Paired wheel-target percentage: 100, 120, 130, 140")
-if(NOT CARTEST_SPEED_PERCENT MATCHES "^(100|120|130|140)$")
-  message(FATAL_ERROR "CARTEST_SPEED_PERCENT must be 100, 120, 130, or 140.")
-endif()
 set(CARTEST_TRACK_PROFILE "0" CACHE STRING
     "Camera/vehicle pairing profile: 0 legacy, 1 fast no-ring, 2 ring base, 3 ring fast")
 set_property(CACHE CARTEST_TRACK_PROFILE PROPERTY STRINGS 0 1 2 3)
@@ -95,10 +91,17 @@ if(NOT CARTEST_TRACK_PROFILE STREQUAL "0")
      NOT CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI OR
      NOT CARTEST_ENABLE_ACKERMANN_COORDINATION OR
      NOT CARTEST_HARDWARE_ACCEPTED OR NOT CARTEST_RUNTIME_LOG_ENABLED OR
-     NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "150" OR
-     NOT CARTEST_VISION_HOLD_MS STREQUAL "2000" OR
-     NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "200")
-    message(FATAL_ERROR "Track profiles 1..3 require the logged, hardware-accepted 65/35 incremental-PI Ackermann Follow configuration with the established 2000/200 ms hold.")
+     NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "150")
+    message(FATAL_ERROR "Track profiles require the logged, hardware-accepted 65/35 incremental-PI Ackermann Follow configuration.")
+  endif()
+endif()
+if(CARTEST_TRACK_PROFILE STREQUAL "3")
+  if(NOT CARTEST_VISION_HOLD_MS STREQUAL "3000" OR NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "300")
+    message(FATAL_ERROR "r22 C requires the 3000/300 ms hold profile.")
+  endif()
+elseif(CARTEST_TRACK_PROFILE MATCHES "^(1|2)$")
+  if(NOT CARTEST_VISION_HOLD_MS STREQUAL "2000" OR NOT CARTEST_VISION_HOLD_RAMP_MS STREQUAL "200")
+    message(FATAL_ERROR "A/B retain the 2000/200 ms hold profile.")
   endif()
 endif()
 set(_cartest_enable_ackermann_coordination OFF)
@@ -180,7 +183,6 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${_cartest_build_id_inputs})
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _cartest_build_type_upper)
 set(_cartest_build_id_material
-  "speed_percent=${CARTEST_SPEED_PERCENT}\n"
   "profile=${CARTEST_ENABLE_BENCH},${CARTEST_ENABLE_FOLLOW},${CARTEST_ENABLE_STEERING},${CARTEST_HARDWARE_ACCEPTED}\n"
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
@@ -294,7 +296,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}>
   CARTEST_ACKERMANN_COORDINATION_ENABLED=$<BOOL:${_cartest_enable_ackermann_coordination}>
   CARTEST_TRACK_PROFILE=${CARTEST_TRACK_PROFILE}
-  CARTEST_SPEED_PERCENT=${CARTEST_SPEED_PERCENT}
   CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS}
   CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}
   CARTEST_VISION_HOLD_MS=${CARTEST_VISION_HOLD_MS}

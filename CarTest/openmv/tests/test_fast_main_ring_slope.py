@@ -249,6 +249,12 @@ class _SingleEdgeTracker:
     def detect(*_args):
         return {"valid": False, "reason": "NOT_USED"}
 
+    def commit_ring_observation(self, candidate):
+        return 0
+
+    def observe_ring_boundaries(self, *args):
+        return self.detect(*args)
+
 
 class _ActiveRingElements:
     def __init__(self, _settings, _calibration=None,
@@ -884,8 +890,13 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         output = io.StringIO()
         cache_commits = []
         weighted_routes = []
+        ring_commits = []
 
         class _RecordingSingleEdgeTracker(_SingleEdgeTracker):
+            def commit_ring_observation(self, candidate):
+                ring_commits.append(candidate.get("selected_row_count"))
+                return 0
+
             def observe_bilateral(self, *args):
                 cache_commits.append(args)
 
@@ -936,12 +947,13 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=CARTEST_H750_RING_JOINT_V25_20261029 "
+            "TRACK_BUILD=CARTEST_H750_RING_TUNE_V26R22_20261031 "
             "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
         self.assertEqual(cache_commits, [])
         self.assertEqual(len(weighted_routes), 1)
+        self.assertEqual(ring_commits, [52])
         weight_info, source, boundary_source, ring_rows = weighted_routes[0]
         self.assertTrue(weight_info["valid"], weight_info)
         self.assertEqual(source, "ring_right")
@@ -963,15 +975,22 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                          int.from_bytes(frame[14:16], "little"))
 
     def test_confirmed_ring_without_a_target_is_sent_invalid(self):
-        frame, log, cache_commits = self._run_profile_element_case(
-            _ConfirmedRingNoTarget, config.VEHICLE_PROFILE_B)
-        self.assertEqual(frame[11], main.reverse_control.PROFILE_B)
-        self.assertEqual(frame[6] & vision_protocol.FLAG_VALID, 0)
-        self.assertEqual(frame[8:10], b"\x00\x00")
-        self.assertEqual(frame[10], vision_protocol.CURVE_PHASE_STRAIGHT)
-        self.assertEqual(int.from_bytes(frame[12:14], "little"), 0)
-        self.assertIn("RING_TARGET_UNSUPPORTED", log)
-        self.assertEqual(cache_commits, [])
+        for profile in (config.VEHICLE_PROFILE_B, config.VEHICLE_PROFILE_C):
+            for state in ('INSIDE', 'EXIT_CONFIRM', 'EXIT_REPAIR', 'REACQUIRE'):
+                with self.subTest(profile=profile, state=state):
+                    element = type('LostExitRoute', (_ConfirmedRingNoTarget,),
+                                   dict(STATE=state, STATE_ID_NAME='STATE_'+state))
+                    frame, log, cache_commits = self._run_profile_element_case(
+                        element, profile)
+                    self.assertEqual(frame[11], profile)
+                    # The zero payload is invalid. H743 must retain its own
+                    # trusted error without refreshing the loss deadline.
+                    self.assertEqual(frame[6] & vision_protocol.FLAG_VALID, 0)
+                    self.assertEqual(frame[8:10], b"\x00\x00")
+                    self.assertEqual(frame[10], vision_protocol.CURVE_PHASE_STRAIGHT)
+                    self.assertEqual(int.from_bytes(frame[12:14], "little"), 0)
+                    self.assertIn("RING_TARGET_UNSUPPORTED", log)
+                    self.assertEqual(cache_commits, [])
 
     def test_unconfirmed_ring_observation_keeps_the_normal_road_route(self):
         frame, log, _cache_commits = self._run_profile_element_case(

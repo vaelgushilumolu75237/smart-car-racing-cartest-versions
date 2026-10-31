@@ -1,7 +1,7 @@
 {
-  "version": "v20261031-v25-speed-120-130-140",
+  "version": "v20261031-r20-ring-tune-v26-r22",
   "status": "experimental-software-tested",
-  "branch": "experimental/speed-variants",
-  "files": 830,
+  "branch": "experimental/r20-ring-tune",
+  "files": 863,
   "hardware_actions": "none"
 }

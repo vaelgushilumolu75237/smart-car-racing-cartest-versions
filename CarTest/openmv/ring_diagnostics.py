@@ -62,6 +62,7 @@ from array import array
 
 
 FORMAT_VERSION = 3
+CONTINUATION_API_VERSION = 1
 LEGACY_FORMAT_VERSION = 1
 TIMESTAMP_TICK_MS = 20
 MAGIC = b"RNGD"
@@ -243,6 +244,8 @@ _SELECTION_REASONS = (
     "RING_WIDTH_CACHE_TARGET", "FRAME_BUDGET", "CONTROL_TIMEOUT",
     "PROFILE_TIMEOUT", "REVERSE_RESET", "SESSION_INACTIVE",
     "PROFILE_UNAVAILABLE", "NO_FROZEN_WIDTH_PROFILE",
+    "RING_ENTRY_TRANSITION_TARGET",
+    "RING_OUTER_EDGE_CONTINUATION_TARGET",
 )
 _TRACK_STATES = (
     "OBSERVE", "ENTRY_CONFIRM", "ENTER", "INSIDE",
@@ -260,6 +263,9 @@ _TRACK_REASONS = (
     "GROWING_ARC_CONFIRMED", "RING_ARC_CONFIRMED",
     "ORDINARY_ROUTE_REACQUIRED", "COMMON_MOTION_NOT_RING",
     "ORDINARY_CORRIDOR_VETO",
+    "RING_TOPOLOGY_INCOMPLETE", "RING_TOPOLOGY_MULTIPLE_EXITS",
+    "RING_TOPOLOGY_BRANCH", "RING_TOPOLOGY_AMBIGUOUS",
+    "RING_TOPOLOGY_REASON", "RING_TOPOLOGY_ROUTE_UNSUPPORTED",
 )
 _REJECT_REASONS = (
     "NONE", "INPUT_INVALID", "FRAME_INVALID", "SESSION_INACTIVE",
@@ -270,6 +276,12 @@ _REJECT_REASONS = (
 _ROUTE_ADMISSION_REASONS = (
     "NOT_RUN", "RING_NOT_ELIGIBLE", "RING_WIDTH_CACHE_TARGET",
     "RING_WIDTH_PROVENANCE_REJECTED", "RING_TARGET_ROWS_OR_REFERENCE",
+    "RING_ENTRY_TRANSITION_TARGET", "RING_ENTRY_TRANSITION_UNVERIFIED",
+    "RING_ENTRY_TRANSITION_ANCHORS",
+    "RING_OUTER_EDGE_CONTINUATION_TARGET", "RING_OUTER_EDGE_UNVERIFIED",
+    "EXIT_GUIDANCE_UNTRUSTED", "EXIT_CURRENT_PAIRED",
+    "EXIT_ANCHORED_CURRENT_EDGE",
+    "EXIT_CURRENT_SINGLE",
 )
 _FREEZE_REASONS = ("NONE", "REVERSE_RESET", "PROFILE_INACTIVE",
                    "EXPLICIT_STOP", "CONTROLLED_STOP")
@@ -417,7 +429,7 @@ class RingDiagnostics:
         self._episode_meta[meta + 2] = 0
         return count
 
-    def _start_episode(self, frame_index, sequence):
+    def _start_episode(self, frame_index, sequence, continuation=False):
         if self._episode_count < EPISODE_CAPACITY:
             slot = self._episode_count
             self._episode_count += 1
@@ -439,7 +451,8 @@ class RingDiagnostics:
         self._episode_meta[meta + 1] = pre_count
         self._episode_meta[meta + 2] = 0
         self._open_episode = slot
-        self._candidate_episodes += 1
+        if not continuation:
+            self._candidate_episodes += 1
 
     def _append_episode_frame(self, slot, sequence, state_id,
                               candidate, confirmed):
@@ -620,6 +633,17 @@ class RingDiagnostics:
             if event_active and self._open_episode < 0:
                 self._start_episode(frame_index, values[1] & 0xFFFF)
             if self._open_episode >= 0:
+                meta = self._open_episode * 11
+                if (self._episode_meta[meta] >=
+                        EPISODE_FRAME_CAPACITY):
+                    # Keep the fixed per-episode capacity, but continue the
+                    # recording with an overlapping prehistory window. This
+                    # also captures the first post-event frames when the
+                    # active episode ended exactly at the capacity boundary.
+                    self._open_episode = -1
+                    self._start_episode(
+                        frame_index, values[1] & 0xFFFF,
+                        continuation=True)
                 self._append_episode_frame(
                     self._open_episode, values[1] & 0xFFFF,
                     state_id, candidate, confirmed)
@@ -640,7 +664,7 @@ class RingDiagnostics:
         """Freeze only when the caller has confirmed a real stop transition."""
         if self._frozen:
             return False
-        if self._episode_count == 0 and self._pre_count > 0:
+        if self._pre_count > 0:
             self._start_stop_snapshot()
         self._frozen = True
         self._freeze_reason = _code(reason, _FREEZE_REASONS)
@@ -649,8 +673,8 @@ class RingDiagnostics:
         return True
 
     def _start_stop_snapshot(self):
-        """Persist the remaining prehistory when no candidate ever fired."""
-        if self._pre_count <= 0 or self._episode_count > 0:
+        """Append the newest prehistory window at a confirmed stop."""
+        if self._pre_count <= 0:
             return False
         if self._episode_count < EPISODE_CAPACITY:
             slot = self._episode_count
@@ -844,6 +868,37 @@ class RingDiagnostics:
             raise OSError("directory scan is unavailable")
         return listdir(directory)
 
+    @staticmethod
+    def _ensure_directory(directory):
+        """Create the bounded diagnostic directory before scanning it.
+
+        OpenMV's FAT root has a fixed directory-entry budget.  Keeping the
+        numbered evidence files in a subdirectory avoids consuming that
+        budget, while the stat-after-mkdir check also handles a directory
+        created by a previous boot or by another recorder instance.
+        """
+        directory = str(directory)
+        if directory in ("", ".", "/"):
+            return
+        stat = getattr(os, "stat", None)
+        mkdir = getattr(os, "mkdir", None)
+        if not callable(stat) or not callable(mkdir):
+            raise OSError("diagnostic directory support is unavailable")
+        try:
+            stat(directory)
+            return
+        except OSError:
+            pass
+        try:
+            mkdir(directory)
+        except OSError:
+            # Another caller may have created it between stat and mkdir.
+            try:
+                stat(directory)
+                return
+            except OSError:
+                raise
+
     @classmethod
     def next_available_path(cls, base_path):
         """Choose max existing numbered file + 1, with a fixed upper bound."""
@@ -906,6 +961,8 @@ class RingDiagnostics:
         if self._episode_count <= 0:
             raise RuntimeError("ring diagnostics contain no stopped frames")
         target = str(path)
+        directory, _stem, _extension = self._split_path(target)
+        self._ensure_directory(directory)
         if self._path_exists(target):
             raise OSError("ring diagnostic target already exists")
         payload = self._payload(build_id)
@@ -985,3 +1042,137 @@ __all__ = ("BASE_FIELD_COUNT", "EPISODE_CAPACITY", "FORMAT_VERSION",
            "FRAME_RECORD_SIZE", "MAX_FILE_BYTES", "POST_FRAMES",
            "PRE_FRAMES", "REJECT_COUNT", "RingDiagnostics",
            "STOP_SNAPSHOT_FLAG", "TIMESTAMP_TICK_MS")
+
+
+class OuterFailureCapture:
+    """Three bounded raw frames; capture only, never filesystem I/O in Follow.
+
+    Retain last actually transmitted valid outer route, first later invalid
+    observation, and the immediately following active frame. Metadata is the
+    same-frame final UART outcome, not merely a successful tracker candidate.
+    """
+    FIELDS = ("frame_index", "session_token", "state_id", "side",
+              "outer_tracking", "outer_stage", "outer_rejection",
+              "ring_target_rejection", "outer_count", "outer_near",
+              "exit_admission_reason",
+              "exit_single_reason", "exit_single_count",
+              "exit_single_residual_x2",
+              "outer_run", "outer_reference_gap", "outer_side_rows",
+              "outer_side_run", "outer_age_ms", "outer_center_delta2",
+              "target_side", "target_count", "target_center2",
+              "diagnostic_position_error", "diagnostic_sent_error",
+              "route_admission_reason", "reason", "outer_topology_complete",
+              "outer_topology_reason", "outer_topology_ambiguous",
+              "outer_topology_branch", "outer_topology_multiple_exits",
+              "diagnostic_selection_reason")
+
+    def __init__(self):
+        self.frames = [bytearray(320*120) for _ in range(3)]
+        self.meta = [[None]*(5+len(self.FIELDS)) for _ in range(3)]
+        self.reset()
+
+    def reset(self):
+        self.have_before = False
+        self.failed = False
+        self.have_after = False
+        self.identity = None
+        self.errors = 0
+        self.persisted = False
+        self.saved_slots = 0
+        self.save_base = None
+
+    def observe(self, pixels, now_ms, sequence, profile, valid, selection, result):
+        token = result.get("session_token", 0)
+        identity = (profile, token)
+        if self.identity is None:
+            self.identity = identity
+        elif self.identity != identity:
+            # No evidence may cross session/profile boundaries.
+            self.errors += 1
+            return False
+        if self.failed:
+            if self.have_after:
+                return False
+            slot = 2
+        elif not result.get("ring_confirmed"):
+            self.have_before = False
+            return False
+        elif (valid and selection.get("valid") and result.get("outer_tracking")
+              and selection.get("source") in ("ring_left", "ring_right")):
+            slot = 0
+        elif self.have_before and not valid:
+            slot = 1
+        else:
+            return False
+        if not isinstance(pixels, bytearray) or len(pixels) != 320*120:
+            self.errors += 1
+            return False
+        self.frames[slot][:] = pixels
+        meta = self.meta[slot]
+        meta[0] = now_ms
+        meta[1] = sequence
+        meta[2] = profile
+        meta[3] = bool(valid)
+        meta[4] = selection.get("source", "none")
+        for index in range(len(self.FIELDS)):
+            meta[5+index] = result.get(self.FIELDS[index])
+        if slot == 0:
+            self.have_before = True
+        elif slot == 1:
+            self.failed = True
+        else:
+            self.have_after = True
+        return True
+
+    @staticmethod
+    def _write_new(path, data, prefix=None):
+        if RingDiagnostics._path_exists(path):
+            raise OSError("outer evidence target already exists")
+        temporary = path + ".tmp"
+        try:
+            with open(temporary, "wb") as stream:
+                if prefix is not None:
+                    stream.write(prefix)
+                stream.write(data)
+                stream.flush()
+            RingDiagnostics._atomic_create(temporary, path)
+        except Exception:
+            try:
+                os.remove(temporary)
+            except Exception:
+                pass
+            raise
+
+    def save(self, base_path, build_id, frozen):
+        # Caller must provide a frozen paired recorder after a stop transition.
+        if not frozen:
+            raise RuntimeError("outer evidence requires parked freeze")
+        if not self.failed or self.persisted:
+            return False
+        try:
+            import ujson as json
+        except ImportError:
+            import json
+        if self.save_base is not None and self.save_base != base_path:
+            raise RuntimeError("outer evidence retry must use the same destination")
+        self.save_base = base_path
+        names = ("before", "failure", "after")
+        records = []
+        for slot in range(3 if self.have_after else 2):
+            path = base_path + ".outer-" + names[slot] + ".pgm"
+            if slot >= self.saved_slots:
+                self._write_new(path, self.frames[slot], b"P5\n320 120\n255\n")
+                self.saved_slots = slot + 1
+            meta = self.meta[slot]
+            record = dict(zip(self.FIELDS, meta[5:]))
+            record.update(time_ms=meta[0], sequence=meta[1], profile=meta[2],
+                          transmitted_valid=meta[3], source=meta[4],
+                          path=path, raw_crc32=_crc32(self.frames[slot]))
+            records.append(record)
+        # Manifest is written last; only a complete manifest is a committed set.
+        payload = json.dumps(dict(format=1, build_id=build_id,
+            paired_ring_bin=base_path, identity=self.identity,
+            capture_errors=self.errors, frames=records)).encode()
+        self._write_new(base_path + ".outer.json", payload)
+        self.persisted = True
+        return True

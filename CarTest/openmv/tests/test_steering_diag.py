@@ -852,6 +852,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "_selected_actual_boundaries",
             "_main_fast", "_render_v7_preview_frame",
             "_validate_fast_config", "_load_contour_runtime",
+            "_load_singleedge_runtime",  # require the additive ring observation API
             "_configure_sensor",
             "_configure_gray_sensor", "_surface_pixel",
             "_validate_v6_gray_config", "_validate_v7_runtime_apis",
@@ -901,9 +902,12 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "STEERING_CORE_RAW_Y_MAX", "STEERING_CORE_RAW_Y_MIN",
             "STEERING_CONTROL_PROFILE", "STEERING_CONTROL_PROFILE_BUILD_IDS",
             "TRACK_PACKAGE_BUILD_ID",
+            # User-approved C INSIDE request; ordinary speed policy unchanged.
+            "RING_C_INSIDE_SLOWDOWN_PERMILLE",
             # Cached heap sampling policy; these tune GC telemetry cadence only.
             "PERF_GC_MAX_INTERVAL_FRAMES", "PERF_GC_MIN_FREE_BYTES",
             "RING_DIAGNOSTICS_ENABLED", "RING_DIAGNOSTICS_PATH",
+            "RING_OUTER_FAILURE_RAW_ENABLED",
             "RING_WIDTH_CALIBRATION_PATH", "RING_WIDTH_CALIBRATION_REQUIRED",
             "VEHICLE_PROFILE_UNKNOWN", "VEHICLE_PROFILE_A",
             "VEHICLE_PROFILE_B", "VEHICLE_PROFILE_C",
@@ -912,6 +916,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "CAMERA_UART_DIAG_ENABLED", "CAMERA_UART_DIAG_INTERVAL_MS",
             "CAMERA_UART_DIAG_BUILD_CODE",
             "TRACK_ELEMENTS_MAX_ENTRY_MS",
+            "TRACK_ELEMENTS_RING_HANDOFF_MAX_CENTER_DELTA_X2",
+            "TRACK_ELEMENTS_RING_HANDOFF_MAX_AGE_MS",
             "TRACK_ELEMENTS_MAX_ACTIVE_MS",
             "TRACK_ELEMENTS_MAX_ACTIVE_MILLIREV",
             "TRACK_ELEMENTS_NEAR_ROWS",

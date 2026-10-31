@@ -259,7 +259,7 @@ class MainFastDurationDeadlineTests(unittest.TestCase):
                         {"valid": True, "reason": "TEST_VALID"})), \
                 patch.object(
                     config, "TRACK_PACKAGE_BUILD_ID",
-                    "CARTEST_H750_RING_JOINT_V25_20261029"), \
+                    "CARTEST_H750_RING_TUNE_V26R22_20261031"), \
                 patch.object(config, "DEBUG_ENABLED", True), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
                 contextlib.redirect_stdout(output):
@@ -319,7 +319,7 @@ class MainFastDurationDeadlineTests(unittest.TestCase):
                         {"valid": True, "reason": "TEST_VALID"})), \
                 patch.object(
                     config, "TRACK_PACKAGE_BUILD_ID",
-                    "CARTEST_H750_RING_JOINT_V25_20261029"), \
+                    "CARTEST_H750_RING_TUNE_V26R22_20261031"), \
                 patch.object(config, "DEBUG_ENABLED", True), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
                 contextlib.redirect_stdout(output):

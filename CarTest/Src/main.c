@@ -74,8 +74,14 @@
         (CARTEST_ACKERMANN_COORDINATION_ENABLED ? 160 : 120))
 #error "FollowTurn requires a 65/35 or 70/30 differential with the selected 120/160us steering slew and 40-permille/10ms motor ramp."
 #endif
+#if CARTEST_TRACK_PROFILE == 3
+#if CARTEST_VISION_HOLD_MS != 3000 || CARTEST_VISION_HOLD_RAMP_MS != 300
+#error "r22 C requires a 3000 ms hold deadline and 300 ms deceleration."
+#endif
+#else
 #if CARTEST_VISION_HOLD_MS != 2000 || CARTEST_VISION_HOLD_RAMP_MS != 200
 #error "FollowTurn requires a 2000 ms hold deadline and 200 ms deceleration."
+#endif
 #endif
 #elif CARTEST_FOLLOW_MODE_COMPILED
 #if (CARTEST_FOLLOW_DIFF_PERMILLE != 0) && \

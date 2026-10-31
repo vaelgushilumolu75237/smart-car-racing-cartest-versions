@@ -708,6 +708,7 @@ class FastTopologyGuard:
         self._result = {
             "island_evidence": False,
             "branch_evidence": False,
+            "independent_branch_checked": False,
             "ambiguous": False,
             "reason": "NOT_RUN",
             "complete": False,
@@ -1139,9 +1140,10 @@ class FastTopologyGuard:
         return False
 
     def _set_result(self, island, branch, reason, complete=False,
-                    ambiguous=None):
+                    ambiguous=None, independent_branch_checked=False):
         self._result["island_evidence"] = bool(island)
         self._result["branch_evidence"] = bool(branch)
+        self._result["independent_branch_checked"] = bool(independent_branch_checked)
         self._result["ambiguous"] = (bool(island or branch)
                                       if ambiguous is None else
                                       bool(ambiguous))
@@ -1220,23 +1222,24 @@ class FastTopologyGuard:
             if segment_island:
                 island = 1
                 break
-        if not island:
-            for segment in range(segment_count):
-                segment_floor = self._segment_starts[segment]
-                segment_end = self._segment_ends[segment]
-                self._current_floor = segment_floor
-                self._current_band_end = segment_end
-                if _IS_MICROPYTHON:
-                    segment_branch = _open_band_viper(
-                        self, segment_floor, segment_end)
-                else:
-                    segment_branch = self._open_band_host(
-                        segment_floor, segment_end)
-                if segment_branch < 0:
-                    return self._set_result(False, False, "KERNEL_BOUNDS")
-                if segment_branch:
-                    branch = 1
-                    break
+        # A confirmed ring may accept its own island. Independently inspect
+        # open branches even when an island was found; ISLAND must not hide one.
+        for segment in range(segment_count):
+            segment_floor = self._segment_starts[segment]
+            segment_end = self._segment_ends[segment]
+            self._current_floor = segment_floor
+            self._current_band_end = segment_end
+            if _IS_MICROPYTHON:
+                segment_branch = _open_band_viper(
+                    self, segment_floor, segment_end)
+            else:
+                segment_branch = self._open_band_host(
+                    segment_floor, segment_end)
+            if segment_branch < 0:
+                return self._set_result(False, False, "KERNEL_BOUNDS")
+            if segment_branch:
+                branch = 1
+                break
         if island:
             reason = "ISLAND"
         elif branch:
@@ -1245,4 +1248,5 @@ class FastTopologyGuard:
             reason = "PARTIAL_KNOWN_ROI"
         else:
             reason = "OK"
-        return self._set_result(island, branch, reason, complete == 1)
+        return self._set_result(island, branch, reason, complete == 1,
+                                independent_branch_checked=True)

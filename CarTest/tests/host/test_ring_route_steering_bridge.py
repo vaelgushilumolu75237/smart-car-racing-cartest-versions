@@ -21,6 +21,28 @@ def run(zig, output):
     case=camera.CalibratedRingRouteTests("test_mirrored_calibrated_routes_reach_actual_main_v3_uart")
     case.test_mirrored_calibrated_routes_reach_actual_main_v3_uart()
     packets=list(case.wire_frames)
+    # Exit confirmation uses the actual current-anchor tracker output, then
+    # the production route converter and weighted error, for both directions.
+    import test_ring_exit_current_anchor as exit_anchor
+    for side in (0, 1):
+        fixture = exit_anchor.CurrentExitAnchorTests()
+        h, args = fixture.fixture(side)
+        for _ in range(h.tracker.exit_drop_frames):
+            result = h.frame(**args)
+            assert result['target_valid']
+            assert h.tracker.commit_transmitted_route(h.now, True, True)
+        assert result['state_id'] == exit_anchor.te.STATE_EXIT_CONFIRM
+        row = result['target_rows']
+        error = camera.converted_error(side, row[1], row[2])
+        assert error < 0 if side == 0 else error > 0
+        packets.append(camera.vision_protocol.pack_frame_v3(200+side, True, 99,
+                                                          error, 0, profile_ack=3))
+    import test_ring_exit_single as exit_single
+    for side, shift in ((0, -8), (1, 7)):
+        packets.append(exit_single.SingleExitTests().uart_packet(side, shift))
+    import test_ring_exit_inside_single as inside_single
+    for side, shift in ((0, -8), (1, 7)):
+        packets.append(inside_single.InsideSingleExitTests().uart_packet(side, shift))
     for error in (-400,0,400):
         packets.append(camera.vision_protocol.pack_frame_v3(100+error%100,True,99,error,0,
                                                        profile_ack=3))
@@ -58,7 +80,7 @@ int main() {
         std::printf("error=%d target_us=%u\n",frame.lateral_error,target);++cases;
     }
     std::printf("RING_DIRECTION_BRIDGE cases=%u failures=%u (host parser/mapping only)\n",cases,failures);
-    return failures || cases!=5;
+    return failures || cases!=11;
 }
 '''
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
