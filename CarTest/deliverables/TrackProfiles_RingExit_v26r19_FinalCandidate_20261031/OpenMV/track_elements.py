@@ -1022,6 +1022,8 @@ class TrackElementsTracker:
         # cannot walk this anchor toward another branch in small steps.
         self._wire_centers2 = array("i", [-1] * self.height)
         self._exit_pair_centers2 = array("i", [-1] * self.height)
+        # Independent, measured exit evidence. Never used as an old valid route.
+        self._exit_single_centers2 = array("i", [-1] * self.height)
         self._wire_route_ms = None
         self._wire_commit_frame = -1
         self._cross_route_rows = array(
@@ -1630,6 +1632,7 @@ class TrackElementsTracker:
             return self._result
         if not frame_fresh:
             self._reject(REJECT_FRAME_INVALID)
+            self._exit_single_count = 0
             self._exit_drop_count = 0
             if (self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR) or
                     (self.require_calibration and self._ring_cache_frozen and
@@ -1689,6 +1692,7 @@ class TrackElementsTracker:
             self._update_side_support()
 
         self._observe_exit_corridor(topology)
+        self._observe_exit_single(mask_info, topology)
         ring_enabled = self._profile_id in (2, 3)
         aborted_this_frame = False
         if (ring_enabled and
@@ -1709,7 +1713,8 @@ class TrackElementsTracker:
                     self._exit_drop_count = 0
                     self._exit_reappear_count = 0
                     self._repair_count = 0
-                    if self._exit_reobserve_ready():
+                    if (self._exit_reobserve_ready() or
+                            self._exit_single_ready()):
                         # Restart only with new consecutive measured geometry.
                         self._state_start_ms = int(now_ms)
                     else:
@@ -1875,6 +1880,9 @@ class TrackElementsTracker:
         result["exit_experimental"] = False
         result["exit_reobserved"] = False
         result["exit_admission_reason"] = "NOT_CHECKED"
+        result["exit_single_reason"] = "NOT_CHECKED"
+        result["exit_single_count"] = 0
+        result["exit_single_residual_x2"] = -1
         self._ring_diag_arc_rows = 0
         self._ring_diag_anchor_rows = 0
         self._ring_diag_arc_span = 0
@@ -2525,6 +2533,9 @@ class TrackElementsTracker:
         self._exit_reobserve_ms = None
         self._exit_reobserve_frame = -1
         self._exit_reobserve_center2 = -1
+        self._exit_single_count = 0
+        self._exit_single_ms = None
+        self._exit_single_frame = -1
         self._ring_cache_frozen = False
         self._ring_width_calibrated = False
         if hasattr(self, "_result"):
@@ -3183,6 +3194,11 @@ class TrackElementsTracker:
         self._reason = "EXIT_EXPERIMENTAL_CONFIRM"
         self._ring_diag_reason_code = 11
         self._result["exit_experimental"] = True
+        if self._exit_single_ready():
+            self._set_state(STATE_EXIT_REPAIR,
+                            "EXIT_SINGLE_EDGE_REPAIR_PENDING", now_ms)
+            self._repair_count = 0
+            return
         if self._stable_exit_frame(topology, cache_ok):
             self._exit_reappear_count += 1
             if self._exit_reappear_count >= self.exit_confirm_frames:
@@ -3199,8 +3215,12 @@ class TrackElementsTracker:
         self._reason = "EXIT_EXPERIMENTAL_REOBSERVATION"
         self._result["exit_experimental"] = True
         self._ring_diag_reason_code = 11
-        if (route_ok and self._paired_aligned_frame(topology) and
-                self._exit_route_continuous()):
+        if (route_ok and
+                ((self._paired_aligned_frame(topology) and
+                  self._exit_route_continuous()) or
+                 (self._exit_single_ready() and
+                  self._result.get("exit_admission_reason") ==
+                  "EXIT_CURRENT_SINGLE"))):
             self._repair_count += 1
             if self._repair_count < self.exit_repair_frames:
                 return
@@ -3271,6 +3291,127 @@ class TrackElementsTracker:
         return (self._exit_reobserve_count >= self.exit_repair_frames and
                 self._exit_reobserve_frame == self._frame_index and
                 self._exit_reobserve_ms == self._last_now_ms)
+
+    @micropython.native
+    def _observe_exit_single(self, mask_info, topology):
+        """Confirm a straight, white exit corridor from its observed outer edge.
+
+        Only an already observed exit gap can enable this path. Three fresh
+        frames must agree, initially with the actually transmitted ring lane.
+        The current measured edge and calibrated width rebuild the route every
+        frame. No cached error or inferred edge counts as a new observation.
+        """
+        result = self._result
+        result["exit_single_reason"] = "INELIGIBLE"
+        result["exit_single_count"] = 0
+        result["exit_single_residual_x2"] = -1
+        previous_count = self._exit_single_count
+        previous_ms = self._exit_single_ms
+        previous_frame = self._exit_single_frame
+        self._exit_single_count = 0
+        self._exit_single_frame = self._frame_index
+        self._exit_single_ms = self._last_now_ms
+        if (self._state not in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
+                               STATE_REACQUIRE) or
+                not self.require_calibration or not self._ring_cache_frozen or
+                not self._ring_width_calibrated or not self._calibration_ready or
+                not self._cal_check_ready or not self._inner_route_established or
+                self._side not in (SIDE_LEFT, SIDE_RIGHT) or
+                self._exit_side != 1-self._side or
+                not self._current_valid or self._current_road or
+                not self._session_active or
+                not self._topology_clear(topology) or
+                not self._ring_topology_precheck(topology)):
+            return
+        age = (_ticks_diff(self._last_now_ms, self._selected_route_ms)
+               if self._selected_route_ms is not None else -1)
+        if not 0 <= age <= self.handoff_max_age_ms:
+            result["exit_single_reason"] = "NO_RECENT_TRANSMITTED_ROUTE"
+            return
+        outer_side = 1-self._side
+        if (not self._build_locked_target_rows(
+                mask_info, topology, outer_side, True) or
+                not self._filter_outer_route_rows(mask_info)):
+            result["exit_single_reason"] = "CURRENT_CORRIDOR_UNSUPPORTED"
+            self._clear_target_output()
+            return
+        count = result["target_count"]
+        first_y = self._target_rows[0]
+        last_offset = (count-1)*TARGET_ROW_STRIDE
+        last_y = self._target_rows[last_offset]
+        span = last_y-first_y
+        first_center = self._target_rows[1]+self._target_rows[2]
+        last_center = (self._target_rows[last_offset+1] +
+                       self._target_rows[last_offset+2])
+        shape_ok = count >= 8 and span >= 12
+        max_residual = 0
+        common = 0
+        common_near = 0
+        common_reference = False
+        temporal = (previous_count > 0 and previous_ms is not None and
+                    self._frame_index == ((previous_frame+1) & 0x7fffffff) and
+                    0 < _ticks_diff(self._last_now_ms, previous_ms) < 250)
+        for i in range(count):
+            off = i*TARGET_ROW_STRIDE
+            y = self._target_rows[off]
+            center = self._target_rows[off+1]+self._target_rows[off+2]
+            # A curved ring boundary or inconsistent opposite measurement
+            # must not be certified as the exit's straight corridor.
+            residual = abs((center-first_center)*span -
+                           (last_center-first_center)*(y-first_y))
+            max_residual = max(max_residual, residual)
+            inner_slot = self._side*self.height+y
+            if residual > 4*span or self._current_status[inner_slot] == 2:
+                shape_ok = False
+            if self._current_status[inner_slot] == 1:
+                inferred2 = (self._target_rows[off+1]*2-1 if
+                             self._side == SIDE_LEFT else
+                             self._target_rows[off+2]*2+1)
+                width = self._target_rows[off+2]-self._target_rows[off+1]+1
+                if abs(inferred2-self._current_edge2[inner_slot])*5 > 2*width:
+                    shape_ok = False
+            old = self._exit_single_centers2[y]
+            if old >= 0:
+                common += 1
+                if y >= self.height-self.near_rows:
+                    common_near += 1
+                if abs(y-self.reference_y) <= self.max_cache_gap:
+                    common_reference = True
+                if abs(center-old) > self.handoff_max_center_delta2//2:
+                    temporal = False
+        result["exit_single_residual_x2"] = ((max_residual+span-1)//span
+                                              if span > 0 else -1)
+        if not shape_ok:
+            result["exit_single_reason"] = "NOT_STRAIGHT_EXIT"
+        else:
+            temporal = (temporal and common >= self.min_target_rows and
+                        common_near >= self.min_near_support and
+                        common_reference)
+            wire_age = (_ticks_diff(self._last_now_ms, self._wire_route_ms)
+                        if self._wire_route_ms is not None else -1)
+            anchored = (0 <= wire_age <= self.handoff_max_age_ms and
+                        self._exit_target_matches(self._wire_centers2))
+            # A broken streak starts again only from recent sent geometry.
+            if temporal or anchored:
+                self._exit_single_count = (min(3, previous_count+1)
+                                           if temporal else 1)
+                for y in range(self.height):
+                    self._exit_single_centers2[y] = -1
+                for i in range(count):
+                    off = i*TARGET_ROW_STRIDE
+                    self._exit_single_centers2[self._target_rows[off]] = (
+                        self._target_rows[off+1]+self._target_rows[off+2])
+                result["exit_single_reason"] = ("READY" if
+                    self._exit_single_count >= 3 else "CONFIRMING")
+            else:
+                result["exit_single_reason"] = "HANDOFF_UNSUPPORTED"
+        result["exit_single_count"] = self._exit_single_count
+        self._clear_target_output()
+
+    def _exit_single_ready(self):
+        return (self._exit_single_count >= 3 and
+                self._exit_single_frame == self._frame_index and
+                self._exit_single_ms == self._last_now_ms)
 
     def _exit_route_continuous(self):
         """Match a current accepted bilateral exit to recent ring guidance."""
@@ -3387,6 +3528,18 @@ class TrackElementsTracker:
         self._record_event(EVENT_ABORT, reject_code, 0, now_ms)
 
     def _build_target_rows(self, mask_info, topology, target_side):
+        if self._exit_single_ready():
+            # Exit outer line owns guidance once independently confirmed.
+            if (self._build_locked_target_rows(
+                    mask_info, topology, 1-self._side, True) and
+                    self._filter_outer_route_rows(mask_info) and
+                    self._exit_target_matches(self._exit_single_centers2)):
+                self._result["outer_tracking"] = True
+                self._result["outer_stage"] = "READY"
+                self._result["outer_rejection"] = "NONE"
+                self._result["exit_admission_reason"] = "EXIT_CURRENT_SINGLE"
+                return True
+            self._clear_target_output()
         built = self._build_candidate_target_rows(mask_info, topology, target_side)
         if (built and self.require_calibration and
                 self._state in (STATE_EXIT_CONFIRM, STATE_EXIT_REPAIR,
@@ -3591,7 +3744,8 @@ class TrackElementsTracker:
             result.get("target_valid") and
             result.get("frame_index") == self._frame_index and
             result.get("target_rows") is self._target_rows and
-            self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM) and
+            self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
+                            STATE_EXIT_REPAIR, STATE_REACQUIRE) and
             result.get("state_id") == self._state and
             result.get("side") == self._side and
             result.get("session_token") == self._session_token and
@@ -3601,7 +3755,10 @@ class TrackElementsTracker:
             self._session_active and self._profile_id in (2, 3) and
             self._calibration_ready and self._cal_check_ready and
             self._ring_width_calibrated and self._ring_cache_frozen and
-            self._handoff_continuous())
+            (self._handoff_continuous() or
+             (self._exit_single_ready() and
+              result.get("exit_admission_reason") == "EXIT_CURRENT_SINGLE" and
+              self._exit_target_matches(self._exit_single_centers2))))
 
     @micropython.native
     def entry_transition_valid_for(self, result):

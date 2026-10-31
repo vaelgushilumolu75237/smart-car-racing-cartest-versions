@@ -3568,7 +3568,7 @@ def _validate_fast_config():
     if getattr(ring_diagnostics, "FORMAT_VERSION", None) != 3:
         raise RuntimeError("v26 requires matching ring_diagnostics.py format3")
     if getattr(config, "TRACK_PACKAGE_BUILD_ID", None) != \
-            "CARTEST_H750_RING_EXIT_V26R18_20261031":
+            "CARTEST_H750_RING_EXIT_V26R19_20261031":
         raise ValueError("V7 track package identity is missing or mismatched")
     if (not isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, int) or
             isinstance(config.RING_C_INSIDE_SLOWDOWN_PERMILLE, bool) or
@@ -7851,7 +7851,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             if ring_count:
                 exit_admission = element_result.get("exit_admission_reason")
                 if exit_admission in ("EXIT_CURRENT_PAIRED",
-                                       "EXIT_ANCHORED_CURRENT_EDGE"):
+                                       "EXIT_ANCHORED_CURRENT_EDGE",
+                                       "EXIT_CURRENT_SINGLE"):
                     element_result["route_admission_reason"] = exit_admission
                 ring_target_side = element_result.get(
                     "target_side", element_result.get("side"))
@@ -8820,7 +8821,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     ring_growth_rejected):
                 print("V7RING seq=%d st=%s sd=%s arc=%d/%d near=%d/%d "
                       "gf=%d dx2=%+d path=%s tgt=%d rej=%s/%s "
-                      "target_side=%s center2=%d cmd=%d source=%s admit=%s" % (
+                      "target_side=%s center2=%d cmd=%d source=%s admit=%s "
+                      "exit_single=%s/%d residual2=%d" % (
                           sequence_sent,
                           ring_state,
                           ring_info.get("side_name", "NONE"),
@@ -8839,7 +8841,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                               if ring_info.get("target_valid") else -1,
                           final_control if valid else 0,
                           selection.get("source", "NONE"),
-                          ring_info.get("route_admission_reason", "NOT_RUN")))
+                          ring_info.get("route_admission_reason", "NOT_RUN"),
+                          ring_info.get("exit_single_reason", "NOT_RUN"),
+                          ring_info.get("exit_single_count", 0),
+                          ring_info.get("exit_single_residual_x2", -1)))
             if single_diagnostic_reason == "AMBIGUOUS_BOTH_SIDES":
                 pair_record = getattr(
                     single_edge_tracker, "pair_diagnostic_record", None)

@@ -281,6 +281,7 @@ _ROUTE_ADMISSION_REASONS = (
     "RING_OUTER_EDGE_CONTINUATION_TARGET", "RING_OUTER_EDGE_UNVERIFIED",
     "EXIT_GUIDANCE_UNTRUSTED", "EXIT_CURRENT_PAIRED",
     "EXIT_ANCHORED_CURRENT_EDGE",
+    "EXIT_CURRENT_SINGLE",
 )
 _FREEZE_REASONS = ("NONE", "REVERSE_RESET", "PROFILE_INACTIVE",
                    "EXPLICIT_STOP", "CONTROLLED_STOP")
@@ -1054,6 +1055,8 @@ class OuterFailureCapture:
               "outer_tracking", "outer_stage", "outer_rejection",
               "ring_target_rejection", "outer_count", "outer_near",
               "exit_admission_reason",
+              "exit_single_reason", "exit_single_count",
+              "exit_single_residual_x2",
               "outer_run", "outer_reference_gap", "outer_side_rows",
               "outer_side_run", "outer_age_ms", "outer_center_delta2",
               "target_side", "target_count", "target_center2",
