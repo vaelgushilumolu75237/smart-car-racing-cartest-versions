@@ -54,7 +54,7 @@ JOINT_ROUTE_API_VERSION = 1
 EXIT_TRANSLATION_API_VERSION = 1
 EXIT_ROUTE_API_VERSION = 3
 EXIT_INSIDE_API_VERSION = 1
-EXIT_IMMEDIATE_RIGHT_API_VERSION = 2
+EXIT_IMMEDIATE_RIGHT_API_VERSION = 3
 ROAD_ROW_STRIDE = 4
 TARGET_ROW_STRIDE = 4
 
@@ -1886,6 +1886,7 @@ class TrackElementsTracker:
         result["exit_single_geometry_rejection"] = "NONE"
         result["exit_single_count"] = 0
         result["exit_single_residual_x2"] = -1
+        result["exit_ordinary_coexistence"] = False
         self._ring_diag_arc_rows = 0
         self._ring_diag_anchor_rows = 0
         self._ring_diag_arc_span = 0
@@ -3360,6 +3361,13 @@ class TrackElementsTracker:
         self._exit_single_ms = self._last_now_ms
         inside = self._state == STATE_INSIDE
         immediate_right = self._side == SIDE_RIGHT
+        # The ordinary detector may accept a far/partial road while raw
+        # near/reference rows already show the qualified exit. Its accepted
+        # flag must not veto that independent sensor after verified departure.
+        # Retain the guard before departure, for left rings, and whenever no
+        # fresh raw observation was retained alongside the ordinary route.
+        ordinary_coexistence = (immediate_right and self._exit_search_armed and
+                                self._ordinary_snapshot_active)
         # INSIDE is a valid place to discover the exit. Departure evidence
         # prevents the still-visible entry straight from causing early exit.
         # Actual edge, calibration, white corridor and session checks remain.
@@ -3371,11 +3379,14 @@ class TrackElementsTracker:
                 self._side not in (SIDE_LEFT, SIDE_RIGHT) or
                 (not inside and self._exit_side != 1-self._side) or
                 not self._current_valid or
-                (self._current_road and not self._exit_guidance_latched) or
+                (self._current_road and not self._exit_guidance_latched and
+                 not ordinary_coexistence) or
                 not self._session_active or
                 not self._topology_clear(topology) or
                 not self._ring_topology_precheck(topology)):
             return
+        result["exit_ordinary_coexistence"] = bool(
+            self._current_road and ordinary_coexistence)
         if inside:
             if self._entry_transition_lease_valid(self._last_now_ms):
                 result["exit_single_reason"] = "ENTRY_NOT_FINISHED"

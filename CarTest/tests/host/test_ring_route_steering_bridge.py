@@ -46,6 +46,9 @@ def run(zig, output):
     import test_ring_exit_ownership as ownership
     for shift in (-8,7):
         packets.append(ownership.ExitOwnershipTests().uart_packet(shift))
+    import test_ring_exit_ordinary_coexistence as coexistence
+    for shift in (-7,7):
+        packets.append(coexistence.ExitOrdinaryCoexistenceTests().uart_packet(shift))
     for error in (-400,0,400):
         packets.append(camera.vision_protocol.pack_frame_v3(100+error%100,True,99,error,0,
                                                        profile_ack=3))
@@ -83,7 +86,7 @@ int main() {
         std::printf("error=%d target_us=%u\n",frame.lateral_error,target);++cases;
     }
     std::printf("RING_DIRECTION_BRIDGE cases=%u failures=%u (host parser/mapping only)\n",cases,failures);
-    return failures || cases!=13;
+    return failures || cases!=15;
 }
 '''
     output=Path(output);output.mkdir(parents=True,exist_ok=True)

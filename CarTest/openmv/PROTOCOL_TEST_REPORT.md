@@ -1,19 +1,36 @@
-# OpenMV V2 协议与静态预览验证摘要
+# v26-r24 independent ring-exit candidate — 2026-11-01
 
-此记录适用于当前 320×120 V2 运行包，不适用于旧 V1 包或其性能记录。详细的静态预览测量和边界见 [`docs/OpenMV-USB60-Static-Validation-20261024.md`](../docs/OpenMV-USB60-Static-Validation-20261024.md)。
+r23 rejected a qualified current exit edge when the ordinary detector also
+accepted a road, until exit ownership had already been latched. r24 removes
+that conflict for right-ring exit search after established departure, provided
+the current raw boundaries and ordinary observation were retained separately.
+It uses the same calibrated exit-center geometry and final UART command path.
 
-## 软件验证
+This change does not establish that every previous road failure had this cause.
+It does not change left-ring admission, steering signs, speed gains, PE7,
+H743 source, pairing, faults, 3000 ms C hold or 300 ms C ramp-down.
+Current edge quality, topology, near/reference support and deadlines still apply.
+The debug line now includes ordinary_exit=1 when coexistence admission is used;
+this field alone does not mean the final route is valid or was transmitted.
 
-- `python -m unittest discover -s openmv/tests -p 'test_*.py'`：242 项运行，239 项通过，3 项跳过，0 项失败。
-- OpenMV USB 预览工具主机测试：44 项通过。
-- 清单中的 19 个运行模块均由指定 `mpy-cross` 编译，目标为 `armv7emsp`，退出码均为 0。
+Validation completed locally:
+- Camera suite: 529 tests, 525 passed, 4 skipped (not passes).
+- All 23 runtime Python files cross-compiled for armv7emsp / MicroPython 1.28.
+- All 18 declared H743 configurations built from this independent workspace.
+- 15 final UART cases passed real H743 parsing and production steering mapping.
+- H743 host suite: 72 cases / 7713 assertions; default and C 3000/300 holds passed.
+- Four speed variants: 60 production wheel-target cases passed.
+- 26 unique historical saved images checked with the same raw geometry:
+  ready cases rose from 1 to 7; the 6 newly eligible frames supplied 50–52 rows.
+  Prior departure, recent valid UART, short state age and coexistence availability
+  were assumed to isolate this decision. This is not sequential recording replay.
 
-## 静态预览测量
+Personal review covered all runtime differences, ordinary and exit ownership,
+full UART commit, stale edge rejection, release after alignment, and mixed-module
+identity rejection. The new release test also verifies that displaced single-edge
+guidance stays active until aligned bilateral recovery is actually observed.
 
-19 个模块从隔离相机文件系统加载，只有小型性能 runner 从 RAM 注入。320×120 已配置并由预览尺寸观察确认。IDE 收到 3693 个完整 JPEG payload，大小全部匹配且无读取错误；五个完整读取窗口为 60.4380、60.3276、60.2762、60.3608、60.289 次/秒。本次未独立记录 IDE 逐帧解码成功和尺寸。固件解锁会清空缓冲区，避免重复读取同一已发布缓冲；但本次 IDE 测量未逐帧解码序号 marker，因此没有独立逐帧新鲜性校验。SDK marker 序号速率 60.4–60.5 次/秒为另一项独立测量。IDE GUI 先将平均帧间隔截断为整数毫秒，再以 1000 除以该值计算帧率，显示值可能偏高，不作为精确帧率证据。
+No hardware was connected or operated for this version. Road success, H750 FPS,
+and IDE preview >=60 FPS are unverified. This is a software-tested candidate.
 
-CDC 关闭的 60 秒 headless 测试得到六个 10 秒窗口计数 796、796、797、795、797、795，共 4777 条有效路由；没有 JPEG marker 写入。该结果不代表 USB 预览速率。
-
-## 配对边界
-
-H743 `C Incremental PI 20261020` 核心未修改、未烧录、未复位；电机未启动。相机测试使用无操作 UART sink，不证明 H743 收到 V2 帧。20 秒、每帧注入 1389 微秒的 `pyb.udelay` 只是 UART wire-time 近似，不是实际 UART 测量。完整 UART 闭环和 `full_control_60fps_accepted` 均未通过验收。
+Wire formats remain V3/16-byte forward, V2/20-byte reverse state, V1/8-byte RESET/KEEP.

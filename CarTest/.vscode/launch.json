@@ -2,111 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "r23 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
+      "name": "r24 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
-      "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
-      "serverReset": "Software system reset",
-      "imagesAndSymbols": [
-        {
-          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf",
-          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf"
-        }
-      ],
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": "4"
-      }
-    },
-    {
-      "name": "r23 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
-      "type": "stlinkgdbtarget",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
-      "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
-      "serverReset": "Software system reset",
-      "imagesAndSymbols": [
-        {
-          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf",
-          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf"
-        }
-      ],
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": "4"
-      }
-    },
-    {
-      "name": "r23 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
-      "type": "stlinkgdbtarget",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
-      "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
-      "serverReset": "Software system reset",
-      "imagesAndSymbols": [
-        {
-          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf",
-          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf"
-        }
-      ],
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": "4"
-      }
-    },
-    {
-      "name": "r23 SpeedVariants (r20改版) 新A - 无环岛 5.6/4.4 rps",
-      "type": "stlinkgdbtarget",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 SpeedVariants (r20改版) 新A - 无环岛 5.6/4.4 rps",
-      "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
-      "serverReset": "Software system reset",
-      "imagesAndSymbols": [
-        {
-          "imageFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf",
-          "symbolFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf"
-        }
-      ],
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": "4"
-      }
-    },
-    {
-      "name": "r23 SpeedVariants (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
-      "type": "stlinkgdbtarget",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 SpeedVariants (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
-      "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
-      "serverReset": "Software system reset",
-      "imagesAndSymbols": [
-        {
-          "imageFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf",
-          "symbolFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf"
-        }
-      ],
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": "4"
-      }
-    },
-    {
-      "name": "r23 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
-      "type": "stlinkgdbtarget",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
+      "preLaunchTask": "Build: r24 C Base | straight 5.600 / ring 5.280 rps | hold 3s / 300ms",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -122,11 +22,111 @@
       }
     },
     {
-      "name": "r23 SpeedVariants 诊断 - 电机/舵机输出关闭",
+      "name": "r24 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r23 SpeedVariants 诊断 - 电机/舵机输出关闭",
+      "preLaunchTask": "Build: r24 C +40% | straight 7.840 / ring 7.392 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed140/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r24 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r24 C +20% | straight 6.720 / ring 6.336 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed120/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r24 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r24 C +30% | straight 7.280 / ring 6.864 rps | hold 3s / 300ms",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingFastSpeed130/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r24 ExitCoexistence (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r24 ExitCoexistence (r20改版) 新A - 无环岛 5.6/4.4 rps",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugFastNoRing/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r24 ExitCoexistence (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r24 ExitCoexistence (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms]",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugRingBase/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
+      "name": "r24 ExitCoexistence 诊断 - 电机/舵机输出关闭",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: r24 ExitCoexistence 诊断 - 电机/舵机输出关闭",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -142,7 +142,7 @@
       }
     },
     {
-      "name": "r23 SpeedVariants 历史A - 20261019冻结ELF [非新A]",
+      "name": "r24 ExitCoexistence 历史A - 20261019冻结ELF [非新A]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
@@ -161,11 +161,11 @@
       }
     },
     {
-      "name": "r23 SpeedVariants 历史B - 开环65/35 [非新B]",
+      "name": "r24 ExitCoexistence 历史B - 开环65/35 [非新B]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "r23 SpeedVariants 历史对照 Build: DebugFollowTurn65",
+      "preLaunchTask": "r24 ExitCoexistence 历史对照 Build: DebugFollowTurn65",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",
@@ -181,11 +181,11 @@
       }
     },
     {
-      "name": "r23 SpeedVariants 历史C - 旧增量PI [非环岛新C]",
+      "name": "r24 ExitCoexistence 历史C - 旧增量PI [非环岛新C]",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "r23 SpeedVariants 历史对照 Build: DebugFollowIncrementalPI",
+      "preLaunchTask": "r24 ExitCoexistence 历史对照 Build: DebugFollowIncrementalPI",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "4000",
       "serverReset": "Software system reset",

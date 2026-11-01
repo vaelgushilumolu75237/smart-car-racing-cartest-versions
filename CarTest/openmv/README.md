@@ -1,40 +1,22 @@
-# r23 C whole-speed variants: +20%, +30%, +40% (2026-11-01)
+# v26-r24 独立出环候选工作区
 
-Open CarTest/CarTest.code-workspace. Debug entries show percentage, straight/ring
-wheel targets, and the retained 3s hold / 300ms hold deceleration. Each entry has
-its own checked preLaunchTask, build preset and ELF path. The baseline and
-historical entries remain labeled separately.
+打开上一级 CarTest.code-workspace；Debug 选择 r24 C Base 或 r24 C +40%。
+原速直道/环内外轮目标为 5.600/5.280 转每秒；+40% 为 7.840/7.392。
+同时保留 +20%/+30% 和明确标为历史对照的构建项。
 
-| Variant | Straight rps | Steady ring outer rps | Full slowdown outer rps |
-| --- | ---: | ---: | ---: |
-| Base | 5.600 | 5.280 | 4.400 |
-| +20% | 6.720 | 6.336 | 5.280 |
-| +30% | 7.280 | 6.864 | 5.720 |
-| +40% | 7.840 | 7.392 | 6.160 |
+修复：已满足离开入口条件的右环岛中，合格的当前出口左边线不再被
+“普通路线也识别成功”这一标志否决。继续按标定宽度计算中线并引导出环。
+不依靠定时强制回中；退出引导的释放仍要求真正恢复并对齐普通路线。
+H743 控制代码、档位配对、PE7、速度参数和丢线时限沿用 r23。
 
-These are wheel-speed targets, not measured vehicle speed. Inner-wheel targets
-retain the steering-derived Ackermann ratio. Request interpolation occurs at
-the baseline speed before percentage scaling, so the existing ring slowdown
-request 267 produces the exact values above. PWM limits, PI gains, steering
-mapping/slew, PE7, pairing/ACK checks, hard faults and hold times are retained.
-Percentage is included in the MCU build fingerprint. Only C allows speed >100%.
+openmv/ 是当前完整视觉包，含 main.py 等23个Python文件和清单。
+本地交付附 ring_width_calibration.json，保留现有相机标定；不要与旧版混装。
+公开GitHub备份不含私人标定，恢复时须从本地完整包补齐JSON。
+相机沿用已安装的H750原生加速固件。此次不提供或执行固件刷写。
 
-All variants share the EXACT r23 camera runtime (23 Python source hashes match).
-Camera TRACK_BUILD remains TRACK_RING_EXIT_V26_R23_20261101. Each local Install
-folder includes its own complete OpenMV subdirectory, main.py and the unchanged
-calibration JSON. H743 is different for each percentage: flash ONE corresponding
-ELF or HEX, using its matching debug entry. No board has been flashed/reset and
-no camera uploaded by this packaging task.
+build/ 中有实际构建的 ELF/HEX；Install/ 的独立文件夹位于本工作区上一级。
+deliverables/ 内带日期的旧包是恢复资料，当前安装入口是本级 openmv/。
+原 r23 工作区保持原样，回退可直接打开原工作区。
 
-Validation: all 18 actual ELF builds passed; 4x15 actual Ackermann control cases
-verified target values and per-wheel scaling/geometry; 4 negative header builds
-and 3 negative CMake configurations rejected; 72 MCU host cases / 7713 assertions
-passed; C 3000/300 boundary fixture passed. Debug launch/task/path correspondence
-verified. Camera source is byte-identical to tested r23 (519 tests, 4 skipped;
-23 cross-compiles); no claim of a new board camera measurement is made.
-
-Road exit and high-speed tracking remain unverified. Actual board and IDE-preview
->=60FPS remain unverified. Host tests/builds do not establish road behavior.
-The original r23 source/configuration/paired ELFs remain preserved; hashes are
-in R23_BASELINE_SHA256.json. Private calibration/logs/images are excluded from
-public checkpoints. Use the included base C firmware to restore base speed.
+验证详情见 docs/R24_VALIDATION.md。实车和含IDE预览60FPS均未验收，
+本次只作软件候选交付，不安排或执行车辆操作。
