@@ -1,0 +1,46 @@
+{
+  "format": "CARTEST_VISION_V4_PACKET_FIXTURE_1",
+  "crc": "CCITT-FALSE over bytes 2..13, little-endian at bytes 14..15",
+  "cases": [
+    {
+      "name": "left_entry",
+      "input_sequence": 100,
+      "bytes": [165, 90, 4, 8, 100, 0, 1, 80, 120, 0, 86, 3, 0, 0, 233, 35],
+      "hex": "a55a040864000150780056030000e923",
+      "ring_phase": 1,
+      "side_bits": 1
+    },
+    {
+      "name": "right_entry",
+      "input_sequence": 200,
+      "bytes": [165, 90, 4, 8, 200, 0, 1, 80, 120, 0, 102, 3, 0, 0, 71, 53],
+      "hex": "a55a0408c80001507800660300004735",
+      "ring_phase": 1,
+      "side_bits": 2
+    },
+    {
+      "name": "left_inside",
+      "input_sequence": 300,
+      "bytes": [165, 90, 4, 8, 47, 1, 1, 80, 120, 0, 90, 3, 0, 0, 102, 14],
+      "hex": "a55a04082f01015078005a030000660e",
+      "ring_phase": 2,
+      "side_bits": 1
+    },
+    {
+      "name": "right_inside",
+      "input_sequence": 400,
+      "bytes": [165, 90, 4, 8, 147, 1, 1, 80, 120, 0, 106, 3, 0, 0, 94, 140],
+      "hex": "a55a04089301015078006a0300005e8c",
+      "ring_phase": 2,
+      "side_bits": 2
+    },
+    {
+      "name": "invalid_route_entry",
+      "input_sequence": 500,
+      "bytes": [165, 90, 4, 8, 244, 1, 0, 0, 0, 0, 20, 3, 0, 0, 6, 222],
+      "hex": "a55a0408f401000000001403000006de",
+      "ring_phase": 1,
+      "side_bits": 1
+    }
+  ]
+}

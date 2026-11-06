@@ -1,0 +1,9 @@
+{
+  "version": "v20261106-k230-gyro350-v1",
+  "status": "experimental-software-tested-hardware-pending",
+  "branch": "experimental/k230-gyro350-v1",
+  "files": 598,
+  "hardware_actions": "none",
+  "platform": "Yahboom K230 deluxe",
+  "private_calibration_included": false
+}
