@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+shim_path="${BASH_SOURCE[0]}"
+shim_dir="${shim_path%/*}"
+if [[ "$shim_dir" == "$shim_path" ]]; then
+    shim_dir='.'
+fi
+runner_dir="$(cd -- "$shim_dir" && pwd -P)"
+package_root="$(cd -- "$runner_dir/.." && pwd -P)"
+cygpath_exe="$package_root/tools/git/usr/bin/cygpath.exe"
+python_home="$package_root/tools/python"
+python_exe_posix="$python_home/python.exe"
+
+if [[ ! -x "$cygpath_exe" ]]; then
+    echo "Relocatable Python shim cannot find packaged cygpath.exe: $cygpath_exe" >&2
+    exit 127
+fi
+if [[ ! -f "$python_exe_posix" ]]; then
+    echo "Relocatable Python shim cannot find packaged CPython: $python_exe_posix" >&2
+    exit 127
+fi
+
+q_root="${OPENMV_Q_ROOT_POSIX:-$package_root/source/openmv}"
+r_root="${OPENMV_R_ROOT_POSIX:-$package_root/tools}"
+python_home_win="${OPENMV_PYTHON_HOME_WINDOWS:-$("$cygpath_exe" -w "$python_home")}"
+export PYTHONHOME="$python_home_win"
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUTF8=1
+
+to_native_path() {
+    local path="$1"
+    case "$path" in
+        /q)
+            "$cygpath_exe" -w "$q_root"
+            ;;
+        /q/*)
+            "$cygpath_exe" -w "$q_root/${path#/q/}"
+            ;;
+        /r)
+            "$cygpath_exe" -w "$r_root"
+            ;;
+        /r/*)
+            "$cygpath_exe" -w "$r_root/${path#/r/}"
+            ;;
+        /[A-Za-z])
+            "$cygpath_exe" -w "$path"
+            ;;
+        /[A-Za-z]/*)
+            "$cygpath_exe" -w "$path"
+            ;;
+        *)
+            printf '%s\n' "$path"
+            ;;
+    esac
+}
+
+native_args=()
+for arg in "$@"; do
+    case "$arg" in
+        file:/q|file:/q/*|file:/r|file:/r/*|file:/[A-Za-z]|file:/[A-Za-z]/*)
+            arg="file:$(to_native_path "${arg#file:}")"
+            ;;
+        /q|/q/*|/r|/r/*)
+            arg="$(to_native_path "$arg")"
+            ;;
+        /[A-Za-z])
+            arg="$(to_native_path "$arg")"
+            ;;
+        /[A-Za-z]/*)
+            arg="$(to_native_path "$arg")"
+            ;;
+    esac
+    native_args+=("$arg")
+done
+
+exec "$python_exe_posix" "${native_args[@]}"

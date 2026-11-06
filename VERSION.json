@@ -1,0 +1,9 @@
+{
+  "version": "v20261106-k230-r24-port1",
+  "status": "experimental-host-tested-hardware-pending",
+  "branch": "experimental/k230-r24-port1",
+  "files": 462,
+  "hardware_actions": "none",
+  "platform": "Yahboom K230 deluxe",
+  "private_calibration_included": false
+}

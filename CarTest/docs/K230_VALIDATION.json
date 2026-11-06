@@ -1,0 +1,249 @@
+{
+  "port": "CARTEST_K230_R24_PORT_20261106",
+  "status": "experimental-host-tested-hardware-pending",
+  "camera_tests": {
+    "run": 526,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [
+      [
+        "test_ackermann320_packages.AckermannPackageTests.test_manifests_cover_allowlisted_runtime_and_cross_compile_evidence",
+        "Ackermann 320x120 package build has not run"
+      ],
+      [
+        "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_ground_replay_accepts_descending_rows_and_actual_sidecar",
+        "Private ground raw/sidecar fixture is absent; ground replay not verified"
+      ],
+      [
+        "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_independent_curvature_entry_reaches_uart_after_three_frames",
+        "independent ring-curvature routing is intentionally absent"
+      ],
+      [
+        "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_main_fast_ring_path_uses_current_rows_without_heading_kick",
+        "independent ring route was removed from production"
+      ],
+      [
+        "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_real_detector_left_and_right_entry_reaches_uart_after_three_frames",
+        "ring-entry routing is intentionally absent"
+      ]
+    ],
+    "excluded": {
+      "test_profile_packages.ProfilePackageTests.test_all_three_manifests_cover_complete_profile_matched_sources": "Historical OpenMV no_pd/pd/pd_preview delivery manifests, not K230 installation packages",
+      "test_profile_packages.ProfilePackageTests.test_profile_identity_is_unique_and_other_runtime_sources_are_shared": "Historical OpenMV no_pd/pd/pd_preview package identity, replaced by K230 manifest",
+      "test_steering_diag.SteeringDiagAlgorithmFreezeTests.test_unrelated_vision_ast_matches_baseline_after_control_changes": "ARM-to-RISC-V port intentionally changes imports, decorators and camera/UART setup; upstream geometry regression remains"
+    },
+    "hardware": "not_connected"
+  },
+  "hal_tests_passed": true,
+  "hal_tests": 9,
+  "all_bytecode_compiled": true,
+  "compiler": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
+  "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
+  "bytecode_target": "portable; no ARM/RISC-V native emitter; install .py sources",
+  "compilation": [
+    {
+      "file": "adaptive_detector.py",
+      "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+      "mpy_sha256": "e1b75af89a81e91adec5dbc3b8bfd176b866c499c2a648ffc11cf075112990d4"
+    },
+    {
+      "file": "boundary_evidence.py",
+      "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+      "mpy_sha256": "8167dc69d3f5ca7291b24753674989506a45fcbab1d61e6a93cac890ffd290fe"
+    },
+    {
+      "file": "calibrate_k230.py",
+      "source_sha256": "af8022d16466b79c152a72ea079b9003fcdf8017e867a25fbc2e76388b4121ef",
+      "mpy_sha256": "18e0ab6d155902c581f147627d24316c61f74e575db546ff0b04e526f8bb1ffe"
+    },
+    {
+      "file": "config.py",
+      "source_sha256": "643acd1a738389254a597fba838e870e3782310090c7c1a9c24b578e298d8fe4",
+      "mpy_sha256": "4c1657e66eaa64705368a2c0ffe26d34a37432a2317270a74debab8772e60f10"
+    },
+    {
+      "file": "contour_route.py",
+      "source_sha256": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
+      "mpy_sha256": "f9941c3618ee5efee02df628884c427ddd301e9c1d7a0ca7eb176323626ce422"
+    },
+    {
+      "file": "contour_trace.py",
+      "source_sha256": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
+      "mpy_sha256": "877d0e3b272097e1f611d9a7f9750fe617a3a840fa290495e4840bcba6480163"
+    },
+    {
+      "file": "fast_boundary.py",
+      "source_sha256": "9fd731c83ae5b63a352b62993e91105fa7c6cbb9143ba65b4facb2ab0f8bf5c8",
+      "mpy_sha256": "7401f1e4fd02f0a0fc9979f634e5ec6f38ac9495ea565c08cef335a8b0b27817"
+    },
+    {
+      "file": "fast_gray.py",
+      "source_sha256": "92be34ce83f15196ec0b4340604d000b45ef3d681df92defdfd08ea0f1753fea",
+      "mpy_sha256": "25ed6edf93096d5fd768de4bd08c07347373a311d6410ac648f1910b6ae65fcf"
+    },
+    {
+      "file": "fast_path.py",
+      "source_sha256": "78c3fe93aa009d333dc2fec5dbc9b1c517b6c9a54ae02fe1934b31e80653f1bf",
+      "mpy_sha256": "407340b43fe2a1f95da4b6b3a25fdbda3fdc8c7d80cc261c186ebf540041ee1e"
+    },
+    {
+      "file": "fast_ring_slope.py",
+      "source_sha256": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
+      "mpy_sha256": "0177e51939ad3d7561dc4cfe15066e6144e64738e5a9c1bce9b1fbe642692ab7"
+    },
+    {
+      "file": "fast_single_edge.py",
+      "source_sha256": "d7458b67ad6192d9145b8a000268f17637fc442aa870be1e83f2359241684c0f",
+      "mpy_sha256": "edc77bc496f8c16b21530376382b63864f7a3e5553eef101064ec5152ad5e424"
+    },
+    {
+      "file": "fast_topology.py",
+      "source_sha256": "92b299d0e9da7005c24d6e7cb577c4cda4df9b59fa9fd9c1a52fd70508129656",
+      "mpy_sha256": "2619b7cfd438608859699af0575d2b22b9ae9f6b4122a1f75bba29df5da130ec"
+    },
+    {
+      "file": "grayscale_adapter.py",
+      "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+      "mpy_sha256": "38594c3e4b0b54bb7739696c7cb4b2819c74ddce0dd3a1ec0f0ee037d3aca0e0"
+    },
+    {
+      "file": "k230_calibration.py",
+      "source_sha256": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
+      "mpy_sha256": "2425f307f9ceab3ba5a86a211ff9791b54207a131ace352818440bbaa197b456"
+    },
+    {
+      "file": "k230_hal.py",
+      "source_sha256": "62265ed766e4e3f107e1ae937f69f2dbad1557d266a483d61709aa62abe8b479",
+      "mpy_sha256": "47757e21c4add630919d65388570c861fb671cfb889148c84e111a23535d6d39"
+    },
+    {
+      "file": "k230_portable.py",
+      "source_sha256": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
+      "mpy_sha256": "c63d47990897dcd745e24127291b0440a863f4f33c4515770436271d615176ee"
+    },
+    {
+      "file": "k230_settings.py",
+      "source_sha256": "1fefd020a0fa8bc26437bb8e9dd0490bdd05e9ef3c70e033bc75c106d0d4529d",
+      "mpy_sha256": "0af4afb3a9d8a2f4e5d329290a66aef7bee5ff1b1b37c783fc5b4f4ceb6ab8de"
+    },
+    {
+      "file": "line_detector.py",
+      "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+      "mpy_sha256": "f89906b4418fcdb339ac8fa0830dac7bbb69dded5dc312413731ce37dfcf77ab"
+    },
+    {
+      "file": "main.py",
+      "source_sha256": "3edec3f8ab50e296f918d0be284c469da71011e229afe65d2a2d3afd846877ad",
+      "mpy_sha256": "c13d65b80f18c1da87c8deee2981b6356e14c4bae8cfedfbf3e388e8de3c02f0"
+    },
+    {
+      "file": "probe_k230.py",
+      "source_sha256": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
+      "mpy_sha256": "46e749d6d30a20d1d43828d39a7584cc5b27c481fce2d70a23ea3a4e98559d12"
+    },
+    {
+      "file": "reverse_control.py",
+      "source_sha256": "a8ced2ee5c67ef5d0b4394b57372b5d12dbda9b40b5081207d49d25368efd1d1",
+      "mpy_sha256": "f81ca9670d93955d85d157193ab018b885cc5d5551f3232a1bbe42203af6ac5a"
+    },
+    {
+      "file": "ring_diagnostics.py",
+      "source_sha256": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
+      "mpy_sha256": "5cea9e0a31fa83c80f1cd2d15b0c832969604c3951685f3ab50254bd5c4cd04f"
+    },
+    {
+      "file": "ring_width_calibration.py",
+      "source_sha256": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
+      "mpy_sha256": "fc84cdb51cfb9340bc91d123e0c306d045c2822ed89027277e6a0536834e7df0"
+    },
+    {
+      "file": "road_detector.py",
+      "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+      "mpy_sha256": "518da7a739ec61a44e647552f954ae4e15bc3226c358e4aaf25e181462c24da1"
+    },
+    {
+      "file": "run_cartest.py",
+      "source_sha256": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
+      "mpy_sha256": "94829b562c8836eba9e64f25a5e03f120fe8ac513d054d054c6110e1090fdbda"
+    },
+    {
+      "file": "source_selector.py",
+      "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+      "mpy_sha256": "93bb01c8cd693157c1b95f970292483ae94cfb1cfe3bef750c27acf7e8333899"
+    },
+    {
+      "file": "surface_detector.py",
+      "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+      "mpy_sha256": "d37148d6bb98f3a7e3b277e212303b30177a6659c230a37115e6d506840fbd56"
+    },
+    {
+      "file": "thresholding.py",
+      "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+      "mpy_sha256": "006a21b3a34256f03b959979197acb3a0948184004d2fcdfaa0c8c7316bf526b"
+    },
+    {
+      "file": "track_elements.py",
+      "source_sha256": "7475d38f98ade6d3c9c6861ba300e27c39d0c8a36637c8f09d0b9e2732aa4d46",
+      "mpy_sha256": "ed5384be4ed30fa1f6632e321a2c64c1462fd02fe84c7af43415ac784e193ddb"
+    },
+    {
+      "file": "vision_protocol.py",
+      "source_sha256": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
+      "mpy_sha256": "be3b54017bb2f0d80c8ecd2ef32715f453c986d204c48749a11d2b550380f048"
+    }
+  ],
+  "built_profiles": [
+    "Debug",
+    "DebugBench",
+    "DebugFastNoRing",
+    "DebugFollow",
+    "DebugFollowDiff10",
+    "DebugFollowDiff5",
+    "DebugFollowIncrementalPI",
+    "DebugFollowIncrementalPIBaseline",
+    "DebugFollowNoLog",
+    "DebugFollowSpeedPI",
+    "DebugFollowTurn",
+    "DebugFollowTurn65",
+    "DebugRingBase",
+    "DebugRingFast",
+    "DebugRingFastSpeed120",
+    "DebugRingFastSpeed130",
+    "DebugRingFastSpeed140",
+    "DebugSteering"
+  ],
+  "elf_sha256": {
+    "Debug": "33237fdf5bf842a25cdafc34cd0e77a8590f6437c90edd44fa30b851b1e62b9c",
+    "DebugBench": "f491473bd3a95976e1281f8f50e82ea800d16b6fbd1337f5cd3856aef23153e2",
+    "DebugFastNoRing": "7b20f49ed6a9dfc85eadfdd33fff3d304aedaa2b4c4fdd8aebb20e73cb30e8e6",
+    "DebugFollow": "ac19b4d90fb2f69bd8d5c27212fdcf42b30851473fe2188e4fd31ff43fffacef",
+    "DebugFollowDiff10": "cd7d2b01e070d3bd39eb0b21dba6cd709b8e7b924cbd5890b37bf96aef547144",
+    "DebugFollowDiff5": "db9c1eddc4900190bf646db8525883c0b9a0f72a36a5a0c83d2fc6f4dba74af6",
+    "DebugFollowIncrementalPI": "1abdce31e92362dd3a18e2da2d4ef9f44f5a6171dfbf71d84f3186cd7975f8ac",
+    "DebugFollowIncrementalPIBaseline": "f161fc041effa110eaaf296109195e23a8c3b078d81185772a4feb6b57a96e93",
+    "DebugFollowNoLog": "848b1a300e151d2b82fd6f9aa7caf7ff6c98706bb439f471152cba570878b2ac",
+    "DebugFollowSpeedPI": "bc7c05f16b6bc6447fe5536b51c701a617ec4ac3afe553e84122553fcb1953b0",
+    "DebugFollowTurn": "3aa06936bf1bb978830aec37df4424976658a2d4034fa7e6f1d3385f8c9891fa",
+    "DebugFollowTurn65": "32f68cd307c9fba97e18557450f7cad4b0dead0dec3d82846adaf3481d19bd05",
+    "DebugRingBase": "a7d9b407f0ebed3d2bec4e362fc3c250734e8c57e2f7e6ae66f25c654ea59571",
+    "DebugRingFast": "0e008d881b9f6ed993e01005a7451870f87adc4714622ce72326af4662ab13be",
+    "DebugRingFastSpeed120": "afffde645f9fca50e9593d23ee33c666ef28b3a7d75a91a2aaa2fc0e7f78fd87",
+    "DebugRingFastSpeed130": "fc9fd53e6191dacd5e5b83a920935fd5709f1537e77b51e3cb45170c2e1665f6",
+    "DebugRingFastSpeed140": "24ed82073cd7e085b6bde934518bcc0ed88938ee0fbcb996a241581378471a4a",
+    "DebugSteering": "5c4cb269d0d05ee0e5f0d6b204753adf7b28393033d91274da0122744cacf543"
+  },
+  "hardware_actions": "none",
+  "board_runtime_fps": "unverified",
+  "ide_new_frame_fps": "unverified",
+  "road_acceptance": "unverified",
+  "exposure_control": "K230 firmware ISP default; OpenMV cap not applied",
+  "calibration": "new K230 format3 required; H750 private map never copied to installer",
+  "h743_host": {
+    "cases": 72,
+    "assertions": 7713,
+    "failures": 0,
+    "default_hold_ms": 2000,
+    "default_ramp_ms": 200
+  },
+  "mcu_source_files_unchanged": 238
+}
