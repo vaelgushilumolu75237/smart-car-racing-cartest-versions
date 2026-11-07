@@ -189,6 +189,10 @@
 #define APP_SERVO_GPIO_PIN GPIO_PIN_8
 #define APP_SWITCH_GPIO_PIN GPIO_PIN_7
 #define APP_MOTOR_CHANNEL_MASK (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E)
+#if CARTEST_WIRELESS_ENABLED
+#define APP_WIRELESS_RTS_GPIO_PIN GPIO_PIN_4
+#define APP_WIRELESS_CMD_GPIO_PIN GPIO_PIN_5
+#endif
 
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
 #define APP_FOLLOW_PI_ARMED (follow_incremental_pi_state.armed)
@@ -866,6 +870,20 @@ static void early_motor_pins_low(void)
     GPIOB->PUPDR &= ~b_mask;
     __DSB();
 }
+
+#if CARTEST_WIRELESS_ENABLED
+static void wireless_control_pins_init(void)
+{
+    GPIO_InitTypeDef gpio = {0};
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    gpio.Pin = APP_WIRELESS_RTS_GPIO_PIN | APP_WIRELESS_CMD_GPIO_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &gpio);
+}
+#endif
 
 static void set_motor_gpio_channels_af(uint32_t channels)
 {
@@ -4410,6 +4428,9 @@ int main(void)
 
     init_stage_begin(CAR_INIT_STAGE_RESET_SAFE);
     early_motor_pins_low();
+#if CARTEST_WIRELESS_ENABLED
+    wireless_control_pins_init();
+#endif
     car_init_rcc_rsr_reset_snapshot = RCC->RSR;
     watchdog_reset = (car_init_rcc_rsr_reset_snapshot & RCC_RSR_IWDG1RSTF) != 0u
                          ? 1u : 0u;

@@ -13,7 +13,7 @@ def read(p): return json.loads(p.read_text(encoding='utf-8-sig'))
 
 def main():
     reports={}
-    for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION'):
+    for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION','WIRELESS_AUX_PINS'):
         report=read(OUT/(name+'.json'))
         if report.get('passed') is not True: raise RuntimeError(name+' is not passed')
         for key in ('tested_source_sha256','source_sha256'):
@@ -58,7 +58,7 @@ def main():
     source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
     source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
     result=dict(old)
-    result.update(port='CARTEST_K230_WIRELESS_20261107',status='experimental-software-tested-hardware-pending',
+    result.update(port='CARTEST_K230_WIRELESS_RTS_CMD_20261107',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
@@ -74,7 +74,11 @@ def main():
     manifest=read(ROOT/'openmv/PACKAGE_MANIFEST.json')
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
-        paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True)
+        paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
+        release_version='v20261107-k230-wireless-v2-rts-cmd',
+        wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
+                          'external_resistor':'software alternative; physical verification pending',
+                          'hardware_flow_control':False})
     (ROOT/'openmv/PACKAGE_MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     (ROOT/'openmv/CROSS_COMPILE_SUMMARY.json').write_text(json.dumps({k:result[k] for k in
         ('port','compiler','compiler_sha256','bytecode_target','compilation')},indent=2),encoding='utf-8')

@@ -39,7 +39,9 @@ def make_hex(elf, hex_path):
 if __name__ == "__main__":
     manifest = json.loads((ROOT / "openmv/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     wireless = manifest.get("wireless_required", False)
-    install = OUT / "Install/K230"
+    aux_pins = bool(manifest.get("wireless_aux_gpio"))
+    install_root = OUT / ("Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
+    install = install_root / "K230"
     install.mkdir(parents=True, exist_ok=True)
     for name in manifest["runtime_files"] + ["PACKAGE_MANIFEST.json", "README.md", "ring_width_calibration.json"]:
         source = ROOT / "openmv" / name
@@ -52,11 +54,11 @@ if __name__ == "__main__":
     # A gyro-required camera cannot be installed with the historical V3 ELFs.
     mapping = ({"Wireless_Gyro350_C_Plus40": "DebugWirelessGyro350Speed140"} if wireless
                else {"Gyro350_C_Plus40": "DebugGyro350Speed140"})
-    existing_profiles = OUT / "Install/H743"
+    existing_profiles = install_root / "H743"
     if existing_profiles.exists() and set(p.name for p in existing_profiles.iterdir()) - set(mapping):
         raise RuntimeError("Unexpected stale MCU installer directories; preserve them before packaging")
     for name, profile in mapping.items():
-        directory = OUT / "Install/H743" / name
+        directory = install_root / "H743" / name
         directory.mkdir(parents=True, exist_ok=True)
         elf = ROOT / "build" / profile / "CarTest.elf"
         hex_path = ROOT / "build" / profile / "CarTest.hex"
@@ -65,12 +67,12 @@ if __name__ == "__main__":
             shutil.copy2(ROOT / "build" / profile / ("CarTest." + suffix), directory)
         (directory / "PAIR.json").write_text(json.dumps({"profile": profile,
             "camera_port": manifest["port"], "elf_sha256": digest(directory / "CarTest.elf"),
-            "flashed": False}, indent=2), encoding="utf-8")
+            "release_version": manifest.get("release_version"), "flashed": False}, indent=2), encoding="utf-8")
     for name in ("GYRO350_20261106.md", "K230_PORT_20261106.md", "K230_VALIDATION.json"):
-        shutil.copy2(ROOT / "docs" / name, OUT / "Install" / name)
+        shutil.copy2(ROOT / "docs" / name, install_root / name)
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
-            shutil.copy2(ROOT / "docs" / name, OUT / "Install" / name)
+            shutil.copy2(ROOT / "docs" / name, install_root / name)
     baseline = json.loads((OUT / "private-baseline/SOURCE_BEFORE.json").read_text(encoding="utf-8"))
     source = Path(baseline["source"])
     changed = [name for name, expected in baseline["files"].items() if digest(source / name) != expected]
@@ -100,12 +102,13 @@ if __name__ == "__main__":
     candidates.append(ROOT / "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf")
     if (OUT / "PUBLISH_RESULT.json").is_file():
         candidates.append(OUT / "PUBLISH_RESULT.json")
-    candidates.extend(p for p in (OUT / "Install").rglob("*") if p.is_file())
+    candidates.extend(p for p in install_root.rglob("*") if p.is_file())
     candidates.extend(p for p in (OUT / "validation").glob("*.json") if p.is_file())
     hashes = {p.relative_to(OUT).as_posix(): digest(p) for p in sorted(candidates)}
     inventory = OUT / "COMPLETE_PACKAGE_SHA256.json"
     inventory.write_text(json.dumps(hashes, indent=2), encoding="utf-8")
-    archive = OUT / ("CarTest_K230_Wireless_20261107.zip" if wireless else "CarTest_K230_Gyro350_20261106.zip")
+    archive = OUT / ("CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
+                     "CarTest_K230_Wireless_20261107.zip" if wireless else "CarTest_K230_Gyro350_20261106.zip")
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p in candidates + [inventory]:
             z.write(p, p.relative_to(OUT).as_posix())

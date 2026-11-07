@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_WIRELESS_20261107",
+  "port": "CARTEST_K230_WIRELESS_RTS_CMD_20261107",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -76,5 +76,13 @@
   "paired_mcu_preset": "DebugWirelessGyro350Speed140",
   "wire_protocol": 4,
   "gyro350_required": true,
-  "wireless_required": true
+  "wireless_required": true,
+  "release_version": "v20261107-k230-wireless-v2-rts-cmd",
+  "wireless_aux_gpio": {
+    "rts": "PA4",
+    "cmd": "PA5",
+    "mode": "input-pullup",
+    "external_resistor": "software alternative; physical verification pending",
+    "hardware_flow_control": false
+  }
 }

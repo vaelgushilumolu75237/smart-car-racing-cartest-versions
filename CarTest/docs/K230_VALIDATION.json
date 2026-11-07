@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_WIRELESS_20261107",
+  "port": "CARTEST_K230_WIRELESS_RTS_CMD_20261107",
   "status": "experimental-software-tested-hardware-pending",
   "camera_tests": {
     "run": 526,
@@ -238,26 +238,26 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "8b2832d42f83f584e68c74b97efef035404dc80ffb7e8adc6df77586ee28a6a3",
-    "DebugBench": "954df85dd8182e4a3c610fec5630171e2c11e573b1beff172e3434fc2e62f41c",
-    "DebugFastNoRing": "061a837434bf6e0ee83297741c9272f0f6c5908ffd94f4709b1c95788d5f4ee6",
-    "DebugFollow": "6db89cff8302d9532c44096bbb366811c4f78946fc70acbb986cf074be32dde6",
-    "DebugFollowDiff10": "53f551ac0d75a5e79cf39dd009625b1f5d66b4fd76c967ba9d59f85c3e9a143e",
-    "DebugFollowDiff5": "ecc0e96498baea6dcceed2f714ba13a2e286d6d8c1d5826418699100e88af130",
-    "DebugFollowIncrementalPI": "f42e22e12a0094cd453f6a6610b4bf5361515b866f74c9150e2c2a9aa3256da8",
-    "DebugFollowIncrementalPIBaseline": "f1eb6a78166160d0186ae2a04a12b84a3a60a3142017eac863f1d447714596a0",
-    "DebugFollowNoLog": "76e72ea81957dc3dd3f6ae40bb6c52ca56bfcb226edf601b271e4ddc67e8ea32",
-    "DebugFollowSpeedPI": "02a55fd2433a33cb35681709a2e3b4b9f8fe87f64282151b62582b32cdb29b18",
-    "DebugFollowTurn": "47c62fb0e9e3a3c2adab33ef328f1ee2943d112cf23d6a5bb55b99b1c4785e64",
-    "DebugFollowTurn65": "c67766114da10e6196c3366dfef4e8b4850f4977a15c49b13154cb8808061c90",
-    "DebugGyro350Speed140": "deede39219c29dda9f463ef4bfe3e9f4c0e2fc644a9ca50ec11d70dca56e6d2f",
-    "DebugRingBase": "7ea9fa2b85077900adb0fb8c30c3f7677e63f75727899018ba14801328a55035",
-    "DebugRingFast": "9b6478eed1cdd5534049610fb48a3d040c4ebe860e42a4e22c8fba1cae00ac15",
-    "DebugRingFastSpeed120": "729f0ba919f2eb2d6e6cbf35e2b6de6d6344608373076b577625b0a6c927fc26",
-    "DebugRingFastSpeed130": "bd66d746f7cc3a4bcff3634cd7547adf679d51358dab7035954c5e1e5caaab73",
-    "DebugRingFastSpeed140": "822f34330fe61983996d666ec20e17b22be7a946030f74370f7a8575e4e8a0a8",
-    "DebugSteering": "70680d40ec4490edca805a11d046c5925179aa9af2123669e340c637c024ea9c",
-    "DebugWirelessGyro350Speed140": "9319af2157360dcc00e97f9672fa3c4569492c7ed2d4e16e9a76c281cb342283"
+    "Debug": "4e28e880503078cd2191cefc2d919e508d55cbf834b1bfdd94836f7904822d83",
+    "DebugBench": "ac39acf5805aa5cac50a89c0ce1a938e1377ac8d89af8c8a9c8f5d5760ed5626",
+    "DebugFastNoRing": "11b3e09e9c6532e93504d30e86b0afa97004aab189a3db54ec9fe9007b9b577c",
+    "DebugFollow": "e1fb469a529168e2144e09760f55d49cb520c807f9e7e7400623f065fe3dc252",
+    "DebugFollowDiff10": "c7628d7d58824646b8fd20ee6f832034f03eee605e7e98c2072e24f3349c1ad8",
+    "DebugFollowDiff5": "494848cecdce23d52b2539159b9bf6f11ca075d3ddaecc4e3b3589e7ec398e8c",
+    "DebugFollowIncrementalPI": "67d8e0b934b4c4a801e1b5a9c85a47f54baa5b8ac8d227e30a6b8a87494713bb",
+    "DebugFollowIncrementalPIBaseline": "d9cdd4fb4168a30397e48a02d54eedff95c9a96ebf6657f59c00261b7afdca8e",
+    "DebugFollowNoLog": "a5ec2c7f0a11a68217da5206209b0d1643ed3d2254a6f0e4515be056c5577445",
+    "DebugFollowSpeedPI": "897dabc5d3b90389dd35556405bc1ed658a5cabd69ab20c09e44ae8a7b0b0b25",
+    "DebugFollowTurn": "db004dee6db28ccc35b15c4805cc3e2b1eadbbfd1aa20adad15536850f2076a2",
+    "DebugFollowTurn65": "dee12df36a51f764e6ed1ac1c448ed0bb7de20271a7a61afe3133cd1d8efe013",
+    "DebugGyro350Speed140": "93df532d6dc6ab55e6a26aa614d9022d837d994e5dfe2782938c8d640d1fb552",
+    "DebugRingBase": "51e36695874a526893aad67915ec159eb98aa925073525af36a8b3fb9e2fbb3c",
+    "DebugRingFast": "6f3e594714f995d75a4754bf854960501101367da373284aefbfab9ee5dc1264",
+    "DebugRingFastSpeed120": "1050a77c083ef9d3444e12cb2866e5fbed187d2325e8a39d153200d6d6980566",
+    "DebugRingFastSpeed130": "a1edfbce94c0a5c1a58bd24ce8d3b052818acae2678a34e4ed7b19966b993883",
+    "DebugRingFastSpeed140": "3b64dfcb2a81f382b170d4df1ccbb171c140b3cf1b603f7c6817a630dd047812",
+    "DebugSteering": "4e1e97771989d6a9639657f061f46ed4470b835e240ed3e638043c4d45044075",
+    "DebugWirelessGyro350Speed140": "4886e8abda8435796d589b47eac2a72c2c7b2c0bfaaecdc761708483ce67a6aa"
   },
   "hardware_actions": "none",
   "board_runtime_fps": "unverified",
@@ -521,7 +521,7 @@
     "Inc/wireless_protocol.h": "6e5e48ca5819ca69586420377d308e91d07ea48d5671679431a631d8da2b2882",
     "Inc/wireless_runtime.h": "bc4137f388d7038d99db63e63f5baced465be57a62175f98a7faeb3bd8202321",
     "Inc/wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
-    "Src/main.c": "6c37cd735239ebef7b5b89db14d89b0d39e9dc48a1dc559e8b6e62a36bf4f09e",
+    "Src/main.c": "6e2e785077778f272218a7709d2744217e55b00fcd83ebe7fbaad3fa895157e9",
     "Src/startup_stm32h743xx.S": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
     "Src/syscall.c": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
     "Src/sysmem.c": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
@@ -567,7 +567,7 @@
         "production SysTick expiry motor stop preserves main-loop return-center path"
       ],
       "tested_source_sha256": {
-        "Src/main.c": "6c37cd735239ebef7b5b89db14d89b0d39e9dc48a1dc559e8b6e62a36bf4f09e",
+        "Src/main.c": "6e2e785077778f272218a7709d2744217e55b00fcd83ebe7fbaad3fa895157e9",
         "tests/test_wireless_main.py": "8857bbc0be2748887ba93e4e7edc75b7254c99ced8b3a93245b0c2a4dc3eff0b"
       }
     },
@@ -907,6 +907,25 @@
         "right mirrored signed progress",
         "IMU fault and PE7 stop reset"
       ]
+    },
+    "WIRELESS_AUX_PINS": {
+      "passed": true,
+      "scope": "H743 resistor-free wireless RTS/CMD input bias",
+      "runner": "python tests/test_wireless_aux_pins.py",
+      "cases": 1,
+      "assertions": 7,
+      "coverage": [
+        "PA4 RTS and PA5 CMD selected",
+        "both pins GPIO input with internal pullup",
+        "no alternate-function or push-pull output configuration",
+        "wireless-only compile guard and safe initialization order"
+      ],
+      "software_pullup_limit": "Internal pullups are active after MCU initialization only; they do not bias RTS/CMD during reset or power-off.",
+      "hardware_actions": "none",
+      "source_sha256": {
+        "Src/main.c": "6e2e785077778f272218a7709d2744217e55b00fcd83ebe7fbaad3fa895157e9",
+        "tests/test_wireless_aux_pins.py": "d23e913895480d3eb1dfce65769089a2d066819b43d947d410ffb835209d8da0"
+      }
     }
   },
   "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks"
