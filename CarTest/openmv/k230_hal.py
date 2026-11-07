@@ -80,6 +80,8 @@ class Camera:
         self.sensor_type = None
         self.binding = None
         self.usb_vcp = _PreviewConnection()
+        self._lcd_preview = None
+        self._lcd_preview_geometry = None
 
     def configure(self):
         if self.device is not None:
@@ -162,13 +164,36 @@ class Camera:
         return self.latest
 
     def flush(self):
-        if self.latest is not None and settings.DISPLAY_MODE != "off":
-            x = (settings.DISPLAY_WIDTH - 320) // 2 if settings.DISPLAY_MODE == "lcd" else 0
-            y = (settings.DISPLAY_HEIGHT - 120) // 2 if settings.DISPLAY_MODE == "lcd" else 60
-            self.display.show_image(self.latest.image, x=x, y=y)
+        if self.latest is None or settings.DISPLAY_MODE == "off":
+            return
+        if settings.DISPLAY_MODE == "lcd":
+            import image
+            display_width = int(settings.DISPLAY_WIDTH)
+            display_height = int(settings.DISPLAY_HEIGHT)
+            scale = min(display_width / 320.0, display_height / 120.0)
+            if scale <= 0:
+                raise ValueError("LCD display dimensions must be positive")
+            preview_width = max(1, int(320 * scale))
+            preview_height = max(1, int(120 * scale))
+            geometry = (preview_width, preview_height)
+            if (self._lcd_preview is None or
+                    self._lcd_preview_geometry != geometry):
+                self._lcd_preview = image.Image(
+                    preview_width, preview_height, image.GRAYSCALE)
+                self._lcd_preview_geometry = geometry
+            self._lcd_preview.clear()
+            self._lcd_preview.draw_image(
+                self.latest.image, 0, 0, x_scale=scale, y_scale=scale)
+            x = (display_width - preview_width) // 2
+            y = (display_height - preview_height) // 2
+            self.display.show_image(self._lcd_preview, x=x, y=y)
+            return
+        self.display.show_image(self.latest.image, x=0, y=60)
 
     def close(self):
         self.latest = None
+        self._lcd_preview = None
+        self._lcd_preview_geometry = None
         errors = []
         for enabled, operation in (
                 (self.device is not None, lambda: self.device.stop()),

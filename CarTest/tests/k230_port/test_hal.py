@@ -52,6 +52,25 @@ class FPIOA:
         self.mappings.append((args, kwargs))
 
 
+class PreviewImage:
+    GRAYSCALE = 1
+    created = []
+
+    def __init__(self, width, height, pixel_format):
+        self.width_value = width
+        self.height_value = height
+        self.pixel_format = pixel_format
+        self.clears = 0
+        self.draws = []
+        type(self).created.append(self)
+
+    def clear(self):
+        self.clears += 1
+
+    def draw_image(self, source, x, y, **kwargs):
+        self.draws.append((source, x, y, kwargs))
+
+
 class HALTests(unittest.TestCase):
     def setUp(self):
         hal._uarts[:] = []
@@ -63,6 +82,7 @@ class HALTests(unittest.TestCase):
     def tearDown(self):
         self.patch.stop()
         hal._uarts[:] = []
+        PreviewImage.created[:] = []
 
     def test_factory_pin_mapping_uses_one_stop_not_openmv_numeric_one(self):
         hal.UARTAdapter(1, 115200)
@@ -113,6 +133,46 @@ class HALTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             camera.snapshot()
         self.assertIsNone(camera.latest)
+
+    def test_lcd_preview_reuses_scaled_buffer_and_ide_keeps_raw_frame(self):
+        raw = object()
+        display = types.SimpleNamespace(shown=[])
+        display.show_image = lambda frame, **kwargs: display.shown.append(
+            (frame, kwargs))
+        camera = hal.Camera()
+        camera.latest = types.SimpleNamespace(image=raw)
+        camera.display = display
+
+        image_module = types.SimpleNamespace(
+            Image=PreviewImage, GRAYSCALE=PreviewImage.GRAYSCALE)
+        with patch.dict(sys.modules, {"image": image_module}), \
+                patch.object(hal.settings, "DISPLAY_MODE", "lcd"), \
+                patch.object(hal.settings, "DISPLAY_WIDTH", 640), \
+                patch.object(hal.settings, "DISPLAY_HEIGHT", 480):
+            camera.flush()
+            camera.flush()
+
+            self.assertEqual(len(PreviewImage.created), 1)
+            preview = PreviewImage.created[0]
+            self.assertEqual((preview.width_value, preview.height_value),
+                             (640, 240))
+            self.assertEqual(len(preview.draws), 2)
+            self.assertIs(preview.draws[0][0], raw)
+            self.assertEqual(preview.draws[0][1:3], (0, 0))
+            self.assertEqual(preview.draws[0][3],
+                             {"x_scale": 2.0, "y_scale": 2.0})
+            self.assertIs(display.shown[0][0], preview)
+            self.assertEqual(display.shown[0][1], {"x": 0, "y": 120})
+            self.assertIs(display.shown[1][0], preview)
+
+        display.shown[:] = []
+        with patch.object(hal.settings, "DISPLAY_MODE", "ide"):
+            camera.flush()
+        self.assertIs(display.shown[0][0], raw)
+        self.assertEqual(display.shown[0][1], {"x": 0, "y": 60})
+
+        camera.close()
+        self.assertIsNone(camera._lcd_preview)
 
     def test_rgb_or_wrong_frame_shape_is_rejected(self):
         camera = hal.Camera()

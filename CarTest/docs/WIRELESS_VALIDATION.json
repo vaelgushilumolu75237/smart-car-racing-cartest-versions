@@ -55,7 +55,7 @@
       },
       "hal": {
         "command": "python -m unittest discover -s tests/k230_port -p test_*.py -v",
-        "tests": 9,
+        "tests": 10,
         "passed": true
       },
       "gyro_camera": {
@@ -178,8 +178,8 @@
         },
         {
           "file": "k230_hal.py",
-          "source_sha256": "62265ed766e4e3f107e1ae937f69f2dbad1557d266a483d61709aa62abe8b479",
-          "mpy_sha256": "3a95b9cfaa91b78e19be253a7d1d054f59da585489b0621beb64bf87de21b43a",
+          "source_sha256": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de",
+          "mpy_sha256": "e068d8e6a476156145551c523e3bb89590870e60f06103faaaa00948497beeb7",
           "exitcode": 0
         },
         {
@@ -309,7 +309,7 @@
         "openmv/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
         "openmv/gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
         "openmv/k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
-        "openmv/k230_hal.py": "62265ed766e4e3f107e1ae937f69f2dbad1557d266a483d61709aa62abe8b479",
+        "openmv/k230_hal.py": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de",
         "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
         "openmv/k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
         "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
@@ -328,7 +328,8 @@
         "openmv/wireless_link.py": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
         "tests/wireless_camera/test_wireless_camera_actions.py": "3de4f8412236b8f0ae6e832448e244277352ff448c6414d3f9c6bbc318860a6a"
       },
-      "display_fix": "Explicit x,y,text draw_string arguments; strict-signature regression included in camera suite. Hardware run pending."
+      "display_fix": "Explicit x,y,text draw_string arguments; strict-signature regression included in camera suite. Hardware run pending.",
+      "lcd_preview": "LCD aspect preserving 2x preview in reusable buffer; unchanged 320x120 control crop; hardware run pending."
     },
     "WIRELESS_TOOLS": {
       "passed": true,
