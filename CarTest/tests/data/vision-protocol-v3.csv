@@ -1,0 +1,6 @@
+case,sequence,valid,confidence,error,slope_hint,curve_phase,slowdown_request_permille,profile_ack,hex
+a_straight_ack,1,1,80,0,0,0,0,1,A55A030801000150000000010000D9D6
+b_right_turn,23205,1,92,327,0,2,250,2,A55A0308A55A015C47010202FA003357
+c_slowdown_max,65535,1,100,-1000,1,3,1000,3,A55A0308FFFF036418FC0303E80337B0
+unknown_ack,7,1,0,1000,0,1,1,0,A55A030807000100E80301000100EC55
+invalid_route_ack,8,0,0,0,0,0,0,2,A55A030808000000000000020000C307

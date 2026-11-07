@@ -1,0 +1,9 @@
+{
+  "version": "v20261107-k230-wireless-v1",
+  "status": "experimental-software-tested",
+  "branch": "experimental/wireless-diagnostics-v1",
+  "files": 632,
+  "hardware_actions": "none",
+  "platform": "Yahboom K230 deluxe",
+  "private_calibration_included": false
+}

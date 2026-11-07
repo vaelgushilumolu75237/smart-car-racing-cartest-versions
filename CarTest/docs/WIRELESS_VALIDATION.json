@@ -1,0 +1,458 @@
+{
+  "passed": true,
+  "reports": {
+    "WIRELESS_CONTROL": {
+      "passed": true,
+      "runner": "zig cc -std=c11 -Wall -Wextra -Werror",
+      "executable": "validation/wireless-control-test.exe",
+      "cases": 2,
+      "coverage": [
+        "settings_atomic_and_dual_slot_selection",
+        "session_sequence_timestamp_and_camera_permissions",
+        "camera GET_PARAMS forwarding",
+        "rejected_ack_not_overwriting_last_accepted_ack",
+        "timed_motor_servo_tests_and_stop"
+      ],
+      "assertions": 40,
+      "tested_source_sha256": {
+        "App\\wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
+        "App\\wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
+        "Inc\\wireless_control.h": "959659c3288680738e429730c1577398dd4b7edce9b4dc4f89abef6365f28ba6",
+        "Inc\\wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
+        "tests\\wireless_control\\test_wireless_control.c": "62c63420a5d994f32567c70395585bbc56af81a82ea5307a4d518254749c2c4c"
+      }
+    },
+    "WIRELESS_MAIN": {
+      "passed": true,
+      "runner": "zig cc -std=c11 -Wall -Wextra -Werror",
+      "cases": 12,
+      "assertions": 12,
+      "coverage": [
+        "production wireless_output_guard safety gates",
+        "production wireless_apply_test CC2/CC3 mapping",
+        "IMU fault and PE7 stop rejection",
+        "five second deadline rejection",
+        "servo center and motor stop after expiry",
+        "production SysTick wireless-owned PE7 and authorization guard",
+        "production SysTick main-loop heartbeat gap fast stop",
+        "production SysTick expiry motor stop preserves main-loop return-center path"
+      ],
+      "tested_source_sha256": {
+        "Src/main.c": "6c37cd735239ebef7b5b89db14d89b0d39e9dc48a1dc559e8b6e62a36bf4f09e",
+        "tests/test_wireless_main.py": "8857bbc0be2748887ba93e4e7edc75b7254c99ced8b3a93245b0c2a4dc3eff0b"
+      }
+    },
+    "WIRELESS_CAMERA": {
+      "passed": true,
+      "scope": "OpenMV production wireless camera bridge",
+      "wireless_tests_passed": true,
+      "wireless_camera_tests": {
+        "command": "python -m unittest -v tests.wireless_camera.test_wireless_camera",
+        "errors": 0,
+        "tests": 6,
+        "failures": 0,
+        "passed": true
+      },
+      "hal": {
+        "command": "python -m unittest discover -s tests/k230_port -p test_*.py -v",
+        "tests": 9,
+        "passed": true
+      },
+      "gyro_camera": {
+        "command": "python -m unittest discover -s tests/k230_gyro -p test_*.py -v",
+        "tests": 14,
+        "passed": true
+      },
+      "k230_port_full_regression": {
+        "passed": true,
+        "tests": 526,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 5,
+        "command": "python tools/test_k230_port.py"
+      },
+      "throughput_probe": {
+        "passed": true,
+        "image_chunks_3s": 81,
+        "note": "one image chunk per service slot with ACK/telemetry priority; measured host probe only; hardware UART write time unverified",
+        "image_data_limit": 128,
+        "diag_frames_3s": 6,
+        "state_frames_3s": 45
+      },
+      "mpy_cross": {
+        "all_bytecode_compiled": true,
+        "compiled_modules": 32,
+        "failed_modules": [],
+        "compiler": "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\build-deps\\mpy_cross\\mpy-cross.exe"
+      },
+      "compilation": [
+        {
+          "file": "adaptive_detector.py",
+          "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+          "mpy_sha256": "18f5ee3bbe3bfef4cb670a661572c4c3cc65a0b232a6935dbddbbafbcf009c54",
+          "exitcode": 0
+        },
+        {
+          "file": "boundary_evidence.py",
+          "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+          "mpy_sha256": "9deb516336b0bc770bbe2ca9fc3f3bc6dabbcf8b509d31c7b6b1bbc2f4864801",
+          "exitcode": 0
+        },
+        {
+          "file": "calibrate_k230.py",
+          "source_sha256": "af8022d16466b79c152a72ea079b9003fcdf8017e867a25fbc2e76388b4121ef",
+          "mpy_sha256": "5e06cfa9ecd4c7ae98636c1e33419f92a9bed0d27748d0d758bb3c1067f03db9",
+          "exitcode": 0
+        },
+        {
+          "file": "config.py",
+          "source_sha256": "a75471fb5bbefcca02e6da10bf3d54f758f95f94c78e5eb542090761dbc28112",
+          "mpy_sha256": "afe5b807e1c8535a883f80022d36115a2c49471623e8bbfeb792932e71248b29",
+          "exitcode": 0
+        },
+        {
+          "file": "contour_route.py",
+          "source_sha256": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
+          "mpy_sha256": "e39462cb28d907e74abc2519c0da87ddb405ea9b25ff9ff1e69723a77a4f073f",
+          "exitcode": 0
+        },
+        {
+          "file": "contour_trace.py",
+          "source_sha256": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
+          "mpy_sha256": "6a24bdd287be6b675ecad9dad5c3d5e711a427e7b30f7441559409e88a781654",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_boundary.py",
+          "source_sha256": "9fd731c83ae5b63a352b62993e91105fa7c6cbb9143ba65b4facb2ab0f8bf5c8",
+          "mpy_sha256": "c1b2d79435e8575231744e5e04a01a63913c1927f35aaa3475b1bd1d6354cff1",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_gray.py",
+          "source_sha256": "92be34ce83f15196ec0b4340604d000b45ef3d681df92defdfd08ea0f1753fea",
+          "mpy_sha256": "9719d17118ec9dcb23ffdbb08f805afbef981813942f6bcfcd6be19cc8d3dd32",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_path.py",
+          "source_sha256": "78c3fe93aa009d333dc2fec5dbc9b1c517b6c9a54ae02fe1934b31e80653f1bf",
+          "mpy_sha256": "ad373da06b031915bbbb22ef25d99b6d5c2fda2121a920d1249cad55e76f82fb",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_ring_slope.py",
+          "source_sha256": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
+          "mpy_sha256": "ae15c5a8387fb7354001c475191c6d8452fd6fcf1172b74a700dc46d7cd734c2",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_single_edge.py",
+          "source_sha256": "d7458b67ad6192d9145b8a000268f17637fc442aa870be1e83f2359241684c0f",
+          "mpy_sha256": "9a79753e6130d87fd77efe103d6ac7b79f3f62c459e57d29f9de123f7773ce77",
+          "exitcode": 0
+        },
+        {
+          "file": "fast_topology.py",
+          "source_sha256": "92b299d0e9da7005c24d6e7cb577c4cda4df9b59fa9fd9c1a52fd70508129656",
+          "mpy_sha256": "1d7388de7d91ac0628f217844c6a5a8dff55ee313758d993bce5c33a3afe7a1c",
+          "exitcode": 0
+        },
+        {
+          "file": "grayscale_adapter.py",
+          "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+          "mpy_sha256": "43164f596fdd594c9fbd59a4b62506abb29104c7c6b40a286d3d00650807b96b",
+          "exitcode": 0
+        },
+        {
+          "file": "gyro_link.py",
+          "source_sha256": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
+          "mpy_sha256": "1d33b6c4dea26138f7a5a976ab48fcff8275dfcccaaa6e5c15e37485bf96c0fc",
+          "exitcode": 0
+        },
+        {
+          "file": "k230_calibration.py",
+          "source_sha256": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
+          "mpy_sha256": "f90e9cf013387734bdaefade76ee2a4bfd970e4c4ae2ea4fa6d3c5a50ff3ac45",
+          "exitcode": 0
+        },
+        {
+          "file": "k230_hal.py",
+          "source_sha256": "62265ed766e4e3f107e1ae937f69f2dbad1557d266a483d61709aa62abe8b479",
+          "mpy_sha256": "3a95b9cfaa91b78e19be253a7d1d054f59da585489b0621beb64bf87de21b43a",
+          "exitcode": 0
+        },
+        {
+          "file": "k230_portable.py",
+          "source_sha256": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
+          "mpy_sha256": "f163532c7cf7729b7222f97f866c6335af093bdbc02e7d7043dfc4ee623c9b5b",
+          "exitcode": 0
+        },
+        {
+          "file": "k230_settings.py",
+          "source_sha256": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
+          "mpy_sha256": "ba4d49dc4984e6b7e344f1149007bfedf181098ebf799e92582dd8da1bd05445",
+          "exitcode": 0
+        },
+        {
+          "file": "line_detector.py",
+          "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+          "mpy_sha256": "9cfb3daa45debea432bac3cd34aa4a225fe2a7c6d859c5dbeca0bb120d2ebfcc",
+          "exitcode": 0
+        },
+        {
+          "file": "main.py",
+          "source_sha256": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
+          "mpy_sha256": "6417af982b784ba52d41972673d3883e7cc80697e563838650b8d79c02a5b1df",
+          "exitcode": 0
+        },
+        {
+          "file": "probe_k230.py",
+          "source_sha256": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
+          "mpy_sha256": "5c674fb0805635184c61c752b2a8cd8123a9b8743d8e2f12863d331a3ff176c8",
+          "exitcode": 0
+        },
+        {
+          "file": "reverse_control.py",
+          "source_sha256": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
+          "mpy_sha256": "b7bd3f275056f34ebcf6a19791dd2830a52526abd70e6ab7786bd9f7fdd3998a",
+          "exitcode": 0
+        },
+        {
+          "file": "ring_diagnostics.py",
+          "source_sha256": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
+          "mpy_sha256": "374b0ab69c844b146205bcd0f4c1f355855c1765110cd7011d2a2247c4373c2d",
+          "exitcode": 0
+        },
+        {
+          "file": "ring_width_calibration.py",
+          "source_sha256": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
+          "mpy_sha256": "bc2b25cd5aeec531ac718d0a79fa9b516b7177c1d79ff617e6ae3b8c263301bc",
+          "exitcode": 0
+        },
+        {
+          "file": "road_detector.py",
+          "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+          "mpy_sha256": "28645de4bdee0437b64500a01565d779fb8c14bb27fbf4f0f26eb18d5f9b04af",
+          "exitcode": 0
+        },
+        {
+          "file": "run_cartest.py",
+          "source_sha256": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
+          "mpy_sha256": "0ad7b58cf0aa02cc286b0313ab87430d7935f46bc3a202437cbed86f39cddd21",
+          "exitcode": 0
+        },
+        {
+          "file": "source_selector.py",
+          "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+          "mpy_sha256": "e1df38c198584e91b5705759ad3578054ba97e62d224f57adfe5e90e03f13087",
+          "exitcode": 0
+        },
+        {
+          "file": "surface_detector.py",
+          "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+          "mpy_sha256": "da7ebd28e9f03dbb9f76c0409fa672c08c833463b30853f97ab922aebb74a82c",
+          "exitcode": 0
+        },
+        {
+          "file": "thresholding.py",
+          "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+          "mpy_sha256": "9ff215d46405cf25afe79ec8bb7fead74c0647c68add3b43058df28247b216f4",
+          "exitcode": 0
+        },
+        {
+          "file": "track_elements.py",
+          "source_sha256": "bad7976a1e8fbd39288eee9ded59766ee884a3c74eaff91694ac1484759aa9e2",
+          "mpy_sha256": "e1d1f4306939719d22bffc3b147770c83cc9298901de7426d66ea465803567b8",
+          "exitcode": 0
+        },
+        {
+          "file": "vision_protocol.py",
+          "source_sha256": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
+          "mpy_sha256": "3b2cecd198d333844e8d7e5adbfc3eb2e3b31d1f59db341ef3692592d0913c2e",
+          "exitcode": 0
+        },
+        {
+          "file": "wireless_link.py",
+          "source_sha256": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
+          "mpy_sha256": "66e91c020ea6c4375808fe3af49d26354a4ab95e3073e0dae7e701b79e13d6b0",
+          "exitcode": 0
+        }
+      ],
+      "hardware_actions": "none",
+      "image_layout": "frame_id u32, offset u32, total_bytes u32, width u16, height u16, format u8, flags u8, data",
+      "ttl_note": "H743 and PC image TTL is 60000 ms; calibration collects at most 60000 ms with 65000 ms MCU forwarding deadline.",
+      "targeted_actions": {
+        "passed": true,
+        "tests": 4,
+        "command": "python tests/wireless_camera/test_wireless_camera_actions.py",
+        "coverage": [
+          "actual independent P/D output",
+          "GET_PARAMS config and RAM-only defaults",
+          "real incremental collector save/reload and final ACK request identity",
+          "calibration parked/session loss cancellation"
+        ]
+      },
+      "source_sha256": {
+        "openmv/adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+        "openmv/boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+        "openmv/calibrate_k230.py": "af8022d16466b79c152a72ea079b9003fcdf8017e867a25fbc2e76388b4121ef",
+        "openmv/config.py": "a75471fb5bbefcca02e6da10bf3d54f758f95f94c78e5eb542090761dbc28112",
+        "openmv/contour_route.py": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
+        "openmv/contour_trace.py": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
+        "openmv/fast_boundary.py": "9fd731c83ae5b63a352b62993e91105fa7c6cbb9143ba65b4facb2ab0f8bf5c8",
+        "openmv/fast_gray.py": "92be34ce83f15196ec0b4340604d000b45ef3d681df92defdfd08ea0f1753fea",
+        "openmv/fast_path.py": "78c3fe93aa009d333dc2fec5dbc9b1c517b6c9a54ae02fe1934b31e80653f1bf",
+        "openmv/fast_ring_slope.py": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
+        "openmv/fast_single_edge.py": "d7458b67ad6192d9145b8a000268f17637fc442aa870be1e83f2359241684c0f",
+        "openmv/fast_topology.py": "92b299d0e9da7005c24d6e7cb577c4cda4df9b59fa9fd9c1a52fd70508129656",
+        "openmv/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+        "openmv/gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
+        "openmv/k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
+        "openmv/k230_hal.py": "62265ed766e4e3f107e1ae937f69f2dbad1557d266a483d61709aa62abe8b479",
+        "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
+        "openmv/k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
+        "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+        "openmv/main.py": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
+        "openmv/probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
+        "openmv/reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
+        "openmv/ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
+        "openmv/ring_width_calibration.py": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
+        "openmv/road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+        "openmv/run_cartest.py": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
+        "openmv/source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+        "openmv/surface_detector.py": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+        "openmv/thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+        "openmv/track_elements.py": "bad7976a1e8fbd39288eee9ded59766ee884a3c74eaff91694ac1484759aa9e2",
+        "openmv/vision_protocol.py": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
+        "openmv/wireless_link.py": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
+        "tests/wireless_camera/test_wireless_camera_actions.py": "3de4f8412236b8f0ae6e832448e244277352ff448c6414d3f9c6bbc318860a6a"
+      }
+    },
+    "WIRELESS_TOOLS": {
+      "passed": true,
+      "python_test_count": 15,
+      "c_protocol_test_count": 1,
+      "python_command": "python -m unittest discover -s tests\\wireless_protocol -p test_*.py -q",
+      "c_command": "zig cc -std=c11 -Wall -Wextra -Werror -IInc App\\wireless_protocol.c tests\\wireless_protocol\\test_wireless_protocol.c -o <temp>; <temp>",
+      "compile_command": "python -m py_compile tools\\wireless\\complete_tool.py tests\\wireless_protocol\\test_complete_tool.py",
+      "tk_smoke": "withdrawn Tk app; simulated H743/K230 STATE, ACK, CONFIG, IMAGE; merged camera STATE/DIAG; wheel/gyro/vision selector and signed gyro/vision plotting with config +rate/config -rate assertions passed",
+      "source_sha256": {
+        "tools/wireless/protocol.py": "6e77f72143b9087a0f8e8abf3cfb4d36558dc29150fbf65cb6ed3dbcdbf17adb",
+        "tools/wireless/complete_tool.py": "bd1e26e8b011c45d7340ae172aae8c4b37b10032f2ad3f2ad61943300fcf962c",
+        "tests/wireless_protocol/test_protocol.py": "4d836a1b4d97fdff9e00b0a5cbc69ee56e64f34ef6e63ad9c70de1e42b122258",
+        "tests/wireless_protocol/test_complete_tool.py": "d197ebd4316bb8615ecc3d010621f1decee5066e9fc8adc2380381cfec46c18d",
+        "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
+        "tests/wireless_protocol/test_wireless_protocol.c": "f10a5f132d7b0aa3db472897b997f3d77774b61fa80e52417cdadd349481a312"
+      },
+      "hardware_actions": "none",
+      "notes": "Complete tool has bounded event queue, current-session filtering for ACK/STATE/IMAGE/CONFIG/EVENT, 60000 ms image assembly TTL, persistent H743/K230 state and ACK panes, merged K230 STATE/DIAG fields, selectable wheel/gyro/vision curves with signed vertical plotting, gyro actual plus configured +rate/-rate reference lines, bounded H743 WGS1 slot decoder, compact camera sidecar decoder, Camera GET/SAVE/DEFAULT and Assistant mode controls."
+    },
+    "WIRELESS_RUNTIME": {
+      "passed": true,
+      "summary": "wireless runtime: replay, motor deadline, local stop, camera state and missing-image timeout passed",
+      "hardware_actions": "none",
+      "source_sha256": {
+        "App/wireless_runtime.c": "a4dc458df34cd2c5ba5dc78c500f8ae245ec7d017c56d634082238f7860d31b0",
+        "App/wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
+        "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
+        "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
+        "Inc/wireless_runtime.h": "bc4137f388d7038d99db63e63f5baced465be57a62175f98a7faeb3bd8202321",
+        "tests/wireless_runtime/test_runtime.c": "3f980f99d5af33209c9fa81dffc1d22f74101c924033d428848f3da5a5595b36"
+      }
+    },
+    "WIRELESS_VISION_INTEGRATION": {
+      "passed": true,
+      "status": "passed",
+      "harness": "tests/gyro350_integration/test_gyro350_integration.cpp",
+      "build": "MSVC x64 host, CARTEST_GYRO350_ENABLED=1, profile C, speed 140%",
+      "zig_path": "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe",
+      "zig_sha256": "1ddf230367e07738c4a769eae66c1db7469e37bd520e81c86356453d0db2b9fd",
+      "hardware_actions": "none",
+      "cases": [
+        "startup release and IMU/profile gate",
+        "production car_vision RX V4 parser path",
+        "left entry, inside zero, signed 350 degree orbit",
+        "center 1530 us and 300 ms straight stage",
+        "invalid route bounded search and three-frame recovery",
+        "right mirrored signed progress",
+        "IMU fault and PE7 stop reset"
+      ]
+    }
+  },
+  "host": {
+    "hardware_actions": "none",
+    "legacy_host": {
+      "passed": true,
+      "cases": 72,
+      "assertions": 7713,
+      "failures": 0
+    },
+    "legacy_hold_profile": {
+      "passed": true,
+      "failures": 0
+    },
+    "gyro_integration": {
+      "passed": true,
+      "checks": 86,
+      "failures": 0
+    },
+    "gyro_main": {
+      "passed": true,
+      "assertions": 24,
+      "failures": 0
+    },
+    "gyro_driver_state": {
+      "passed": true,
+      "yaw_sign_variants": [
+        1,
+        -1
+      ]
+    }
+  },
+  "built_profiles": [
+    "Debug",
+    "DebugBench",
+    "DebugFastNoRing",
+    "DebugFollow",
+    "DebugFollowDiff10",
+    "DebugFollowDiff5",
+    "DebugFollowIncrementalPI",
+    "DebugFollowIncrementalPIBaseline",
+    "DebugFollowNoLog",
+    "DebugFollowSpeedPI",
+    "DebugFollowTurn",
+    "DebugFollowTurn65",
+    "DebugGyro350Speed140",
+    "DebugRingBase",
+    "DebugRingFast",
+    "DebugRingFastSpeed120",
+    "DebugRingFastSpeed130",
+    "DebugRingFastSpeed140",
+    "DebugSteering",
+    "DebugWirelessGyro350Speed140"
+  ],
+  "elf_sha256": {
+    "Debug": "8b2832d42f83f584e68c74b97efef035404dc80ffb7e8adc6df77586ee28a6a3",
+    "DebugBench": "954df85dd8182e4a3c610fec5630171e2c11e573b1beff172e3434fc2e62f41c",
+    "DebugFastNoRing": "061a837434bf6e0ee83297741c9272f0f6c5908ffd94f4709b1c95788d5f4ee6",
+    "DebugFollow": "6db89cff8302d9532c44096bbb366811c4f78946fc70acbb986cf074be32dde6",
+    "DebugFollowDiff10": "53f551ac0d75a5e79cf39dd009625b1f5d66b4fd76c967ba9d59f85c3e9a143e",
+    "DebugFollowDiff5": "ecc0e96498baea6dcceed2f714ba13a2e286d6d8c1d5826418699100e88af130",
+    "DebugFollowIncrementalPI": "f42e22e12a0094cd453f6a6610b4bf5361515b866f74c9150e2c2a9aa3256da8",
+    "DebugFollowIncrementalPIBaseline": "f1eb6a78166160d0186ae2a04a12b84a3a60a3142017eac863f1d447714596a0",
+    "DebugFollowNoLog": "76e72ea81957dc3dd3f6ae40bb6c52ca56bfcb226edf601b271e4ddc67e8ea32",
+    "DebugFollowSpeedPI": "02a55fd2433a33cb35681709a2e3b4b9f8fe87f64282151b62582b32cdb29b18",
+    "DebugFollowTurn": "47c62fb0e9e3a3c2adab33ef328f1ee2943d112cf23d6a5bb55b99b1c4785e64",
+    "DebugFollowTurn65": "c67766114da10e6196c3366dfef4e8b4850f4977a15c49b13154cb8808061c90",
+    "DebugGyro350Speed140": "deede39219c29dda9f463ef4bfe3e9f4c0e2fc644a9ca50ec11d70dca56e6d2f",
+    "DebugRingBase": "7ea9fa2b85077900adb0fb8c30c3f7677e63f75727899018ba14801328a55035",
+    "DebugRingFast": "9b6478eed1cdd5534049610fb48a3d040c4ebe860e42a4e22c8fba1cae00ac15",
+    "DebugRingFastSpeed120": "729f0ba919f2eb2d6e6cbf35e2b6de6d6344608373076b577625b0a6c927fc26",
+    "DebugRingFastSpeed130": "bd66d746f7cc3a4bcff3634cd7547adf679d51358dab7035954c5e1e5caaab73",
+    "DebugRingFastSpeed140": "822f34330fe61983996d666ec20e17b22be7a946030f74370f7a8575e4e8a0a8",
+    "DebugSteering": "70680d40ec4490edca805a11d046c5925179aa9af2123669e340c637c024ea9c",
+    "DebugWirelessGyro350Speed140": "9319af2157360dcc00e97f9672fa3c4569492c7ed2d4e16e9a76c281cb342283"
+  },
+  "hardware_actions": "none"
+}

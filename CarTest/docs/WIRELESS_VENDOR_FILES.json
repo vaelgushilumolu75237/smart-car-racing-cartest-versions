@@ -1,0 +1,10 @@
+{
+  "Src/stm32h7xx_hal_flash.c": {
+    "url": "https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx_hal_driver/v1.11.6/Src/stm32h7xx_hal_flash.c",
+    "sha256": "a1ef8504ed876dfee88c1338e6877f9d5a6ed3ce8eb510428d49f073411cde0b"
+  },
+  "Src/stm32h7xx_hal_flash_ex.c": {
+    "url": "https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx_hal_driver/v1.11.6/Src/stm32h7xx_hal_flash_ex.c",
+    "sha256": "3a9618e04ed1586a29d3ed3fe83f5e27dbda2ed190c1511e0c21f697acb34af5"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "Src/stm32h7xx_hal_spi.c": {
+    "url": "https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx_hal_driver/v1.11.6/Src/stm32h7xx_hal_spi.c",
+    "sha256": "4eeb322662c6fc531e42da9eef1474b6b32221f848dd7ec4fb0c4f0c408a013b"
+  },
+  "Src/stm32h7xx_hal_rcc_ex.c": {
+    "url": "https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx_hal_driver/v1.11.6/Src/stm32h7xx_hal_rcc_ex.c",
+    "sha256": "ba3ffa42989a60a93e8de7f148cde4fa22c6853223d00d5d9954ad370c6012fe"
+  },
+  "LICENSE.md": {
+    "url": "https://raw.githubusercontent.com/STMicroelectronics/stm32h7xx_hal_driver/v1.11.6/LICENSE.md",
+    "sha256": "376c82bcef0be563bf59b93d05cfdd4b6295e4660b55b31dd8a883bf1d6637f7"
+  }
+}

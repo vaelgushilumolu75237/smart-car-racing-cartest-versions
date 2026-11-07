@@ -1,0 +1,86 @@
+--- a/modules/py_csi.c
++++ b/modules/py_csi.c
+@@ -154,16 +154,26 @@
+     do_auto_rotation(csi, 10, 35);
+     // We're setting the dead-zone on pitch because roll readings are invalid there.
+     // We're not setting the full range on roll to prevent oscillation.
+     #endif // MICROPY_PY_IMU
+ 
++    // Suppress the automatic IDE preview only when explicitly requested.
++    uint32_t flags = 0;
++    if (kw_args != NULL) {
++        mp_map_elem_t *preview_kw = mp_map_lookup(
++            kw_args, MP_OBJ_NEW_QSTR(MP_QSTR_preview), MP_MAP_LOOKUP);
++        if (preview_kw != NULL && !mp_obj_is_true(preview_kw->value)) {
++            flags |= OMV_CSI_FLAG_NO_UPDATE;
++        }
++    }
++
+     // Always set the main CSI as the stream source.
+     framebuffer_t *stream_fb = framebuffer_get(FB_STREAM_ID);
+     stream_fb->source = csi->chip_id;
+ 
+     mp_obj_t image = py_image(0, 0, 0, 0, 0);
+-    int error = omv_csi_snapshot(csi, (image_t *) py_image_cobj(image), 0);
++    int error = omv_csi_snapshot(csi, (image_t *) py_image_cobj(image), flags);
+     if (error != 0) {
+         omv_csi_raise_error(error);
+     }
+     return image;
+ }
+@@ -1186,10 +1196,11 @@
+ }
+ static MP_DEFINE_CONST_FUN_OBJ_1(py_omv_csi_read_reg_obj, py_omv_csi_read_reg);
+ 
+ static const mp_rom_map_elem_t globals_dict_table[] = {
+     { MP_ROM_QSTR(MP_QSTR___name__),            MP_ROM_QSTR(MP_QSTR_csi)},
++    { MP_ROM_QSTR(MP_QSTR_PREVIEW_CONTROL_API), MP_ROM_INT(1)},
+ 
+     // Pixel Formats
+     { MP_ROM_QSTR(MP_QSTR_BINARY),              MP_ROM_INT(PIXFORMAT_BINARY)},      /* 1BPP/BINARY*/
+     { MP_ROM_QSTR(MP_QSTR_GRAYSCALE),           MP_ROM_INT(PIXFORMAT_GRAYSCALE)},   /* 1BPP/GRAYSCALE*/
+     { MP_ROM_QSTR(MP_QSTR_RGB565),              MP_ROM_INT(PIXFORMAT_RGB565)},      /* 2BPP/RGB565*/
+--- a/modules/py_csi_ng.c
++++ b/modules/py_csi_ng.c
+@@ -191,23 +191,28 @@
+     return mp_const_none;
+ }
+ static MP_DEFINE_CONST_FUN_OBJ_1(py_csi_flush_obj, py_csi_flush);
+ 
+ static mp_obj_t py_csi_snapshot(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+-    enum { ARG_time, ARG_frames, ARG_blocking, ARG_image };
++    enum { ARG_time, ARG_frames, ARG_blocking, ARG_image, ARG_preview };
+     static const mp_arg_t allowed_args[] = {
+         { MP_QSTR_time, MP_ARG_INT | MP_ARG_KW_ONLY, {.u_int = -1} },
+         { MP_QSTR_frames, MP_ARG_INT | MP_ARG_KW_ONLY, {.u_int = -1} },
+         { MP_QSTR_blocking, MP_ARG_BOOL | MP_ARG_KW_ONLY,  {.u_bool = true} },
+         { MP_QSTR_image, MP_ARG_OBJ | MP_ARG_KW_ONLY,  {.u_rom_obj = MP_ROM_NONE} },
++        { MP_QSTR_preview, MP_ARG_BOOL | MP_ARG_KW_ONLY, {.u_bool = true} },
+     };
+ 
+     py_csi_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+ 
+     uint32_t flags = 0;
++    if (!args[ARG_preview].u_bool) {
++        flags |= OMV_CSI_FLAG_NO_UPDATE;
++    }
++
+     image_t image = {0};
+     mp_int_t time = args[ARG_time].u_int;
+     mp_int_t frames = args[ARG_frames].u_int;
+ 
+     if (!args[ARG_blocking].u_bool) {
+@@ -1481,10 +1486,11 @@
+     locals_dict, &py_csi_locals_dict
+     );
+ 
+ static const mp_rom_map_elem_t globals_dict_table[] = {
+     { MP_ROM_QSTR(MP_QSTR___name__),        MP_ROM_QSTR(MP_QSTR_csi) },
++    { MP_ROM_QSTR(MP_QSTR_PREVIEW_CONTROL_API), MP_ROM_INT(1) },
+     { MP_ROM_QSTR(MP_QSTR_CSI),             MP_ROM_PTR(&py_csi_type) },
+     { MP_ROM_QSTR(MP_QSTR_devices),         MP_ROM_PTR(&py_csi_devices_obj) },
+ 
+     // Pixel Formats
+     { MP_ROM_QSTR(MP_QSTR_BINARY),          MP_ROM_INT(PIXFORMAT_BINARY) },      /* 1BPP/BINARY*/

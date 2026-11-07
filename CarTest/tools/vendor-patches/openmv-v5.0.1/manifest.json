@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/openmv/openmv",
+  "tag": "v5.0.1",
+  "commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+  "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+  "sdk_version": "1.6.0",
+  "board_target": "OPENMV4P",
+  "board_mcu": "STM32H743xx",
+  "patch": "0001-snapshot-preview-control.patch",
+  "patch_sha256": "E3A93287D75298664E68068547F9A1F68D15DB0422F0BC08DCC1E7D4D6ADF193",
+  "base_sha256": {
+    "modules/py_csi_ng.c": "0AA02CA6BA2F78C29F96970118A92B756B94816E29A33CA64B6D4CB359DA1164",
+    "scripts/libraries/sensor.py": "EAC4200723A7B8C86A71A2BDEB30A8EE1A61191FA0217A43F1100204121266EF",
+    "boards/OPENMV4P/board_config.mk": "3B30F453CDEBDB5639CFD8D66F809E58294087B8CFDD5B88156D9C32ED138C05",
+    "boards/OPENMV4P/board_config.h": "D0F1B3148C7DF933933F7EDA5D081387E785632F26BBAF2F9B9DC4F9513F2867",
+    "boards/OPENMV4P/boot_config.h": "469F5E2FD0119F78EF39EC47D919D9707F5AD1BAB5F396394AE3A082CF35ADF9"
+  }
+}

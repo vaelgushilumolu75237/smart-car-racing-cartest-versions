@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "patch_file": "0002-stm32h7-uart-fifo-write.patch",
+  "patch_sha256": "8d1649cc9fb74e00b6d1234f6c8a3a62d70b90ebd605053f069b202ec36890fb",
+  "series_position": 2,
+  "applies_after": {
+    "patch_file": "0001-csi-snapshot-preview-kwarg.patch",
+    "patch_sha256": "2bbb92b2b25705002ae16b9e9f18f57fc171ca8f0549680cc15260cce0b468d5"
+  },
+  "base": {
+    "repository": "https://github.com/openmv/openmv",
+    "tag": "v5.0.0",
+    "openmv_commit": "7b7b4e73cb6a0fd09d793201a5c3c588ca0ffa79",
+    "micropython_commit": "d18a77e5d55664045e71a0c839695df07a96a6e1"
+  },
+  "base_files_sha256": {
+    "lib/micropython/extmod/machine_uart.c": "ea18b5142a4f19183dcb7583781f78e5f41ccb44938fcd32c849c61fe43a85a3",
+    "lib/micropython/ports/stm32/machine_uart.c": "48e0522634fed71eeea4a5e94e70ebd39fd4e4e8fff8630e87758f9f7644fea0",
+    "lib/micropython/ports/stm32/uart.c": "dd6de2dc5556ad5d66c48a95232e8c565a4dea32c60d8e348e3273c07d4b157d",
+    "lib/micropython/ports/stm32/uart.h": "9992a97d1ec5e9868d47b7ea9a37af4f44040230f04ddf8d7fe9e4c42dfcfbf0"
+  },
+  "api": {
+    "marker": "UART.WRITE_FIFO_API == 1 on STM32H7 only",
+    "write_fifo_max_bytes": 16,
+    "ordinary_write_unchanged": true
+  }
+}
