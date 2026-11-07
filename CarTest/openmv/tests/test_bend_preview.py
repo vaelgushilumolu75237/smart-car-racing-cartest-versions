@@ -434,7 +434,7 @@ class BendPreviewTests(unittest.TestCase):
             def draw_cross(self, point, color):
                 self.crosses.append((point, color))
 
-            def draw_string(self, point, value, **kwargs):
+            def draw_string(self, x, y, value, **kwargs):
                 pass
 
         recovery = ContourRouteRecovery(config)

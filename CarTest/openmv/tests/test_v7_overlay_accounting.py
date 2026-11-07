@@ -29,8 +29,8 @@ class _Image:
     def draw_cross(self, point, color):
         self.crosses.append((point, color))
 
-    def draw_string(self, point, value, **kwargs):
-        self.strings.append((point, value))
+    def draw_string(self, x, y, value, **kwargs):
+        self.strings.append(((x, y), value))
 
 
 class _Clock:

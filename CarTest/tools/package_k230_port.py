@@ -40,7 +40,8 @@ if __name__ == "__main__":
     manifest = json.loads((ROOT / "openmv/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     wireless = manifest.get("wireless_required", False)
     aux_pins = bool(manifest.get("wireless_aux_gpio"))
-    install_root = OUT / ("Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
+    display_fix = manifest.get("release_version") == "v20261108-k230-display-fix-v3"
+    install_root = OUT / ("Install_Display_Fix_v3" if display_fix else "Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
     install = install_root / "K230"
     install.mkdir(parents=True, exist_ok=True)
     for name in manifest["runtime_files"] + ["PACKAGE_MANIFEST.json", "README.md", "ring_width_calibration.json"]:
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     hashes = {p.relative_to(OUT).as_posix(): digest(p) for p in sorted(candidates)}
     inventory = OUT / "COMPLETE_PACKAGE_SHA256.json"
     inventory.write_text(json.dumps(hashes, indent=2), encoding="utf-8")
-    archive = OUT / ("CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
+    archive = OUT / ("CarTest_K230_Display_Fix_v3_20261108.zip" if display_fix else "CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
                      "CarTest_K230_Wireless_20261107.zip" if wireless else "CarTest_K230_Gyro350_20261106.zip")
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p in candidates + [inventory]:

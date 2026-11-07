@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_WIRELESS_RTS_CMD_20261107",
+  "port": "CARTEST_K230_DISPLAY_FIX_20261108",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -56,7 +56,7 @@
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
+    "main.py": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
     "ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261107-k230-wireless-v2-rts-cmd",
+  "release_version": "v20261108-k230-display-fix-v3",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

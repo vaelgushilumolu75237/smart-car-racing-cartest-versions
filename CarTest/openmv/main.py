@@ -3182,6 +3182,17 @@ def _short_mode(mode):
     return {"white_corridor": "W", "black_edges": "B"}.get(mode, "?")
 
 
+def _draw_string(image, x, y, text, **kwargs):
+    """Draw text with the K230 x/y/text signature."""
+    try:
+        image.draw_string(x, y, text, **kwargs)
+    except TypeError as error:
+        try:
+            image.draw_string((x, y), text, **kwargs)
+        except TypeError:
+            raise error
+
+
 def _draw_result(img, result, valid, raw_error, filtered_error, quality,
                  mode, processing_ms, fps):
     details = result[6]
@@ -3201,22 +3212,22 @@ def _draw_result(img, result, valid, raw_error, filtered_error, quality,
     state = "VALID" if valid else "INVALID"
     error_text = "%+d" % filtered_error if valid else "0"
     raw_text = "%+d" % raw_error if valid else "0"
-    img.draw_string((0, 0), "%s e=%s" % (state, error_text),
-                    color=255, scale=1)
-    img.draw_string((0, 12), "r=%s q=%d" % (raw_text, quality),
-                    color=255, scale=1)
-    img.draw_string((0, 24), "s=%d/%d p=%dms" %
-                    (result[3], len(config.SCAN_ROWS), processing_ms),
-                    color=255, scale=1)
+    _draw_string(img, 0, 0, "%s e=%s" % (state, error_text),
+                 color=255, scale=1)
+    _draw_string(img, 0, 12, "r=%s q=%d" % (raw_text, quality),
+                 color=255, scale=1)
+    _draw_string(img, 0, 24, "s=%d/%d p=%dms" %
+                 (result[3], len(config.SCAN_ROWS), processing_ms),
+                 color=255, scale=1)
     threshold_min = details["threshold_min"]
     threshold_max = details["threshold_max"]
     if threshold_min is None:
         threshold_text = "t=--"
     else:
         threshold_text = "t=%d-%d" % (threshold_min, threshold_max)
-    img.draw_string((0, 36), "%s %s f=%d" %
-                    (_short_mode(mode), threshold_text, int(fps)),
-                    color=255, scale=1)
+    _draw_string(img, 0, 36, "%s %s f=%d" %
+                 (_short_mode(mode), threshold_text, int(fps)),
+                 color=255, scale=1)
 
 
 def _format_vdbg(mode, valid, result, raw_error, filtered_error,
@@ -5477,12 +5488,12 @@ def _v7_overlay_status(overlay_state, selection, valid):
             len(status_text) * 8 <= _OVERLAY_STATUS_IMAGE_WIDTH):
         if overlay_state.status_bitmap_text != status_text:
             status_image.clear()
-            status_image.draw_string(
-                (0, 0), status_text, color=255, scale=1)
+            _draw_string(status_image, 0, 0, status_text,
+                         color=255, scale=1)
             if status_mask is not None:
                 status_mask.clear()
-                status_mask.draw_string(
-                    (0, 0), status_text, color=255, scale=1)
+                _draw_string(status_mask, 0, 0, status_text,
+                             color=255, scale=1)
             overlay_state.status_bitmap_text = status_text
         overlay_state.status_bitmap_ready = True
     else:
@@ -5942,15 +5953,15 @@ def _draw_gray_result(img, selection, surface_result, road_result,
         else:
             img.draw_image(status_image, 0, 0, mask=status_mask)
     else:
-        img.draw_string((0, 0), current_status, color=255, scale=1)
+        _draw_string(img, 0, 0, current_status, color=255, scale=1)
     if detail_image is not None and detail_mask is not None:
         # The cached bitmap contains text only. Its mask keeps the scene and
         # current-frame route drawing visible beneath glyph pixels.
         img.draw_image(detail_image, 0, 10, mask=detail_mask)
     elif text_cache is not None:
         for index in range(len(text_cache)):
-            img.draw_string((0, 10 + index * 10), text_cache[index],
-                            color=192, scale=1)
+            _draw_string(img, 0, 10 + index * 10, text_cache[index],
+                         color=192, scale=1)
 
 
 class _V7OverlayState:
@@ -6305,12 +6316,12 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
                 overlay_state.detail_mask.clear()
                 for index in range(len(overlay_state.text_cache)):
                     y = index * 10
-                    overlay_state.detail_image.draw_string(
-                        (0, y), overlay_state.text_cache[index],
-                        color=192, scale=1)
-                    overlay_state.detail_mask.draw_string(
-                        (0, y), overlay_state.text_cache[index],
-                        color=255, scale=1)
+                    _draw_string(overlay_state.detail_image, 0, y,
+                                 overlay_state.text_cache[index],
+                                 color=192, scale=1)
+                    _draw_string(overlay_state.detail_mask, 0, y,
+                                 overlay_state.text_cache[index],
+                                 color=255, scale=1)
             overlay_state.last_text_ms = now_ms
         _draw_gray_result(
             img, selection, surface_result, road_result, reference, valid,

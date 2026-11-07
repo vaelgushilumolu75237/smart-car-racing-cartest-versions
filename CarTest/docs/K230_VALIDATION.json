@@ -1,8 +1,8 @@
 {
-  "port": "CARTEST_K230_WIRELESS_RTS_CMD_20261107",
+  "port": "CARTEST_K230_DISPLAY_FIX_20261108",
   "status": "experimental-software-tested-hardware-pending",
   "camera_tests": {
-    "run": 526,
+    "run": 527,
     "failures": 0,
     "errors": 0,
     "skipped": [
@@ -151,8 +151,8 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
-      "mpy_sha256": "6417af982b784ba52d41972673d3883e7cc80697e563838650b8d79c02a5b1df"
+      "source_sha256": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
+      "mpy_sha256": "589822709f03cbb3bfcc3424789f04ebe07163be08edd749e351c1042141b930"
     },
     {
       "file": "probe_k230.py",
@@ -594,7 +594,7 @@
       },
       "k230_port_full_regression": {
         "passed": true,
-        "tests": 526,
+        "tests": 527,
         "failures": 0,
         "errors": 0,
         "skipped": 5,
@@ -731,8 +731,8 @@
         },
         {
           "file": "main.py",
-          "source_sha256": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
-          "mpy_sha256": "6417af982b784ba52d41972673d3883e7cc80697e563838650b8d79c02a5b1df",
+          "source_sha256": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
+          "mpy_sha256": "589822709f03cbb3bfcc3424789f04ebe07163be08edd749e351c1042141b930",
           "exitcode": 0
         },
         {
@@ -842,7 +842,7 @@
         "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
         "openmv/k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
         "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "openmv/main.py": "d365e234bf801f0c0a19e30111f74788688ec09ce5faf9ffc0e6c81f7e5bf5da",
+        "openmv/main.py": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
         "openmv/probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
         "openmv/reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
         "openmv/ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
@@ -856,7 +856,8 @@
         "openmv/vision_protocol.py": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
         "openmv/wireless_link.py": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
         "tests/wireless_camera/test_wireless_camera_actions.py": "3de4f8412236b8f0ae6e832448e244277352ff448c6414d3f9c6bbc318860a6a"
-      }
+      },
+      "display_fix": "Explicit x,y,text draw_string arguments; strict-signature regression included in camera suite. Hardware run pending."
     },
     "WIRELESS_TOOLS": {
       "passed": true,
@@ -928,5 +929,6 @@
       }
     }
   },
-  "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks"
+  "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks",
+  "mcu_build_evidence": "prior actual builds reused after source and ELF hash verification"
 }

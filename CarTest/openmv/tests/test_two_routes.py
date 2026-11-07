@@ -89,8 +89,8 @@ class _OverlayImage:
     def draw_line(self, line, color):
         self.lines.append((line, color))
 
-    def draw_string(self, point, value, **kwargs):
-        self.strings.append((point, value))
+    def draw_string(self, x, y, value, **kwargs):
+        self.strings.append(((x, y), value))
 
 
 class TwoRouteTests(unittest.TestCase):

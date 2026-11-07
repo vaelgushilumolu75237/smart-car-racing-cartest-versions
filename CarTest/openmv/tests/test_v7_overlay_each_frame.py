@@ -30,8 +30,8 @@ class _Image:
     def draw_cross(self, point, color):
         self.crosses.append((point, color))
 
-    def draw_string(self, point, value, **kwargs):
-        self.strings.append((point, value))
+    def draw_string(self, x, y, value, **kwargs):
+        self.strings.append(((x, y), value))
 
     def draw_image(self, source, x, y, **kwargs):
         self.images.append((source, x, y, kwargs))
@@ -47,9 +47,9 @@ class _CountingImage(_Image):
         super().__init__()
         self.draw_string_calls = 0
 
-    def draw_string(self, point, value, **kwargs):
+    def draw_string(self, x, y, value, **kwargs):
         self.draw_string_calls += 1
-        super().draw_string(point, value, **kwargs)
+        super().draw_string(x, y, value, **kwargs)
 
 
 class _NonMaterializingRows:
@@ -81,6 +81,23 @@ class _Clock:
 
 
 class V7OverlayEachFrameTests(unittest.TestCase):
+    def test_status_bitmap_uses_separate_k230_xy_arguments(self):
+        status_image = _Image()
+        status_mask = _Image()
+        state = main._V7OverlayState(
+            0, status_image=status_image, status_mask=status_mask)
+
+        main._v7_overlay_status(
+            state,
+            {"track_profile_label": "A", "track_ring_state": "OBSERVE",
+             "track_ring_reason": "RING_DISABLED_PROFILE_A"},
+            True)
+
+        self.assertEqual(status_image.strings[0][0], (0, 0))
+        self.assertEqual(status_mask.strings[0][0], (0, 0))
+        self.assertEqual(status_image.strings[0][1], state.status_text)
+        self.assertEqual(status_mask.strings[0][1], state.status_text)
+
     def test_status_bitmap_redraws_only_on_change_and_blits_each_frame(self):
         status_image = _CountingImage()
         state = main._V7OverlayState(0, status_image=status_image)
