@@ -1,5 +1,6 @@
 #include "gyro350_config.h"
 #include "icm42688_stm32.h"
+volatile car_imu_spi_diag_t car_imu_spi_diag;
 #if CARTEST_GYRO350_ENABLED
 #include "stm32h7xx_hal.h"
 
@@ -25,11 +26,14 @@ enum {
     MOSI = GPIO_PIN_15,
     CLOCK_HZ = 64000000u,
     HALF_PERIOD_CYCLES = 128u, /* >=2us at verified 64MHz: SCK <=250kHz. */
-    TRANSACTION_BUDGET_CYCLES = 64000u, /* 1ms including interrupt time. */
+    /* Includes debug-build instruction/peripheral overhead and IRQ time.
+       The bounded 3ms window remains below the 5ms sensor poll interval. */
+    TRANSACTION_BUDGET_CYCLES = 192000u,
     MAX_DELAY_SPINS = 4096u
 };
 
 static uint8_t opened;
+static uint32_t wait_error;
 
 static void idle_bus(void)
 {
@@ -43,13 +47,34 @@ static int wait_half_period(uint32_t transaction_start)
     uint32_t spins;
     for (spins = 0u; spins < MAX_DELAY_SPINS; ++spins) {
         uint32_t now = CAR_IMU_SPI_CYCLES();
-        if ((uint32_t)(now - transaction_start) >= TRANSACTION_BUDGET_CYCLES)
+        if ((uint32_t)(now - transaction_start) >= TRANSACTION_BUDGET_CYCLES) {
+            wait_error = CAR_IMU_SPI_ERROR_DEADLINE;
             return 0;
+        }
         if ((uint32_t)(now - start) >= HALF_PERIOD_CYCLES) return 1;
         __NOP();
     }
     /* A stopped/locked DWT cannot turn a register read into an endless loop. */
+    wait_error = CAR_IMU_SPI_ERROR_COUNTER_STOPPED;
     return 0;
+}
+
+static void note_failure(uint32_t error, uint32_t command, uint32_t length,
+                         uint32_t bits, uint32_t elapsed)
+{
+    ++car_imu_spi_diag.failures;
+    car_imu_spi_diag.last_error = error;
+    car_imu_spi_diag.failed_command = command;
+    car_imu_spi_diag.failed_length = length;
+    car_imu_spi_diag.failed_bits = bits;
+    car_imu_spi_diag.failed_elapsed_cycles = elapsed;
+}
+
+static void note_elapsed(uint32_t elapsed)
+{
+    car_imu_spi_diag.last_elapsed_cycles = elapsed;
+    if (elapsed > car_imu_spi_diag.max_elapsed_cycles)
+        car_imu_spi_diag.max_elapsed_cycles = elapsed;
 }
 
 /* Main context only. Interrupts stay enabled. Failed exchanges never expose
@@ -58,8 +83,17 @@ static int exchange(const uint8_t *tx, uint8_t *rx, uint16_t length)
 {
     uint16_t index;
     uint32_t start;
-    if (!opened || !tx || !rx || !length || length > 17u || __get_PRIMASK())
+    uint32_t elapsed;
+    uint32_t bits = 0u;
+    if (!opened || !tx || !rx || !length || length > 17u || __get_PRIMASK()) {
+        uint32_t error = !opened ? CAR_IMU_SPI_ERROR_NOT_OPEN :
+            (!tx || !rx || !length || length > 17u) ? CAR_IMU_SPI_ERROR_ARGUMENT :
+            CAR_IMU_SPI_ERROR_INTERRUPTS_MASKED;
+        note_failure(error, tx && length ? tx[0] : 0u, length, 0u, 0u);
         return 0;
+    }
+    ++car_imu_spi_diag.attempts;
+    wait_error = CAR_IMU_SPI_ERROR_NONE;
     start = CAR_IMU_SPI_CYCLES();
     idle_bus();
     if (!wait_half_period(start)) goto failed;
@@ -77,14 +111,25 @@ static int exchange(const uint8_t *tx, uint8_t *rx, uint16_t length)
             received = (uint8_t)((received << 1u) |
                        ((CAR_IMU_SPI_READ() & MISO) != 0u ? 1u : 0u));
             CAR_IMU_SPI_WRITE((uint32_t)SCK << 16u);
+            ++bits;
         }
         rx[index] = received;
     }
     if (!wait_half_period(start)) goto failed;
     idle_bus();
+    elapsed = (uint32_t)(CAR_IMU_SPI_CYCLES() - start);
+    if (elapsed >= TRANSACTION_BUDGET_CYCLES) {
+        wait_error = CAR_IMU_SPI_ERROR_DEADLINE;
+        goto failed;
+    }
+    note_elapsed(elapsed);
+    ++car_imu_spi_diag.completed;
     return 1;
 failed:
     idle_bus();
+    elapsed = (uint32_t)(CAR_IMU_SPI_CYCLES() - start);
+    note_elapsed(elapsed);
+    note_failure(wait_error, tx[0], length, bits, elapsed);
     return 0;
 }
 
@@ -113,9 +158,14 @@ int car_imu_spi2_open(car_imu_bus_t *bus)
     uint32_t before;
     uint32_t attempts;
     opened = 0u;
+    car_imu_spi_diag = (car_imu_spi_diag_t){0};
     if (!bus) return 0;
     *bus = (car_imu_bus_t){0};
-    if (__get_PRIMASK() || HAL_RCC_GetHCLKFreq() != CLOCK_HZ) return 0;
+    if (__get_PRIMASK() || HAL_RCC_GetHCLKFreq() != CLOCK_HZ) {
+        note_failure(__get_PRIMASK() ? CAR_IMU_SPI_ERROR_INTERRUPTS_MASKED :
+                     CAR_IMU_SPI_ERROR_CLOCK, 0u, 0u, 0u, 0u);
+        return 0;
+    }
     __HAL_RCC_GPIOB_CLK_ENABLE();
     idle_bus(); /* Set the output latch before enabling the output drivers. */
     gpio.Pin = CS | SCK | MOSI;
@@ -140,6 +190,7 @@ int car_imu_spi2_open(car_imu_bus_t *bus)
         }
     }
     idle_bus();
+    note_failure(CAR_IMU_SPI_ERROR_COUNTER_STOPPED, 0u, 0u, 0u, 0u);
     return 0;
 }
 #else

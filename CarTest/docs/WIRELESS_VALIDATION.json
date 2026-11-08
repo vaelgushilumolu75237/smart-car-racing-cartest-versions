@@ -417,7 +417,7 @@
     },
     "IMU_GPIO_SPI": {
       "passed": true,
-      "summary": "GPIO SPI: 11 scenarios, 2838 assertions PASS",
+      "summary": "GPIO SPI: 12 scenarios, 4137 assertions PASS",
       "scope": "production GPIO Mode 0 driver compiled directly with simulated peripheral registers",
       "cases": [
         "MSB-first F5 read and WHO_AM_I 47",
@@ -430,7 +430,8 @@
         "stopped DWT during transfer",
         "transaction deadline with unchanged output",
         "recovery after failure",
-        "cycle counter wraparound"
+        "cycle counter wraparound",
+        "modeled 1.25ms overhead: v8 rejects, v9 accepts within bounded budget"
       ],
       "invariants": [
         "only CS/SCK/MOSI outputs change",
@@ -440,13 +441,20 @@
         "CS high SCK/MOSI low after success and timeout"
       ],
       "tested_source_sha256": {
-        "App/icm42688_stm32.c": "b1082b37edc915b44f60ef64215335692692629e95b51b35e54f707e01449167",
-        "Inc/icm42688_stm32.h": "94a4f8fc1fc667fbe46b5ce61f857f17a45582c214a12e5a8b61b9291f0325be",
+        "App/icm42688_stm32.c": "6d2ffdcd0d77525ee6e16268c3c30bec3c8d70045188e480b8f95207ac4f154f",
+        "Inc/icm42688_stm32.h": "c4df19bc0d5648a6f42af55aff5b58563a11df3436f467815300eebdc41baef5",
         "Inc/icm42688.h": "db6ad103e53bf422f633e60dc4425da8f5eca78a7e08744834bc7dad99fa0b78",
         "Inc/gyro350_config.h": "bce22ffbf99bb15fc95a5337d0a95d00070dcbd6177d42c97a8d15444587644e",
-        "tests/imu_gpio_spi/test_gpio_spi.c": "940d9a42a6a50d6fb90855bd65e1fd7dceb8c71240f4a04ddfc47df5f2961721",
+        "tests/imu_gpio_spi/test_gpio_spi.c": "de6718e82de2fc1257b907a3236c292c70f5b19b5f890fa21a35f9dc266ec605",
         "tests/imu_gpio_spi/stm32h7xx_hal.h": "d2d19f64aad86abad5f23d8303d9af82e853018eec7be3bcd292e8bff78cadb5",
-        "tests/imu_gpio_spi/run.py": "a45ba6d9dc976b4ebb12e4faf93d64be88b6081cfb4bef91eb7059bb0884c087"
+        "tests/imu_gpio_spi/run.py": "997158e0553671cc5cb1c7392745ebd0d331acfac5df663b5386d43aa313227c",
+        "tests/imu_gpio_spi/fixtures/v8_icm42688_stm32.c": "b1082b37edc915b44f60ef64215335692692629e95b51b35e54f707e01449167"
+      },
+      "timing_regression": {
+        "v8_baseline_rejects_modeled_overhead": true,
+        "v9_accepts_modeled_overhead": true,
+        "baseline_summary": "GPIO SPI: 12 scenarios, 3104 assertions PASS",
+        "note": "Simulated regression; actual target failure reason not yet measured"
       },
       "hardware_verified": false,
       "hardware_actions": "none"
@@ -505,32 +513,37 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "e78679af81655ecc7133dfc457af21c2cf51b1951ac59a5161f45e0cd8c9e174",
-    "DebugBench": "2736888a4bf1e18f215c14635052bf7cac7901db6afef5c0082beb155c07be19",
-    "DebugFastNoRing": "12b4ba98d9a1c6a623b0a0751d3360f0b52b612eaaf0dd314b124275a98f10c7",
-    "DebugFollow": "211546a83abd146a2300211a42b3a5c79d6ffa48d986ce6a6214defc229aad49",
-    "DebugFollowDiff10": "d92ef310c5277c301c96ab36aa35a3d9c2061781f0e665668fb301f1d64e4db6",
-    "DebugFollowDiff5": "76a57f96bc2df0b0f487f802b8c6235d51b1cdecadabd84359d6aaf3fcd627ff",
-    "DebugFollowIncrementalPI": "bafce0810b983a0dc1046d14515dba91b7c4b47730e1c736d2b9e0a31725975e",
-    "DebugFollowIncrementalPIBaseline": "bba1bbe44d6a9c79041701f7a1e1fe03455ebcbaa588ddeb63409432606e9c83",
-    "DebugFollowNoLog": "7e83ecc58636209e0a8ba26f83579be9d7d718b7cd16d2016eedea9fda52307b",
-    "DebugFollowSpeedPI": "2c5a7a9f6548828fa3600517aeb992adbb3ef50c12f384cd9e5c3583df78a525",
-    "DebugFollowTurn": "bdb1601e8e020990dc082bf4f6faf39d2cc306e5e08486320f2b228638958a66",
-    "DebugFollowTurn65": "e8ee8dbc54a072cd52f1044a6da5b33943d45a826088624f93664ef731e5948c",
-    "DebugGyro350Speed140": "a168a75b13a9d9991bb1654b3ba5493a6026fe195091ef8893bcef214d9278c8",
-    "DebugRingBase": "f9ce5899504b981be18ce514539d6ad193d503004b60158110321f1842a5a787",
-    "DebugRingFast": "0eff43e8f32af2c75ab66500b85e2e37d5b3f18a23f8ad8e770ce80664566723",
-    "DebugRingFastSpeed120": "1f268c0f689a6b386a0535c641c343d39f80511fb17f323bf0933807a744281a",
-    "DebugRingFastSpeed130": "bb95925d25d9672abfa066d914f1d05f4aa0e243b4ee0771f254317f4db81ae2",
-    "DebugRingFastSpeed140": "4c5d6213afdeefb3d0e60a4a8b78ca93deafa98cda0e1a2a72d07b7942933fef",
-    "DebugSteering": "7bd5d126295bc13c61d2ee07a2e6d8586b478f9c65a5c364acf3d3bdf42d7a8b",
-    "DebugWirelessGyro350Speed140": "dc41a716dfc7b71e6a541772fc3d689abc769ca07f0c3c17d32952ff4a82d92f"
+    "Debug": "46ea131287362cadad65c09b7800259324386c886eefb1d452b2e30a8a4f0e18",
+    "DebugBench": "cf4a1de061a76d7b5b80f4fc4753550efe3c2357647344cda71f9cd31bc5a07e",
+    "DebugFastNoRing": "f366c6fe4e5c2410b60f8ac815095b29e66805c1d02544f18c2e70d04437539e",
+    "DebugFollow": "9e11be6fbedda045c0fbd04018b89bbbeac4ff50e05bb6898a9e887159ae8c0d",
+    "DebugFollowDiff10": "8354306a7a703a957c04168da8436113c6de93c6ccfef0d2fd32d0e05a92877f",
+    "DebugFollowDiff5": "07c327f00400b0ab58074b136a5fcc7760ca98b30ebc4b3d3c986ae33e498e1b",
+    "DebugFollowIncrementalPI": "19858f03cc7b9691834f2abe234300a42389c68e771e4a0473afe681dafda1ab",
+    "DebugFollowIncrementalPIBaseline": "2d1f08414e1ab42047a385fd6d00488ecc24498c40d06def86b4bf4265162d19",
+    "DebugFollowNoLog": "816d51e9c96731a7c4ec8c3f84e0765a27effcf4b1de304f63978bd11b7ebc9a",
+    "DebugFollowSpeedPI": "bf8ad442c5da561163c4dac7557705cbeafcf1083821c679ee979248018ab8d9",
+    "DebugFollowTurn": "62e66f3b2aa7d43cc9a7d9e744f7d9d66bae1f4b9e34132dd36220de2d91df8b",
+    "DebugFollowTurn65": "665c05f2510e4c03bda2cd3a09ea03dd84953bb2be66eed6becc6f0950f0f439",
+    "DebugGyro350Speed140": "ae0d5be11a6a70b5f4158b44ee39f86f1d453ff20d9fd0e32e4603031d033567",
+    "DebugRingBase": "f0ed74aacd227c685f12d171ecb23c441ca9ab5d4442fc4df244394dee1e6a8a",
+    "DebugRingFast": "dfd59a5f64b35b1324a139499435277d164112fbc6815b033ead2656c8b2d89c",
+    "DebugRingFastSpeed120": "0631b791c8bcc08c3555eb285305d1dd9392ac172a39ed9f4b9ea8a03a623fb2",
+    "DebugRingFastSpeed130": "283d43e9ac3ceaa49bec84a19638693065bf92d3551a2a623085ca557bdd314b",
+    "DebugRingFastSpeed140": "fc2fc298a7209aed2cc3c5a9708e818492cbf044c7bb02e19d403348291e3d89",
+    "DebugSteering": "0227d943d5a373cb938501da4c21008510ab94c99047d26223aed94db17b2c12",
+    "DebugWirelessGyro350Speed140": "ef4656f10669fdcea2a4383351b2d5643e03a4be1db3b392b5165a12219bcc67"
   },
-  "hardware_actions": "stationary GPIO ID comparison; no flash/reset/camera upload/motor start",
+  "hardware_actions": "read-only v8 fault snapshot; prior authorized GPIO ID comparison; no flash/reset/camera upload/motor start",
   "hardware_diagnostics": {
     "independent_gpio_mode0_whoami_verified": true,
     "gpio_core_watchdog_restored": true,
     "production_driver_bench_verified": false,
-    "raw_vehicle_logs_published": false
+    "raw_vehicle_logs_published": false,
+    "prior_v8_descriptor_matches": true,
+    "prior_v8_sample_count": 5,
+    "prior_v8_fault": 1,
+    "prior_v8_calibrated": false,
+    "timing_root_cause_confirmed_on_target": false
   }
 }

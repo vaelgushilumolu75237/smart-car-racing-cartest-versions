@@ -1,16 +1,21 @@
 {
-  "version": "v20261108-k230-imu-mode0-v8",
+  "version": "v20261108-k230-imu-timing-v9",
   "status": "experimental-software-tested",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 637,
-  "hardware_actions": "stationary GPIO ID comparison; no flash/reset/camera upload/motor start",
+  "files": 638,
+  "hardware_actions": "read-only v8 fault snapshot; prior authorized GPIO ID comparison; no flash/reset/camera upload/motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "independent_gpio_mode0_whoami_verified": true,
     "gpio_core_watchdog_restored": true,
     "production_driver_bench_verified": false,
-    "raw_vehicle_logs_published": false
+    "raw_vehicle_logs_published": false,
+    "prior_v8_descriptor_matches": true,
+    "prior_v8_sample_count": 5,
+    "prior_v8_fault": 1,
+    "prior_v8_calibrated": false,
+    "timing_root_cause_confirmed_on_target": false
   },
   "private_calibration_included": false
 }

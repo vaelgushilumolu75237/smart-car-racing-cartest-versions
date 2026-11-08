@@ -108,22 +108,26 @@ def main():
             raise RuntimeError('Missing current bytecode: '+source.name)
         compilation.append({'file':source.name,'source_sha256':digest(source),'mpy_sha256':digest(bytecode)})
     result=dict(old)
-    result.update(port='CARTEST_K230_IMU_MODE0_20261108',status='experimental-software-tested-hardware-pending',
+    result.pop('completed_mcu_builds',None)
+    result.update(port='CARTEST_K230_IMU_TIMING_20261108',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
         legacy_host_tests_passed=True,all_bytecode_compiled=True,compilation=compilation,
         built_profiles=profiles,elf_sha256=hashes,
-        mcu_build_evidence="completed actual v8 builds reused after exact source/ELF hash checks" if completed else "prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged" if args.rebuild_wireless_only else "actual builds this run",
+        mcu_build_evidence="completed actual builds reused after exact source/ELF hash checks" if completed else "prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged" if args.rebuild_wireless_only else "actual builds this run",
         mcu_source_sha256=current_sources,
         wireless_tests_passed=True,wireless_reports=reports,
         imu_gpio_spi_tests_passed=True,
         diagnostic_evidence='reused prior passing evidence after unchanged source hash checks',
         pairing='DebugWirelessGyro350Speed140 + wireless-enabled K230 V4 production camera',
-        hardware_actions='stationary GPIO ID comparison; no flash/reset/camera upload/motor start',
+        hardware_actions='read-only v8 fault snapshot; prior authorized GPIO ID comparison; no flash/reset/camera upload/motor start',
         hardware_diagnostics={'independent_gpio_mode0_whoami_verified':True,
             'gpio_core_watchdog_restored':True,'production_driver_bench_verified':False,
-            'raw_vehicle_logs_published':False})
+            'raw_vehicle_logs_published':False,
+            'prior_v8_descriptor_matches':True,'prior_v8_sample_count':5,
+            'prior_v8_fault':1,'prior_v8_calibrated':False,
+            'timing_root_cause_confirmed_on_target':False})
     if completed:
         result['completed_mcu_builds']=completed
     (ROOT/'docs/K230_VALIDATION.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
@@ -135,7 +139,7 @@ def main():
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
         paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
-        release_version='v20261108-k230-imu-mode0-v8',
+        release_version='v20261108-k230-imu-timing-v9',
         wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
                           'external_resistor':'software alternative; physical verification pending',
                           'hardware_flow_control':False})

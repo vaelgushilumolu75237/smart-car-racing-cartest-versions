@@ -44,7 +44,8 @@ def checkpoint(args):
                 raise ValueError("MCU source changed since validation: " + name)
     if manifest.get("wireless_required") and not validation.get("wireless_tests_passed"):
         raise ValueError("Wireless verification incomplete")
-    if manifest.get("release_version") == "v20261108-k230-imu-mode0-v8":
+    if manifest.get("release_version") in ("v20261108-k230-imu-mode0-v8",
+                                          "v20261108-k230-imu-timing-v9"):
         report = validation.get("wireless_reports", {}).get("IMU_GPIO_SPI", {})
         if validation.get("imu_gpio_spi_tests_passed") is not True or report.get("passed") is not True:
             raise ValueError("GPIO SPI driver verification incomplete")
