@@ -216,8 +216,8 @@ class UARTAdapter:
         from machine import UART, FPIOA
         if bits != 8 or parity is not None or stop != 1 or baudrate != 115200:
             raise ValueError("CarTest requires 115200/8N1")
-        # The OpenMV config keeps its historical UART3; the factory socket
-        # on this particular Yahboom board is UART1 at GPIO9/10.
+        # Board settings select the physical UART and its FPIOA pins.
+        # UART3 GPIO32/33 leaves the USB-adjacent connector free for debugging.
         fpioa = FPIOA()
         fpioa.set_function(settings.UART_TX_PIN,
                           getattr(FPIOA, "UART%d_TXD" % settings.UART_ID), ie=0, oe=1)

@@ -1,13 +1,13 @@
 """Yahboom K230 vision module deluxe, not the generic K230 development board.
 
-Factory communication socket: UART1, TX GPIO9, RX GPIO10.
+Vehicle communication: UART3, TX GPIO32, RX GPIO33 on the 12-pin header.
 Source: https://www.yahboom.net/study/K230/14977
 All camera mounting changes require a new private calibration.
 """
 PORT_BUILD = "CARTEST_K230_GYRO350_20261106"
-UART_ID = 1
-UART_TX_PIN = 9
-UART_RX_PIN = 10
+UART_ID = 3
+UART_TX_PIN = 32
+UART_RX_PIN = 33
 SENSOR_CSI_ID = None  # Use Yahboom firmware's default CSI (normally CSI2).
 SENSOR_INPUT_WIDTH = 1920
 SENSOR_INPUT_HEIGHT = 1080

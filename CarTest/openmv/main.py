@@ -3775,9 +3775,10 @@ def _validate_fast_config():
     # Keep both controller-frame protections at or below the existing limit.
     if not 0 < config.SURFACE_FRAME_BUDGET_MS <= 200:
         raise ValueError("V7 frame budget must remain in 1..200 ms")
-    if config.UART_ID != 1 or config.UART_BAUDRATE != 115200 or \
+    if (config.UART_ID, k230_settings.UART_TX_PIN, k230_settings.UART_RX_PIN) not in \
+            ((1, 9, 10), (3, 32, 33)) or config.UART_BAUDRATE != 115200 or \
             config.UART_BITS != 8 or config.UART_STOP_BITS != 1:
-        raise ValueError("K230 factory UART must remain UART1, 115200 8N1")
+        raise ValueError("K230 requires UART1 GPIO9/10 or UART3 GPIO32/33, 115200 8N1")
     if getattr(config, "PERF_WINDOW_MS", None) != 10000:
         raise ValueError("V7 performance windows must remain 10000 ms")
     gc_period = getattr(config, "PERF_GC_PERIOD_FRAMES", None)
@@ -7294,7 +7295,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
           "sensor_id=%s "
           "camera=320x120 crop=QVGA(0,60,320,120) grid=80x60 floor=%d budget=%dms "
           "detail_text=%dms control_profile=%s preview=per_frame "
-          "uart=1@115200/8N1 exposure_us=%s "
+          "uart=%d@115200/8N1 exposure_us=%s "
           "exposure_cap_us=%s gain_db=%s "
           "gray_backend=%s topology_backend=%s boundary_backend=%s "
           "single_backend=%s native_row_preview=%d "
@@ -7307,7 +7308,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
               control_profile,
-              str(exposure_us), str(exposure_cap_us), str(gain_db),
+              config.UART_ID, str(exposure_us), str(exposure_cap_us), str(gain_db),
               getattr(fast_gray, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_topology, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_boundary, "COMPILER_BACKEND", "UNKNOWN"),
