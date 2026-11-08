@@ -37,6 +37,10 @@ typedef struct {
     uint8_t calibrated;
     uint8_t fault;
     uint8_t sample_valid;
+    /* Raw WHO_AM_I evidence from the most recent successful register read. */
+    uint8_t who_am_i;
+    uint8_t who_am_i_valid;
+    uint32_t who_am_i_reads;
     uint32_t sample_us;
     int32_t gyro_z_mdps;
     int64_t yaw_mdeg;

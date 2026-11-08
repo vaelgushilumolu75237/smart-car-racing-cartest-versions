@@ -342,6 +342,14 @@ void car_imu_poll(car_imu_t *imu, uint32_t now_us,
         if (bus_read(imu, REG_WHO_AM_I, &who_am_i, 1u) == 0u) {
             return;
         }
+        /* Keep the raw bus evidence separate from the expected-value check.
+         * A failed read is not a valid zero/FF sample, while a successful
+         * mismatch must remain observable even when WHO_AM_I latches fault. */
+        imu->who_am_i = who_am_i;
+        imu->who_am_i_valid = 1u;
+        if (imu->who_am_i_reads != UINT32_MAX) {
+            ++imu->who_am_i_reads;
+        }
         if (who_am_i != WHO_AM_I_VALUE) {
             if ((uint32_t)(now_us - imu->init_us) >= WHOAMI_TIMEOUT_US) {
                 imu->fault = (uint8_t)(imu->fault | CAR_IMU_FAULT_WHOAMI);

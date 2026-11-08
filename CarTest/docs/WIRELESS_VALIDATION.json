@@ -38,7 +38,7 @@
         "production SysTick expiry motor stop preserves main-loop return-center path"
       ],
       "tested_source_sha256": {
-        "Src/main.c": "6e2e785077778f272218a7709d2744217e55b00fcd83ebe7fbaad3fa895157e9",
+        "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
         "tests/test_wireless_main.py": "8857bbc0be2748887ba93e4e7edc75b7254c99ced8b3a93245b0c2a4dc3eff0b"
       }
     },
@@ -355,12 +355,12 @@
       "summary": "wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed",
       "hardware_actions": "none",
       "source_sha256": {
-        "App/wireless_runtime.c": "7bde5610b43e3c29768a5d365344bf519eb2cc5ffae5db3b6c2af291101e5557",
+        "App/wireless_runtime.c": "c289da4644586a6f3b1b2e9942ec2d65ba97c688cf9514326f67361bbe1e2e5a",
         "App/wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
         "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
         "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
-        "Inc/wireless_runtime.h": "bc4137f388d7038d99db63e63f5baced465be57a62175f98a7faeb3bd8202321",
-        "tests/wireless_runtime/test_runtime.c": "2bdb923bfad58f61036014f373fe58fea64c8a292c475349dc3c726fe7740bbb"
+        "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
+        "tests/wireless_runtime/test_runtime.c": "80f3005e375e62204e1bf4926368cd7e62474cf904a45f918218b63cf60ab435"
       }
     },
     "WIRELESS_VISION_INTEGRATION": {
@@ -396,7 +396,7 @@
       "software_pullup_limit": "Internal pullups are active after MCU initialization only; they do not bias RTS/CMD during reset or power-off.",
       "hardware_actions": "none",
       "source_sha256": {
-        "Src/main.c": "6e2e785077778f272218a7709d2744217e55b00fcd83ebe7fbaad3fa895157e9",
+        "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
         "tests/test_wireless_aux_pins.py": "d23e913895480d3eb1dfce65769089a2d066819b43d947d410ffb835209d8da0"
       }
     }
@@ -454,26 +454,45 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "4e28e880503078cd2191cefc2d919e508d55cbf834b1bfdd94836f7904822d83",
-    "DebugBench": "ac39acf5805aa5cac50a89c0ce1a938e1377ac8d89af8c8a9c8f5d5760ed5626",
-    "DebugFastNoRing": "11b3e09e9c6532e93504d30e86b0afa97004aab189a3db54ec9fe9007b9b577c",
-    "DebugFollow": "e1fb469a529168e2144e09760f55d49cb520c807f9e7e7400623f065fe3dc252",
-    "DebugFollowDiff10": "c7628d7d58824646b8fd20ee6f832034f03eee605e7e98c2072e24f3349c1ad8",
-    "DebugFollowDiff5": "494848cecdce23d52b2539159b9bf6f11ca075d3ddaecc4e3b3589e7ec398e8c",
-    "DebugFollowIncrementalPI": "67d8e0b934b4c4a801e1b5a9c85a47f54baa5b8ac8d227e30a6b8a87494713bb",
-    "DebugFollowIncrementalPIBaseline": "d9cdd4fb4168a30397e48a02d54eedff95c9a96ebf6657f59c00261b7afdca8e",
-    "DebugFollowNoLog": "a5ec2c7f0a11a68217da5206209b0d1643ed3d2254a6f0e4515be056c5577445",
-    "DebugFollowSpeedPI": "897dabc5d3b90389dd35556405bc1ed658a5cabd69ab20c09e44ae8a7b0b0b25",
-    "DebugFollowTurn": "db004dee6db28ccc35b15c4805cc3e2b1eadbbfd1aa20adad15536850f2076a2",
-    "DebugFollowTurn65": "dee12df36a51f764e6ed1ac1c448ed0bb7de20271a7a61afe3133cd1d8efe013",
-    "DebugGyro350Speed140": "93df532d6dc6ab55e6a26aa614d9022d837d994e5dfe2782938c8d640d1fb552",
-    "DebugRingBase": "51e36695874a526893aad67915ec159eb98aa925073525af36a8b3fb9e2fbb3c",
-    "DebugRingFast": "6f3e594714f995d75a4754bf854960501101367da373284aefbfab9ee5dc1264",
-    "DebugRingFastSpeed120": "1050a77c083ef9d3444e12cb2866e5fbed187d2325e8a39d153200d6d6980566",
-    "DebugRingFastSpeed130": "a1edfbce94c0a5c1a58bd24ce8d3b052818acae2678a34e4ed7b19966b993883",
-    "DebugRingFastSpeed140": "3b64dfcb2a81f382b170d4df1ccbb171c140b3cf1b603f7c6817a630dd047812",
-    "DebugSteering": "4e1e97771989d6a9639657f061f46ed4470b835e240ed3e638043c4d45044075",
-    "DebugWirelessGyro350Speed140": "db966a19fab54a4e29495fe9eef9e30e8623e04441a432c199101780425c7c56"
+    "Debug": "05b823e3f2dfce2b02c9bc807d8351fbb627ad79ba8b866443253e4b204e64e1",
+    "DebugBench": "90f90e6a895dd90bcf8eeec4e20af15a3ab53198bf5adb1e8a14da7c08cffc2d",
+    "DebugFastNoRing": "91b0b6a061355ac624b05dba30f850d859c01c1e56ed5652a1f503ab469aae53",
+    "DebugFollow": "db64e58128f17ff36422846cd5ccbf7e10fa73f7d7699664a344317db7e236e6",
+    "DebugFollowDiff10": "6afbe8acb684f4d7f86fac66c783b7387e1fc117c806aa4455396db4e1fa3cce",
+    "DebugFollowDiff5": "768bed1aeadf92599c3e830bc08c37961023567f644bd81f5b71165456baa8e4",
+    "DebugFollowIncrementalPI": "d1d90a1f4a7d61541f18593e6f49e450ec40ae73dc6f8d926c5315dd22a879f7",
+    "DebugFollowIncrementalPIBaseline": "6c6abd563dd5b430b82f79be17d55bb04ccdac2c251b778cb53da1273e71d99c",
+    "DebugFollowNoLog": "05a9be0070c81818ad313af2c315bd103470e587c3c84e791e27ff9466600ae0",
+    "DebugFollowSpeedPI": "7619e094afa030c9e67248aedb63c88f8e6fdf06f70e14abdcde88c3d51d9459",
+    "DebugFollowTurn": "d0fce24040358b21daf6cbedef32936701a794c7e809f5a5084f261ed87f6457",
+    "DebugFollowTurn65": "2bede3f3452f53e897cdef090cd0490b7bacab8a0c3db7919702ff233924a377",
+    "DebugGyro350Speed140": "472053a56a2a4ea3d60fd5ef44b2c6b199985c58d9016666d1b0d0fc6bbb78a5",
+    "DebugRingBase": "95bf0b5dd67efecb8bfa6c1d0c3154e3bf7e21b9dddd37dc7375c4f53cb48405",
+    "DebugRingFast": "26d9737024dbb302bd7a3a29da847efd56e3ff94038cb3281bd3fed3b56eb76c",
+    "DebugRingFastSpeed120": "7e7f516ae9d8db2f4261e537ff818a865a8ec864673accf83e57bdd182b178e8",
+    "DebugRingFastSpeed130": "13f09e209064c1f3e2c67ddcf037e570344049a54de97238a8e18453f6fd1b24",
+    "DebugRingFastSpeed140": "68ed750e5b3357c36660c96ee29f0e5fe792d2c67dbfde6c66deabe5e451a3df",
+    "DebugSteering": "d0085da141e9dce6bb2b90dc9385255843ed9ea7b69ef6b3232cc1d74299389e",
+    "DebugWirelessGyro350Speed140": "82f0ee57b54dbf2fd22815f68c8f92e130813106279efbb73ec3ac94e9f40e63"
   },
-  "hardware_actions": "none"
+  "hardware_actions": "none",
+  "transport_diagnostics": {
+    "passed": true,
+    "scope": "read-only raw WHO_AM_I and USART1 transport evidence",
+    "driver_tests": "tests/gyro350/run.ps1: positive and negative yaw variants PASS",
+    "runtime_tests": "tests/wireless_runtime/run.py: page4 raw values and read-only parameter gates PASS",
+    "main_tests": "wireless main 12 assertions; gyro350 main 24 assertions PASS",
+    "vision_integration": "91 checks PASS",
+    "root_cause_confirmed": false,
+    "hardware_actions": "none",
+    "tested_source_sha256": {
+      "App/icm42688.c": "d6e7b3a30984c7559f3b604a78ceef2150d9792589e7ce599fd01f956616de0a",
+      "Inc/icm42688.h": "db6ad103e53bf422f633e60dc4425da8f5eca78a7e08744834bc7dad99fa0b78",
+      "App/wireless_runtime.c": "c289da4644586a6f3b1b2e9942ec2d65ba97c688cf9514326f67361bbe1e2e5a",
+      "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
+      "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
+      "tests/gyro350/test_gyro350.c": "550aeeee4c6fe0dcb716a25d30b57a6321cf375e784196a5674d34b74cf870da",
+      "tests/wireless_runtime/test_runtime.c": "80f3005e375e62204e1bf4926368cd7e62474cf904a45f918218b63cf60ab435"
+    }
+  }
 }

@@ -90,7 +90,7 @@ def main():
     source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
     source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
     result=dict(old)
-    result.update(port='CARTEST_K230_SEEKFREE_CAL_20261108',status='experimental-software-tested-hardware-pending',
+    result.update(port='CARTEST_K230_TRANSPORT_DIAG_20261108',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
@@ -108,7 +108,7 @@ def main():
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
         paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
-        release_version='v20261108-k230-seekfree-cal-v5',
+        release_version='v20261108-k230-transport-diag-v6',
         wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
                           'external_resistor':'software alternative; physical verification pending',
                           'hardware_flow_control':False})

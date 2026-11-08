@@ -130,3 +130,38 @@ Page 3 channels (zero based):
 Show only channels 0 to 5 while calibrating to avoid large counters
 stretching the scope's automatic Y axis. When finished, send debug
 parameter channel 7 value 0 to restore the ordinary 16-channel page.
+
+
+## Read-only transport diagnostic scope page 4 (v6)
+
+Use the existing SeekFree debug parameter channel 7 value 4, or send this
+native parameter packet in the serial tab with HEX send enabled and line
+endings/automatic send disabled: `55 3B 20 07 00 00 80 40`.
+This selects telemetry only and never opens outputs or reinitializes sensors.
+Scope pages 3 and 4 ignore parameter writes on channels 0 to 6.
+
+| Channel | Value |
+| --- | --- |
+| 0 | WHO_AM_I has actually been read successfully (bus callback success) |
+| 1 | Last actual WHO_AM_I byte, decimal (not an inferred fault code) |
+| 2 | Expected ICM42688-P identity 71 decimal = 0x47 |
+| 3 | Number of completed WHO_AM_I reads |
+| 4 | IMU fault bits |
+| 5 | IMU ready and calibrated |
+| 6 | Raw received K230 UART bytes |
+| 7 | K230 UART error event count |
+| 8 | K230 control-frame CRC error count |
+| 9 | K230 RX queue overflow count |
+| 10 | Bytes actually written to the K230 USART1 transmit register |
+| 11 | Received camera diagnostic-protocol frames |
+| 12 | Wireless USART2 error count |
+| 13 | IMU sample count |
+| 14 | Page number (4) |
+| 15 | Last admitted vision sequence |
+
+WHO_AM_I valid=0 means there is no successful identity read; a displayed zero
+must not be called a measured chip identity in that case. Valid=1 with identity
+0/255/another value preserves the actual mismatch across the latched fault.
+No timeout, calibration gate, sample validity or motor safety logic is bypassed.
+The page is meant to locate the fault; no hardware repair is claimed by passing
+host tests or compiling this diagnostic firmware.

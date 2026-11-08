@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_SEEKFREE_CAL_20261108",
+  "port": "CARTEST_K230_TRANSPORT_DIAG_20261108",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-seekfree-cal-v5",
+  "release_version": "v20261108-k230-transport-diag-v6",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -92,5 +92,7 @@
     "requires_h743_reflash": true,
     "camera_runtime_changed": false,
     "hardware_calibrated": false
-  }
+  },
+  "transport_diagnostic_page": 4,
+  "transport_diagnostic_hardware_verified": false
 }

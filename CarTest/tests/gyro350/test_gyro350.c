@@ -125,6 +125,9 @@ static uint32_t imu_to_ready(car_imu_t *imu, fake_imu_bus_t *fake,
     car_imu_poll(imu, start_us + 46200u, 0u);
     assert(imu->ready == 1u);
     assert(imu->fault == CAR_IMU_FAULT_NONE);
+    assert(imu->who_am_i_valid == 1u);
+    assert(imu->who_am_i == 0x47u);
+    assert(imu->who_am_i_reads >= 1u);
     return start_us + 46200u;
 }
 
@@ -197,6 +200,72 @@ static void test_imu_init_calibration_and_variable_dt(void)
     car_imu_poll(&imu, now_us + 1000u, 1u);
     assert(imu.sample_count == samples_before);
     assert(imu.yaw_mdeg == yaw_before);
+}
+
+static void test_imu_whoami_diagnostics(void)
+{
+    static const uint8_t mismatch_values[] = {0x00u, 0xFFu};
+    fake_imu_bus_t fake;
+    car_imu_bus_t bus;
+    car_imu_t imu;
+    uint32_t index;
+    uint32_t now_us;
+
+    /* Successful mismatches retain the actual byte and eventually latch the
+       existing WHO_AM_I fault; neither value is replaced by the expected ID. */
+    for (index = 0u; index < sizeof(mismatch_values); ++index) {
+        (void)memset(&fake, 0, sizeof(fake));
+        fake.registers[TEST_REG_WHO_AM_I] = mismatch_values[index];
+        bus = fake_bus(&fake);
+        car_imu_init(&imu, &bus, 1000u);
+        car_imu_poll(&imu, 2000u, 0u);
+        assert(imu.who_am_i_valid == 1u);
+        assert(imu.who_am_i == mismatch_values[index]);
+        assert(imu.who_am_i_reads == 1u);
+        for (now_us = 7000u; now_us < 62000u && imu.fault == 0u;
+             now_us += 5000u) {
+            car_imu_poll(&imu, now_us, 0u);
+        }
+        assert((imu.fault & CAR_IMU_FAULT_WHOAMI) != 0u);
+        assert(imu.who_am_i_valid == 1u);
+        assert(imu.who_am_i == mismatch_values[index]);
+        assert(imu.who_am_i_reads > 1u);
+    }
+
+    /* A successful expected-ID read is the only path that makes the raw
+       diagnostic valid; init itself must not fabricate a value. */
+    (void)memset(&fake, 0, sizeof(fake));
+    fake.registers[TEST_REG_WHO_AM_I] = 0x47u;
+    bus = fake_bus(&fake);
+    car_imu_init(&imu, &bus, 1000u);
+    assert(imu.who_am_i_valid == 0u);
+    assert(imu.who_am_i == 0u);
+    assert(imu.who_am_i_reads == 0u);
+    car_imu_poll(&imu, 2000u, 0u);
+    assert(imu.who_am_i_valid == 1u);
+    assert(imu.who_am_i == 0x47u);
+    assert(imu.who_am_i_reads == 1u);
+
+    /* A bus failure must not turn an uninitialised local byte into a valid
+       WHO_AM_I result, and the existing bus fault latch must prevent a later
+       poll from fabricating a diagnostic value. */
+    (void)memset(&fake, 0, sizeof(fake));
+    fake.registers[TEST_REG_WHO_AM_I] = 0x47u;
+    fake.fail_read_reg = TEST_REG_WHO_AM_I;
+    fake.fail_read_once = 1u;
+    bus = fake_bus(&fake);
+    car_imu_init(&imu, &bus, 1000u);
+    car_imu_poll(&imu, 2000u, 0u);
+    assert(imu.who_am_i_valid == 0u);
+    assert(imu.who_am_i == 0u);
+    assert(imu.who_am_i_reads == 0u);
+    assert((imu.fault & CAR_IMU_FAULT_BUS) != 0u);
+    fake.registers[TEST_REG_WHO_AM_I] = 0x47u;
+    car_imu_poll(&imu, 7000u, 0u);
+    assert(imu.who_am_i_valid == 0u);
+    assert(imu.who_am_i == 0u);
+    assert(imu.who_am_i_reads == 0u);
+    assert((imu.fault & CAR_IMU_FAULT_BUS) != 0u);
 }
 
 static void test_imu_faults(void)
@@ -669,6 +738,7 @@ static void test_ring_phase_timeouts(void)
 int main(void)
 {
     test_imu_init_calibration_and_variable_dt();
+    test_imu_whoami_diagnostics();
     test_imu_faults();
     test_ring_direction_zero_and_progress_boundary(-1);
     test_ring_direction_zero_and_progress_boundary(1);

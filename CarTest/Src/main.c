@@ -416,6 +416,7 @@ volatile uint32_t car_follow_right_target_permille;
 volatile uint32_t car_follow_left_command_permille;
 volatile uint32_t car_follow_right_command_permille;
 volatile uint32_t car_uart_rx_bytes;
+volatile uint32_t car_camera_uart_tx_bytes;
 volatile uint32_t car_uart_error_count;
 volatile uint32_t car_uart_parity_error_count;
 volatile uint32_t car_uart_framing_error_count;
@@ -3491,12 +3492,13 @@ static void service_reverse_control(uint32_t now_ms)
        enqueueing at most one protocol byte per main-loop service call. */
 #if CARTEST_WIRELESS_ENABLED
     if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_wireless_camera_tx_byte(&byte,0u)) { USART1->TDR=byte; return; }
+        car_wireless_camera_tx_byte(&byte,0u)) { USART1->TDR=byte; ++car_camera_uart_tx_bytes; return; }
 #endif
     if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
         car_reverse_control_next_byte_paired(
             &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
         USART1->TDR = byte;
+        ++car_camera_uart_tx_bytes;
         if (reverse_control_tx.keep_active != 0u &&
             reverse_keep_notified == 0u) {
             reverse_keep_notified = 1u;
@@ -3506,7 +3508,7 @@ static void service_reverse_control(uint32_t now_ms)
 
 #if CARTEST_WIRELESS_ENABLED
     else if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_wireless_camera_tx_byte(&byte,1u)) USART1->TDR=byte;
+        car_wireless_camera_tx_byte(&byte,1u)) { USART1->TDR=byte; ++car_camera_uart_tx_bytes; }
 #endif
 
     car_reverse_control_sequence = reverse_control_tx.sequence;
@@ -4336,6 +4338,15 @@ static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
     snapshot.button_released=pe7_is_high();snapshot.startup_released=manual_run_button.startup_release_confirmed;
     snapshot.servo_fault=servo_safety.fault_latched;
     snapshot.calibration_busy=!car_control_state.imu_ready && !car_control_state.imu_fault;
+    snapshot.imu_who_am_i=imu_device.who_am_i;
+    snapshot.imu_who_am_i_valid=imu_device.who_am_i_valid;
+    snapshot.imu_who_am_i_reads=imu_device.who_am_i_reads;
+    snapshot.imu_sample_count=imu_device.sample_count;
+    snapshot.camera_uart_rx_bytes=car_vision_rx.rx_byte_count;
+    snapshot.camera_uart_errors=car_vision_rx.uart_error_count;
+    snapshot.camera_uart_crc_errors=car_vision_rx.protocol_crc_error_count;
+    snapshot.camera_uart_overflows=car_vision_rx.queue_overflow_count;
+    snapshot.camera_uart_tx_bytes=car_camera_uart_tx_bytes;
     car_wireless_service(&snapshot,&car_control_state,&app_config);
     action=car_wireless_take_effect();
     if(action==CAR_WIRELESS_EFFECT_STOP){

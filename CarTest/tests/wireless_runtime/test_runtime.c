@@ -186,6 +186,20 @@ int main(void){
     assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
     text_feed("CAL",180700);text_feed("WIDTH\n",180800);
     assert(drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    /* Raw transport diagnostics are read-only and preserve ordinary pages. */
+    car_wireless_init(190000,12355);service(190000);camera_ready(190000);
+    snapshot.imu_who_am_i_valid=1;snapshot.imu_who_am_i=255;
+    snapshot.imu_who_am_i_reads=10;snapshot.camera_uart_rx_bytes=123;
+    snapshot.camera_uart_errors=2;snapshot.camera_uart_crc_errors=3;
+    snapshot.camera_uart_overflows=4;snapshot.camera_uart_tx_bytes=456;
+    assert(car_seekfree_debug_param_frame(page,sizeof page,7,4.0f));
+    raw_feed(page,sizeof page,190001);service(190050);drain_scope_value(0);
+    assert(last_scope[0]==1 && last_scope[1]==255 && last_scope[2]==71);
+    assert(last_scope[3]==10 && last_scope[6]==123 && last_scope[7]==2);
+    assert(last_scope[8]==3 && last_scope[9]==4 && last_scope[10]==456 && last_scope[14]==4);
+    before=car_wireless_settings()->wheel_scale_permille;
+    assert(car_seekfree_debug_param_frame(page,sizeof page,0,500.0f));
+    raw_feed(page,sizeof page,190051);assert(car_wireless_settings()->wheel_scale_permille==before);
     assert(get32((uint8_t[]){1,2,3,4})==0x04030201u);
     puts("wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed");
     return 0;

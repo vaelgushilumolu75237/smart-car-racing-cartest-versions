@@ -15,6 +15,10 @@ typedef struct {
     uint16_t servo_us, motor_left_permille, motor_right_permille;
     uint8_t outputs_active, button_released, startup_released;
     uint8_t servo_fault, calibration_busy;
+    uint8_t imu_who_am_i, imu_who_am_i_valid;
+    uint32_t imu_who_am_i_reads, imu_sample_count;
+    uint32_t camera_uart_rx_bytes, camera_uart_errors, camera_uart_crc_errors;
+    uint32_t camera_uart_overflows, camera_uart_tx_bytes;
 } car_wireless_snapshot_t;
 typedef enum { CAR_WIRELESS_EFFECT_NONE=0, CAR_WIRELESS_EFFECT_START=1,
     CAR_WIRELESS_EFFECT_STOP=2, CAR_WIRELESS_EFFECT_IMU_CAL=3 } car_wireless_effect_t;

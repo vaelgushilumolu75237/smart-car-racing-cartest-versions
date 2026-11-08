@@ -246,7 +246,7 @@ static void seekfree_byte(uint8_t b,uint32_t now) {
     for (i=0;i<8;++i) if (i!=1) checksum=(uint8_t)(checksum+seekfree_rx[i]);
     if (checksum!=seekfree_rx[1] || seekfree_rx[2]!=0x20 || seekfree_rx[3]>7) return;
     memcpy(&value,seekfree_rx+4,4);if (!isfinite(value)) return;
-    if (seekfree_rx[3]==7) {if(value>=0 && value<=3 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
+    if (seekfree_rx[3]==7) {if(value>=0 && value<=4 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
     if (scope_page>=3u) return;
     id=ids[scope_page][seekfree_rx[3]];if(!id || value < -1000000 || value>1000000 || value!=(float)(int32_t)value) return;
     group=(id==2 || id==6 || id==7)?2:(id>=8 && id<=10)?3:(id>=11 && id<=16)?4:1;
@@ -365,6 +365,23 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
             scope[13]=(float)car_wireless_packets;
             scope[14]=(float)scope_page;
             scope[15]=(float)calibration_reason_hash;
+        } else if(scope_page==4u) {
+            scope[0]=(float)s->imu_who_am_i_valid;
+            scope[1]=(float)s->imu_who_am_i;
+            scope[2]=71.0f; /* ICM42688-P WHO_AM_I = 0x47 */
+            scope[3]=(float)s->imu_who_am_i_reads;
+            scope[4]=(float)vehicle->imu_fault;
+            scope[5]=(float)vehicle->imu_ready;
+            scope[6]=(float)s->camera_uart_rx_bytes;
+            scope[7]=(float)s->camera_uart_errors;
+            scope[8]=(float)s->camera_uart_crc_errors;
+            scope[9]=(float)s->camera_uart_overflows;
+            scope[10]=(float)s->camera_uart_tx_bytes;
+            scope[11]=(float)camera_count;
+            scope[12]=(float)car_wireless_uart_errors;
+            scope[13]=(float)s->imu_sample_count;
+            scope[14]=4.0f;
+            scope[15]=(float)vehicle->vision_sequence;
         } else {
             for(i=0;i<16;++i)scope[i]=(float)(int32_t)v[(scope_page*8u+i)%32u];
         }
