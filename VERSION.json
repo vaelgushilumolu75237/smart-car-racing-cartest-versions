@@ -1,16 +1,16 @@
 {
-  "version": "v20261108-k230-seekfree-start-v10",
-  "status": "experimental-software-tested",
+  "version": "v20261108-k230-camera-recovery-v11",
+  "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
   "files": 638,
-  "hardware_actions": "none; offline SeekFree command tests/build/package only; no serial access, flash/reset/camera upload/motor start",
+  "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": true,
+    "camera_runtime_unchanged": false,
     "raw_vehicle_logs_published": false,
-    "radio_start_tested_on_vehicle": false
+    "camera_recovery_tested_on_vehicle": false
   },
   "private_calibration_included": false
 }

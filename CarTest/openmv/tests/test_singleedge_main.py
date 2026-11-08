@@ -262,7 +262,7 @@ class SingleEdgeMainTests(unittest.TestCase):
         self.assertFalse(self._service(stale, parser, drain, 250))
         self.assertEqual(parser.last_event, "CONTROL_TIMEOUT")
         self.assertEqual(len(stale.data), 0)
-        self.assertEqual(drain[0], 1)
+        self.assertEqual(drain[0], 0)
         self.assertFalse(self._service(stale, parser, drain, 251))
         self.assertEqual(drain[0], 0)
 

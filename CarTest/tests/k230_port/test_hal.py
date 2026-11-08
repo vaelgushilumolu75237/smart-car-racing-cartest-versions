@@ -229,6 +229,86 @@ class HALTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 uart.any()
 
+    def test_overflow_recovery_does_not_discard_continuously_arriving_profiles(self):
+        import main as camera_main
+        import reverse_control as reverse
+        import wireless_link as wireless
+
+        uart = hal.UARTAdapter(1, 115200)
+        stream = bytearray(b"\x00" * 300)
+        consumed = [0]
+        uart.device.any = lambda: len(stream)
+
+        def native_readinto(buffer):
+            count = min(len(buffer), len(stream))
+            buffer[:count] = stream[:count]
+            del stream[:count]
+            consumed[0] += count
+            return count
+
+        uart.device.readinto = native_readinto
+        parser = reverse.ReverseControlParser()
+        link = wireless.WirelessCameraLink(enabled=True, parked_cb=lambda: True)
+        from array import array
+        drain = array("i", [0])
+        with patch.object(camera_main, "reverse_control", reverse):
+            for step in range(12):
+                now = 1000 + step * 100
+                if step:
+                    stream.extend(reverse.pack_profile_state(
+                        step, reverse.PROFILE_C, reverse.PROFILE_GYRO350_SUPPORTED))
+                    if step % 2 == 0:
+                        stream.extend(wireless.encode_frame(
+                            wireless.TYPE_HELLO, step, 17, now,
+                            (17).to_bytes(4, "little") + b"\x01\x00\x00\x00"))
+                consumed[0] = 0
+                camera_main._service_reverse_control(
+                    uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
+                    now, lambda a, b: a - b, link)
+                self.assertLessEqual(consumed[0], reverse.MAX_FEED_BYTES)
+        self.assertEqual(drain[0], 0)
+        self.assertEqual(parser.profile_ack(now, lambda a, b: a - b), reverse.PROFILE_C)
+        self.assertEqual(link.session, 17)
+
+    def test_recovery_snapshot_never_parses_stale_profiles_or_short_read_tails(self):
+        import main as camera_main
+        import reverse_control as reverse
+
+        uart = hal.UARTAdapter(1, 115200)
+        old = reverse.pack_profile_state(1, reverse.PROFILE_C,
+                                         reverse.PROFILE_GYRO350_SUPPORTED)
+        stream = bytearray(old * 5)
+        uart.device.any = lambda: len(stream)
+        reads = []
+
+        def native_readinto(buffer):
+            count = min(11, len(buffer), len(stream))
+            reads.append(len(buffer))
+            buffer[:count] = stream[:count]
+            del stream[:count]
+            return count
+
+        uart.device.readinto = native_readinto
+        parser = reverse.ReverseControlParser()
+        drain = [0]
+        with patch.object(camera_main, "reverse_control", reverse):
+            for step in range(10):
+                if step == 1:
+                    stream.extend(reverse.pack_profile_state(
+                        10, reverse.PROFILE_C, reverse.PROFILE_GYRO350_SUPPORTED))
+                camera_main._service_reverse_control(
+                    uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
+                    step, lambda a, b: a - b)
+                self.assertFalse(parser.profile_is_fresh(step, lambda a, b: a - b))
+            for step in range(10, 13):
+                camera_main._service_reverse_control(
+                    uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
+                    step, lambda a, b: a - b)
+        self.assertEqual(drain[0], 0)
+        self.assertEqual(parser.accepted_profile_states, 1)
+        self.assertEqual(parser._profile_last_sequence, 10)
+        self.assertLessEqual(max(reads), reverse.MAX_FEED_BYTES)
+
     def test_camera_crops_without_resizing_and_does_not_reuse_failed_capture(self):
         events = []
         cropped = types.SimpleNamespace(width=lambda: 320, height=lambda: 120,

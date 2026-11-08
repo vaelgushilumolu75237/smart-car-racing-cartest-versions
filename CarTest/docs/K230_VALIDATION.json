@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_SEEKFREE_START_20261108",
+  "port": "CARTEST_K230_CAMERA_RECOVERY_20261108",
   "status": "experimental-software-tested-hardware-pending",
   "camera_tests": {
     "run": 527,
@@ -57,162 +57,194 @@
     {
       "file": "adaptive_detector.py",
       "source_sha256": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
-      "mpy_sha256": "18f5ee3bbe3bfef4cb670a661572c4c3cc65a0b232a6935dbddbbafbcf009c54"
+      "mpy_sha256": "18f5ee3bbe3bfef4cb670a661572c4c3cc65a0b232a6935dbddbbafbcf009c54",
+      "exitcode": 0
     },
     {
       "file": "boundary_evidence.py",
       "source_sha256": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-      "mpy_sha256": "9deb516336b0bc770bbe2ca9fc3f3bc6dabbcf8b509d31c7b6b1bbc2f4864801"
+      "mpy_sha256": "9deb516336b0bc770bbe2ca9fc3f3bc6dabbcf8b509d31c7b6b1bbc2f4864801",
+      "exitcode": 0
     },
     {
       "file": "calibrate_k230.py",
       "source_sha256": "af8022d16466b79c152a72ea079b9003fcdf8017e867a25fbc2e76388b4121ef",
-      "mpy_sha256": "5e06cfa9ecd4c7ae98636c1e33419f92a9bed0d27748d0d758bb3c1067f03db9"
+      "mpy_sha256": "5e06cfa9ecd4c7ae98636c1e33419f92a9bed0d27748d0d758bb3c1067f03db9",
+      "exitcode": 0
     },
     {
       "file": "config.py",
       "source_sha256": "a75471fb5bbefcca02e6da10bf3d54f758f95f94c78e5eb542090761dbc28112",
-      "mpy_sha256": "afe5b807e1c8535a883f80022d36115a2c49471623e8bbfeb792932e71248b29"
+      "mpy_sha256": "afe5b807e1c8535a883f80022d36115a2c49471623e8bbfeb792932e71248b29",
+      "exitcode": 0
     },
     {
       "file": "contour_route.py",
       "source_sha256": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
-      "mpy_sha256": "e39462cb28d907e74abc2519c0da87ddb405ea9b25ff9ff1e69723a77a4f073f"
+      "mpy_sha256": "e39462cb28d907e74abc2519c0da87ddb405ea9b25ff9ff1e69723a77a4f073f",
+      "exitcode": 0
     },
     {
       "file": "contour_trace.py",
       "source_sha256": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
-      "mpy_sha256": "6a24bdd287be6b675ecad9dad5c3d5e711a427e7b30f7441559409e88a781654"
+      "mpy_sha256": "6a24bdd287be6b675ecad9dad5c3d5e711a427e7b30f7441559409e88a781654",
+      "exitcode": 0
     },
     {
       "file": "fast_boundary.py",
       "source_sha256": "9fd731c83ae5b63a352b62993e91105fa7c6cbb9143ba65b4facb2ab0f8bf5c8",
-      "mpy_sha256": "c1b2d79435e8575231744e5e04a01a63913c1927f35aaa3475b1bd1d6354cff1"
+      "mpy_sha256": "c1b2d79435e8575231744e5e04a01a63913c1927f35aaa3475b1bd1d6354cff1",
+      "exitcode": 0
     },
     {
       "file": "fast_gray.py",
       "source_sha256": "92be34ce83f15196ec0b4340604d000b45ef3d681df92defdfd08ea0f1753fea",
-      "mpy_sha256": "9719d17118ec9dcb23ffdbb08f805afbef981813942f6bcfcd6be19cc8d3dd32"
+      "mpy_sha256": "9719d17118ec9dcb23ffdbb08f805afbef981813942f6bcfcd6be19cc8d3dd32",
+      "exitcode": 0
     },
     {
       "file": "fast_path.py",
       "source_sha256": "78c3fe93aa009d333dc2fec5dbc9b1c517b6c9a54ae02fe1934b31e80653f1bf",
-      "mpy_sha256": "ad373da06b031915bbbb22ef25d99b6d5c2fda2121a920d1249cad55e76f82fb"
+      "mpy_sha256": "ad373da06b031915bbbb22ef25d99b6d5c2fda2121a920d1249cad55e76f82fb",
+      "exitcode": 0
     },
     {
       "file": "fast_ring_slope.py",
       "source_sha256": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
-      "mpy_sha256": "ae15c5a8387fb7354001c475191c6d8452fd6fcf1172b74a700dc46d7cd734c2"
+      "mpy_sha256": "ae15c5a8387fb7354001c475191c6d8452fd6fcf1172b74a700dc46d7cd734c2",
+      "exitcode": 0
     },
     {
       "file": "fast_single_edge.py",
       "source_sha256": "d7458b67ad6192d9145b8a000268f17637fc442aa870be1e83f2359241684c0f",
-      "mpy_sha256": "9a79753e6130d87fd77efe103d6ac7b79f3f62c459e57d29f9de123f7773ce77"
+      "mpy_sha256": "9a79753e6130d87fd77efe103d6ac7b79f3f62c459e57d29f9de123f7773ce77",
+      "exitcode": 0
     },
     {
       "file": "fast_topology.py",
       "source_sha256": "92b299d0e9da7005c24d6e7cb577c4cda4df9b59fa9fd9c1a52fd70508129656",
-      "mpy_sha256": "1d7388de7d91ac0628f217844c6a5a8dff55ee313758d993bce5c33a3afe7a1c"
+      "mpy_sha256": "1d7388de7d91ac0628f217844c6a5a8dff55ee313758d993bce5c33a3afe7a1c",
+      "exitcode": 0
     },
     {
       "file": "grayscale_adapter.py",
       "source_sha256": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-      "mpy_sha256": "43164f596fdd594c9fbd59a4b62506abb29104c7c6b40a286d3d00650807b96b"
+      "mpy_sha256": "43164f596fdd594c9fbd59a4b62506abb29104c7c6b40a286d3d00650807b96b",
+      "exitcode": 0
     },
     {
       "file": "gyro_link.py",
       "source_sha256": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
-      "mpy_sha256": "1d33b6c4dea26138f7a5a976ab48fcff8275dfcccaaa6e5c15e37485bf96c0fc"
+      "mpy_sha256": "1d33b6c4dea26138f7a5a976ab48fcff8275dfcccaaa6e5c15e37485bf96c0fc",
+      "exitcode": 0
     },
     {
       "file": "k230_calibration.py",
       "source_sha256": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
-      "mpy_sha256": "f90e9cf013387734bdaefade76ee2a4bfd970e4c4ae2ea4fa6d3c5a50ff3ac45"
+      "mpy_sha256": "f90e9cf013387734bdaefade76ee2a4bfd970e4c4ae2ea4fa6d3c5a50ff3ac45",
+      "exitcode": 0
     },
     {
       "file": "k230_hal.py",
       "source_sha256": "8d4f45c0482d18674377afd9a9a8376e395c2a2e74afce7d4d2a98fe6b32525e",
-      "mpy_sha256": "4d9872dba75081947e2c33de02a021d2d6cbd807274d3f6196afbe1a1a692940"
+      "mpy_sha256": "4d9872dba75081947e2c33de02a021d2d6cbd807274d3f6196afbe1a1a692940",
+      "exitcode": 0
     },
     {
       "file": "k230_portable.py",
       "source_sha256": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
-      "mpy_sha256": "f163532c7cf7729b7222f97f866c6335af093bdbc02e7d7043dfc4ee623c9b5b"
+      "mpy_sha256": "f163532c7cf7729b7222f97f866c6335af093bdbc02e7d7043dfc4ee623c9b5b",
+      "exitcode": 0
     },
     {
       "file": "k230_settings.py",
       "source_sha256": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
-      "mpy_sha256": "ba4d49dc4984e6b7e344f1149007bfedf181098ebf799e92582dd8da1bd05445"
+      "mpy_sha256": "ba4d49dc4984e6b7e344f1149007bfedf181098ebf799e92582dd8da1bd05445",
+      "exitcode": 0
     },
     {
       "file": "line_detector.py",
       "source_sha256": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-      "mpy_sha256": "9cfb3daa45debea432bac3cd34aa4a225fe2a7c6d859c5dbeca0bb120d2ebfcc"
+      "mpy_sha256": "9cfb3daa45debea432bac3cd34aa4a225fe2a7c6d859c5dbeca0bb120d2ebfcc",
+      "exitcode": 0
     },
     {
       "file": "main.py",
-      "source_sha256": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
-      "mpy_sha256": "589822709f03cbb3bfcc3424789f04ebe07163be08edd749e351c1042141b930"
+      "source_sha256": "37519efdba7bef05ee098042b367419e0871ae8e20d280c8484fc5999e7aa829",
+      "mpy_sha256": "0bfe7f0c19b1774c154c733e6bd235eb429228f79ce109c3a74b8b8dca1e4b5d",
+      "exitcode": 0
     },
     {
       "file": "probe_k230.py",
       "source_sha256": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
-      "mpy_sha256": "5c674fb0805635184c61c752b2a8cd8123a9b8743d8e2f12863d331a3ff176c8"
+      "mpy_sha256": "5c674fb0805635184c61c752b2a8cd8123a9b8743d8e2f12863d331a3ff176c8",
+      "exitcode": 0
     },
     {
       "file": "reverse_control.py",
       "source_sha256": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
-      "mpy_sha256": "b7bd3f275056f34ebcf6a19791dd2830a52526abd70e6ab7786bd9f7fdd3998a"
+      "mpy_sha256": "b7bd3f275056f34ebcf6a19791dd2830a52526abd70e6ab7786bd9f7fdd3998a",
+      "exitcode": 0
     },
     {
       "file": "ring_diagnostics.py",
       "source_sha256": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
-      "mpy_sha256": "374b0ab69c844b146205bcd0f4c1f355855c1765110cd7011d2a2247c4373c2d"
+      "mpy_sha256": "374b0ab69c844b146205bcd0f4c1f355855c1765110cd7011d2a2247c4373c2d",
+      "exitcode": 0
     },
     {
       "file": "ring_width_calibration.py",
       "source_sha256": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
-      "mpy_sha256": "bc2b25cd5aeec531ac718d0a79fa9b516b7177c1d79ff617e6ae3b8c263301bc"
+      "mpy_sha256": "bc2b25cd5aeec531ac718d0a79fa9b516b7177c1d79ff617e6ae3b8c263301bc",
+      "exitcode": 0
     },
     {
       "file": "road_detector.py",
       "source_sha256": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
-      "mpy_sha256": "28645de4bdee0437b64500a01565d779fb8c14bb27fbf4f0f26eb18d5f9b04af"
+      "mpy_sha256": "28645de4bdee0437b64500a01565d779fb8c14bb27fbf4f0f26eb18d5f9b04af",
+      "exitcode": 0
     },
     {
       "file": "run_cartest.py",
       "source_sha256": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
-      "mpy_sha256": "0ad7b58cf0aa02cc286b0313ab87430d7935f46bc3a202437cbed86f39cddd21"
+      "mpy_sha256": "0ad7b58cf0aa02cc286b0313ab87430d7935f46bc3a202437cbed86f39cddd21",
+      "exitcode": 0
     },
     {
       "file": "source_selector.py",
       "source_sha256": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
-      "mpy_sha256": "e1df38c198584e91b5705759ad3578054ba97e62d224f57adfe5e90e03f13087"
+      "mpy_sha256": "e1df38c198584e91b5705759ad3578054ba97e62d224f57adfe5e90e03f13087",
+      "exitcode": 0
     },
     {
       "file": "surface_detector.py",
       "source_sha256": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
-      "mpy_sha256": "da7ebd28e9f03dbb9f76c0409fa672c08c833463b30853f97ab922aebb74a82c"
+      "mpy_sha256": "da7ebd28e9f03dbb9f76c0409fa672c08c833463b30853f97ab922aebb74a82c",
+      "exitcode": 0
     },
     {
       "file": "thresholding.py",
       "source_sha256": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-      "mpy_sha256": "9ff215d46405cf25afe79ec8bb7fead74c0647c68add3b43058df28247b216f4"
+      "mpy_sha256": "9ff215d46405cf25afe79ec8bb7fead74c0647c68add3b43058df28247b216f4",
+      "exitcode": 0
     },
     {
       "file": "track_elements.py",
       "source_sha256": "bad7976a1e8fbd39288eee9ded59766ee884a3c74eaff91694ac1484759aa9e2",
-      "mpy_sha256": "e1d1f4306939719d22bffc3b147770c83cc9298901de7426d66ea465803567b8"
+      "mpy_sha256": "e1d1f4306939719d22bffc3b147770c83cc9298901de7426d66ea465803567b8",
+      "exitcode": 0
     },
     {
       "file": "vision_protocol.py",
       "source_sha256": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
-      "mpy_sha256": "3b2cecd198d333844e8d7e5adbfc3eb2e3b31d1f59db341ef3692592d0913c2e"
+      "mpy_sha256": "3b2cecd198d333844e8d7e5adbfc3eb2e3b31d1f59db341ef3692592d0913c2e",
+      "exitcode": 0
     },
     {
       "file": "wireless_link.py",
       "source_sha256": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
-      "mpy_sha256": "66e91c020ea6c4375808fe3af49d26354a4ab95e3073e0dae7e701b79e13d6b0"
+      "mpy_sha256": "66e91c020ea6c4375808fe3af49d26354a4ab95e3073e0dae7e701b79e13d6b0",
+      "exitcode": 0
     }
   ],
   "built_profiles": [
@@ -259,7 +291,7 @@
     "DebugSteering": "0227d943d5a373cb938501da4c21008510ab94c99047d26223aed94db17b2c12",
     "DebugWirelessGyro350Speed140": "b43bd0088ff1de7b5175806c832a894cb4c9e56bdddf496574863a5bad36a764"
   },
-  "hardware_actions": "none; offline SeekFree command tests/build/package only; no serial access, flash/reset/camera upload/motor start",
+  "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "board_runtime_fps": "unverified",
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
@@ -584,7 +616,7 @@
       },
       "hal": {
         "command": "-m unittest discover -s tests/k230_port -p test_*.py -q",
-        "tests": 14,
+        "tests": 16,
         "passed": true
       },
       "gyro_camera": {
@@ -597,8 +629,36 @@
         "tests": 527,
         "failures": 0,
         "errors": 0,
-        "skipped": 5,
-        "command": "python tools/test_k230_port.py"
+        "skipped": [
+          [
+            "test_ackermann320_packages.AckermannPackageTests.test_manifests_cover_allowlisted_runtime_and_cross_compile_evidence",
+            "Ackermann 320x120 package build has not run"
+          ],
+          [
+            "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_ground_replay_accepts_descending_rows_and_actual_sidecar",
+            "Private ground raw/sidecar fixture is absent; ground replay not verified"
+          ],
+          [
+            "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_independent_curvature_entry_reaches_uart_after_three_frames",
+            "independent ring-curvature routing is intentionally absent"
+          ],
+          [
+            "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_main_fast_ring_path_uses_current_rows_without_heading_kick",
+            "independent ring route was removed from production"
+          ],
+          [
+            "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_real_detector_left_and_right_entry_reaches_uart_after_three_frames",
+            "ring-entry routing is intentionally absent"
+          ]
+        ],
+        "command": "python tools/test_k230_port.py",
+        "run": 527,
+        "excluded": {
+          "test_profile_packages.ProfilePackageTests.test_all_three_manifests_cover_complete_profile_matched_sources": "Historical OpenMV no_pd/pd/pd_preview delivery manifests, not K230 installation packages",
+          "test_profile_packages.ProfilePackageTests.test_profile_identity_is_unique_and_other_runtime_sources_are_shared": "Historical OpenMV no_pd/pd/pd_preview package identity, replaced by K230 manifest",
+          "test_steering_diag.SteeringDiagAlgorithmFreezeTests.test_unrelated_vision_ast_matches_baseline_after_control_changes": "ARM-to-RISC-V port intentionally changes imports, decorators and camera/UART setup; upstream geometry regression remains"
+        },
+        "hardware": "not_connected"
       },
       "throughput_probe": {
         "passed": true,
@@ -731,8 +791,8 @@
         },
         {
           "file": "main.py",
-          "source_sha256": "8d5b63e7c4f901e309f36f948e17e431a382d63bb0d3941ca6b16c523ad9dc9b",
-          "mpy_sha256": "589822709f03cbb3bfcc3424789f04ebe07163be08edd749e351c1042141b930",
+          "source_sha256": "37519efdba7bef05ee098042b367419e0871ae8e20d280c8484fc5999e7aa829",
+          "mpy_sha256": "0bfe7f0c19b1774c154c733e6bd235eb429228f79ce109c3a74b8b8dca1e4b5d",
           "exitcode": 0
         },
         {
@@ -873,6 +933,20 @@
         "native_any_and_prefetch_tested": true,
         "split_frames_and_drain_tested": true,
         "hardware_verified": false
+      },
+      "tested_source_sha256": {
+        "openmv/main.py": "37519efdba7bef05ee098042b367419e0871ae8e20d280c8484fc5999e7aa829",
+        "openmv/k230_hal.py": "8d4f45c0482d18674377afd9a9a8376e395c2a2e74afce7d4d2a98fe6b32525e",
+        "tests/k230_port/test_hal.py": "2a2fbff665eebfb2cb44a817a1ae9430e2e16bee532fc95968dfa735d7e3f7ba"
+      },
+      "camera_recovery": {
+        "passed": true,
+        "snapshot_drain": true,
+        "per_poll_byte_limit": 64,
+        "continuous_traffic_backlog_test_bytes": 300,
+        "short_read_stale_profile_test": true,
+        "tests": 16,
+        "hardware_candidate_installed": false
       }
     },
     "WIRELESS_TOOLS": {
@@ -990,7 +1064,7 @@
     }
   },
   "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks",
-  "mcu_build_evidence": "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged",
+  "mcu_build_evidence": "All recorded MCU source and 20 paired ELF hashes verified unchanged; prior actual builds reused",
   "transport_diagnostics": {
     "passed": true,
     "scope": "read-only raw WHO_AM_I and USART1 transport evidence",
@@ -1013,8 +1087,8 @@
   "imu_gpio_spi_tests_passed": true,
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": true,
+    "camera_runtime_unchanged": false,
     "raw_vehicle_logs_published": false,
-    "radio_start_tested_on_vehicle": false
+    "camera_recovery_tested_on_vehicle": false
   }
 }

@@ -5019,9 +5019,11 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
                              now_ms, ticks_diff, wireless_service=None):
     """Poll and read one bounded reverse-control chunk without allocations.
 
-    On a heartbeat timeout or receive overflow, queued bytes are discarded in
-    chunks no larger than ``MAX_FEED_BYTES``. This prevents old controls or
-    profile states from creating a fresh lease after a camera/controller stall.
+    On timeout/overflow discard a snapshot of the queued bytes, in bounded
+    chunks. Bytes arriving afterward belong to the next receive window; a
+    continuously transmitting MCU must not keep the receiver draining forever.
+    drain_state is zero when idle, one before taking the snapshot, and the
+    remaining snapshot byte count plus one while discarding it.
     """
     if parser.poll(now_ms, ticks_diff):
         drain_state[0] = 1
@@ -5035,32 +5037,48 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
         if (isinstance(available, bool) or not isinstance(available, int) or
                 available < 0):
             raise OSError("invalid UART.any result")
-        if available > reverse_control.MAX_FEED_BYTES:
+        if available > reverse_control.MAX_FEED_BYTES and not drain_state[0]:
             parser.invalidate("RX_OVERFLOW")
             drain_state[0] = 1
 
+        read_budget = reverse_control.MAX_FEED_BYTES
         if drain_state[0]:
             if available == 0:
                 drain_state[0] = 0
                 return parser.single_enabled
-            requested = min(available, reverse_control.MAX_FEED_BYTES)
+            remaining = (available if drain_state[0] == 1 else
+                         drain_state[0] - 1)
+            requested = min(available, remaining, reverse_control.MAX_FEED_BYTES)
             received = readinto_fn(input_buffer, requested)
             if received is None:
                 received = 0
             if (isinstance(received, bool) or not isinstance(received, int) or
                     received < 0 or received > requested):
                 raise OSError("invalid UART.readinto result")
+            remaining -= received
+            drain_state[0] = remaining + 1 if remaining else 0
             if wireless_service is not None and received:
                 # Still service a wireless STOP/HELLO while the legacy parser
                 # is draining.  Legacy bytes are intentionally discarded.
                 wireless_service.feed_multiplexed(
                     input_buffer, received, now_ms, parser,
                     forward_legacy=False)
-            return parser.single_enabled
+            if remaining:
+                return parser.single_enabled
+            # Finish this poll's bounded budget with bytes arriving after the
+            # discarded snapshot. Otherwise modest continuous traffic can
+            # repeatedly push the next poll over the overflow threshold.
+            read_budget -= received
+            if read_budget == 0:
+                return parser.single_enabled
+            available = available_fn()
+            if (isinstance(available, bool) or not isinstance(available, int) or
+                    available < 0):
+                raise OSError("invalid UART.any result")
 
         if available == 0:
             return parser.single_enabled
-        requested = min(available, reverse_control.MAX_FEED_BYTES)
+        requested = min(available, read_budget)
         received = readinto_fn(input_buffer, requested)
         if received is None:
             received = 0
