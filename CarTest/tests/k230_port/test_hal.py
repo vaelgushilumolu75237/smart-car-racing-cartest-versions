@@ -143,7 +143,6 @@ class HALTests(unittest.TestCase):
         uart.device.any = lambda: len(pending)
         uart.device.readinto = native_readinto
         buffer = bytearray(b"????????")
-        self.assertEqual(uart.any(), 6)
         self.assertEqual(uart.readinto(buffer, 3), 3)
         self.assertEqual(buffer, b"abc?????")
         self.assertEqual(pending, b"def")
@@ -171,7 +170,14 @@ class HALTests(unittest.TestCase):
                 uart = hal.UARTAdapter(1, 115200)
                 stream = bytearray(profile + hello)
                 if native_any:
-                    uart.device.any = lambda: len(stream)
+                    uart.device.any = lambda: int(bool(stream))
+
+                    def native_read(count):
+                        data = bytes(stream[:count])
+                        del stream[:count]
+                        return data or None
+
+                    uart.device.read = native_read
 
                     def native_readinto(buffer):
                         count = min(len(buffer), len(stream))
@@ -250,6 +256,12 @@ class HALTests(unittest.TestCase):
             return count
 
         uart.device.readinto = native_readinto
+        def native_read(count):
+            data = bytes(stream[:count])
+            del stream[:count]
+            consumed[0] += len(data)
+            return data or None
+        uart.device.read = native_read
         parser = reverse.ReverseControlParser()
         link = wireless.WirelessCameraLink(enabled=True, parked_cb=lambda: True)
         from array import array
@@ -268,12 +280,12 @@ class HALTests(unittest.TestCase):
                 camera_main._service_reverse_control(
                     uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
                     now, lambda a, b: a - b, link)
-                self.assertLessEqual(consumed[0], reverse.MAX_FEED_BYTES)
+                self.assertLessEqual(consumed[0], 256)
         self.assertEqual(drain[0], 0)
         self.assertEqual(parser.profile_ack(now, lambda a, b: a - b), reverse.PROFILE_C)
         self.assertEqual(link.session, 17)
 
-    def test_recovery_snapshot_never_parses_stale_profiles_or_short_read_tails(self):
+    def test_recovery_snapshot_drops_stale_profiles_and_keeps_later_arrivals(self):
         import main as camera_main
         import reverse_control as reverse
 
@@ -292,6 +304,12 @@ class HALTests(unittest.TestCase):
             return count
 
         uart.device.readinto = native_readinto
+        def native_read(count):
+            reads.append(count)
+            data = bytes(stream[:count])
+            del stream[:count]
+            return data or None
+        uart.device.read = native_read
         parser = reverse.ReverseControlParser()
         drain = [0]
         with patch.object(camera_main, "reverse_control", reverse):
@@ -302,7 +320,8 @@ class HALTests(unittest.TestCase):
                 camera_main._service_reverse_control(
                     uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
                     step, lambda a, b: a - b)
-                self.assertFalse(parser.profile_is_fresh(step, lambda a, b: a - b))
+                if step == 0:
+                    self.assertFalse(parser.profile_is_fresh(step, lambda a, b: a - b))
             for step in range(10, 13):
                 camera_main._service_reverse_control(
                     uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
@@ -310,7 +329,7 @@ class HALTests(unittest.TestCase):
         self.assertEqual(drain[0], 0)
         self.assertEqual(parser.accepted_profile_states, 1)
         self.assertEqual(parser._profile_last_sequence, 10)
-        self.assertLessEqual(max(reads), reverse.MAX_FEED_BYTES)
+        self.assertLessEqual(max(reads), 256)
 
     def test_camera_crops_without_resizing_and_does_not_reuse_failed_capture(self):
         events = []

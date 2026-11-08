@@ -232,12 +232,17 @@ class UARTAdapter:
         _uarts.append(self)
 
     def any(self):
-        any_fn = getattr(self.device, "any", None)
-        if callable(any_fn):
-            return len(self.pending) + any_fn()
-        # Factory UART exposes nonblocking read() but some versions lack any().
-        # Read a bounded burst and retain its exact binary bytes for readinto.
+        # CanMV UART.any() reports readiness (0/1), not an RX byte count.
+        # Count only bytes actually prefetched; otherwise four parser chunks
+        # become four single-byte reads per camera frame and expire V2 frames.
         if not self.pending:
+            any_fn = getattr(self.device, "any", None)
+            if callable(any_fn):
+                ready = any_fn()
+                if not isinstance(ready, int) or ready < 0:
+                    raise ValueError("K230 UART returned invalid readiness")
+                if not ready:
+                    return 0
             data = self.device.read(256)
             if data:
                 if not isinstance(data, (bytes, bytearray)) or len(data) > 256:

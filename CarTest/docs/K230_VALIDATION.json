@@ -35,7 +35,7 @@
     "hardware": "not_connected"
   },
   "hal_tests_passed": true,
-  "hal_tests": 9,
+  "hal_tests": 22,
   "gyro_camera_tests_passed": true,
   "gyro_driver_state_tests_passed": true,
   "gyro_integration_tests_passed": true,
@@ -1285,5 +1285,24 @@
     "hardware_verified": false,
     "h743_flashed": false,
     "change": "Bounded 16-byte USART1 FIFO fill for wireless preset; frame arbitration retained; non-wireless preset retains one-byte bound."
+  },
+  "uart_readiness_fix": {
+    "version": "v20261109-k230-uart-readiness-v16",
+    "hal_and_port_tests": 22,
+    "failures": 0,
+    "reproduction": {
+      "period_ms": 100,
+      "profiles_sent": 50,
+      "hello_sent": 25,
+      "old_accepted_profiles": 0,
+      "fixed_accepted_profiles": 50,
+      "fixed_accepted_hello": 25,
+      "fixed_backlog_bytes": 0
+    },
+    "native_api_evidence": "CanMV UART.any returns small integer 1 or 0 from drv_uart_poll, not available byte count",
+    "hal_source_sha256": "5fb06154dc34d0af1052fe7b7189031f28acf907999efeecb423e56e2e4b6310",
+    "hardware_verified": false,
+    "mcu_change": false,
+    "mcu_artifacts": "Reused unchanged v15 paired builds; no new MCU build needed"
   }
 }
