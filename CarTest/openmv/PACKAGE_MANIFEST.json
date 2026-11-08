@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_LCD_SCALE_20261108",
+  "port": "CARTEST_K230_SEEKFREE_CAL_20261108",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -77,12 +77,20 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-lcd-scale-v4",
+  "release_version": "v20261108-k230-seekfree-cal-v5",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
     "mode": "input-pullup",
     "external_resistor": "software alternative; physical verification pending",
     "hardware_flow_control": false
+  },
+  "seekfree_width_calibration": {
+    "command": "CALWIDTH plus CR or LF",
+    "scope_page": 3,
+    "accepted_requests_per_h743_boot": 1,
+    "requires_h743_reflash": true,
+    "camera_runtime_changed": false,
+    "hardware_calibrated": false
   }
 }

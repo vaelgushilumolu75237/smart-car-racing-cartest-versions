@@ -5,7 +5,8 @@
 #include <math.h>
 
 /* All queues contain whole packets. An active packet is never interleaved. */
-enum { RX_N=512, TX_N=16, HI_N=4, CAM_N=4, IMAGE_HEADER=18, IMAGE_TTL_MS=60000 };
+enum { RX_N=512, TX_N=16, HI_N=4, CAM_N=4, IMAGE_HEADER=18, IMAGE_TTL_MS=60000,
+       CAL_TEXT_TIMEOUT_MS=500 };
 typedef struct { uint16_t size, pos; uint8_t data[CAR_WIRELESS_MAX_FRAME]; } packet_t;
 typedef struct { uint8_t head, tail, count; packet_t packet[TX_N]; } queue_t;
 typedef struct { uint32_t pc_sequence, camera_sequence, deadline;
@@ -23,6 +24,12 @@ static uint32_t seed, serial, session_counter, last_rx_ms, last_state_ms;
 static uint32_t last_diag_ms, camera_epoch, camera_last_ms, camera_rx_seq;
 static uint32_t camera_tx_seq, camera_last_hello_ms, camera_count;
 static uint8_t camera_have_seq, camera_ready, initialized, scope_page;
+static uint8_t calibration_status, calibration_attempted,
+    calibration_command_pending, calibration_text_count;
+static uint8_t calibration_ack_status;
+static uint16_t calibration_accepted_frames, calibration_attempted_frames;
+static uint16_t calibration_reason_hash;
+static uint32_t calibration_detail, calibration_text_started_ms;
 static volatile uint8_t local_stop_latched;
 static car_wireless_effect_t effect;
 static wireless_control_ack_t effect_ack;
@@ -33,6 +40,16 @@ static uint32_t flash_generation, last_vision_generation;
 static uint16_t synced_vision_p, synced_vision_d;
 static wireless_control_ack_t save_ack;
 static uint8_t seekfree_rx[8], seekfree_count;
+static const char calibration_text_command[] = "CALWIDTH";
+
+enum {
+    CAL_STATUS_IDLE = 0u,
+    CAL_STATUS_PENDING = 1u,
+    CAL_STATUS_SUCCESS = 2u,
+    CAL_STATUS_REJECTED = 3u,
+    CAL_STATUS_FAILED = 4u,
+    CAL_STATUS_TIMEOUT = 5u
+};
 /* Separate D2 SRAM2 region, initialized by metadata rather than .bss clearing. */
 #if defined(__arm__) || defined(__thumb__)
 __attribute__((section(".wireless_image"),aligned(32)))
@@ -98,6 +115,75 @@ static uint8_t forward_camera(car_wireless_frame_t *f,uint32_t pc_seq,uint8_t op
     }
     return 1;
 }
+static void calibration_detail_from_ack(uint8_t status, uint32_t detail) {
+    calibration_ack_status=status;
+    calibration_detail=detail;
+    calibration_accepted_frames=(uint16_t)(detail & 0xffffu);
+    calibration_attempted_frames=(uint16_t)(detail >> 16);
+}
+static void reject_calibration(uint8_t ack_status) {
+    calibration_status=CAL_STATUS_REJECTED;
+    calibration_detail_from_ack(ack_status,0u);
+}
+static void try_start_calibration(uint32_t now,
+                                  const car_wireless_snapshot_t *snapshot,
+                                  const wireless_control_runtime_t *runtime) {
+    car_wireless_frame_t f;
+    if (!calibration_command_pending) return;
+    calibration_command_pending=0;
+    scope_page=3u;
+    /* Rejected prerequisites may be retried. A forwarded request is locked
+       for this boot so retransmitted text cannot restart the camera job. */
+    if (calibration_attempted) {
+        return;
+    }
+    if (!snapshot || !runtime || !runtime->parked || snapshot->outputs_active ||
+        !runtime->local_button_released || !runtime->startup_release_confirmed) {
+        reject_calibration(WIRELESS_ACK_NOT_PARKED); return;
+    }
+    if (runtime->hard_fault) { reject_calibration(WIRELESS_ACK_FAULT); return; }
+    if (runtime->calibration_busy || runtime->capture_busy || engine.test.active ||
+        effect!=CAR_WIRELESS_EFFECT_NONE) {
+        reject_calibration(WIRELESS_ACK_BUSY); return;
+    }
+    if (!camera_ready || now-camera_last_ms>1000u) {
+        reject_calibration(WIRELESS_ACK_NOT_READY); return;
+    }
+    memset(&f,0,sizeof(f));
+    f.type=CAR_WIRELESS_COMMAND;f.payload_len=4;
+    f.payload[0]=WIRELESS_OP_CAMERA_CAL;f.payload[1]=WIRELESS_TARGET_CAMERA;
+    if (!forward_camera(&f,0u,WIRELESS_OP_CAMERA_CAL,now)) {
+        reject_calibration(WIRELESS_ACK_NOT_READY); return;
+    }
+    calibration_attempted=1u;
+    calibration_status=CAL_STATUS_PENDING;
+    calibration_reason_hash=0u;
+    calibration_detail_from_ack(WIRELESS_ACK_PENDING,0u);
+}
+/* Recognize only an exact, short assistant-mode command at a binary-frame
+   boundary. A mismatch is returned to the normal binary parser so no byte is
+   lost; D3/91 and 55-prefixed packets never enter this state. */
+static uint8_t calibration_text_byte(uint8_t b,uint32_t now) {
+    size_t length=sizeof(calibration_text_command)-1u;
+    if (calibration_text_count && now-calibration_text_started_ms>CAL_TEXT_TIMEOUT_MS)
+        calibration_text_count=0u;
+    if (!calibration_text_count) {
+        if (!radio_parser.length && !seekfree_count && b==(uint8_t)'C') {
+            calibration_text_count=1u;calibration_text_started_ms=now;return 1u;
+        }
+        return 0u;
+    }
+    if (calibration_text_count<length) {
+        if (b==(uint8_t)calibration_text_command[calibration_text_count]) {
+            ++calibration_text_count;return 1u;
+        }
+        calibration_text_count=0u;return 0u;
+    }
+    if (b==(uint8_t)'\r' || b==(uint8_t)'\n') {
+        calibration_text_count=0u;calibration_command_pending=1u;return 1u;
+    }
+    calibration_text_count=0u;return 0u;
+}
 static void get_settings(uint32_t now) {
     car_wireless_frame_t f=frame(CAR_WIRELESS_CONFIG,now);
     /* Portable record; GUI uses the same schema and CRC as persistent storage. */
@@ -160,7 +246,8 @@ static void seekfree_byte(uint8_t b,uint32_t now) {
     for (i=0;i<8;++i) if (i!=1) checksum=(uint8_t)(checksum+seekfree_rx[i]);
     if (checksum!=seekfree_rx[1] || seekfree_rx[2]!=0x20 || seekfree_rx[3]>7) return;
     memcpy(&value,seekfree_rx+4,4);if (!isfinite(value)) return;
-    if (seekfree_rx[3]==7) {if(value>=0 && value<=2 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
+    if (seekfree_rx[3]==7) {if(value>=0 && value<=3 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
+    if (scope_page>=3u) return;
     id=ids[scope_page][seekfree_rx[3]];if(!id || value < -1000000 || value>1000000 || value!=(float)(int32_t)value) return;
     group=(id==2 || id==6 || id==7)?2:(id>=8 && id<=10)?3:(id>=11 && id<=16)?4:1;
     entry.id=(uint8_t)id;entry.value=(int32_t)value;
@@ -175,6 +262,12 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     memset(&image_queue,0,sizeof(image_queue));
     memset(&camera_queue,0,sizeof(camera_queue));memset(pending,0,sizeof(pending));
     radio_active.size=camera_active.size=0;rx_head=rx_tail=0;seekfree_count=0;
+    calibration_status=CAL_STATUS_IDLE;calibration_attempted=0;
+    calibration_command_pending=0;calibration_text_count=0;
+    calibration_ack_status=WIRELESS_ACK_NOT_READY;calibration_detail=0;
+    calibration_accepted_frames=calibration_attempted_frames=0;
+    calibration_reason_hash=0;
+    calibration_text_started_ms=0;
     wireless_settings_defaults(&settings);
     /* Adapter validates both slots before returning any persistent settings. */
     flash_selected_slot=1u;
@@ -254,7 +347,27 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
     v[30]=scope_page;v[31]=s->now_ms;
     if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT){
         if(type!=CAR_WIRELESS_STATE)return;
-        for(i=0;i<16;++i)scope[i]=(float)(int32_t)v[(scope_page*8u+i)%32u];
+        if(scope_page==3u) {
+            uint32_t age=camera_ready ? s->now_ms-camera_last_ms : UINT32_MAX;
+            scope[0]=(float)calibration_status;
+            scope[1]=(float)calibration_ack_status;
+            scope[2]=(float)calibration_accepted_frames;
+            scope[3]=(float)calibration_attempted_frames;
+            scope[4]=(float)camera_ready;
+            scope[5]=(float)(camera_ready && age<=1000u);
+            scope[6]=(camera_ready && age<=1000u) ? (float)age : -1.0f;
+            scope[7]=(float)calibration_attempted;
+            scope[8]=(float)camera_count;
+            scope[9]=(float)car_wireless_camera_dropped;
+            scope[10]=(float)car_wireless_tx_dropped;
+            scope[11]=(float)car_wireless_rx_overflow;
+            scope[12]=(float)engine.settings_generation;
+            scope[13]=(float)car_wireless_packets;
+            scope[14]=(float)scope_page;
+            scope[15]=(float)calibration_reason_hash;
+        } else {
+            for(i=0;i<16;++i)scope[i]=(float)(int32_t)v[(scope_page*8u+i)%32u];
+        }
         if(car_seekfree_oscilloscope_frame(packed,sizeof(packed),scope,16,&written) &&
            !push(&radio_queue,TX_N,packed,written))++car_wireless_tx_dropped;
         return;
@@ -272,6 +385,13 @@ void car_wireless_camera_frame(const car_wireless_frame_t *f,uint32_t now) {
         uint32_t seq=u32(f->payload+4);
         for(i=0;i<4;++i)if(pending[i].active && pending[i].camera_sequence==seq){
             wireless_control_ack_t ack={f->payload[0],pending[i].opcode,1,f->payload[3],pending[i].pc_sequence,u32(f->payload+8),u32(f->payload+12)};
+            if (pending[i].opcode==WIRELESS_OP_CAMERA_CAL &&
+                pending[i].pc_sequence==0u && calibration_attempted &&
+                ack.status!=WIRELESS_ACK_PENDING) {
+                calibration_detail_from_ack(ack.status,ack.detail);
+                calibration_status=(ack.status==WIRELESS_ACK_OK) ?
+                    CAL_STATUS_SUCCESS : CAL_STATUS_FAILED;
+            }
             if(ack.status==WIRELESS_ACK_OK && pending[i].pc_sequence==0 && pending[i].opcode==WIRELESS_OP_SET_PARAMS){
                 synced_vision_p=pending[i].vision_p;synced_vision_d=pending[i].vision_d;
             }
@@ -279,6 +399,16 @@ void car_wireless_camera_frame(const car_wireless_frame_t *f,uint32_t now) {
             cache_final(&ack,now);return;
         }
         return;
+    }
+    if(f->type==CAR_WIRELESS_EVENT && f->payload_len>=8u &&
+       f->payload[0]==1u && calibration_status==CAL_STATUS_PENDING) {
+        /* CAMERA_CAL progress: ready, accepted, attempted, reason hash. */
+        calibration_accepted_frames=u16(f->payload+2);
+        calibration_attempted_frames=u16(f->payload+4);
+        calibration_reason_hash=u16(f->payload+6);
+        calibration_detail=(uint32_t)calibration_accepted_frames |
+            ((uint32_t)calibration_attempted_frames<<16);
+        if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT) return;
     }
     if(f->type==CAR_WIRELESS_STATE || f->type==CAR_WIRELESS_DIAG || f->type==CAR_WIRELESS_EVENT || f->type==CAR_WIRELESS_CONFIG){
         if(engine.tool_mode==WIRELESS_TOOL_MODE_COMPLETE){out=*f;out.session=engine.session;out.sequence=++serial;out.timestamp_ms=now;
@@ -333,6 +463,11 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
         synced_vision_p=synced_vision_d=0;
         for(i=0;i<4;i++)if(pending[i].active){
             wireless_control_ack_t ack={WIRELESS_ACK_NOT_READY,pending[i].opcode,1,0,pending[i].pc_sequence,0,0};
+            if (pending[i].opcode==WIRELESS_OP_CAMERA_CAL &&
+                pending[i].pc_sequence==0u && calibration_attempted) {
+                calibration_ack_status=WIRELESS_ACK_NOT_READY;
+                calibration_status=CAL_STATUS_FAILED;
+            }
             pending[i].active=0;cache_final(&ack,now);
         }
     }
@@ -347,6 +482,8 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
         uint8_t b=rx_data[rx_tail];uint32_t at=rx_time[rx_tail];rx_tail=(rx_tail+1u)&(RX_N-1u);
         if(now-at>100u){car_wireless_parser_init(&radio_parser);seekfree_count=0;continue;}
         if(at-last_rx_ms>50u){car_wireless_parser_init(&radio_parser);seekfree_count=0;}last_rx_ms=at;
+        if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT &&
+           calibration_text_byte(b,now)) continue;
         if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT &&
            (seekfree_count || (!radio_parser.length && b==0x55))) {
             seekfree_byte(b,now);continue;
@@ -372,6 +509,7 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
         /* Apply a requested start/stop/calibration before admitting another operation. */
         if(effect!=CAR_WIRELESS_EFFECT_NONE)break;
     }
+    try_start_calibration(now,s,&state);
     if(wireless_control_take_stop(&engine) && effect!=CAR_WIRELESS_EFFECT_STOP)effect=CAR_WIRELESS_EFFECT_STOP;
     (void)wireless_control_take_start(&engine);(void)wireless_control_take_imu_cal(&engine);
     if(now-camera_last_hello_ms>=200u && camera_queue.count<CAM_N){
@@ -386,6 +524,11 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
     if(capture_pending && now-capture_started_ms>IMAGE_TTL_MS){capture_pending=image_receiving=0;++car_wireless_camera_dropped;}
     for(i=0;i<4;++i)if(pending[i].active && (int32_t)(now-pending[i].deadline)>=0){
         wireless_control_ack_t ack={WIRELESS_ACK_NOT_READY,pending[i].opcode,1,0,pending[i].pc_sequence,0,engine.settings_generation};
+        if (pending[i].opcode==WIRELESS_OP_CAMERA_CAL &&
+            pending[i].pc_sequence==0u && calibration_attempted) {
+            calibration_ack_status=WIRELESS_ACK_NOT_READY;
+            calibration_status=CAL_STATUS_TIMEOUT;
+        }
         pending[i].active=0;cache_final(&ack,now);if(ack.opcode==WIRELESS_OP_CAPTURE)capture_pending=0;
     }
     /* MCU settings hold desired vision gains; the camera reports its own ACK.

@@ -2,6 +2,26 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Wireless diagnostics and control / gyro350 C +40%",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: Wireless diagnostics and control / gyro350 C +40%",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "4000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugWirelessGyro350Speed140/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugWirelessGyro350Speed140/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      }
+    },
+    {
       "name": "K230 Gyro350 C +40% | 350deg / center300ms",
       "type": "stlinkgdbtarget",
       "request": "launch",

@@ -9,6 +9,14 @@ static uint32_t seq=0, camera_seq=0, epoch;
 static void put32(uint8_t *p,uint32_t v){for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(v>>(i*8));}
 static uint32_t get32(const uint8_t *p){return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void service(uint32_t now){snapshot.now_ms=now;car_wireless_service(&snapshot,&control,&config);}
+static void text_feed(const char *text,uint32_t now){
+    for(size_t i=0;text[i];++i)car_wireless_uart_rx_isr((uint8_t)text[i],now);
+    service(now);
+}
+static void raw_feed(const uint8_t *bytes,size_t length,uint32_t now){
+    for(size_t i=0;i<length;++i)car_wireless_uart_rx_isr(bytes[i],now);
+    service(now);
+}
 static void feed(car_wireless_frame_t *f,uint32_t now){
     uint8_t bytes[CAR_WIRELESS_MAX_FRAME];size_t n;assert(car_wireless_encode(f,bytes,sizeof bytes,&n));
     for(size_t i=0;i<n;i++)car_wireless_uart_rx_isr(bytes[i],now);
@@ -31,6 +39,37 @@ static void camera_ready(uint32_t now){
     while(car_wireless_camera_tx_byte(&b,1))if(car_wireless_parser_feed(&p,b,&f)==CAR_WIRELESS_PARSE_FRAME && f.type==CAR_WIRELESS_HELLO)epoch=f.session;
     assert(epoch);memset(&f,0,sizeof f);f.type=CAR_WIRELESS_HELLO_REPLY;f.session=epoch;f.sequence=++camera_seq;
     car_wireless_camera_frame(&f,now);
+}
+static uint32_t drain_camera_command(uint8_t opcode){
+    car_wireless_parser_t p;car_wireless_frame_t f;uint8_t b;uint32_t sequence=0;
+    car_wireless_parser_init(&p);
+    while(car_wireless_camera_tx_byte(&b,1))
+        if(car_wireless_parser_feed(&p,b,&f)==CAR_WIRELESS_PARSE_FRAME &&
+           f.type==CAR_WIRELESS_COMMAND && f.payload_len>=1u && f.payload[0]==opcode)
+            sequence=f.sequence;
+    return sequence;
+}
+static void camera_ack(uint32_t sequence,uint8_t status,uint32_t detail,uint32_t now){
+    car_wireless_frame_t f={0};f.type=CAR_WIRELESS_ACK;f.session=epoch;
+    f.sequence=++camera_seq;f.payload_len=16;f.payload[0]=status;
+    f.payload[1]=WIRELESS_OP_CAMERA_CAL;put32(f.payload+4,sequence);
+    put32(f.payload+8,detail);car_wireless_camera_frame(&f,now);
+}
+static float last_scope[16];
+static float drain_scope_value(unsigned index){
+    uint8_t packet[72],b;size_t count=0;float value=0.0f;
+    while(car_wireless_radio_tx_byte(&b)){
+        if(!count && b!=0xaau)continue;
+        packet[count++]=b;
+        if(count==sizeof(packet)){
+            if(packet[2]==0x10u && packet[3]==16u && index<16u) {
+                memcpy(last_scope,packet+8u,sizeof last_scope);
+                memcpy(&value,packet+8u+index*4u,sizeof(value));
+            }
+            count=0;
+        }
+    }
+    return value;
 }
 int main(void){
     snapshot.button_released=snapshot.startup_released=1;config.motor_hardware_accepted=1;
@@ -78,7 +117,76 @@ int main(void){
     f.type=CAR_WIRELESS_ACK;f.sequence=++camera_seq;f.payload_len=16;
     f.payload[0]=WIRELESS_ACK_OK;f.payload[1]=WIRELESS_OP_CAMERA_CAL;put32(f.payload+4,cal_seq);
     car_wireless_camera_frame(&f,91241);assert(!car_wireless_capture_busy());
+    /* CALWIDTH is an assistant-only text trigger. Split input and CRLF are
+       accepted, while a retransmitted accepted command is ignored. */
+    car_wireless_init(92000,12346);service(92000);camera_ready(92000);
+    text_feed("CAL",92010);text_feed("WIDTH",92011);text_feed("\r\n",92012);
+    uint32_t ascii_cal_seq=drain_camera_command(WIRELESS_OP_CAMERA_CAL);assert(ascii_cal_seq);
+    text_feed("CALWIDTH\n",92013);assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    f=(car_wireless_frame_t){0};f.type=CAR_WIRELESS_EVENT;f.session=epoch;
+    f.sequence=++camera_seq;f.payload_len=16;f.payload[0]=1;f.payload[1]=0;
+    f.payload[2]=10;f.payload[4]=30;f.payload[6]=0x34;f.payload[7]=0x12;
+    car_wireless_camera_frame(&f,92014);
+    service(92050);assert(drain_scope_value(0)==1.0f);
+    assert(last_scope[2]==10.0f && last_scope[3]==30.0f && last_scope[15]==4660.0f);
+    camera_ack(ascii_cal_seq,WIRELESS_ACK_OK,64u|(70u<<16),92060);
+    uint8_t page[8];assert(car_seekfree_debug_param_frame(page,sizeof page,7,3.0f));
+    raw_feed(page,sizeof page,92061);service(92100);assert(drain_scope_value(0)==2.0f);
+    assert(last_scope[2]==64.0f && last_scope[3]==70.0f);
+    text_feed("CALWIDTH\n",92101);assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    service(92150);assert(drain_scope_value(0)==2.0f);
+    assert(last_scope[2]==64.0f && last_scope[3]==70.0f);
+    uint16_t before=car_wireless_settings()->wheel_scale_permille;
+    assert(car_seekfree_debug_param_frame(page,sizeof page,0,500.0f));
+    raw_feed(page,sizeof page,92151);assert(car_wireless_settings()->wheel_scale_permille==before);
+    /* A new boot permits a new request, but output-active prerequisites
+       reject it without forwarding a camera command. */
+    car_wireless_init(93000,12347);service(93000);camera_ready(93000);
+    snapshot.outputs_active=1;text_feed("CALWIDTH\n",93001);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));snapshot.outputs_active=0;
+    /* Faulted and disconnected camera states are rejected before forwarding;
+       a malformed C-prefix and binary bytes do not become CALWIDTH. */
+    car_wireless_init(94000,12348);service(94000);camera_ready(94000);
+    control.fault_latched=1;text_feed("CALWIDTH\n",94001);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));control.fault_latched=0;
+    car_wireless_init(95000,12349);service(95000);
+    text_feed("CALX",95001);uint8_t binary_noise[8]={0x55,0,0x20,7,0,0,0,0};
+    raw_feed(binary_noise,sizeof binary_noise,95002);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    /* Once accepted, a camera failure is reported as failed and a silent
+       camera is reported as timeout in the page-3 status channel. */
+    car_wireless_init(96000,12350);service(96000);camera_ready(96000);
+    text_feed("CALWIDTH\n",96001);uint32_t failed_seq=drain_camera_command(WIRELESS_OP_CAMERA_CAL);
+    assert(failed_seq);camera_ack(failed_seq,WIRELESS_ACK_FAULT,0,96002);
+    service(96050);assert(drain_scope_value(0)==4.0f);
+    car_wireless_init(97000,12351);service(97000);camera_ready(97000);
+    text_feed("CALWIDTH\n",97001);assert(drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    service(99000);assert(drain_scope_value(0)==4.0f);
+    /* A live but non-finishing camera times out at the independent 65s deadline. */
+    car_wireless_init(100000,12352);service(100000);camera_ready(100000);
+    text_feed("CALWIDTH\n",100001);assert(drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    for(uint32_t at=101000;at<=166000;at+=1000){
+        f=(car_wireless_frame_t){0};f.type=CAR_WIRELESS_HELLO_REPLY;
+        f.session=epoch;f.sequence=++camera_seq;car_wireless_camera_frame(&f,at);
+        service(at);drain_camera_command(0);if(at<166000)drain_scope_value(0);
+    }
+    drain_scope_value(0);service(166050);assert(drain_scope_value(0)==5.0f);
+    /* No execution during a driving session; prerequisites can then be retried. */
+    car_wireless_init(170000,12353);service(170000);camera_ready(170000);
+    control.follow_session_active=1;text_feed("CALWIDTH\n",170001);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    control.follow_session_active=0;text_feed("CALWIDTH\n",170002);
+    assert(drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    /* A valid D3 packet containing command text is never interpreted as ASCII. */
+    car_wireless_init(180000,12354);service(180000);camera_ready(180000);
+    f=(car_wireless_frame_t){0};f.type=CAR_WIRELESS_EVENT;
+    f.payload_len=9;memcpy(f.payload,"CALWIDTH\n",9);feed(&f,180001);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    text_feed("CAL",180010);text_feed("WIDTH\n",180600);
+    assert(!drain_camera_command(WIRELESS_OP_CAMERA_CAL));
+    text_feed("CAL",180700);text_feed("WIDTH\n",180800);
+    assert(drain_camera_command(WIRELESS_OP_CAMERA_CAL));
     assert(get32((uint8_t[]){1,2,3,4})==0x04030201u);
-    puts("wireless runtime: replay, motor deadline, local stop, camera state and missing-image timeout passed");
+    puts("wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed");
     return 0;
 }

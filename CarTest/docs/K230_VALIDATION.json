@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_LCD_SCALE_20261108",
+  "port": "CARTEST_K230_SEEKFREE_CAL_20261108",
   "status": "experimental-software-tested-hardware-pending",
   "camera_tests": {
     "run": 527,
@@ -257,7 +257,7 @@
     "DebugRingFastSpeed130": "a1edfbce94c0a5c1a58bd24ce8d3b052818acae2678a34e4ed7b19966b993883",
     "DebugRingFastSpeed140": "3b64dfcb2a81f382b170d4df1ccbb171c140b3cf1b603f7c6817a630dd047812",
     "DebugSteering": "4e1e97771989d6a9639657f061f46ed4470b835e240ed3e638043c4d45044075",
-    "DebugWirelessGyro350Speed140": "4886e8abda8435796d589b47eac2a72c2c7b2c0bfaaecdc761708483ce67a6aa"
+    "DebugWirelessGyro350Speed140": "db966a19fab54a4e29495fe9eef9e30e8623e04441a432c199101780425c7c56"
   },
   "hardware_actions": "none",
   "board_runtime_fps": "unverified",
@@ -295,7 +295,7 @@
     "App/wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
     "App/wireless_flash_stm32.c": "dd0f9211c3b93abef6e139ddcef1fd73cace6dede5d79813941977adb6a8e185",
     "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
-    "App/wireless_runtime.c": "a4dc458df34cd2c5ba5dc78c500f8ae245ec7d017c56d634082238f7860d31b0",
+    "App/wireless_runtime.c": "7bde5610b43e3c29768a5d365344bf519eb2cc5ffae5db3b6c2af291101e5557",
     "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
     "cmake/components.cmake": "bd3ca45f13265afe58297c23db39592ccba61eb93c3d348a53ceac1f42c4e118",
     "cmake/files.cmake": "4a3f1fd36e5a3a8ba3e4310bbf5824876d7997485c9e2ec4b26d11a18ad9d1cc",
@@ -881,15 +881,15 @@
     },
     "WIRELESS_RUNTIME": {
       "passed": true,
-      "summary": "wireless runtime: replay, motor deadline, local stop, camera state and missing-image timeout passed",
+      "summary": "wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed",
       "hardware_actions": "none",
       "source_sha256": {
-        "App/wireless_runtime.c": "a4dc458df34cd2c5ba5dc78c500f8ae245ec7d017c56d634082238f7860d31b0",
+        "App/wireless_runtime.c": "7bde5610b43e3c29768a5d365344bf519eb2cc5ffae5db3b6c2af291101e5557",
         "App/wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
         "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
         "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
         "Inc/wireless_runtime.h": "bc4137f388d7038d99db63e63f5baced465be57a62175f98a7faeb3bd8202321",
-        "tests/wireless_runtime/test_runtime.c": "3f980f99d5af33209c9fa81dffc1d22f74101c924033d428848f3da5a5595b36"
+        "tests/wireless_runtime/test_runtime.c": "2bdb923bfad58f61036014f373fe58fea64c8a292c475349dc3c726fe7740bbb"
       }
     },
     "WIRELESS_VISION_INTEGRATION": {
@@ -931,5 +931,5 @@
     }
   },
   "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks",
-  "mcu_build_evidence": "prior actual builds reused after source and ELF hash verification"
+  "mcu_build_evidence": "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged"
 }

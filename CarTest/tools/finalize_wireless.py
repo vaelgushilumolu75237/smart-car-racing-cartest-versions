@@ -15,6 +15,7 @@ def read(p): return json.loads(p.read_text(encoding='utf-8-sig'))
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--reuse-verified-mcu", action="store_true")
+    parser.add_argument("--rebuild-wireless-only", action="store_true")
     args=parser.parse_args()
     reports={}
     for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION','WIRELESS_AUX_PINS'):
@@ -43,7 +44,23 @@ def main():
         print('BUILT '+profile,flush=True)
         return profile,digest(ROOT/'build'/profile/'CarTest.elf')
     old=read(ROOT/'docs/K230_VALIDATION.json')
-    if args.reuse_verified_mcu:
+    if args.rebuild_wireless_only:
+        if args.reuse_verified_mcu:
+            raise RuntimeError('Choose only one MCU evidence mode')
+        changed=[name for name, expected in old['mcu_source_sha256'].items()
+                 if digest(ROOT/name)!=expected]
+        if set(changed)-{'App/wireless_runtime.c'}:
+            raise RuntimeError('Wireless-only rebuild scope exceeded: '+repr(changed))
+        if set(profiles)!=set(old['built_profiles']):
+            raise RuntimeError('MCU profile set changed')
+        hashes={profile:digest(ROOT/'build'/profile/'CarTest.elf') for profile in profiles}
+        if hashes!=old['elf_sha256']:
+            raise RuntimeError('Pre-build ELF evidence changed')
+        # CMake includes wireless_runtime.c only for this wireless preset.
+        profile, elf_hash=build('DebugWirelessGyro350Speed140')
+        hashes[profile]=elf_hash
+        print('REUSED 19 unaffected non-wireless builds after source/ELF hash checks',flush=True)
+    elif args.reuse_verified_mcu:
         if set(profiles) != set(old['built_profiles']):
             raise RuntimeError('MCU profile set changed')
         for name, expected in old['mcu_source_sha256'].items():
@@ -73,13 +90,13 @@ def main():
     source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
     source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
     result=dict(old)
-    result.update(port='CARTEST_K230_LCD_SCALE_20261108',status='experimental-software-tested-hardware-pending',
+    result.update(port='CARTEST_K230_SEEKFREE_CAL_20261108',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
         legacy_host_tests_passed=True,all_bytecode_compiled=True,compilation=compilation,
         built_profiles=profiles,elf_sha256=hashes,
-        mcu_build_evidence="prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "actual builds this run",
+        mcu_build_evidence="prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged" if args.rebuild_wireless_only else "actual builds this run",
         mcu_source_sha256={p.relative_to(ROOT).as_posix():digest(p) for p in sorted(source_inputs)},
         wireless_tests_passed=True,wireless_reports=reports,
         diagnostic_evidence='reused prior passing evidence after unchanged source hash checks',
@@ -91,7 +108,7 @@ def main():
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
         paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
-        release_version='v20261108-k230-lcd-scale-v4',
+        release_version='v20261108-k230-seekfree-cal-v5',
         wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
                           'external_resistor':'software alternative; physical verification pending',
                           'hardware_flow_control':False})

@@ -75,3 +75,58 @@ The firmware does not send AT commands automatically. Configure the module's
 retry policy deliberately; infinite retransmission can create internal queues
 that are unsuitable for real-time telemetry. The module's physical H743
 USART2 pin header still requires board-level verification.
+
+
+## SeekFree Assistant width calibration (v5)
+
+While parked on a measured 45 cm straight, keep the K230 in its final race
+mount and the H743 running in profile C. In the existing SeekFree Assistant
+serial tab, disable HEX send and automatic send. Send the ASCII line
+`CALWIDTH\n` (or `CALWIDTH\r\n`). The characters `\n` here denote an actual
+line ending, not a literal backslash followed by n. The GUI's line-ending
+option may append the ending. This command does not start driving.
+
+The H743 requires released startup/local buttons, inactive motion and
+actuator tests, no fault, no other calibration/capture/Flash operation, and
+a fresh negotiated K230 link. The existing K230 routine still validates
+stationary profile state and stable bilateral straight rows. Only the
+camera's successful final save/reload ACK means success; visible edge
+lines or a ready progress event alone do not mean the width map was saved.
+The K230 stores the private width map and updates its current tracker.
+
+A successfully forwarded request is allowed once per H743 boot. Further
+copies of the same text do not restart the job or erase its result.
+Rejected prerequisites may be corrected and retried. To retry a forwarded
+job after failure, restart the H743 manually and send a new request after
+stopping the car; the software never resets hardware itself.
+
+Sending CALWIDTH selects scope page 3 automatically. Scope pages 0 to 2
+retain their existing mappings. Debug parameter channel 7 selects a page
+0 to 3; parameter writes on channels 0 to 6 are ignored on page 3.
+The 16-channel status mapping is documented in the matching release notes.
+Use SeekFree Assistant binary scope mode (Printf off).
+
+Page 3 channels (zero based):
+
+| Channel | Value |
+| --- | --- |
+| 0 | Calibration state: 0 idle, 1 pending, 2 saved/reloaded successfully, 3 rejected, 4 failed/disconnected, 5 timeout |
+| 1 | ACK status: 0 OK, 1 pending, 7 not parked, 8 busy, 13 fault, 15 camera not ready |
+| 2 | Accepted straight-row frames (64 required) |
+| 3 | Attempted eligible frames |
+| 4 | Camera handshake ready |
+| 5 | Camera link fresh (within 1000 ms) |
+| 6 | Camera message age in ms; -1 if disconnected or older than 1000 ms |
+| 7 | A request has been forwarded this H743 boot |
+| 8 | Received camera message count |
+| 9 | Dropped camera messages |
+| 10 | Dropped radio messages |
+| 11 | Radio RX overflow count |
+| 12 | Settings generation |
+| 13 | Parsed complete-protocol radio packets |
+| 14 | Current scope page (3) |
+| 15 | Camera calibration reason hash (diagnostic code, not a success indication) |
+
+Show only channels 0 to 5 while calibrating to avoid large counters
+stretching the scope's automatic Y axis. When finished, send debug
+parameter channel 7 value 0 to restore the ordinary 16-channel page.
