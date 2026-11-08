@@ -68,6 +68,21 @@ class ReadinessTests(unittest.TestCase):
         uart.device.read = lambda count: self.fail("read on empty native UART")
         self.assertEqual(uart.any(), 0)
 
+    def test_buffer_consumption_supports_canmv_without_bytearray_deletion(self):
+        class CanMVBytearray(bytearray):
+            def __delitem__(self, key):
+                raise TypeError("'bytearray' object doesn't support item deletion")
+
+        uart = hal.UARTAdapter(1, 115200)
+        uart.pending = CanMVBytearray(b"abc\0de")
+        buf = bytearray(4)
+        self.assertEqual(uart.readinto(buf, 4), 4)
+        self.assertEqual(buf, b"abc\0")
+        self.assertEqual(uart.pending, b"de")
+        self.assertEqual(uart.readinto(buf, 4), 2)
+        self.assertEqual(buf[:2], b"de")
+        self.assertEqual(uart.pending, b"")
+
 
 if __name__ == "__main__":
     unittest.main()

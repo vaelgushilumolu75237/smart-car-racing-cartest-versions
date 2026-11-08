@@ -35,7 +35,7 @@
     "hardware": "not_connected"
   },
   "hal_tests_passed": true,
-  "hal_tests": 22,
+  "hal_tests": 23,
   "gyro_camera_tests_passed": true,
   "gyro_driver_state_tests_passed": true,
   "gyro_integration_tests_passed": true,
@@ -1304,5 +1304,28 @@
     "hardware_verified": false,
     "mcu_change": false,
     "mcu_artifacts": "Reused unchanged v15 paired builds; no new MCU build needed"
+  },
+  "uart_buffer_compatibility": {
+    "version": "v20261109-k230-bytearray-compat-v17",
+    "hal_and_port_tests": 23,
+    "failures": 0,
+    "hal_source_sha256": "c3b1c29849dccec60dd81799ce5a41acbba6e81198805ba9d25071d5eaeaa997",
+    "runtime_test": {
+      "hello_replies_crc_valid": 25,
+      "passed": true,
+      "bytearray_delete_unsupported": true,
+      "profiles_accepted": 50,
+      "hello_sent": 25,
+      "hello_accepted": 25,
+      "profiles_sent": 50,
+      "remaining_bytes": 0,
+      "profile_ack": 3,
+      "pending_bytes": 0,
+      "version": "v17",
+      "scope": "Synthetic UART data parsed on actual K230; physical H743 wire not exercised"
+    },
+    "physical_wire_verified": false,
+    "h743_reflash_required": false,
+    "paired_h743_builds": "Unchanged, previously built v15 binaries; hashes checked by checkpoint publisher"
   }
 }

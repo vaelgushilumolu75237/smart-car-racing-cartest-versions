@@ -265,7 +265,9 @@ class UARTAdapter:
         if self.pending:
             count = min(count, len(self.pending))
             buffer[:count] = self.pending[:count]
-            del self.pending[:count]
+            # Factory CanMV bytearray supports slicing but not item deletion.
+            # Replace the bounded unread suffix instead of resizing in place.
+            self.pending = self.pending[count:]
             return count
         target = buffer if count == len(buffer) else memoryview(buffer)[:count]
         return self.device.readinto(target)

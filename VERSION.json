@@ -1,6 +1,6 @@
 {
-  "version": "v20261109-k230-uart-readiness-v16",
-  "status": "experimental-software-tested-hardware-pending",
+  "version": "v20261109-k230-bytearray-compat-v17",
+  "status": "experimental-device-synthetic-tested-wire-pending",
   "branch": "experimental/wireless-diagnostics-v1",
   "files": 641,
   "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",

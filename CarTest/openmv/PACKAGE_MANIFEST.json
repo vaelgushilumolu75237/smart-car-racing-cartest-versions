@@ -52,7 +52,7 @@
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
     "k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
-    "k230_hal.py": "5fb06154dc34d0af1052fe7b7189031f28acf907999efeecb423e56e2e4b6310",
+    "k230_hal.py": "c3b1c29849dccec60dd81799ce5a41acbba6e81198805ba9d25071d5eaeaa997",
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "7c254856d61bbea226ee83f8cc01715e644264dcc4a066b6e05733c1311699a7",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261109-k230-uart-readiness-v16",
+  "release_version": "v20261109-k230-bytearray-compat-v17",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -124,6 +124,12 @@
     "prefetch_limit": 256,
     "parser_chunk_limit": 64,
     "hardware_verified": false,
-    "h743_rebuild_required": false
+    "h743_rebuild_required": false,
+    "superseded_by": "v20261109-k230-bytearray-compat-v17"
+  },
+  "uart_buffer_compatibility": {
+    "method": "Replace bounded unread suffix; never delete bytearray items",
+    "on_device_synthetic_verified": true,
+    "physical_wire_verified": false
   }
 }
