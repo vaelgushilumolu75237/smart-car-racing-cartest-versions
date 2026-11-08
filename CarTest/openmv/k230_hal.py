@@ -245,13 +245,25 @@ class UARTAdapter:
                 self.pending.extend(data)
         return len(self.pending)
 
-    def readinto(self, buffer):
+    def readinto(self, buffer, nbytes=None):
+        # The production OpenMV service calls readinto(buffer, requested).
+        # CanMV's native UART accepts only the buffer; pass a bounded view so
+        # neither prefetched nor native reads consume the next frame's bytes.
+        if nbytes is None:
+            count = len(buffer)
+        else:
+            if isinstance(nbytes, bool) or not isinstance(nbytes, int) or nbytes < 0:
+                raise ValueError("UART read length must be a nonnegative integer")
+            count = min(nbytes, len(buffer))
+        if count == 0:
+            return 0
         if self.pending:
-            count = min(len(buffer), len(self.pending))
+            count = min(count, len(self.pending))
             buffer[:count] = self.pending[:count]
             del self.pending[:count]
             return count
-        return self.device.readinto(buffer)
+        target = buffer if count == len(buffer) else memoryview(buffer)[:count]
+        return self.device.readinto(target)
 
     def write(self, data):
         # Preserve None/short writes; never claim successful full transmission.

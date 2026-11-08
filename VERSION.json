@@ -1,5 +1,5 @@
 {
-  "version": "v20261108-k230-transport-diag-v6",
+  "version": "v20261108-k230-uart-readinto-v7",
   "status": "experimental-software-tested",
   "branch": "experimental/wireless-diagnostics-v1",
   "files": 633,

@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_TRANSPORT_DIAG_20261108",
+  "port": "CARTEST_K230_UART_READINTO_FIX_20261108",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -52,7 +52,7 @@
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
     "k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
-    "k230_hal.py": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de",
+    "k230_hal.py": "8d4f45c0482d18674377afd9a9a8376e395c2a2e74afce7d4d2a98fe6b32525e",
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-transport-diag-v6",
+  "release_version": "v20261108-k230-uart-readinto-v7",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

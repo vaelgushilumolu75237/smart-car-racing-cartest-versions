@@ -47,19 +47,19 @@
       "scope": "OpenMV production wireless camera bridge",
       "wireless_tests_passed": true,
       "wireless_camera_tests": {
-        "command": "python -m unittest -v tests.wireless_camera.test_wireless_camera",
+        "command": "-m unittest discover -s tests/wireless_camera -p test_*.py -q",
         "errors": 0,
-        "tests": 6,
+        "tests": 10,
         "failures": 0,
         "passed": true
       },
       "hal": {
-        "command": "python -m unittest discover -s tests/k230_port -p test_*.py -v",
-        "tests": 10,
+        "command": "-m unittest discover -s tests/k230_port -p test_*.py -q",
+        "tests": 14,
         "passed": true
       },
       "gyro_camera": {
-        "command": "python -m unittest discover -s tests/k230_gyro -p test_*.py -v",
+        "command": "-m unittest discover -s tests/k230_gyro -p test_*.py -q",
         "tests": 14,
         "passed": true
       },
@@ -178,8 +178,8 @@
         },
         {
           "file": "k230_hal.py",
-          "source_sha256": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de",
-          "mpy_sha256": "e068d8e6a476156145551c523e3bb89590870e60f06103faaaa00948497beeb7",
+          "source_sha256": "8d4f45c0482d18674377afd9a9a8376e395c2a2e74afce7d4d2a98fe6b32525e",
+          "mpy_sha256": "4d9872dba75081947e2c33de02a021d2d6cbd807274d3f6196afbe1a1a692940",
           "exitcode": 0
         },
         {
@@ -309,7 +309,7 @@
         "openmv/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
         "openmv/gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
         "openmv/k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
-        "openmv/k230_hal.py": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de",
+        "openmv/k230_hal.py": "8d4f45c0482d18674377afd9a9a8376e395c2a2e74afce7d4d2a98fe6b32525e",
         "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
         "openmv/k230_settings.py": "76be6f685378344bc2fa7e69532dd513c1d4a4f3a74c5e9d05fa4ed7f73abf86",
         "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
@@ -326,10 +326,25 @@
         "openmv/track_elements.py": "bad7976a1e8fbd39288eee9ded59766ee884a3c74eaff91694ac1484759aa9e2",
         "openmv/vision_protocol.py": "babbc51fdc565c5848642e914f55073ae513339ba1b98171bea4d398bdc1019d",
         "openmv/wireless_link.py": "8990bca65e5e265f4a747303acd290ca82f2b1f6fdced387e72177cf847d0a81",
-        "tests/wireless_camera/test_wireless_camera_actions.py": "3de4f8412236b8f0ae6e832448e244277352ff448c6414d3f9c6bbc318860a6a"
+        "tests/wireless_camera/test_wireless_camera_actions.py": "3de4f8412236b8f0ae6e832448e244277352ff448c6414d3f9c6bbc318860a6a",
+        "tests/k230_port/test_hal.py": "b48efbb38b91d2e837512c4d486fa81da5578d80dce170da488d84b46194c15c"
       },
       "display_fix": "Explicit x,y,text draw_string arguments; strict-signature regression included in camera suite. Hardware run pending.",
-      "lcd_preview": "LCD aspect preserving 2x preview in reusable buffer; unchanged 320x120 control crop; hardware run pending."
+      "lcd_preview": "LCD aspect preserving 2x preview in reusable buffer; unchanged 320x120 control crop; hardware run pending.",
+      "uart_readinto_fix": {
+        "passed": true,
+        "old_code_reproduction": {
+          "tests": 4,
+          "errors": 2,
+          "failures": 3,
+          "expected_failure": true,
+          "baseline_source_sha256": "47f71598e45ca8100a4407991ca66dc12f682ed6afc1d0ec649ae3d1f64261de"
+        },
+        "production_service_and_adapter_tested": true,
+        "native_any_and_prefetch_tested": true,
+        "split_frames_and_drain_tested": true,
+        "hardware_verified": false
+      }
     },
     "WIRELESS_TOOLS": {
       "passed": true,
@@ -475,24 +490,5 @@
     "DebugSteering": "d0085da141e9dce6bb2b90dc9385255843ed9ea7b69ef6b3232cc1d74299389e",
     "DebugWirelessGyro350Speed140": "82f0ee57b54dbf2fd22815f68c8f92e130813106279efbb73ec3ac94e9f40e63"
   },
-  "hardware_actions": "none",
-  "transport_diagnostics": {
-    "passed": true,
-    "scope": "read-only raw WHO_AM_I and USART1 transport evidence",
-    "driver_tests": "tests/gyro350/run.ps1: positive and negative yaw variants PASS",
-    "runtime_tests": "tests/wireless_runtime/run.py: page4 raw values and read-only parameter gates PASS",
-    "main_tests": "wireless main 12 assertions; gyro350 main 24 assertions PASS",
-    "vision_integration": "91 checks PASS",
-    "root_cause_confirmed": false,
-    "hardware_actions": "none",
-    "tested_source_sha256": {
-      "App/icm42688.c": "d6e7b3a30984c7559f3b604a78ceef2150d9792589e7ce599fd01f956616de0a",
-      "Inc/icm42688.h": "db6ad103e53bf422f633e60dc4425da8f5eca78a7e08744834bc7dad99fa0b78",
-      "App/wireless_runtime.c": "c289da4644586a6f3b1b2e9942ec2d65ba97c688cf9514326f67361bbe1e2e5a",
-      "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
-      "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
-      "tests/gyro350/test_gyro350.c": "550aeeee4c6fe0dcb716a25d30b57a6321cf375e784196a5674d34b74cf870da",
-      "tests/wireless_runtime/test_runtime.c": "80f3005e375e62204e1bf4926368cd7e62474cf904a45f918218b63cf60ab435"
-    }
-  }
+  "hardware_actions": "none"
 }

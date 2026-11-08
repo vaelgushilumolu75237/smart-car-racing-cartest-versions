@@ -110,6 +110,118 @@ class HALTests(unittest.TestCase):
             uart.device.result = result
             self.assertEqual(uart.write(b"x" * 16), result)
 
+    def test_requested_read_preserves_prefetched_tail_and_buffer_boundary(self):
+        uart = hal.UARTAdapter(1, 115200)
+        self.assertEqual(uart.any(), 4)
+        buffer = bytearray(b"????????")
+        self.assertEqual(uart.readinto(buffer, 2), 2)
+        self.assertEqual(buffer, b"\xa6\x5a??????")
+        self.assertEqual(uart.any(), 2)
+        self.assertEqual(uart.readinto(buffer, 1), 1)
+        self.assertEqual(buffer, b"\x00\x5a??????")
+        self.assertEqual(uart.any(), 1)
+        self.assertEqual(uart.readinto(buffer, 0), 0)
+        self.assertEqual(uart.any(), 1)
+        self.assertEqual(uart.readinto(buffer, 99), 1)
+        self.assertEqual(buffer[0], 0xff)
+
+    def test_requested_read_uses_native_one_argument_readinto(self):
+        uart = hal.UARTAdapter(1, 115200)
+        pending = bytearray(b"abcdef")
+        calls = []
+
+        def native_readinto(buffer):
+            calls.append(len(buffer))
+            count = min(len(buffer), len(pending))
+            buffer[:count] = pending[:count]
+            del pending[:count]
+            return count
+
+        uart.device.any = lambda: len(pending)
+        uart.device.readinto = native_readinto
+        buffer = bytearray(b"????????")
+        self.assertEqual(uart.any(), 6)
+        self.assertEqual(uart.readinto(buffer, 3), 3)
+        self.assertEqual(buffer, b"abc?????")
+        self.assertEqual(pending, b"def")
+        self.assertEqual(uart.readinto(buffer, 0), 0)
+        self.assertEqual(calls, [3])
+        self.assertEqual(uart.readinto(buffer), 3)
+        self.assertEqual(calls, [3, 8])
+        uart.device.readinto = lambda buffer: None
+        self.assertIsNone(uart.readinto(buffer, 1))
+
+    def test_production_receive_service_accepts_profile_and_wireless_hello(self):
+        import main as camera_main
+        import reverse_control as reverse
+        import wireless_link as wireless
+
+        epoch = 0x12345678
+        profile = reverse.pack_profile_state(
+            1, reverse.PROFILE_C,
+            reverse.PROFILE_SESSION_ACTIVE | reverse.PROFILE_GYRO350_SUPPORTED)
+        hello = wireless.encode_frame(wireless.TYPE_HELLO, 1, epoch, 1000,
+                                     epoch.to_bytes(4, "little") + b"\x01\x00\x00\x00")
+        for native_any in (False, True):
+            with self.subTest(native_any=native_any), \
+                    patch.object(camera_main, "reverse_control", reverse):
+                uart = hal.UARTAdapter(1, 115200)
+                stream = bytearray(profile + hello)
+                if native_any:
+                    uart.device.any = lambda: len(stream)
+
+                    def native_readinto(buffer):
+                        count = min(len(buffer), len(stream))
+                        buffer[:count] = stream[:count]
+                        del stream[:count]
+                        return count
+
+                    uart.device.readinto = native_readinto
+                else:
+                    uart.device.rx = [bytes(stream[:9]), bytes(stream[9:])]
+                parser = reverse.ReverseControlParser()
+                link = wireless.WirelessCameraLink(enabled=True, parked_cb=lambda: True)
+                drain = bytearray(1)
+                for step in range(3):
+                    camera_main._service_reverse_control(
+                        uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
+                        1000 + step, lambda now, then: now - then, link)
+                self.assertEqual(drain[0], 0)
+                self.assertTrue(parser.profile_session_active)
+                self.assertEqual(link.session, epoch)
+                uart.device.write = lambda data: (
+                    uart.device.writes.append(bytes(data)) or len(data))
+                link.service_tx(uart, 1004)
+                reply = wireless.decode_frame(uart.device.writes[-1])
+                self.assertEqual(reply["type"], wireless.TYPE_HELLO_REPLY)
+                self.assertEqual(reply["session"], epoch)
+
+    def test_production_drain_keeps_hello_but_drops_stale_profile(self):
+        import main as camera_main
+        import reverse_control as reverse
+        import wireless_link as wireless
+
+        uart = hal.UARTAdapter(1, 115200)
+        epoch = 17
+        profile = reverse.pack_profile_state(
+            1, reverse.PROFILE_C, reverse.PROFILE_SESSION_ACTIVE)
+        hello = wireless.encode_frame(wireless.TYPE_HELLO, 1, epoch, 1000,
+                                     epoch.to_bytes(4, "little") + b"\x01\x00\x00\x00")
+        # A burst over the existing 64-byte limit enters the drain path. The
+        # adapter must retain the unread suffix, including a split HELLO.
+        uart.device.rx = [b"\x00" * 32 + profile + hello]
+        parser = reverse.ReverseControlParser()
+        link = wireless.WirelessCameraLink(enabled=True, parked_cb=lambda: True)
+        drain = bytearray(1)
+        with patch.object(camera_main, "reverse_control", reverse):
+            for step in range(3):
+                camera_main._service_reverse_control(
+                    uart, parser, bytearray(reverse.MAX_FEED_BYTES), drain,
+                    1000 + step, lambda now, then: now - then, link)
+        self.assertEqual(drain[0], 0)
+        self.assertFalse(parser.profile_session_active)
+        self.assertEqual(link.session, epoch)
+
     def test_oversized_or_nonbinary_receive_is_rejected(self):
         uart = hal.UARTAdapter(1, 115200)
         for data in (b"x" * 257, "text"):
