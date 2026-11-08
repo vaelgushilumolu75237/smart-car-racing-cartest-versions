@@ -44,6 +44,14 @@ def checkpoint(args):
                 raise ValueError("MCU source changed since validation: " + name)
     if manifest.get("wireless_required") and not validation.get("wireless_tests_passed"):
         raise ValueError("Wireless verification incomplete")
+    if manifest.get("release_version") == "v20261108-k230-imu-mode0-v8":
+        report = validation.get("wireless_reports", {}).get("IMU_GPIO_SPI", {})
+        if validation.get("imu_gpio_spi_tests_passed") is not True or report.get("passed") is not True:
+            raise ValueError("GPIO SPI driver verification incomplete")
+        tested = report.get("tested_source_sha256", {})
+        if tested.get("App/icm42688_stm32.c") != hashlib.sha256(
+                (source / "App/icm42688_stm32.c").read_bytes()).hexdigest():
+            raise ValueError("GPIO SPI driver changed since low-level tests")
     presets = json.loads((source / "CMakePresets.json").read_text(encoding="utf-8-sig"))
     profiles = sorted(p["name"] for p in presets["buildPresets"] if not p.get("hidden"))
     if set(profiles) != set(validation["built_profiles"]):
@@ -110,7 +118,9 @@ def checkpoint(args):
     (store / "SHA256SUMS.json").write_text(json.dumps(hashes, indent=2), encoding="utf-8")
     (store / "VERSION.json").write_text(json.dumps({"version": args.version,
         "status": args.status, "branch": args.branch, "files": len(hashes),
-        "hardware_actions": "none", "platform": "Yahboom K230 deluxe",
+        "hardware_actions": validation.get("hardware_actions", "none"),
+        "deployment_actions": "none", "platform": "Yahboom K230 deluxe",
+        "hardware_diagnostics": validation.get("hardware_diagnostics", {}),
         "private_calibration_included": False}, indent=2), encoding="utf-8")
     (store / ".gitattributes").write_text("* -text\n", encoding="ascii")
     base.run_git("config", "core.autocrlf", "false")

@@ -1,9 +1,16 @@
 {
-  "version": "v20261108-k230-uart-readinto-v7",
+  "version": "v20261108-k230-imu-mode0-v8",
   "status": "experimental-software-tested",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 633,
-  "hardware_actions": "none",
+  "files": 637,
+  "hardware_actions": "stationary GPIO ID comparison; no flash/reset/camera upload/motor start",
+  "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
+  "hardware_diagnostics": {
+    "independent_gpio_mode0_whoami_verified": true,
+    "gpio_core_watchdog_restored": true,
+    "production_driver_bench_verified": false,
+    "raw_vehicle_logs_published": false
+  },
   "private_calibration_included": false
 }

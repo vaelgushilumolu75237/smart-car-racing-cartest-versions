@@ -16,9 +16,11 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--reuse-verified-mcu", action="store_true")
     parser.add_argument("--rebuild-wireless-only", action="store_true")
+    parser.add_argument("--completed-mcu-evidence", type=Path,
+                        help="Reuse separately recorded successful builds after exact source/ELF hash checks")
     args=parser.parse_args()
     reports={}
-    for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION','WIRELESS_AUX_PINS'):
+    for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION','WIRELESS_AUX_PINS','IMU_GPIO_SPI'):
         report=read(OUT/(name+'.json'))
         if report.get('passed') is not True: raise RuntimeError(name+' is not passed')
         for key in ('tested_source_sha256','source_sha256'):
@@ -44,7 +46,25 @@ def main():
         print('BUILT '+profile,flush=True)
         return profile,digest(ROOT/'build'/profile/'CarTest.elf')
     old=read(ROOT/'docs/K230_VALIDATION.json')
-    if args.rebuild_wireless_only:
+    source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
+    source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
+    current_sources={p.relative_to(ROOT).as_posix():digest(p) for p in sorted(source_inputs)}
+    completed=None
+    if sum(bool(v) for v in (args.rebuild_wireless_only,args.reuse_verified_mcu,args.completed_mcu_evidence)) > 1:
+        raise RuntimeError('Choose only one MCU evidence mode')
+    if args.completed_mcu_evidence:
+        completed=read(args.completed_mcu_evidence)
+        if completed.get('passed') is not True or set(completed.get('profiles',{})) != set(profiles):
+            raise RuntimeError('Completed build evidence is incomplete')
+        if completed.get('mcu_source_sha256') != current_sources:
+            raise RuntimeError('Completed build source set or hashes changed')
+        hashes={profile:digest(ROOT/'build'/profile/'CarTest.elf') for profile in profiles}
+        for profile in profiles:
+            row=completed['profiles'][profile]
+            if row.get('passed') is not True or row.get('elf_sha256') != hashes[profile]:
+                raise RuntimeError('Completed ELF evidence mismatch: '+profile)
+        print('REUSED 20 completed actual builds after exact source and ELF hash checks',flush=True)
+    elif args.rebuild_wireless_only:
         if args.reuse_verified_mcu:
             raise RuntimeError('Choose only one MCU evidence mode')
         changed=[name for name, expected in old['mcu_source_sha256'].items()
@@ -87,34 +107,42 @@ def main():
         if not bytecode.is_file() or bytecode.stat().st_mtime_ns<source.stat().st_mtime_ns:
             raise RuntimeError('Missing current bytecode: '+source.name)
         compilation.append({'file':source.name,'source_sha256':digest(source),'mpy_sha256':digest(bytecode)})
-    source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
-    source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
     result=dict(old)
-    result.update(port='CARTEST_K230_UART_READINTO_FIX_20261108',status='experimental-software-tested-hardware-pending',
+    result.update(port='CARTEST_K230_IMU_MODE0_20261108',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
         legacy_host_tests_passed=True,all_bytecode_compiled=True,compilation=compilation,
         built_profiles=profiles,elf_sha256=hashes,
-        mcu_build_evidence="prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged" if args.rebuild_wireless_only else "actual builds this run",
-        mcu_source_sha256={p.relative_to(ROOT).as_posix():digest(p) for p in sorted(source_inputs)},
+        mcu_build_evidence="completed actual v8 builds reused after exact source/ELF hash checks" if completed else "prior actual builds reused after source and ELF hash verification" if args.reuse_verified_mcu else "wireless actual rebuild; 19 unaffected non-wireless ELFs verified unchanged" if args.rebuild_wireless_only else "actual builds this run",
+        mcu_source_sha256=current_sources,
         wireless_tests_passed=True,wireless_reports=reports,
+        imu_gpio_spi_tests_passed=True,
         diagnostic_evidence='reused prior passing evidence after unchanged source hash checks',
-        pairing='DebugWirelessGyro350Speed140 + wireless-enabled K230 V4 production camera',hardware_actions='none')
+        pairing='DebugWirelessGyro350Speed140 + wireless-enabled K230 V4 production camera',
+        hardware_actions='stationary GPIO ID comparison; no flash/reset/camera upload/motor start',
+        hardware_diagnostics={'independent_gpio_mode0_whoami_verified':True,
+            'gpio_core_watchdog_restored':True,'production_driver_bench_verified':False,
+            'raw_vehicle_logs_published':False})
+    if completed:
+        result['completed_mcu_builds']=completed
     (ROOT/'docs/K230_VALIDATION.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     (ROOT/'docs/WIRELESS_VALIDATION.json').write_text(json.dumps({'passed':True,'reports':reports,
-        'host':host,'built_profiles':profiles,'elf_sha256':hashes,'hardware_actions':'none'},indent=2),encoding='utf-8')
+        'host':host,'built_profiles':profiles,'elf_sha256':hashes,
+        'hardware_actions':result['hardware_actions'],
+        'hardware_diagnostics':result['hardware_diagnostics']},indent=2),encoding='utf-8')
     manifest=read(ROOT/'openmv/PACKAGE_MANIFEST.json')
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
         paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
-        release_version='v20261108-k230-uart-readinto-v7',
+        release_version='v20261108-k230-imu-mode0-v8',
         wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
                           'external_resistor':'software alternative; physical verification pending',
                           'hardware_flow_control':False})
     (ROOT/'openmv/PACKAGE_MANIFEST.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     (ROOT/'openmv/CROSS_COMPILE_SUMMARY.json').write_text(json.dumps({k:result[k] for k in
         ('port','compiler','compiler_sha256','bytecode_target','compilation')},indent=2),encoding='utf-8')
-    print(json.dumps({'passed':True,'built_profiles':len(profiles),'camera_files':len(runtime),'hardware_actions':'none'}))
+    print(json.dumps({'passed':True,'built_profiles':len(profiles),'camera_files':len(runtime),
+        'deployment_actions':'none','hardware_diagnostics':result['hardware_diagnostics']}))
 
 if __name__=='__main__': main()

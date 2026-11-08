@@ -3,21 +3,89 @@
 #if CARTEST_GYRO350_ENABLED
 #include "stm32h7xx_hal.h"
 
-static SPI_HandleTypeDef spi;
+/* Existing SPI2 connector: PB12 CS, PB13 SCK, PB14 MISO, PB15 MOSI.
+   An independent GPIO mode-0 read returned the real WHO_AM_I=0x47 on the
+   user's vehicle while the old HAL SPI2 path returned zero. Use that mode-0
+   path with a cycle-timed clock and an absolute transaction deadline.
+   No interrupt masking, heap, DMA, or timer peripheral is needed. */
+#ifndef CAR_IMU_SPI_WRITE
+#define CAR_IMU_SPI_WRITE(value) (GPIOB->BSRR = (value))
+#endif
+#ifndef CAR_IMU_SPI_READ
+#define CAR_IMU_SPI_READ() (GPIOB->IDR)
+#endif
+#ifndef CAR_IMU_SPI_CYCLES
+#define CAR_IMU_SPI_CYCLES() (DWT->CYCCNT)
+#endif
+
+enum {
+    CS = GPIO_PIN_12,
+    SCK = GPIO_PIN_13,
+    MISO = GPIO_PIN_14,
+    MOSI = GPIO_PIN_15,
+    CLOCK_HZ = 64000000u,
+    HALF_PERIOD_CYCLES = 128u, /* >=2us at verified 64MHz: SCK <=250kHz. */
+    TRANSACTION_BUDGET_CYCLES = 64000u, /* 1ms including interrupt time. */
+    MAX_DELAY_SPINS = 4096u
+};
+
 static uint8_t opened;
 
-/* Main context only, interrupts enabled. A bounded 1ms HAL timeout is used
-   for each <=17-byte exchange. CS is released on every success/error path. */
-static int exchange(uint8_t *tx, uint8_t *rx, uint16_t length)
+static void idle_bus(void)
 {
-    HAL_StatusTypeDef status;
-    if (!opened || !length || length > 17u || __get_PRIMASK()) return 0;
-    GPIOB->BSRR = (uint32_t)GPIO_PIN_12 << 16u;
+    CAR_IMU_SPI_WRITE((uint32_t)(SCK | MOSI) << 16u | CS);
     __DSB();
-    status = HAL_SPI_TransmitReceive(&spi, tx, rx, length, 1u);
-    GPIOB->BSRR = GPIO_PIN_12;
-    __DSB();
-    return status == HAL_OK ? 1 : 0;
+}
+
+static int wait_half_period(uint32_t transaction_start)
+{
+    uint32_t start = CAR_IMU_SPI_CYCLES();
+    uint32_t spins;
+    for (spins = 0u; spins < MAX_DELAY_SPINS; ++spins) {
+        uint32_t now = CAR_IMU_SPI_CYCLES();
+        if ((uint32_t)(now - transaction_start) >= TRANSACTION_BUDGET_CYCLES)
+            return 0;
+        if ((uint32_t)(now - start) >= HALF_PERIOD_CYCLES) return 1;
+        __NOP();
+    }
+    /* A stopped/locked DWT cannot turn a register read into an endless loop. */
+    return 0;
+}
+
+/* Main context only. Interrupts stay enabled. Failed exchanges never expose
+   partial register data, and every transaction releases CS and returns SCK low. */
+static int exchange(const uint8_t *tx, uint8_t *rx, uint16_t length)
+{
+    uint16_t index;
+    uint32_t start;
+    if (!opened || !tx || !rx || !length || length > 17u || __get_PRIMASK())
+        return 0;
+    start = CAR_IMU_SPI_CYCLES();
+    idle_bus();
+    if (!wait_half_period(start)) goto failed;
+    CAR_IMU_SPI_WRITE((uint32_t)CS << 16u);
+    if (!wait_half_period(start)) goto failed;
+    for (index = 0u; index < length; ++index) {
+        uint8_t received = 0u;
+        uint8_t bit;
+        for (bit = 0u; bit < 8u; ++bit) {
+            CAR_IMU_SPI_WRITE((tx[index] & (0x80u >> bit)) != 0u
+                ? MOSI : (uint32_t)MOSI << 16u);
+            if (!wait_half_period(start)) goto failed;
+            CAR_IMU_SPI_WRITE(SCK);
+            if (!wait_half_period(start)) goto failed;
+            received = (uint8_t)((received << 1u) |
+                       ((CAR_IMU_SPI_READ() & MISO) != 0u ? 1u : 0u));
+            CAR_IMU_SPI_WRITE((uint32_t)SCK << 16u);
+        }
+        rx[index] = received;
+    }
+    if (!wait_half_period(start)) goto failed;
+    idle_bus();
+    return 1;
+failed:
+    idle_bus();
+    return 0;
 }
 
 static int read_register(void *context, uint8_t reg, uint8_t *out, uint16_t length)
@@ -42,51 +110,37 @@ static int write_register(void *context, uint8_t reg, uint8_t value)
 int car_imu_spi2_open(car_imu_bus_t *bus)
 {
     GPIO_InitTypeDef gpio = {0};
-    RCC_PeriphCLKInitTypeDef clock = {0};
+    uint32_t before;
+    uint32_t attempts;
+    opened = 0u;
     if (!bus) return 0;
-    /* Explicit 64MHz HSI -> CKPER -> SPI123; do not rely on an unused PLLQ. */
-    clock.PeriphClockSelection = RCC_PERIPHCLK_SPI2 | RCC_PERIPHCLK_CKPER;
-    clock.CkperClockSelection = RCC_CLKPSOURCE_HSI;
-    clock.Spi123ClockSelection = RCC_SPI123CLKSOURCE_CLKP;
-    if (HAL_RCCEx_PeriphCLKConfig(&clock) != HAL_OK) return 0;
-    if (HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI2) != 64000000u) return 0;
+    *bus = (car_imu_bus_t){0};
+    if (__get_PRIMASK() || HAL_RCC_GetHCLKFreq() != CLOCK_HZ) return 0;
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    GPIOB->BSRR = GPIO_PIN_12;
-    gpio.Pin = GPIO_PIN_12;
+    idle_bus(); /* Set the output latch before enabling the output drivers. */
+    gpio.Pin = CS | SCK | MOSI;
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     gpio.Pull = GPIO_NOPULL;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOB, &gpio);
-    gpio.Pin = GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
-    gpio.Mode = GPIO_MODE_AF_PP;
-    gpio.Alternate = GPIO_AF5_SPI2;
+    gpio.Pin = MISO;
+    gpio.Mode = GPIO_MODE_INPUT;
     HAL_GPIO_Init(GPIOB, &gpio);
-    __HAL_RCC_SPI2_CLK_ENABLE();
-    __HAL_RCC_SPI2_FORCE_RESET();
-    __HAL_RCC_SPI2_RELEASE_RESET();
-    spi.Instance = SPI2;
-    spi.Init.Mode = SPI_MODE_MASTER;
-    spi.Init.Direction = SPI_DIRECTION_2LINES;
-    spi.Init.DataSize = SPI_DATASIZE_8BIT;
-    spi.Init.CLKPolarity = SPI_POLARITY_LOW;
-    spi.Init.CLKPhase = SPI_PHASE_1EDGE;
-    spi.Init.NSS = SPI_NSS_SOFT;
-    spi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64; /* 1MHz */
-    spi.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    spi.Init.TIMode = SPI_TIMODE_DISABLE;
-    spi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-    spi.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-    spi.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-    spi.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-    spi.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-    spi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-    spi.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-    spi.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_ENABLE;
-    spi.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-    opened = HAL_SPI_Init(&spi) == HAL_OK;
-    if (!opened) return 0;
-    *bus = (car_imu_bus_t){0, read_register, write_register};
-    return 1;
+
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    __DSB();
+    before = CAR_IMU_SPI_CYCLES();
+    for (attempts = 0u; attempts < MAX_DELAY_SPINS; ++attempts) {
+        __NOP();
+        if (CAR_IMU_SPI_CYCLES() != before) {
+            opened = 1u;
+            *bus = (car_imu_bus_t){0, read_register, write_register};
+            return 1;
+        }
+    }
+    idle_bus();
+    return 0;
 }
 #else
 int car_imu_spi2_open(car_imu_bus_t *bus) { (void)bus; return 0; }

@@ -2,13 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Wireless diagnostics and control / gyro350 C +40%",
+      "name": "Latest v8 | IMU GPIO Mode0 | Wireless gyro350 C +40%",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "Build: Wireless diagnostics and control / gyro350 C +40%",
       "serverInterface": "SWD",
-      "serverInterfaceFrequency": "4000",
+      "serverInterfaceFrequency": "100",
       "serverReset": "Software system reset",
       "imagesAndSymbols": [
         {

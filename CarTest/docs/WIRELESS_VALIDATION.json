@@ -414,6 +414,42 @@
         "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
         "tests/test_wireless_aux_pins.py": "d23e913895480d3eb1dfce65769089a2d066819b43d947d410ffb835209d8da0"
       }
+    },
+    "IMU_GPIO_SPI": {
+      "passed": true,
+      "summary": "GPIO SPI: 11 scenarios, 2838 assertions PASS",
+      "scope": "production GPIO Mode 0 driver compiled directly with simulated peripheral registers",
+      "cases": [
+        "MSB-first F5 read and WHO_AM_I 47",
+        "register write mask and data",
+        "maximum 16-byte payload",
+        "invalid lengths/null pointers",
+        "masked interrupt rejection",
+        "HCLK rejection",
+        "stopped DWT at open",
+        "stopped DWT during transfer",
+        "transaction deadline with unchanged output",
+        "recovery after failure",
+        "cycle counter wraparound"
+      ],
+      "invariants": [
+        "only CS/SCK/MOSI outputs change",
+        "MISO configured as input",
+        "clock low at select",
+        "minimum 128-cycle low/high phases",
+        "CS high SCK/MOSI low after success and timeout"
+      ],
+      "tested_source_sha256": {
+        "App/icm42688_stm32.c": "b1082b37edc915b44f60ef64215335692692629e95b51b35e54f707e01449167",
+        "Inc/icm42688_stm32.h": "94a4f8fc1fc667fbe46b5ce61f857f17a45582c214a12e5a8b61b9291f0325be",
+        "Inc/icm42688.h": "db6ad103e53bf422f633e60dc4425da8f5eca78a7e08744834bc7dad99fa0b78",
+        "Inc/gyro350_config.h": "bce22ffbf99bb15fc95a5337d0a95d00070dcbd6177d42c97a8d15444587644e",
+        "tests/imu_gpio_spi/test_gpio_spi.c": "940d9a42a6a50d6fb90855bd65e1fd7dceb8c71240f4a04ddfc47df5f2961721",
+        "tests/imu_gpio_spi/stm32h7xx_hal.h": "d2d19f64aad86abad5f23d8303d9af82e853018eec7be3bcd292e8bff78cadb5",
+        "tests/imu_gpio_spi/run.py": "a45ba6d9dc976b4ebb12e4faf93d64be88b6081cfb4bef91eb7059bb0884c087"
+      },
+      "hardware_verified": false,
+      "hardware_actions": "none"
     }
   },
   "host": {
@@ -469,26 +505,32 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "05b823e3f2dfce2b02c9bc807d8351fbb627ad79ba8b866443253e4b204e64e1",
-    "DebugBench": "90f90e6a895dd90bcf8eeec4e20af15a3ab53198bf5adb1e8a14da7c08cffc2d",
-    "DebugFastNoRing": "91b0b6a061355ac624b05dba30f850d859c01c1e56ed5652a1f503ab469aae53",
-    "DebugFollow": "db64e58128f17ff36422846cd5ccbf7e10fa73f7d7699664a344317db7e236e6",
-    "DebugFollowDiff10": "6afbe8acb684f4d7f86fac66c783b7387e1fc117c806aa4455396db4e1fa3cce",
-    "DebugFollowDiff5": "768bed1aeadf92599c3e830bc08c37961023567f644bd81f5b71165456baa8e4",
-    "DebugFollowIncrementalPI": "d1d90a1f4a7d61541f18593e6f49e450ec40ae73dc6f8d926c5315dd22a879f7",
-    "DebugFollowIncrementalPIBaseline": "6c6abd563dd5b430b82f79be17d55bb04ccdac2c251b778cb53da1273e71d99c",
-    "DebugFollowNoLog": "05a9be0070c81818ad313af2c315bd103470e587c3c84e791e27ff9466600ae0",
-    "DebugFollowSpeedPI": "7619e094afa030c9e67248aedb63c88f8e6fdf06f70e14abdcde88c3d51d9459",
-    "DebugFollowTurn": "d0fce24040358b21daf6cbedef32936701a794c7e809f5a5084f261ed87f6457",
-    "DebugFollowTurn65": "2bede3f3452f53e897cdef090cd0490b7bacab8a0c3db7919702ff233924a377",
-    "DebugGyro350Speed140": "472053a56a2a4ea3d60fd5ef44b2c6b199985c58d9016666d1b0d0fc6bbb78a5",
-    "DebugRingBase": "95bf0b5dd67efecb8bfa6c1d0c3154e3bf7e21b9dddd37dc7375c4f53cb48405",
-    "DebugRingFast": "26d9737024dbb302bd7a3a29da847efd56e3ff94038cb3281bd3fed3b56eb76c",
-    "DebugRingFastSpeed120": "7e7f516ae9d8db2f4261e537ff818a865a8ec864673accf83e57bdd182b178e8",
-    "DebugRingFastSpeed130": "13f09e209064c1f3e2c67ddcf037e570344049a54de97238a8e18453f6fd1b24",
-    "DebugRingFastSpeed140": "68ed750e5b3357c36660c96ee29f0e5fe792d2c67dbfde6c66deabe5e451a3df",
-    "DebugSteering": "d0085da141e9dce6bb2b90dc9385255843ed9ea7b69ef6b3232cc1d74299389e",
-    "DebugWirelessGyro350Speed140": "82f0ee57b54dbf2fd22815f68c8f92e130813106279efbb73ec3ac94e9f40e63"
+    "Debug": "e78679af81655ecc7133dfc457af21c2cf51b1951ac59a5161f45e0cd8c9e174",
+    "DebugBench": "2736888a4bf1e18f215c14635052bf7cac7901db6afef5c0082beb155c07be19",
+    "DebugFastNoRing": "12b4ba98d9a1c6a623b0a0751d3360f0b52b612eaaf0dd314b124275a98f10c7",
+    "DebugFollow": "211546a83abd146a2300211a42b3a5c79d6ffa48d986ce6a6214defc229aad49",
+    "DebugFollowDiff10": "d92ef310c5277c301c96ab36aa35a3d9c2061781f0e665668fb301f1d64e4db6",
+    "DebugFollowDiff5": "76a57f96bc2df0b0f487f802b8c6235d51b1cdecadabd84359d6aaf3fcd627ff",
+    "DebugFollowIncrementalPI": "bafce0810b983a0dc1046d14515dba91b7c4b47730e1c736d2b9e0a31725975e",
+    "DebugFollowIncrementalPIBaseline": "bba1bbe44d6a9c79041701f7a1e1fe03455ebcbaa588ddeb63409432606e9c83",
+    "DebugFollowNoLog": "7e83ecc58636209e0a8ba26f83579be9d7d718b7cd16d2016eedea9fda52307b",
+    "DebugFollowSpeedPI": "2c5a7a9f6548828fa3600517aeb992adbb3ef50c12f384cd9e5c3583df78a525",
+    "DebugFollowTurn": "bdb1601e8e020990dc082bf4f6faf39d2cc306e5e08486320f2b228638958a66",
+    "DebugFollowTurn65": "e8ee8dbc54a072cd52f1044a6da5b33943d45a826088624f93664ef731e5948c",
+    "DebugGyro350Speed140": "a168a75b13a9d9991bb1654b3ba5493a6026fe195091ef8893bcef214d9278c8",
+    "DebugRingBase": "f9ce5899504b981be18ce514539d6ad193d503004b60158110321f1842a5a787",
+    "DebugRingFast": "0eff43e8f32af2c75ab66500b85e2e37d5b3f18a23f8ad8e770ce80664566723",
+    "DebugRingFastSpeed120": "1f268c0f689a6b386a0535c641c343d39f80511fb17f323bf0933807a744281a",
+    "DebugRingFastSpeed130": "bb95925d25d9672abfa066d914f1d05f4aa0e243b4ee0771f254317f4db81ae2",
+    "DebugRingFastSpeed140": "4c5d6213afdeefb3d0e60a4a8b78ca93deafa98cda0e1a2a72d07b7942933fef",
+    "DebugSteering": "7bd5d126295bc13c61d2ee07a2e6d8586b478f9c65a5c364acf3d3bdf42d7a8b",
+    "DebugWirelessGyro350Speed140": "dc41a716dfc7b71e6a541772fc3d689abc769ca07f0c3c17d32952ff4a82d92f"
   },
-  "hardware_actions": "none"
+  "hardware_actions": "stationary GPIO ID comparison; no flash/reset/camera upload/motor start",
+  "hardware_diagnostics": {
+    "independent_gpio_mode0_whoami_verified": true,
+    "gpio_core_watchdog_restored": true,
+    "production_driver_bench_verified": false,
+    "raw_vehicle_logs_published": false
+  }
 }
