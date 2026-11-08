@@ -1,8 +1,8 @@
 {
-  "version": "v20261108-k230-uart1-restore-v13",
+  "version": "v20261108-k230-rx-burst-v14",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 638,
+  "files": 639,
   "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",

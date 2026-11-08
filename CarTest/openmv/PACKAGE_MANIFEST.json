@@ -56,7 +56,7 @@
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "7c254856d61bbea226ee83f8cc01715e644264dcc4a066b6e05733c1311699a7",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "b81586e6f0f80b54a96ebfa6613a2dece83b88fac438ca5eeea89b31d2d809a4",
+    "main.py": "fccfefd809e1b97e088daf157083944791733d203458e5fb3dcca64240898aba",
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
     "ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-uart1-restore-v13",
+  "release_version": "v20261108-k230-rx-burst-v14",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -109,6 +109,13 @@
     "tx_gpio": 9,
     "rx_gpio": 10,
     "baudrate": 115200,
+    "hardware_verified": false
+  },
+  "multiplexed_receive": {
+    "per_feed_bytes": 64,
+    "per_poll_budget_bytes": 256,
+    "max_normal_chunks": 4,
+    "expired_snapshot_discard_preserved": true,
     "hardware_verified": false
   }
 }

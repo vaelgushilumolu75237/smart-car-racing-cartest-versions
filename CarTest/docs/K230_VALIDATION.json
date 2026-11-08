@@ -1140,5 +1140,73 @@
     "unchanged_mcu_and_other_camera_modules": true,
     "hardware_verified": false,
     "installed": false
+  },
+  "rx_burst_fix": {
+    "version": "v20261108-k230-rx-burst-v14",
+    "burst_reproduction": {
+      "interval_ms": 100,
+      "burst_bytes": 124,
+      "profile_records": 48,
+      "old_64_budget_accepted": 1,
+      "old_profile_fresh_at_end": false,
+      "new_256_budget_accepted": 48,
+      "new_profile_fresh_at_end": true
+    },
+    "hal_tests": {
+      "run": 19,
+      "failures": 0,
+      "errors": 0
+    },
+    "camera_tests": {
+      "run": 527,
+      "failures": 0,
+      "errors": 0,
+      "skipped": [
+        [
+          "test_ackermann320_packages.AckermannPackageTests.test_manifests_cover_allowlisted_runtime_and_cross_compile_evidence",
+          "Ackermann 320x120 package build has not run"
+        ],
+        [
+          "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_ground_replay_accepts_descending_rows_and_actual_sidecar",
+          "Private ground raw/sidecar fixture is absent; ground replay not verified"
+        ],
+        [
+          "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_independent_curvature_entry_reaches_uart_after_three_frames",
+          "independent ring-curvature routing is intentionally absent"
+        ],
+        [
+          "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_main_fast_ring_path_uses_current_rows_without_heading_kick",
+          "independent ring route was removed from production"
+        ],
+        [
+          "test_fast_main_ring_slope.FastMainRingSlopeWireTests.test_real_detector_left_and_right_entry_reaches_uart_after_three_frames",
+          "ring-entry routing is intentionally absent"
+        ]
+      ],
+      "excluded": {
+        "test_profile_packages.ProfilePackageTests.test_all_three_manifests_cover_complete_profile_matched_sources": "Historical OpenMV no_pd/pd/pd_preview delivery manifests, not K230 installation packages",
+        "test_profile_packages.ProfilePackageTests.test_profile_identity_is_unique_and_other_runtime_sources_are_shared": "Historical OpenMV no_pd/pd/pd_preview package identity, replaced by K230 manifest",
+        "test_steering_diag.SteeringDiagAlgorithmFreezeTests.test_unrelated_vision_ast_matches_baseline_after_control_changes": "ARM-to-RISC-V port intentionally changes imports, decorators and camera/UART setup; upstream geometry regression remains"
+      },
+      "hardware": "not_connected"
+    },
+    "gyro_camera_tests": {
+      "run": 14,
+      "failures": 0,
+      "errors": 0
+    },
+    "wireless_camera_tests": {
+      "run": 10,
+      "failures": 0,
+      "errors": 0
+    },
+    "all_modules_cross_compiled": true,
+    "hardware_verified": false,
+    "camera_installed": false,
+    "mcu_unchanged": true,
+    "limitations": [
+      "Reproduced software starvation is not proof of the sole live hardware cause.",
+      "Private width calibration previously read back was an unready placeholder. Complete genuine calibration after stable handshake; no gate bypass."
+    ]
   }
 }

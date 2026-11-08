@@ -534,7 +534,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
         control_index = [0]
 
         def service_control(_uart, parser, _buffer, _drain, now_ms,
-                            _ticks_diff, _wireless_service=None):
+                            _ticks_diff, _wireless_service=None, receive_budget=64):
             index = control_index[0]
             control_index[0] += 1
             payload = (control_frames[index]

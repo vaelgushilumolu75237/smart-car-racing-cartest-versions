@@ -4099,7 +4099,7 @@ def run_ring_width_calibration(raw_capture_path=None):
             now_ms = time.ticks_ms()
             reverse_fresh = _service_reverse_control(
                 uart, reverse_parser, reverse_buffer, reverse_drain_state,
-                now_ms, time.ticks_diff)
+                now_ms, time.ticks_diff, receive_budget=256)
             profile_id = reverse_parser.profile_ack(
                 now_ms, time.ticks_diff)
             parked = raw_capture_path is not None
@@ -5017,8 +5017,9 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
 
 @_k230_identity
 def _service_reverse_control(uart, parser, input_buffer, drain_state,
-                             now_ms, ticks_diff, wireless_service=None):
-    """Poll and read one bounded reverse-control chunk without allocations.
+                             now_ms, ticks_diff, wireless_service=None,
+                             receive_budget=64):
+    """Service a bounded burst using legacy-sized parser chunks.
 
     On timeout/overflow discard a snapshot of the queued bytes, in bounded
     chunks. Bytes arriving afterward belong to the next receive window; a
@@ -5034,15 +5035,18 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
         return parser.single_enabled
 
     try:
+        if (type(receive_budget) is not int or receive_budget < 64 or
+                receive_budget > 256 or len(input_buffer) < 64):
+            raise ValueError("reverse receive budget must be in 64..256")
         available = available_fn()
         if (isinstance(available, bool) or not isinstance(available, int) or
                 available < 0):
             raise OSError("invalid UART.any result")
-        if available > reverse_control.MAX_FEED_BYTES and not drain_state[0]:
+        if available > receive_budget and not drain_state[0]:
             parser.invalidate("RX_OVERFLOW")
             drain_state[0] = 1
 
-        read_budget = reverse_control.MAX_FEED_BYTES
+        read_budget = receive_budget
         if drain_state[0]:
             if available == 0:
                 drain_state[0] = 0
@@ -5077,24 +5081,32 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
                     available < 0):
                 raise OSError("invalid UART.any result")
 
-        if available == 0:
-            return parser.single_enabled
-        requested = min(available, read_budget)
-        received = readinto_fn(input_buffer, requested)
-        if received is None:
-            received = 0
-        if (isinstance(received, bool) or not isinstance(received, int) or
-                received < 0 or received > requested):
-            raise OSError("invalid UART.readinto result")
-        if wireless_service is None:
-            parser.feed(input_buffer, received, now_ms)
-        else:
-            # The two parsers share one physical UART.  Consume complete
-            # D3/91 frames before exposing bytes to A6/5A, otherwise image
-            # payload bytes could accidentally renew a profile lease.
-            wireless_service.feed_multiplexed(
-                input_buffer, received, now_ms, parser,
-                forward_legacy=True)
+        # A full multiplexed burst may exceed one legacy parser chunk. Keep
+        # each feed at 64 bytes, but service at most four chunks per poll.
+        # Timeout/capture-gap recovery above still discards its old snapshot.
+        for _chunk in range((receive_budget + 63) // 64):
+            if available == 0 or read_budget == 0:
+                break
+            requested = min(available, read_budget, reverse_control.MAX_FEED_BYTES)
+            received = readinto_fn(input_buffer, requested)
+            if received is None:
+                received = 0
+            if (isinstance(received, bool) or not isinstance(received, int) or
+                    received < 0 or received > requested):
+                raise OSError("invalid UART.readinto result")
+            if received == 0:
+                break
+            read_budget -= received
+            if wireless_service is None:
+                parser.feed(input_buffer, received, now_ms)
+            else:
+                wireless_service.feed_multiplexed(
+                    input_buffer, received, now_ms, parser,
+                    forward_legacy=True)
+            if read_budget:
+                available = available_fn()
+                if type(available) is not int or available < 0:
+                    raise OSError("invalid UART.any result")
     except Exception:
         parser.invalidate("RX_ERROR")
         drain_state[0] = 1
@@ -7677,7 +7689,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
 
         reverse_fresh = _service_reverse_control(
             uart, reverse_parser, reverse_input_buffer, reverse_drain_state,
-            capture_end_ms, time.ticks_diff, wireless_service)
+            capture_end_ms, time.ticks_diff, wireless_service, receive_budget=256)
         ring_stop_reason = steering_diag_session.observe(
             reverse_parser, single_edge_tracker, config.BUILD_ID,
             reverse_fresh, capture_end_ms, time.ticks_diff)
