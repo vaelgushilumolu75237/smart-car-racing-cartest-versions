@@ -86,12 +86,12 @@ class HALTests(unittest.TestCase):
         hal._uarts[:] = []
         PreviewImage.created[:] = []
 
-    def test_header_uart3_mapping_uses_one_stop_not_openmv_numeric_one(self):
+    def test_factory_uart1_mapping_uses_one_stop_not_openmv_numeric_one(self):
         hal.UARTAdapter(1, 115200)
         self.assertEqual(UARTDevice.last.kwargs,
                          dict(baudrate=115200, bits=8, parity=0, stop=0))
-        self.assertEqual((3,), UARTDevice.last.args)
-        self.assertEqual([(32, 301), (33, 302)], [m[0] for m in FPIOA.mappings])
+        self.assertEqual((1,), UARTDevice.last.args)
+        self.assertEqual([(9, 101), (10, 102)], [m[0] for m in FPIOA.mappings])
         self.assertEqual([dict(ie=0, oe=1), dict(ie=1, oe=0)],
                          [m[1] for m in FPIOA.mappings])
 

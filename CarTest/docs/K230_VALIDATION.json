@@ -1131,5 +1131,14 @@
     },
     "hardware_verified": false,
     "mcu_source_and_elf_unchanged": true
+  },
+  "uart1_restore": {
+    "version": "v20261108-k230-uart1-restore-v13",
+    "hal_tests_passed": true,
+    "hal_tests": 16,
+    "changed_module_cross_compiled": true,
+    "unchanged_mcu_and_other_camera_modules": true,
+    "hardware_verified": false,
+    "installed": false
   }
 }
