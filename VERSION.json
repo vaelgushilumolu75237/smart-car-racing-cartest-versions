@@ -1,5 +1,5 @@
 {
-  "version": "v20261108-h743-camera-tx-fifo-v15",
+  "version": "v20261108-h743-camera-tx-fifo-v15-debug",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
   "files": 640,
