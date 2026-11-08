@@ -3487,29 +3487,40 @@ static void service_reverse_control(uint32_t now_ms)
          (manual_run_button.run_request != 0u &&
           soft_session_fault != 0u)));
 
-    /* With FIFOEN, TXE_TXFNF means "FIFO has space" rather than the old
-       single-byte DR-empty condition. Preserve the prior bounded pacing by
-       enqueueing at most one protocol byte per main-loop service call. */
+    /* With FIFOEN, TXE_TXFNF means "FIFO has space". One byte per main
+       loop starves profile/HELLO frames when eight loop periods exceed the
+       50ms V1 interval. Fill a bounded burst, checking space for each byte.
+       Never preempt an in-progress V1, profile or wireless frame. */
 #if CARTEST_WIRELESS_ENABLED
-    if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_wireless_camera_tx_byte(&byte,0u)) { USART1->TDR=byte; ++car_camera_uart_tx_bytes; return; }
+    uint8_t tx_budget = 16u;
+#else
+    uint8_t tx_budget = 1u;
 #endif
-    if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_reverse_control_next_byte_paired(
-            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
-        USART1->TDR = byte;
-        ++car_camera_uart_tx_bytes;
-        if (reverse_control_tx.keep_active != 0u &&
-            reverse_keep_notified == 0u) {
-            reverse_keep_notified = 1u;
-            car_control_reverse_control_keep_started(&car_control_state);
+    while (tx_budget-- != 0u &&
+           (USART1->ISR & USART_ISR_TXE_TXFNF) != 0u) {
+#if CARTEST_WIRELESS_ENABLED
+        if (car_wireless_camera_tx_byte(&byte,0u)) {
+            USART1->TDR=byte; ++car_camera_uart_tx_bytes; continue;
         }
-    }
-
-#if CARTEST_WIRELESS_ENABLED
-    else if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_wireless_camera_tx_byte(&byte,1u)) { USART1->TDR=byte; ++car_camera_uart_tx_bytes; }
 #endif
+        if (car_reverse_control_next_byte_paired(
+            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
+            USART1->TDR = byte;
+            ++car_camera_uart_tx_bytes;
+            if (reverse_control_tx.keep_active != 0u &&
+                reverse_keep_notified == 0u) {
+                reverse_keep_notified = 1u;
+                car_control_reverse_control_keep_started(&car_control_state);
+            }
+            continue;
+        }
+#if CARTEST_WIRELESS_ENABLED
+        if (car_wireless_camera_tx_byte(&byte,1u)) {
+            USART1->TDR=byte; ++car_camera_uart_tx_bytes; continue;
+        }
+#endif
+        break;
+    }
 
     car_reverse_control_sequence = reverse_control_tx.sequence;
     car_reverse_control_command = reverse_control_tx.active_command;

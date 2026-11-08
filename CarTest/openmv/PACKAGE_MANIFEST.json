@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-rx-burst-v14",
+  "release_version": "v20261108-h743-camera-tx-fifo-v15",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -117,5 +117,6 @@
     "max_normal_chunks": 4,
     "expired_snapshot_discard_preserved": true,
     "hardware_verified": false
-  }
+  },
+  "paired_h743_tx_fifo_fix": true
 }

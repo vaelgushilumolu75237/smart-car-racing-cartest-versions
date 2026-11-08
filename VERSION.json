@@ -1,8 +1,8 @@
 {
-  "version": "v20261108-k230-rx-burst-v14",
+  "version": "v20261108-h743-camera-tx-fifo-v15",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 639,
+  "files": 640,
   "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",

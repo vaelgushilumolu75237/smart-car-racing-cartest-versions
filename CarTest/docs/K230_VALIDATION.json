@@ -41,7 +41,7 @@
   "gyro_integration_tests_passed": true,
   "gyro_main_tests": {
     "passed": true,
-    "source_sha256": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
+    "source_sha256": "79c34aba576d68a960af4f1170d9ca00651f809fa0d31ad1d4635935ff065897",
     "summary": "GYRO350_MAIN assertions=24 failures=0",
     "hardware": "not_connected"
   },
@@ -270,26 +270,26 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "46ea131287362cadad65c09b7800259324386c886eefb1d452b2e30a8a4f0e18",
-    "DebugBench": "cf4a1de061a76d7b5b80f4fc4753550efe3c2357647344cda71f9cd31bc5a07e",
-    "DebugFastNoRing": "f366c6fe4e5c2410b60f8ac815095b29e66805c1d02544f18c2e70d04437539e",
-    "DebugFollow": "9e11be6fbedda045c0fbd04018b89bbbeac4ff50e05bb6898a9e887159ae8c0d",
-    "DebugFollowDiff10": "8354306a7a703a957c04168da8436113c6de93c6ccfef0d2fd32d0e05a92877f",
-    "DebugFollowDiff5": "07c327f00400b0ab58074b136a5fcc7760ca98b30ebc4b3d3c986ae33e498e1b",
-    "DebugFollowIncrementalPI": "19858f03cc7b9691834f2abe234300a42389c68e771e4a0473afe681dafda1ab",
-    "DebugFollowIncrementalPIBaseline": "2d1f08414e1ab42047a385fd6d00488ecc24498c40d06def86b4bf4265162d19",
-    "DebugFollowNoLog": "816d51e9c96731a7c4ec8c3f84e0765a27effcf4b1de304f63978bd11b7ebc9a",
-    "DebugFollowSpeedPI": "bf8ad442c5da561163c4dac7557705cbeafcf1083821c679ee979248018ab8d9",
-    "DebugFollowTurn": "62e66f3b2aa7d43cc9a7d9e744f7d9d66bae1f4b9e34132dd36220de2d91df8b",
-    "DebugFollowTurn65": "665c05f2510e4c03bda2cd3a09ea03dd84953bb2be66eed6becc6f0950f0f439",
-    "DebugGyro350Speed140": "ae0d5be11a6a70b5f4158b44ee39f86f1d453ff20d9fd0e32e4603031d033567",
-    "DebugRingBase": "f0ed74aacd227c685f12d171ecb23c441ca9ab5d4442fc4df244394dee1e6a8a",
-    "DebugRingFast": "dfd59a5f64b35b1324a139499435277d164112fbc6815b033ead2656c8b2d89c",
-    "DebugRingFastSpeed120": "0631b791c8bcc08c3555eb285305d1dd9392ac172a39ed9f4b9ea8a03a623fb2",
-    "DebugRingFastSpeed130": "283d43e9ac3ceaa49bec84a19638693065bf92d3551a2a623085ca557bdd314b",
-    "DebugRingFastSpeed140": "fc2fc298a7209aed2cc3c5a9708e818492cbf044c7bb02e19d403348291e3d89",
-    "DebugSteering": "0227d943d5a373cb938501da4c21008510ab94c99047d26223aed94db17b2c12",
-    "DebugWirelessGyro350Speed140": "b43bd0088ff1de7b5175806c832a894cb4c9e56bdddf496574863a5bad36a764"
+    "Debug": "0744c265f601fee0527fd1f9a7b1d83d63b5395ceb3085d0c2b87f26233f608b",
+    "DebugBench": "01581a256988a57c0508ed1cc42893672d728507fdcf427d7e33538f67e9f7cb",
+    "DebugFastNoRing": "4f6cd0a48289ff6a8bfb10322b5ae4ee338376b0ad96b071ee362b6d3195d34d",
+    "DebugFollow": "3bd486c96038f03e3ee7807a5ebab621e1cf6c40e1dca35a53f7266956d825e2",
+    "DebugFollowDiff10": "b8044474140960871c98bd1d607babd1db6b6b9a40b7252539b3de38e1fb69f4",
+    "DebugFollowDiff5": "478c2a2161f4201396043fa3e5cb77a8c448e9803d81005aca1e564c595b476c",
+    "DebugFollowIncrementalPI": "1187b44202ce85d5f2b524a046dc420bc6f4d93f2f1fdb0394ed4324442fa584",
+    "DebugFollowIncrementalPIBaseline": "44aaf4b3cfb0ae97777ecf0d7b55414880e4c9a969a89edbf57dc16f7ed0ee54",
+    "DebugFollowNoLog": "40adc14c5bdc46c18ce39e3d80270751488b9f02c4c1aed187560aae5bdac472",
+    "DebugFollowSpeedPI": "2ba1336b62a6d48f731b68ea7c6bdb0b1d0f33ab4b657ecbaa1487f77ad51203",
+    "DebugFollowTurn": "ba0931929f9683bd995e45addff70711e0663491491cc07bb158a4f0728e0198",
+    "DebugFollowTurn65": "85d77d79092781a2e5e398348c3af93de4b706288b24b3fe79b6a141d06c2e03",
+    "DebugGyro350Speed140": "8e0fed006479ea3ac1e068037a14354ff9464fac1a27282e458e30b4c8e0a9b9",
+    "DebugRingBase": "c8697bccc603cf2381824bb2b6c093c074a5359f3c1fd9036498ac4a6d746787",
+    "DebugRingFast": "b9aa3f9794802fa59609855f4c7f2ad6643da1bc42293d4408e9dde4b2ec62d0",
+    "DebugRingFastSpeed120": "70e28b731fb445dd36b0f24d1d1854094d8e08fb8604c37d2b2d49833da1b018",
+    "DebugRingFastSpeed130": "089a12249f89e7ad7f606cdbce2656c67e9076ad03c555cf94d4a82850eb0acb",
+    "DebugRingFastSpeed140": "deb80dc384c269c55b70b97bb34df1f04b9f509ccdec13a615a2e33091123525",
+    "DebugSteering": "118529f026a451de4e606c4102ce958e48a2ad51591e3484b2297e4e43e6ee2b",
+    "DebugWirelessGyro350Speed140": "da04c362676376478ab82fa4e1e82c50df2715efbd226afac4c42b16b207d5d2"
   },
   "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "board_runtime_fps": "unverified",
@@ -553,7 +553,7 @@
     "Inc/wireless_protocol.h": "6e5e48ca5819ca69586420377d308e91d07ea48d5671679431a631d8da2b2882",
     "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
     "Inc/wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
-    "Src/main.c": "3fb0ea401012e014c7dc2136035058aedd718fc70afa6e3e5ee9e2be34ca91f4",
+    "Src/main.c": "79c34aba576d68a960af4f1170d9ca00651f809fa0d31ad1d4635935ff065897",
     "Src/startup_stm32h743xx.S": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
     "Src/syscall.c": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
     "Src/sysmem.c": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
@@ -1208,5 +1208,82 @@
       "Reproduced software starvation is not proof of the sole live hardware cause.",
       "Private width calibration previously read back was an unready placeholder. Complete genuine calibration after stable handshake; no gate bypass."
     ]
+  },
+  "camera_tx_pump_fix": {
+    "passed": true,
+    "current": [
+      {
+        "loop_ms": 1,
+        "fifo_slots": 16,
+        "v1_frames": 100,
+        "profile_frames": 50,
+        "hello_frames": 1,
+        "max_bytes_per_poll": 16
+      },
+      {
+        "loop_ms": 10,
+        "fifo_slots": 16,
+        "v1_frames": 100,
+        "profile_frames": 50,
+        "hello_frames": 1,
+        "max_bytes_per_poll": 16
+      },
+      {
+        "loop_ms": 20,
+        "fifo_slots": 16,
+        "v1_frames": 84,
+        "profile_frames": 50,
+        "hello_frames": 1,
+        "max_bytes_per_poll": 16
+      },
+      {
+        "loop_ms": 5,
+        "fifo_slots": 4,
+        "v1_frames": 100,
+        "profile_frames": 50,
+        "hello_frames": 1,
+        "max_bytes_per_poll": 4
+      }
+    ],
+    "source_sha256": "79c34aba576d68a960af4f1170d9ca00651f809fa0d31ad1d4635935ff065897",
+    "hardware_actions": "none",
+    "baseline": [
+      {
+        "loop_ms": 1,
+        "fifo_slots": 16,
+        "v1_frames": 100,
+        "profile_frames": 50,
+        "hello_frames": 1,
+        "max_bytes_per_poll": 1
+      },
+      {
+        "loop_ms": 10,
+        "fifo_slots": 16,
+        "v1_frames": 62,
+        "profile_frames": 0,
+        "hello_frames": 0,
+        "max_bytes_per_poll": 1
+      },
+      {
+        "loop_ms": 20,
+        "fifo_slots": 16,
+        "v1_frames": 31,
+        "profile_frames": 0,
+        "hello_frames": 0,
+        "max_bytes_per_poll": 1
+      },
+      {
+        "loop_ms": 5,
+        "fifo_slots": 4,
+        "v1_frames": 36,
+        "profile_frames": 35,
+        "hello_frames": 0,
+        "max_bytes_per_poll": 1
+      }
+    ],
+    "version": "v20261108-h743-camera-tx-fifo-v15",
+    "hardware_verified": false,
+    "h743_flashed": false,
+    "change": "Bounded 16-byte USART1 FIFO fill for wireless preset; frame arbitration retained; non-wireless preset retains one-byte bound."
   }
 }
