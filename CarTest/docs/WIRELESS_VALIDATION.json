@@ -367,15 +367,15 @@
     },
     "WIRELESS_RUNTIME": {
       "passed": true,
-      "summary": "wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed",
+      "summary": "SeekFree text: one-use ticket, result, STOP/replay, 30s expiry, PE7/fault/release/busy/motor gates, UART/overflow, exact/split/stale/binary isolation, session replacement and clock wrap passed\nwireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed",
       "hardware_actions": "none",
       "source_sha256": {
-        "App/wireless_runtime.c": "c289da4644586a6f3b1b2e9942ec2d65ba97c688cf9514326f67361bbe1e2e5a",
+        "App/wireless_runtime.c": "f68e2749333499dbf628090915dde94fa6b95fceea416545f561d5d747943394",
         "App/wireless_control.c": "b3094feca9f12b5fe14c927498733878929fac2690d4d4a0812bc0896ede306d",
         "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
         "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
         "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
-        "tests/wireless_runtime/test_runtime.c": "80f3005e375e62204e1bf4926368cd7e62474cf904a45f918218b63cf60ab435"
+        "tests/wireless_runtime/test_runtime.c": "7ce4c911c7913f42b9150db41bd669e6534ffdd0f24a4507d7a23abf5a1391ec"
       }
     },
     "WIRELESS_VISION_INTEGRATION": {
@@ -532,18 +532,13 @@
     "DebugRingFastSpeed130": "283d43e9ac3ceaa49bec84a19638693065bf92d3551a2a623085ca557bdd314b",
     "DebugRingFastSpeed140": "fc2fc298a7209aed2cc3c5a9708e818492cbf044c7bb02e19d403348291e3d89",
     "DebugSteering": "0227d943d5a373cb938501da4c21008510ab94c99047d26223aed94db17b2c12",
-    "DebugWirelessGyro350Speed140": "ef4656f10669fdcea2a4383351b2d5643e03a4be1db3b392b5165a12219bcc67"
+    "DebugWirelessGyro350Speed140": "b43bd0088ff1de7b5175806c832a894cb4c9e56bdddf496574863a5bad36a764"
   },
-  "hardware_actions": "read-only v8 fault snapshot; prior authorized GPIO ID comparison; no flash/reset/camera upload/motor start",
+  "hardware_actions": "none; offline SeekFree command tests/build/package only; no serial access, flash/reset/camera upload/motor start",
   "hardware_diagnostics": {
-    "independent_gpio_mode0_whoami_verified": true,
-    "gpio_core_watchdog_restored": true,
-    "production_driver_bench_verified": false,
+    "current_version_hardware_verified": false,
+    "camera_runtime_unchanged": true,
     "raw_vehicle_logs_published": false,
-    "prior_v8_descriptor_matches": true,
-    "prior_v8_sample_count": 5,
-    "prior_v8_fault": 1,
-    "prior_v8_calibrated": false,
-    "timing_root_cause_confirmed_on_target": false
+    "radio_start_tested_on_vehicle": false
   }
 }

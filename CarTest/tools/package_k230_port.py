@@ -40,11 +40,12 @@ if __name__ == "__main__":
     manifest = json.loads((ROOT / "openmv/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     wireless = manifest.get("wireless_required", False)
     aux_pins = bool(manifest.get("wireless_aux_gpio"))
+    seekfree_start = manifest.get("release_version") == "v20261108-k230-seekfree-start-v10"
     timing_fix = manifest.get("release_version") == "v20261108-k230-imu-timing-v9"
     imu_fix = manifest.get("release_version") == "v20261108-k230-imu-mode0-v8"
     uart_fix = manifest.get("release_version") == "v20261108-k230-uart-readinto-v7"
     display_fix = manifest.get("release_version") == "v20261108-k230-transport-diag-v6"
-    install_root = OUT / ("Install_IMU_Timing_v9" if timing_fix else "Install_IMU_Mode0_v8" if imu_fix else "Install_UART_Readinto_v7" if uart_fix else "Install_Transport_Diag_v6" if display_fix else "Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
+    install_root = OUT / ("Install_SeekFree_Start_v10" if seekfree_start else "Install_IMU_Timing_v9" if timing_fix else "Install_IMU_Mode0_v8" if imu_fix else "Install_UART_Readinto_v7" if uart_fix else "Install_Transport_Diag_v6" if display_fix else "Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
     install = install_root / "K230"
     install.mkdir(parents=True, exist_ok=True)
     for name in manifest["runtime_files"] + ["PACKAGE_MANIFEST.json", "README.md", "ring_width_calibration.json"]:
@@ -77,6 +78,8 @@ if __name__ == "__main__":
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)
+    if seekfree_start:
+        shutil.copy2(ROOT / "docs/SEEKFREE_START_V10_CN.md", install_root / "SEEKFREE_START_V10_CN.md")
     baseline = json.loads((OUT / "private-baseline/SOURCE_BEFORE.json").read_text(encoding="utf-8"))
     source = Path(baseline["source"])
     changed = [name for name, expected in baseline["files"].items() if digest(source / name) != expected]
@@ -111,7 +114,7 @@ if __name__ == "__main__":
     hashes = {p.relative_to(OUT).as_posix(): digest(p) for p in sorted(candidates)}
     inventory = OUT / "COMPLETE_PACKAGE_SHA256.json"
     inventory.write_text(json.dumps(hashes, indent=2), encoding="utf-8")
-    archive = OUT / ("CarTest_K230_IMU_Timing_v9_20261108.zip" if timing_fix else "CarTest_K230_IMU_Mode0_v8_20261108.zip" if imu_fix else "CarTest_K230_UART_Readinto_v7_20261108.zip" if uart_fix else "CarTest_K230_Transport_Diag_v6_20261108.zip" if display_fix else "CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
+    archive = OUT / ("CarTest_K230_SeekFree_Start_v10_20261108.zip" if seekfree_start else "CarTest_K230_IMU_Timing_v9_20261108.zip" if timing_fix else "CarTest_K230_IMU_Mode0_v8_20261108.zip" if imu_fix else "CarTest_K230_UART_Readinto_v7_20261108.zip" if uart_fix else "CarTest_K230_Transport_Diag_v6_20261108.zip" if display_fix else "CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
                      "CarTest_K230_Wireless_20261107.zip" if wireless else "CarTest_K230_Gyro350_20261106.zip")
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p in candidates + [inventory]:

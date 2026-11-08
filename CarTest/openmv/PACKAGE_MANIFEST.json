@@ -1,5 +1,5 @@
 {
-  "port": "CARTEST_K230_IMU_TIMING_20261108",
+  "port": "CARTEST_K230_SEEKFREE_START_20261108",
   "upstream": "TRACK_RING_EXIT_V26_R24_20261101",
   "platform": "Yahboom K230 vision module deluxe / CanMV",
   "runtime_files": [
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261108-k230-imu-timing-v9",
+  "release_version": "v20261108-k230-seekfree-start-v10",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

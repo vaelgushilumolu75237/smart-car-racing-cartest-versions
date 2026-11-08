@@ -165,3 +165,18 @@ must not be called a measured chip identity in that case. Valid=1 with identity
 No timeout, calibration gate, sample validity or motor safety logic is bypassed.
 The page is meant to locate the fault; no hardware repair is claimed by passing
 host tests or compiling this diagnostic firmware.
+
+
+## SeekFree-only text start/stop (v10)
+
+See `SEEKFREE_START_V10_CN.md` for the operating instructions and scope page 5.
+In assistant mode only, send ASCII `ARM` with a real line ending, read the
+seven-digit one-use ticket from scope channel 2, then send `START <ticket>`
+within 30 seconds. `STOP` needs no ticket and uses the normal MCU stop effect.
+Both LF and CRLF are accepted; HEX/automatic send must be off. START uses the
+existing session/command/effect path, and only the original MCU start handler
+can authorize the follow request. A successful effect acknowledgement means
+request accepted, not proof of driving output. Expired, consumed, fault/PE7
+revoked, replaced-session or UART-error tickets cannot restart the vehicle.
+These tickets prevent accidental duplicate execution; they are not a radio
+authentication or encryption mechanism. No other PC application is required.

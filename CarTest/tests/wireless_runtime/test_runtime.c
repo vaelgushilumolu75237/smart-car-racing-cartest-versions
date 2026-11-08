@@ -71,6 +71,118 @@ static float drain_scope_value(unsigned index){
     }
     return value;
 }
+static void assistant_fixture(uint32_t now,uint32_t boot_seed){
+    memset(&control,0,sizeof control);memset(&snapshot,0,sizeof snapshot);
+    memset(&config,0,sizeof config);snapshot.button_released=snapshot.startup_released=1;
+    control.imu_ready=1;config.motor_hardware_accepted=1;
+    car_wireless_init(now,boot_seed);service(now);drain(0,0);
+}
+static uint32_t assistant_arm(uint32_t now){
+    text_feed("ARM\r\n",now);service(now+50u);drain_scope_value(2);
+    assert(last_scope[0]==1 && last_scope[14]==5);
+    uint32_t ticket=(uint32_t)last_scope[2];
+    assert(ticket>=1000000u && ticket<=9999999u && (float)ticket==last_scope[2]);
+    return ticket;
+}
+static void assistant_start(uint32_t ticket,uint32_t now){
+    char line[32];snprintf(line,sizeof line,"START %07u\r\n",ticket);text_feed(line,now);
+}
+static void assistant_tests(void){
+    uint32_t ticket,new_ticket;car_wireless_frame_t f={0};uint8_t page[8];
+    assistant_fixture(200000,30000);
+    assistant_start(1234567u,200001);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    ticket=assistant_arm(200100);assistant_start(ticket,200160);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_START);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_START,0);
+    service(200210);drain_scope_value(0);assert(last_scope[0]==4 && last_scope[1]==15);
+    assistant_start(ticket,200220);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    /* A consumed ticket never queues a deferred start on retry/readiness. */
+    new_ticket=assistant_arm(200300);assert(new_ticket!=ticket);ticket=new_ticket;
+    char line[32];snprintf(line,sizeof line,"RT %07u\n",ticket);
+    text_feed("STA",200360);text_feed(line,200370);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_START);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_START,1);
+    service(200420);drain_scope_value(0);assert(last_scope[0]==3 && last_scope[1]==0);
+    assistant_start(ticket,200430);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    control.follow_session_active=1;snapshot.outputs_active=1;
+    text_feed("STOP\n",200440);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_STOP,1);
+    control.follow_session_active=0;snapshot.outputs_active=0;
+    service(200500);drain_scope_value(0);assert(last_scope[0]==5 && last_scope[15]==0);
+    assistant_start(ticket,200510);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    text_feed("STOP\n",200520);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_STOP,1);
+    /* Expiry, PE7, faults, power-up release, tests/calibration and hardware
+       acceptance cannot be bypassed by either ARM or a previously issued code. */
+    assistant_fixture(210000,30001);ticket=assistant_arm(210001);
+    assistant_start(ticket,240001);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    service(240051);drain_scope_value(0);assert(last_scope[2]==0);
+    assistant_fixture(250000,30002);ticket=assistant_arm(250001);
+    car_wireless_local_stop(250060);service(250060);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    assistant_start(ticket,250061);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(260000,30003);snapshot.button_released=0;text_feed("ARM\n",260001);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    snapshot.button_released=1;service(260010);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_start(1234567u,260011);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(270000,30004);ticket=assistant_arm(270001);
+    control.fault_latched=1;assistant_start(ticket,270060);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    control.fault_latched=0;assistant_start(ticket,270061);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(280000,30005);snapshot.startup_released=0;text_feed("ARM\n",280001);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    service(280051);drain_scope_value(0);assert(last_scope[2]==0);
+    assistant_fixture(290000,30006);config.motor_hardware_accepted=0;text_feed("ARM\n",290001);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    service(290051);drain_scope_value(0);assert(last_scope[0]==4 && last_scope[1]==9);
+    assistant_fixture(300000,30007);snapshot.calibration_busy=1;text_feed("ARM\n",300001);
+    service(300051);drain_scope_value(0);assert(last_scope[0]==4 && last_scope[1]==8);
+    assistant_fixture(310000,30008);ticket=assistant_arm(310001);
+    control.follow_session_active=1;assistant_start(ticket,310060);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(320000,30009);ticket=assistant_arm(320001);
+    snprintf(line,sizeof line,"START %07u\n",ticket);
+    for(size_t i=0;line[i];++i)car_wireless_uart_rx_isr((uint8_t)line[i],320060);
+    car_wireless_uart_error_isr();service(320060);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_start(ticket,320061);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(330000,30010);ticket=assistant_arm(330001);
+    for(unsigned i=0;i<600;++i)car_wireless_uart_rx_isr('A',330060);
+    service(330060);assistant_start(ticket,330061);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    /* Exact bounded line parsing, partial timeout, stale RX, native parameter
+       isolation, and a D3 payload containing STOP must not create commands. */
+    assistant_fixture(340000,30011);ticket=assistant_arm(340001);
+    text_feed("ASTOP\n",340060);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    text_feed("AAAAAAAAAAAAAAAAAAAAAAAAAAAASTOP\n",340061);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    snprintf(line,sizeof line,"RT %07u\n",ticket);
+    text_feed("STA",340062);text_feed(line,340700);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    f.type=CAR_WIRELESS_EVENT;f.payload_len=5;memcpy(f.payload,"STOP\n",5);feed(&f,340701);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assert(car_seekfree_debug_param_frame(page,sizeof page,7,5.0f));raw_feed(page,sizeof page,340702);
+    snprintf(line,sizeof line,"START %07u\n",ticket);
+    for(size_t i=0;line[i];++i)car_wireless_uart_rx_isr((uint8_t)line[i],340703);
+    service(340804);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_start(ticket,340805);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_START);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_START,1);
+    /* A new binary session invalidates the assistant code. Text in complete
+       mode cannot trigger operations. */
+    assistant_fixture(350000,30012);ticket=assistant_arm(350001);
+    memset(&f,0,sizeof f);f.type=CAR_WIRELESS_HELLO;f.payload_len=4;put32(f.payload,789);
+    feed(&f,350060);assistant_start(ticket,350061);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    f=cmd(WIRELESS_OP_MODE,350062);f.payload_len=5;f.payload[4]=WIRELESS_TOOL_MODE_COMPLETE;
+    feed(&f,350062);text_feed("STOP\nARM\n",350063);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assistant_fixture(0xffffff80u,30013);ticket=assistant_arm(0xffffff81u);
+    assistant_start(ticket,0x20u);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_START);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_START,1);
+    puts("SeekFree text: one-use ticket, result, STOP/replay, 30s expiry, PE7/fault/release/busy/motor gates, UART/overflow, exact/split/stale/binary isolation, session replacement and clock wrap passed");
+}
 int main(void){
     snapshot.button_released=snapshot.startup_released=1;config.motor_hardware_accepted=1;
     car_wireless_init(100,12345);service(100);camera_ready(100);
@@ -201,6 +313,7 @@ int main(void){
     assert(car_seekfree_debug_param_frame(page,sizeof page,0,500.0f));
     raw_feed(page,sizeof page,190051);assert(car_wireless_settings()->wheel_scale_permille==before);
     assert(get32((uint8_t[]){1,2,3,4})==0x04030201u);
+    assistant_tests();
     puts("wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed");
     return 0;
 }

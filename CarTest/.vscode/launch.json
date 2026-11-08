@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Latest v9 | IMU SPI timing | Wireless gyro350 C +40%",
+      "name": "Latest v10 | SeekFree wireless START STOP | Gyro350 C +40%",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",

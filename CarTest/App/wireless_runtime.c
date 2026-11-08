@@ -6,7 +6,7 @@
 
 /* All queues contain whole packets. An active packet is never interleaved. */
 enum { RX_N=512, TX_N=16, HI_N=4, CAM_N=4, IMAGE_HEADER=18, IMAGE_TTL_MS=60000,
-       CAL_TEXT_TIMEOUT_MS=500 };
+       CAL_TEXT_TIMEOUT_MS=500, ASSISTANT_TICKET_MS=30000 };
 typedef struct { uint16_t size, pos; uint8_t data[CAR_WIRELESS_MAX_FRAME]; } packet_t;
 typedef struct { uint8_t head, tail, count; packet_t packet[TX_N]; } queue_t;
 typedef struct { uint32_t pc_sequence, camera_sequence, deadline;
@@ -41,6 +41,18 @@ static uint16_t synced_vision_p, synced_vision_d;
 static wireless_control_ack_t save_ack;
 static uint8_t seekfree_rx[8], seekfree_count;
 static const char calibration_text_command[] = "CALWIDTH";
+/* Assistant text commands never bypass the normal MCU START effect. A fresh,
+   single-use decimal ticket lets the user operate through SeekFree alone. */
+static char assistant_text[24];
+static uint8_t assistant_text_count, assistant_text_drop;
+static volatile uint8_t assistant_rx_fault;
+static uint32_t assistant_text_started_ms, assistant_ticket, assistant_issued_ms;
+static uint32_t assistant_issue_count, assistant_session, assistant_previous_ticket;
+static uint8_t assistant_status, assistant_ack;
+static car_wireless_effect_t assistant_pending_effect;
+enum { ASSISTANT_IDLE=0, ASSISTANT_ARMED=1, ASSISTANT_PENDING=2,
+       ASSISTANT_ACCEPTED=3, ASSISTANT_REJECTED=4, ASSISTANT_STOPPED=5,
+       ASSISTANT_EXPIRED=6 };
 
 enum {
     CAL_STATUS_IDLE = 0u,
@@ -235,6 +247,96 @@ static void command_frame(car_wireless_frame_t *f,uint32_t now) {
         ack.opcode==WIRELESS_OP_SET_PARAMS || ack.opcode==WIRELESS_OP_DEFAULT)) get_settings(now);
     cache_final(&ack,now);
 }
+static void assistant_reject(uint8_t reason) {
+    assistant_ticket=0;assistant_status=ASSISTANT_REJECTED;assistant_ack=reason;
+}
+static void assistant_line(uint32_t now) {
+    unsigned i;uint32_t ticket=0;car_wireless_frame_t f={0};
+    scope_page=5u;
+    if (!strcmp(assistant_text,"STOP")) {
+        assistant_ticket=0;wireless_control_revoke_outputs(&engine,now);
+        effect=CAR_WIRELESS_EFFECT_STOP;effect_ack_valid=0;
+        assistant_pending_effect=effect;assistant_status=ASSISTANT_PENDING;
+        assistant_ack=WIRELESS_ACK_PENDING;return;
+    }
+    if (!strcmp(assistant_text,"ARM")) {
+        const wireless_control_runtime_t *r=&engine.runtime;
+        assistant_ticket=0;
+        if (r->hard_fault) {assistant_reject(WIRELESS_ACK_FAULT);return;}
+        if (!r->parked || !r->local_button_released || !r->startup_release_confirmed ||
+            r->follow_active || last_snapshot.outputs_active) {
+            assistant_reject(WIRELESS_ACK_NOT_PARKED);return;
+        }
+        if (!r->motor_hardware_accepted) {assistant_reject(WIRELESS_ACK_DENIED);return;}
+        if (r->calibration_busy || r->capture_busy || engine.test.active ||
+            effect!=CAR_WIRELESS_EFFECT_NONE || assistant_pending_effect!=CAR_WIRELESS_EFFECT_NONE) {
+            assistant_reject(WIRELESS_ACK_BUSY);return;
+        }
+        ticket=1000000u+((seed^now^(++assistant_issue_count*0x9e3779b9u))%9000000u);
+        if (ticket==assistant_previous_ticket) ticket=1000000u+(ticket-999999u)%9000000u;
+        assistant_session=(seed^now^ticket^(assistant_issue_count*0x85ebca6bu))|1u;
+        if (!wireless_control_open_session(&engine,assistant_session,now)) {
+            assistant_reject(WIRELESS_ACK_BUSY);return;
+        }
+        car_wireless_session=assistant_session;
+        assistant_ticket=assistant_previous_ticket=ticket;assistant_issued_ms=now;
+        assistant_status=ASSISTANT_ARMED;assistant_ack=WIRELESS_ACK_OK;return;
+    }
+    if (assistant_text_count!=13u || memcmp(assistant_text,"START ",6u)) return;
+    for (i=6u;i<13u;++i) {
+        if (assistant_text[i]<'0' || assistant_text[i]>'9') return;
+        ticket=ticket*10u+(uint32_t)(assistant_text[i]-'0');
+    }
+    if (!assistant_ticket || ticket!=assistant_ticket || !engine.session_ready ||
+        engine.session!=assistant_session) {assistant_reject(WIRELESS_ACK_BAD_SESSION);return;}
+    if (now-assistant_issued_ms>=ASSISTANT_TICKET_MS) {
+        assistant_ticket=0;assistant_status=ASSISTANT_EXPIRED;assistant_ack=WIRELESS_ACK_STALE;return;
+    }
+    /* Consume before validation: neither rejection nor a duplicate can queue
+       a delayed start when readiness later improves. ARM is then required. */
+    assistant_ticket=0;
+    if (engine.runtime.hard_fault) {assistant_reject(WIRELESS_ACK_FAULT);return;}
+    if (!engine.runtime.parked || !engine.runtime.local_button_released ||
+        !engine.runtime.startup_release_confirmed || engine.runtime.follow_active ||
+        last_snapshot.outputs_active) {assistant_reject(WIRELESS_ACK_NOT_PARKED);return;}
+    if (!engine.runtime.motor_hardware_accepted) {assistant_reject(WIRELESS_ACK_DENIED);return;}
+    if (engine.runtime.calibration_busy || engine.runtime.capture_busy || engine.test.active ||
+        effect!=CAR_WIRELESS_EFFECT_NONE || assistant_pending_effect!=CAR_WIRELESS_EFFECT_NONE) {
+        assistant_reject(WIRELESS_ACK_BUSY);return;
+    }
+    f.type=CAR_WIRELESS_COMMAND;f.payload_len=4;f.payload[0]=WIRELESS_OP_START;
+    f.session=assistant_session;f.sequence=1u;f.timestamp_ms=now;
+    command_frame(&f,now);
+    if (effect==CAR_WIRELESS_EFFECT_START && effect_ack_valid) {
+        assistant_pending_effect=effect;assistant_status=ASSISTANT_PENDING;
+        assistant_ack=WIRELESS_ACK_PENDING;
+    } else assistant_reject(engine.cached_ack.status);
+}
+static uint8_t assistant_text_byte(uint8_t b,uint32_t now) {
+    if ((assistant_text_count || assistant_text_drop) &&
+        now-assistant_text_started_ms>CAL_TEXT_TIMEOUT_MS) {
+        assistant_text_count=assistant_text_drop=0;
+    }
+    if (!assistant_text_count && !assistant_text_drop) {
+        if (radio_parser.length || seekfree_count || (b!='A' && b!='S')) return 0u;
+        assistant_text_started_ms=now;
+    }
+    if (b=='\r' || b=='\n') {
+        if (!assistant_text_drop) {
+            assistant_text[assistant_text_count]='\0';assistant_line(now);
+        }
+        assistant_text_count=assistant_text_drop=0;return 1u;
+    }
+    /* Do not swallow the beginning of a binary control/parameter frame. */
+    if (b==0xd3u || b==0x55u || b<0x20u || b>0x7eu) {
+        assistant_text_count=assistant_text_drop=0;return 0u;
+    }
+    if (assistant_text_drop) return 1u;
+    if (assistant_text_count>=sizeof(assistant_text)-1u) {
+        assistant_text_drop=1u;return 1u;
+    }
+    assistant_text[assistant_text_count++]=(char)b;return 1u;
+}
 static void seekfree_byte(uint8_t b,uint32_t now) {
     float value;uint8_t checksum;unsigned i,id=0,group=0;
     static const uint8_t ids[3][7]={{1,2,3,17,4,5,6},{7,8,9,10,11,12,13},{14,15,16,0,0,0,0}};
@@ -246,7 +348,7 @@ static void seekfree_byte(uint8_t b,uint32_t now) {
     for (i=0;i<8;++i) if (i!=1) checksum=(uint8_t)(checksum+seekfree_rx[i]);
     if (checksum!=seekfree_rx[1] || seekfree_rx[2]!=0x20 || seekfree_rx[3]>7) return;
     memcpy(&value,seekfree_rx+4,4);if (!isfinite(value)) return;
-    if (seekfree_rx[3]==7) {if(value>=0 && value<=4 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
+    if (seekfree_rx[3]==7) {if(value>=0 && value<=5 && value==(float)(int)value) scope_page=(uint8_t)value;return;}
     if (scope_page>=3u) return;
     id=ids[scope_page][seekfree_rx[3]];if(!id || value < -1000000 || value>1000000 || value!=(float)(int32_t)value) return;
     group=(id==2 || id==6 || id==7)?2:(id>=8 && id<=10)?3:(id>=11 && id<=16)?4:1;
@@ -268,6 +370,10 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     calibration_accepted_frames=calibration_attempted_frames=0;
     calibration_reason_hash=0;
     calibration_text_started_ms=0;
+    assistant_text_count=assistant_text_drop=assistant_rx_fault=0;
+    assistant_ticket=assistant_issue_count=assistant_previous_ticket=assistant_session=0;
+    assistant_status=ASSISTANT_IDLE;assistant_ack=WIRELESS_ACK_OK;
+    assistant_pending_effect=CAR_WIRELESS_EFFECT_NONE;
     wireless_settings_defaults(&settings);
     /* Adapter validates both slots before returning any persistent settings. */
     flash_selected_slot=1u;
@@ -283,14 +389,14 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
 }
 void car_wireless_uart_rx_isr(uint8_t b,uint32_t now) {
     uint16_t next=(rx_head+1u)&(RX_N-1u);
-    if(next==rx_tail){++car_wireless_rx_overflow;return;}
+    if(next==rx_tail){++car_wireless_rx_overflow;assistant_rx_fault=1;return;}
     rx_data[rx_head]=b;rx_time[rx_head]=now;
 #if defined(__GNUC__)
     __asm volatile("" ::: "memory");
 #endif
     rx_head=next;
 }
-void car_wireless_uart_error_isr(void){++car_wireless_uart_errors;}
+void car_wireless_uart_error_isr(void){++car_wireless_uart_errors;assistant_rx_fault=1;}
 void car_wireless_local_stop(uint32_t now){(void)now;local_stop_latched=1;}
 const wireless_settings_t *car_wireless_settings(void){return &engine.settings;}
 wireless_control_test_t car_wireless_test(void){return engine.test;}
@@ -307,6 +413,11 @@ uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_sto
     now-engine.test.started_ms<engine.test.deadline_ms-engine.test.started_ms;}
 car_wireless_effect_t car_wireless_take_effect(void){car_wireless_effect_t result=effect;effect=CAR_WIRELESS_EFFECT_NONE;return result;}
 void car_wireless_effect_result(car_wireless_effect_t e,uint8_t success){
+    if (assistant_pending_effect==e && e!=CAR_WIRELESS_EFFECT_NONE) {
+        assistant_pending_effect=CAR_WIRELESS_EFFECT_NONE;
+        assistant_status=success ? (e==CAR_WIRELESS_EFFECT_STOP?ASSISTANT_STOPPED:ASSISTANT_ACCEPTED) : ASSISTANT_REJECTED;
+        assistant_ack=success?WIRELESS_ACK_OK:WIRELESS_ACK_NOT_READY;
+    }
     (void)e;if(!effect_ack_valid)return;effect_ack_valid=0;
     effect_ack.status=success?WIRELESS_ACK_OK:WIRELESS_ACK_NOT_READY;
     cache_final(&effect_ack,last_snapshot.now_ms);
@@ -365,6 +476,16 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
             scope[13]=(float)car_wireless_packets;
             scope[14]=(float)scope_page;
             scope[15]=(float)calibration_reason_hash;
+        } else if(scope_page==5u) {
+            scope[0]=(float)assistant_status;scope[1]=(float)assistant_ack;
+            scope[2]=(float)assistant_ticket;
+            scope[3]=assistant_ticket?(float)(ASSISTANT_TICKET_MS-(s->now_ms-assistant_issued_ms)):0.0f;
+            scope[4]=(float)vehicle->follow_session_active;scope[5]=(float)vehicle->road_drive_allowed;
+            scope[6]=(float)vehicle->vision_valid;scope[7]=(float)vehicle->vision_sequence;
+            scope[8]=(float)vehicle->imu_ready;scope[9]=(float)vehicle->imu_fault;
+            scope[10]=(float)vehicle->fault;scope[11]=(float)vehicle->fault_latched;
+            scope[12]=(float)s->button_released;scope[13]=(float)engine.runtime.motor_hardware_accepted;
+            scope[14]=5.0f;scope[15]=(float)s->outputs_active;
         } else if(scope_page==4u) {
             scope[0]=(float)s->imu_who_am_i_valid;
             scope[1]=(float)s->imu_who_am_i;
@@ -469,7 +590,22 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
     state.follow_active=c->follow_session_active;state.motor_hardware_accepted=config->motor_hardware_accepted;
     state.calibration_busy=s->calibration_busy || wireless_flash_busy(&flash_writer);state.capture_busy=car_wireless_capture_busy();
     wireless_control_set_runtime(&engine,&state);
-    if(local_stop_latched){wireless_control_revoke_outputs(&engine,now);local_stop_latched=0;}
+    if(local_stop_latched){
+        assistant_ticket=0;assistant_pending_effect=CAR_WIRELESS_EFFECT_NONE;
+        assistant_status=ASSISTANT_STOPPED;assistant_ack=WIRELESS_ACK_OK;
+        wireless_control_revoke_outputs(&engine,now);local_stop_latched=0;
+    }
+    if (assistant_ticket && (now-assistant_issued_ms>=ASSISTANT_TICKET_MS ||
+        !engine.runtime.local_button_released || !engine.runtime.startup_release_confirmed ||
+        engine.runtime.hard_fault || engine.runtime.follow_active ||
+        !engine.runtime.parked || engine.runtime.calibration_busy || engine.runtime.capture_busy)) {
+        assistant_ticket=0;assistant_status=ASSISTANT_EXPIRED;assistant_ack=WIRELESS_ACK_STALE;
+    }
+    if (assistant_rx_fault) {
+        assistant_rx_fault=0;assistant_ticket=0;assistant_text_count=assistant_text_drop=0;
+        calibration_text_count=seekfree_count=0;car_wireless_parser_init(&radio_parser);
+        rx_tail=rx_head;assistant_status=ASSISTANT_REJECTED;assistant_ack=WIRELESS_ACK_BAD_FRAME;
+    }
     wireless_control_tick(&engine,now);
     if(camera_ready && now-camera_last_ms>1500u){
         /* A camera reboot must negotiate a new epoch, never replay queued commands. */
@@ -497,10 +633,15 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
     }
     while(rx_tail!=rx_head && budget--){
         uint8_t b=rx_data[rx_tail];uint32_t at=rx_time[rx_tail];rx_tail=(rx_tail+1u)&(RX_N-1u);
-        if(now-at>100u){car_wireless_parser_init(&radio_parser);seekfree_count=0;continue;}
+        if(now-at>100u){car_wireless_parser_init(&radio_parser);seekfree_count=0;
+            assistant_text_count=assistant_text_drop=calibration_text_count=0;continue;}
         if(at-last_rx_ms>50u){car_wireless_parser_init(&radio_parser);seekfree_count=0;}last_rx_ms=at;
         if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT &&
            calibration_text_byte(b,now)) continue;
+        if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT && assistant_text_byte(b,now)) {
+            if(effect!=CAR_WIRELESS_EFFECT_NONE)break;
+            continue;
+        }
         if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT &&
            (seekfree_count || (!radio_parser.length && b==0x55))) {
             seekfree_byte(b,now);continue;
@@ -508,6 +649,7 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
         if(car_wireless_parser_feed(&radio_parser,b,&f)!=CAR_WIRELESS_PARSE_FRAME)continue;
         ++car_wireless_packets;
         if(f.type==CAR_WIRELESS_HELLO && f.payload_len==4 && !car_wireless_capture_busy() && effect==CAR_WIRELESS_EFFECT_NONE){
+            assistant_ticket=0;
             uint32_t token=seed^(++session_counter*0x9e3779b9u)^now^u32(f.payload);if(!token)token=1;
             if(wireless_control_open_session(&engine,token,now)){
                 memset(pending,0,sizeof(pending));
