@@ -1401,6 +1401,8 @@ class FastGrayMasks:
     @_k230_identity
     def _otsu_for_block(self, hist_base: int, nonzero_base: int,
                         nonzero_count: int, count: int, value_sum: int):
+        if _K230_ACCEL is not None:
+            return self._k230_otsu_results[hist_base // 256]
         if self._otsu_asm_ready:
             return _otsu_asm_result(
                 self, hist_base, nonzero_base, nonzero_count, count,
@@ -1420,6 +1422,9 @@ class FastGrayMasks:
                 self.luma, self._histograms, self._rectangles,
                 self.width, self._block_count, self._nonzero_values,
                 self._nonzero_counts, self._block_stats)
+
+        if _K230_ACCEL is not None:
+            self._k230_otsu_results = _K230_ACCEL.batch_otsu(self)
 
         trusted_count = 0
         threshold_min = None

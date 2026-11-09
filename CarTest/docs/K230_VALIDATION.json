@@ -35,7 +35,7 @@
     "hardware": "not_connected"
   },
   "hal_tests_passed": true,
-  "hal_tests": 26,
+  "hal_tests": 28,
   "gyro_camera_tests_passed": true,
   "gyro_driver_state_tests_passed": true,
   "gyro_integration_tests_passed": true,
@@ -98,8 +98,8 @@
     },
     {
       "file": "fast_gray.py",
-      "source_sha256": "9bc3e94770769f9cb9884af46e311376615f8f7facd122387d8e15b7c96d02de",
-      "mpy_sha256": "c737ba0e347d8784f6c24b3a137762bba45b787890c3d18480d2897b9e220091",
+      "source_sha256": "5be4ef3f995d625cff76727fa1f4750c0311aef373de5d9c6f3976b46b1cd3b4",
+      "mpy_sha256": "af074b386403e80eb5e28d04a17dd59a349ade91a0b08937c62a776a76256aef",
       "exitcode": 0
     },
     {
@@ -140,8 +140,8 @@
     },
     {
       "file": "k230_accel.py",
-      "source_sha256": "699ab026c9fefa3f83c39de6a1b1a47a94bf781ea5173db8894c4f9576d1d6a4",
-      "mpy_sha256": "3b3fdddac7732c35af763976c51dee5d3d86e2165e8c56f4efd0bbff896a6a6e",
+      "source_sha256": "b4f99c2e1fec9f652baf6332401242838b5f26d362a9a7c6825d126825082080",
+      "mpy_sha256": "7ccbf42216eea920fef0031d01b2aa58a8ff8492e465267748e372b533a835df",
       "exitcode": 0
     },
     {
@@ -1367,5 +1367,28 @@
     "mcu_changes": false,
     "private_calibration": "preserved; excluded from checkpoint",
     "portable_compilation_only": "compiler output not installed; device runs source"
+  },
+  "fps_optimization_v20": {
+    "full_pipeline_frames": 840,
+    "measurement_duration_s": 20,
+    "measured_fps": 42.0,
+    "target_fps": 60,
+    "target_met": false,
+    "sensor": "1920x1080@60",
+    "lcd_update_period_ms": 50,
+    "valid_frames": 840,
+    "uart_write_errors": 0,
+    "h743_receive_verified": false,
+    "road_acceptance": "unverified",
+    "batch_otsu_host_random_cases": 4000,
+    "batch_otsu_device_random_cases": 400,
+    "batch_otsu_mismatches": 0,
+    "device_histogram_stress_iterations": 500,
+    "device_histogram_fault_fallback_blocks": 4,
+    "fault_fallback_exact": true,
+    "native_histogram_issue": "Intermittent invalid native counts observed in pre-fallback candidate; root cause unconfirmed. Counts rejected and current-frame integer recount used.",
+    "mcu_changes": false,
+    "private_calibration": "preserved; excluded from checkpoint",
+    "portable_compilation_only": "Compiler output not installed; device runs source"
   }
 }

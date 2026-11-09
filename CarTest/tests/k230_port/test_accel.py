@@ -59,6 +59,50 @@ class AccelerationEquivalence(unittest.TestCase):
             for name in ('_histograms','_block_stats','_nonzero_counts','thresholds','trusted','road_mask','edge_mask','known_region','row_counts','road_row_counts','_pixel_totals'):
                 self.assertEqual(getattr(candidate,name),getattr(reference,name),(trial,name))
 
+    def test_batch_otsu_exact_random_and_constant_histograms(self):
+        rng=random.Random(320060)
+        builder=fast_gray.FastGrayMasks(config)
+        for trial in range(1000):
+            for block in range(builder._block_count):
+                hist=[0]*256
+                if trial%17==0:
+                    hist[rng.randrange(256)]=1200
+                elif trial%19:
+                    for _ in range(2+rng.randrange(220)):
+                        hist[rng.randrange(256)]+=1+rng.randrange(9)
+                values=[i for i in range(256) if hist[i]]
+                base=block*256
+                builder._histograms[base:base+256]=array('I',hist)
+                builder._nonzero_values[base:base+len(values)]=bytes(values)
+                builder._nonzero_counts[block]=len(values)
+                builder._block_stats[block*4:block*4+4]=array('I',[
+                    sum(hist),sum(i*h for i,h in enumerate(hist)),
+                    values[0] if values else 256,values[-1] if values else 0])
+            actual=accel.batch_otsu(builder)
+            expected=[fast_gray._otsu_native(
+                builder._histograms,builder._nonzero_values,block*256,
+                builder._nonzero_counts[block],builder._block_stats[block*4],
+                builder._block_stats[block*4+1])
+                for block in range(builder._block_count)]
+            self.assertEqual(actual,expected,trial)
+
+    def test_native_histogram_bad_counts_recount_current_pixels(self):
+        class CorruptHistogram(NativeImageOracle):
+            class Image(NativeImageOracle.Image):
+                def get_histogram(self,roi,bins):
+                    return types.SimpleNamespace(bins=lambda:[0.5]*256)
+        rng=random.Random(671)
+        reference=fast_gray.FastGrayMasks(config)
+        candidate=fast_gray.FastGrayMasks(config)
+        pixels=bytearray(rng.randrange(256) for _ in range(4800))
+        reference.luma[:]=pixels;candidate.luma[:]=pixels
+        with patch.object(fast_gray,'_K230_ACCEL',None):
+            reference._calculate_thresholds();reference._write_masks()
+        with patch.object(fast_gray,'_K230_ACCEL',accel),patch.object(accel,'_image',CorruptHistogram):
+            candidate._calculate_thresholds();candidate._write_masks()
+        for name in ('_histograms','_block_stats','_nonzero_counts','thresholds','trusted','road_mask','edge_mask','known_region','row_counts','road_row_counts','_pixel_totals'):
+            self.assertEqual(getattr(candidate,name),getattr(reference,name),name)
+
     def test_row_extraction_exact(self):
         rng=random.Random(3928)
         for trial in range(80):

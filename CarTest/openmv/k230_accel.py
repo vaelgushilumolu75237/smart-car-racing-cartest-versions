@@ -47,7 +47,11 @@ def histogram(luma, histograms, rectangles, width, blocks, values, counts, stats
             maximum = int(occupied[-1])
             values[base:base+nonzero] = np.array(occupied,dtype=np.uint8).tobytes()
             if measured != n:
-                raise ValueError("Native histogram count mismatch %d/%d max=%s" % (measured,n,str(np.max(low))))
+                # Reject inconsistent native/array output before it can affect
+                # a threshold. Recount this same frame using integer byte counts.
+                _histogram_recount(luma, histograms, base, x0, y0, x1, y1,
+                                   width, values, counts, stats, block)
+                continue
             counts[block] = nonzero
             stats[at] = n
             stats[at+1] = total
@@ -76,6 +80,31 @@ def histogram(luma, histograms, rectangles, width, blocks, values, counts, stats
         stats[at + 1] = total
         stats[at + 2] = int(ordered[0])
         stats[at + 3] = int(ordered[-1])
+
+
+def _histogram_recount(luma, histograms, base, x0, y0, x1, y1,
+                       width, values, counts, stats, block):
+    region = b"".join(bytes(luma[y*width+x0:y*width+x1])
+                      for y in range(y0, y1))
+    nonzero = 0
+    total = 0
+    minimum, maximum = 256, 0
+    for value in range(256):
+        amount = region.count(bytes([value]))
+        histograms[base+value] = amount
+        if amount:
+            values[base+nonzero] = value
+            nonzero += 1
+            total += value*amount
+            if value < minimum:
+                minimum = value
+            maximum = value
+    counts[block] = nonzero
+    at = block*4
+    stats[at] = len(region)
+    stats[at+1] = total
+    stats[at+2] = minimum
+    stats[at+3] = maximum
 
 
 def masks(luma, road, edge, known, rectangles, thresholds, trusted,
@@ -326,3 +355,29 @@ def extract_rows(detector):
             count += 1
         counts[layer] = count
     return 0
+
+
+def batch_otsu(builder):
+ blocks=builder._block_count
+ raw=np.array(np.frombuffer(builder._histograms,dtype=np.uint16)[::2],dtype=_FLOAT).reshape((blocks,256))
+ low=raw.copy();sums=raw*np.arange(256).reshape((1,256));step=1
+ while step<256:
+  low[:,step:]=low[:,step:]+low[:,:-step]
+  sums[:,step:]=sums[:,step:]+sums[:,:-step]
+  step*=2
+ counts=np.array([builder._block_stats[b*4] for b in range(blocks)]).reshape((blocks,1))
+ totals=np.array([builder._block_stats[b*4+1] for b in range(blocks)]).reshape((blocks,1))
+ high=counts-low
+ low_mean=sums/np.maximum(low,1)
+ high_mean=(totals-sums)/np.maximum(high,1)
+ diff=high_mean-low_mean
+ scores=((low*high/np.maximum(counts*counts,1))*diff)*diff
+ valid=(low>0)*(high>0)
+ scores=scores*valid-(1-valid)
+ results=[]
+ for b in range(blocks):
+  if builder._nonzero_counts[b]<2:
+   results.append((0,0,0,0.0,0.0,0.0));continue
+  value=int(np.argmax(scores[b,:]))
+  results.append((value,int(low[b,value]),int(high[b,value]),float(low_mean[b,value]),float(high_mean[b,value]),float(diff[b,value])))
+ return results
