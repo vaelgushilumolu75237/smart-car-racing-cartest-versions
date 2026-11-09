@@ -18,6 +18,7 @@ DISPLAY_MODE = "lcd"  # lcd (ST7701 + IDE), ide (VIRT), or off.
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_FPS = 60
+DISPLAY_UPDATE_PERIOD_MS = 50  # LCD 20 Hz; perception/control are never throttled.
 DISPLAY_QUALITY = 50
 DATA_DIRECTORY = "/sdcard/cartest-k230"
 MOUNT_REVISION = "mount-1"  # Change after camera/lens/height/pitch adjustment.

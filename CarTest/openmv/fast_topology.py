@@ -18,6 +18,10 @@ the next mask build.
 RUNTIME_API_VERSION = 7
 
 from array import array
+import sys
+_K230_ACCEL = None
+if sys.implementation.name == "micropython":
+    import k230_accel as _K230_ACCEL
 
 try:
     raise ImportError('K230 portable reference backend')
@@ -607,6 +611,8 @@ def _internal_component_viper(self, floor: int, band_end: int) -> int:
 
 
 def _region_segments_dispatch(self, floor):
+    if _K230_ACCEL is not None:
+        return _K230_ACCEL.region_segments(self, floor)
     native = _NATIVE_ACCEL
     if native is not None and self.width == 80 and self.height == 60:
         # Do not catch native validation exceptions: the calling main loop must
@@ -626,6 +632,8 @@ def _region_segments_dispatch(self, floor):
 
 
 def _internal_component_dispatch(self, floor, band_end):
+    if _K230_ACCEL is not None:
+        return _K230_ACCEL.internal_component(self, floor, band_end)
     native = _NATIVE_ACCEL
     if native is not None and self.width == 80 and self.height == 60:
         # The native binding validates all exact buffer types, lengths, and

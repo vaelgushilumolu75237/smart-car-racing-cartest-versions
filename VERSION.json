@@ -1,8 +1,8 @@
 {
-  "version": "v20261109-k230-calibration-save-v18",
-  "status": "experimental-software-and-device-scratch-tested",
+  "version": "v20261109-k230-fps40-experimental-v19",
+  "status": "experimental-software-tested-fps60-target-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 641,
+  "files": 643,
   "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",

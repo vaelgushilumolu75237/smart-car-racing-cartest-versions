@@ -360,6 +360,7 @@ class HALTests(unittest.TestCase):
         image_module = types.SimpleNamespace(
             Image=PreviewImage, GRAYSCALE=PreviewImage.GRAYSCALE)
         with patch.dict(sys.modules, {"image": image_module}), \
+                patch.object(hal.settings, "DISPLAY_UPDATE_PERIOD_MS", 0), \
                 patch.object(hal.settings, "DISPLAY_MODE", "lcd"), \
                 patch.object(hal.settings, "DISPLAY_WIDTH", 640), \
                 patch.object(hal.settings, "DISPLAY_HEIGHT", 480):
@@ -380,7 +381,7 @@ class HALTests(unittest.TestCase):
             self.assertIs(display.shown[1][0], preview)
 
         display.shown[:] = []
-        with patch.object(hal.settings, "DISPLAY_MODE", "ide"):
+        with patch.object(hal.settings, "DISPLAY_UPDATE_PERIOD_MS", 0), patch.object(hal.settings, "DISPLAY_MODE", "ide"):
             camera.flush()
         self.assertIs(display.shown[0][0], raw)
         self.assertEqual(display.shown[0][1], {"x": 0, "y": 60})

@@ -82,6 +82,7 @@ class Camera:
         self.usb_vcp = _PreviewConnection()
         self._lcd_preview = None
         self._lcd_preview_geometry = None
+        self._last_display_ms = None
 
     def configure(self):
         if self.device is not None:
@@ -166,6 +167,11 @@ class Camera:
     def flush(self):
         if self.latest is None or settings.DISPLAY_MODE == "off":
             return
+        period = getattr(settings, "DISPLAY_UPDATE_PERIOD_MS", 0)
+        now = time.ticks_ms() if period else None
+        if (period and self._last_display_ms is not None and
+                time.ticks_diff(now,self._last_display_ms) < period):
+            return
         if settings.DISPLAY_MODE == "lcd":
             import image
             display_width = int(settings.DISPLAY_WIDTH)
@@ -187,8 +193,10 @@ class Camera:
             x = (display_width - preview_width) // 2
             y = (display_height - preview_height) // 2
             self.display.show_image(self._lcd_preview, x=x, y=y)
+            self._last_display_ms = now
             return
         self.display.show_image(self.latest.image, x=0, y=60)
+        self._last_display_ms = now
 
     def close(self):
         self.latest = None

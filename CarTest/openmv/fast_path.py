@@ -7,6 +7,10 @@ RUNTIME_API_VERSION = 7
 CONFIDENCE_DIAGNOSTIC_ONLY = True
 
 from array import array
+import sys
+_K230_ACCEL = None
+if sys.implementation.name == "micropython":
+    import k230_accel as _K230_ACCEL
 
 try:
     raise ImportError('K230 portable reference backend')
@@ -303,26 +307,26 @@ def _connect_viper(self) -> int:
     counts = ptr8(self._counts)
     candidates = ptr32(self._candidate_data)
     states = ptr32(self._state_data)
-    width = int(self.width)
-    height = int(self.height)
-    layers = int(self.row_count)
-    max_per_row = int(self.max_per_row)
-    max_gap = int(self.max_gap)
-    max_width_change = int(self.max_width_change)
-    max_slope_milli = int(self.max_slope_milli)
-    link_tolerance_milli = int(self.link_tolerance_milli)
-    reference_y_milli = int(self.reference_y_milli)
-    state_capacity = int(self.state_capacity)
-    sentinel = int(-2147483647)
+    width = (self.width)
+    height = (self.height)
+    layers = (self.row_count)
+    max_per_row = (self.max_per_row)
+    max_gap = (self.max_gap)
+    max_width_change = (self.max_width_change)
+    max_slope_milli = (self.max_slope_milli)
+    link_tolerance_milli = (self.link_tolerance_milli)
+    reference_y_milli = (self.reference_y_milli)
+    state_capacity = (self.state_capacity)
+    sentinel = (-2147483647)
 
     for layer in range(layers):
         current_y = height - 1 - layer
         for slot in range(counts[layer]):
             node = layer * max_per_row + slot
             cbase = node * 4
-            center_twice = int(candidates[cbase + 1])
-            run_width = int(candidates[cbase + 2])
-            contrast_milli = int(candidates[cbase + 3])
+            center_twice = (candidates[cbase + 1])
+            run_width = (candidates[cbase + 2])
+            contrast_milli = (candidates[cbase + 3])
             if contrast_milli < 0:
                 contrast_milli = 0
             elif contrast_milli > 80000:
@@ -352,9 +356,9 @@ def _connect_viper(self) -> int:
                 old_y = height - 1 - previous_layer
                 for previous_slot in range(previous_count):
                     previous_node = previous_layer * max_per_row + previous_slot
-                    previous_center_twice = int(
+                    previous_center_twice = (
                         candidates[previous_node * 4 + 1])
-                    previous_width = int(candidates[previous_node * 4 + 2])
+                    previous_width = (candidates[previous_node * 4 + 2])
                     width_delta = run_width - previous_width
                     if width_delta < 0:
                         width_delta = -width_delta
@@ -372,10 +376,10 @@ def _connect_viper(self) -> int:
                     for previous_slot_state in range(2):
                         previous_state = previous_node * 2 + previous_slot_state
                         previous_base = previous_state * 10
-                        previous_score = int(states[previous_base])
+                        previous_score = (states[previous_base])
                         if previous_score <= sentinel // 2:
                             continue
-                        parent_state = int(states[previous_base + 1])
+                        parent_state = (states[previous_base + 1])
                         if parent_state < -1 or parent_state >= state_capacity:
                             continue
 
@@ -386,7 +390,7 @@ def _connect_viper(self) -> int:
                             base_dy = previous_layer - prior_layer
                             if base_dy <= 0 or prior_layer >= layers:
                                 continue
-                            prior_center_twice = int(
+                            prior_center_twice = (
                                 candidates[parent_node * 4 + 1])
                             prediction_delta = (
                                 (previous_center_twice - prior_center_twice) *
@@ -416,19 +420,19 @@ def _connect_viper(self) -> int:
                         reference_delta = current_y * 1000 - reference_y_milli
                         if reference_delta < 0:
                             reference_delta = -reference_delta
-                        old_reference_delta = int(states[previous_base + 5])
+                        old_reference_delta = (states[previous_base + 5])
                         if reference_delta < old_reference_delta:
                             reference_node = node
                         else:
-                            reference_node = int(states[previous_base + 4])
+                            reference_node = (states[previous_base + 4])
                             reference_delta = old_reference_delta
                         step_slope_milli = (
                             actual_step_milli + distance // 2) // distance
-                        slope_sum = int(states[previous_base + 6]) + step_slope_milli
-                        width_sum = int(states[previous_base + 7]) + width_delta
-                        path_count = int(states[previous_base + 2]) + 1
-                        bottom_y = int(states[previous_base + 3])
-                        first_score = int(states[first_base])
+                        slope_sum = (states[previous_base + 6]) + step_slope_milli
+                        width_sum = (states[previous_base + 7]) + width_delta
+                        path_count = (states[previous_base + 2]) + 1
+                        bottom_y = (states[previous_base + 3])
+                        first_score = (states[first_base])
                         if score > first_score:
                             for field in range(10):
                                 states[second_base + field] = states[first_base + field]
@@ -442,8 +446,8 @@ def _connect_viper(self) -> int:
                             states[first_base + 7] = width_sum
                             states[first_base + 8] = -1
                             states[first_base + 9] = 0
-                        elif (previous_state != int(states[first_base + 1]) and
-                              score > int(states[second_base])):
+                        elif (previous_state != (states[first_base + 1]) and
+                              score > (states[second_base])):
                             states[second_base] = score
                             states[second_base + 1] = previous_state
                             states[second_base + 2] = path_count
@@ -458,7 +462,7 @@ def _connect_viper(self) -> int:
             reference_delta = current_y * 1000 - reference_y_milli
             if reference_delta < 0:
                 reference_delta = -reference_delta
-            if local_reward > int(states[first_base]):
+            if local_reward > (states[first_base]):
                 for field in range(10):
                     states[second_base + field] = states[first_base + field]
                 states[first_base] = local_reward
@@ -471,8 +475,8 @@ def _connect_viper(self) -> int:
                 states[first_base + 7] = 0
                 states[first_base + 8] = -1
                 states[first_base + 9] = 0
-            elif (int(states[first_base + 1]) != -1 and
-                  local_reward > int(states[second_base])):
+            elif ((states[first_base + 1]) != -1 and
+                  local_reward > (states[second_base])):
                 states[second_base] = local_reward
                 states[second_base + 1] = -1
                 states[second_base + 2] = 1
@@ -495,16 +499,16 @@ def _select_viper(self) -> int:
     best_centers = ptr32(self._best_centers_by_layer)
     trace = ptr32(self._trace)
     control = ptr32(self._control)
-    layers = int(self.row_count)
-    max_per_row = int(self.max_per_row)
-    min_rows = int(self.min_rows)
-    min_span = int(self.min_span)
-    reference_max_gap_milli = int(self.reference_max_gap_milli)
-    ambiguity_margin_milli = int(self.ambiguity_margin_milli)
-    ambiguity_separation_milli = int(self.ambiguity_separation_milli)
-    state_capacity = int(self.state_capacity)
-    height = int(self.height)
-    sentinel = int(-2147483647)
+    layers = (self.row_count)
+    max_per_row = (self.max_per_row)
+    min_rows = (self.min_rows)
+    min_span = (self.min_span)
+    reference_max_gap_milli = (self.reference_max_gap_milli)
+    ambiguity_margin_milli = (self.ambiguity_margin_milli)
+    ambiguity_separation_milli = (self.ambiguity_separation_milli)
+    state_capacity = (self.state_capacity)
+    height = (self.height)
+    sentinel = (-2147483647)
     best_state = -1
     best_score = sentinel
     viable_count = 0
@@ -516,21 +520,21 @@ def _select_viper(self) -> int:
             for state_slot in range(2):
                 state_id = node * 2 + state_slot
                 base = state_id * 10
-                score = int(states[base])
+                score = (states[base])
                 if score <= sentinel // 2:
                     states[base + 8] = -1
                     continue
-                path_count = int(states[base + 2])
-                span = int(states[base + 3]) - current_y
-                reference_delta = int(states[base + 5])
+                path_count = (states[base + 2])
+                span = (states[base + 3]) - current_y
+                reference_delta = (states[base + 5])
                 if (path_count < min_rows or span < min_span or
                         reference_delta > reference_max_gap_milli):
                     states[base + 8] = -1
                     continue
 
                 divisor = path_count - 1
-                mean_slope_milli = int(states[base + 6]) // divisor
-                mean_width = int(states[base + 7]) // divisor
+                mean_slope_milli = (states[base + 6]) // divisor
+                mean_width = (states[base + 7]) // divisor
                 coverage_milli = path_count * 1000 // (span + 1)
                 if coverage_milli > 1000:
                     coverage_milli = 1000
@@ -565,7 +569,7 @@ def _select_viper(self) -> int:
         return 0
 
     best_base = best_state * 10
-    reference_node = int(states[best_base + 4])
+    reference_node = (states[best_base + 4])
     if reference_node < 0 or reference_node >= layers * max_per_row:
         return -1
     path_state = best_state
@@ -580,12 +584,12 @@ def _select_viper(self) -> int:
         if layer >= layers:
             return -1
         trace[path_count] = node
-        center_twice = int(candidates[node * 4 + 1])
+        center_twice = (candidates[node * 4 + 1])
         observed[layer] = 1
         best_centers[layer] = center_twice
         center_sum_twice += center_twice
         path_count += 1
-        parent_state = int(states[path_base + 1])
+        parent_state = (states[path_base + 1])
         if parent_state < -1 or parent_state >= state_capacity:
             return -1
         path_state = parent_state
@@ -598,13 +602,13 @@ def _select_viper(self) -> int:
     control[3] = path_count
     control[4] = center_sum_twice
     control[5] = reference_node
-    control[6] = int(states[best_base + 8])
+    control[6] = (states[best_base + 8])
     best_node = best_state // 2
     best_layer = best_node // max_per_row
-    control[7] = int(states[best_base + 3]) - (height - 1 - best_layer)
+    control[7] = (states[best_base + 3]) - (height - 1 - best_layer)
     control[8] = best_score
-    control[9] = int(states[best_base + 2])
-    control[10] = int(states[best_base + 5])
+    control[9] = (states[best_base + 2])
+    control[10] = (states[best_base + 5])
 
     # Propagate separation from the selected route once, in increasing layer
     # order. Every parent is in an earlier layer, so field 9 can hold an exact
@@ -614,14 +618,14 @@ def _select_viper(self) -> int:
     for layer in range(layers):
         for slot in range(counts[layer]):
             node = layer * max_per_row + slot
-            center_twice = int(candidates[node * 4 + 1])
+            center_twice = (candidates[node * 4 + 1])
             for state_slot in range(2):
                 state_id = node * 2 + state_slot
                 base = state_id * 10
-                if int(states[base]) <= sentinel // 2:
+                if (states[base]) <= sentinel // 2:
                     states[base + 9] = 0
                     continue
-                parent_state = int(states[base + 1])
+                parent_state = (states[base + 1])
                 if parent_state < -1 or parent_state >= state_capacity:
                     return -1
                 separated = 0
@@ -629,14 +633,14 @@ def _select_viper(self) -> int:
                     parent_layer = (parent_state // 2) // max_per_row
                     if parent_layer >= layer:
                         return -1
-                    parent_separated = int(
+                    parent_separated = (
                         states[parent_state * 10 + 9])
                     if parent_separated < 0 or parent_separated > 1:
                         return -1
                     separated = parent_separated
                 if observed[layer] != 0:
                     separation_twice = (
-                        center_twice - int(best_centers[layer]))
+                        center_twice - (best_centers[layer]))
                     if separation_twice < 0:
                         separation_twice = -separation_twice
                     if separation_twice * 500 >= ambiguity_separation_milli:
@@ -654,12 +658,12 @@ def _select_viper(self) -> int:
                 if competitor == best_state:
                     continue
                 competitor_base = competitor * 10
-                if int(states[competitor_base + 8]) < 0:
+                if (states[competitor_base + 8]) < 0:
                     continue
-                score_gap = best_score - int(states[competitor_base])
+                score_gap = best_score - (states[competitor_base])
                 if score_gap > ambiguity_margin_milli:
                     continue
-                if int(states[competitor_base + 9]) != 0:
+                if (states[competitor_base + 9]) != 0:
                     control[2] = 1
                     return 2
     return 1
@@ -1082,7 +1086,8 @@ class FastPathDetector:
                 self.floor_y, self.min_width, self.max_width,
                 self.max_per_row)
         else:
-            extract_status = _extract_viper(self)
+            extract_status = (_K230_ACCEL.extract_rows(self) if _K230_ACCEL is not None
+                              else _extract_viper(self))
         if extract_status < 0:
             rows = self._rows() if mask_info.get("debug") else ()
             return self._fail("ROW_CANDIDATE_OVERFLOW", rows,

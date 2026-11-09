@@ -13,6 +13,10 @@ RUNTIME_API_VERSION = 7
 RING_DARK_BLOCK_API_VERSION = 1
 
 from array import array
+import sys
+_K230_ACCEL = None
+if sys.implementation.name == "micropython":
+    import k230_accel as _K230_ACCEL
 
 try:
     raise ImportError('K230 portable reference backend')
@@ -1365,9 +1369,13 @@ class FastGrayMasks:
                 else:
                     _min_pool_viper(self, raw, image_width)
             else:
-                _min_pool_host(raw, self.luma, image_width,
-                               self.width, self.height,
-                               self.scale_x, self.scale_y)
+                if _K230_ACCEL is not None:
+                    _K230_ACCEL.min_pool(raw, self.luma, image_width,
+                                         self.width, self.height)
+                else:
+                    _min_pool_host(raw, self.luma, image_width,
+                                   self.width, self.height,
+                                   self.scale_x, self.scale_y)
             return "buffer"
 
         if _IS_MICROPYTHON:
@@ -1406,7 +1414,9 @@ class FastGrayMasks:
         if _IS_MICROPYTHON:
             _histogram_refresh(self)
         else:
-            _histogram_host(
+            histogram_kernel = (_K230_ACCEL.histogram if _K230_ACCEL is not None
+                                else _histogram_host)
+            histogram_kernel(
                 self.luma, self._histograms, self._rectangles,
                 self.width, self._block_count, self._nonzero_values,
                 self._nonzero_counts, self._block_stats)
@@ -1521,7 +1531,9 @@ class FastGrayMasks:
             else:
                 _mask_viper(self)
         else:
-            _mask_host(
+            mask_kernel = (_K230_ACCEL.masks if _K230_ACCEL is not None
+                           else _mask_host)
+            mask_kernel(
                 self.luma, self.road_mask, self.edge_mask,
                 self.known_region, self._rectangles,
                 self._threshold_values, self._trusted_values,
