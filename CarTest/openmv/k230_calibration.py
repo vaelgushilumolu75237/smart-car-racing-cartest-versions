@@ -37,7 +37,7 @@ class BoundCalibration(_base_type):
             with open(path, "r") as source:
                 data = original._json.loads(source.read())
         except OSError:
-            return super().load(path)
+            return _base_type.load(path, cls())
         except Exception:
             result = cls()
             result._set_status(False, "INVALID_FILE")
@@ -47,5 +47,7 @@ class BoundCalibration(_base_type):
             result = cls()
             result._set_status(False, "GEOMETRY_MISMATCH")
             return result
-        return super().load(path)
+        # CanMV v1.4.3 does not bind this inherited classmethod through super.
+        # Supply the subclass instance explicitly and retain its bound payload.
+        return _base_type.load(path, cls())
 

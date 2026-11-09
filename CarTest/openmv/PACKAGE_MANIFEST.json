@@ -51,7 +51,7 @@
     "fast_topology.py": "92b299d0e9da7005c24d6e7cb577c4cda4df9b59fa9fd9c1a52fd70508129656",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
-    "k230_calibration.py": "ebc6eda229ec3022df8ddcfffc3021dad9e240ebc75b82906b5bd150183ba12e",
+    "k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
     "k230_hal.py": "c3b1c29849dccec60dd81799ce5a41acbba6e81198805ba9d25071d5eaeaa997",
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "7c254856d61bbea226ee83f8cc01715e644264dcc4a066b6e05733c1311699a7",
@@ -60,7 +60,7 @@
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
     "ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
-    "ring_width_calibration.py": "9d5489242edf92e846128c71d77697ec757ece69b551c62457a827f9676a5e5f",
+    "ring_width_calibration.py": "a36a7da88b18dd0a39c4215b089fa38c13cad0a290230442f8842b1ed761f109",
     "road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
     "run_cartest.py": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
     "source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
@@ -77,7 +77,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261109-k230-bytearray-compat-v17",
+  "release_version": "v20261109-k230-calibration-save-v18",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -130,6 +130,13 @@
   "uart_buffer_compatibility": {
     "method": "Replace bounded unread suffix; never delete bytearray items",
     "on_device_synthetic_verified": true,
-    "physical_wire_verified": false
+    "physical_wire_verified": true
+  },
+  "calibration_save_compatibility": {
+    "explicit_base_loader": true,
+    "fat_existing_target_replacement": true,
+    "on_device_scratch_roundtrip_verified": true,
+    "actual_track_calibration": "pending recollection",
+    "h743_reflash_required": false
   }
 }

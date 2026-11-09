@@ -440,6 +440,18 @@ class CalibrationBindingTests(unittest.TestCase):
             self.assertEqual(data["format_version"], 3)
             self.assertEqual(data["sensor_id"], 24)
             self.assertTrue(calibration.RingWidthCalibration.load(str(p)).ready)
+            self.assertIsInstance(calibration.RingWidthCalibration.load(str(p)), binding.BoundCalibration)
+            # Model CanMV FAT: rename cannot overwrite an existing file.
+            import os
+            real_rename = os.rename
+            def fat_rename(source, target):
+                if Path(target).exists():
+                    raise OSError(17, "EEXIST")
+                return real_rename(source, target)
+            with patch.object(calibration.os, "replace", None), patch.object(calibration.os, "rename", fat_rename):
+                collector.save(str(p))
+                self.assertTrue(calibration.RingWidthCalibration.load(str(p)).ready)
+                self.assertFalse(Path(str(p) + ".previous").exists())
             binding.bind(24, "board-a|mount-2")
             self.assertFalse(calibration.RingWidthCalibration.load(str(p)).ready)
             binding.bind(25, "board-a|mount-1")

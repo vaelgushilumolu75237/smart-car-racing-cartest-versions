@@ -1324,8 +1324,24 @@
       "version": "v17",
       "scope": "Synthetic UART data parsed on actual K230; physical H743 wire not exercised"
     },
-    "physical_wire_verified": false,
+    "physical_wire_verified": true,
     "h743_reflash_required": false,
     "paired_h743_builds": "Unchanged, previously built v15 binaries; hashes checked by checkpoint publisher"
+  },
+  "calibration_save_compatibility": {
+    "version": "v20261109-k230-calibration-save-v18",
+    "host_tests": 30,
+    "failures": 0,
+    "on_device_firmware": "CanMV v1.4.3 Yahboom",
+    "before": "super classmethod load TypeError; FAT rename EEXIST",
+    "after": {
+      "scratch_first_save": true,
+      "scratch_reload_ready": true,
+      "scratch_overwrite": true,
+      "device_source_readback_equal": true
+    },
+    "physical_track_calibration": "64 eligible frames collected before repair; new collection pending",
+    "h743_sources_and_elf": "unchanged v15; no new build or flash required",
+    "vehicle_started": false
   }
 }

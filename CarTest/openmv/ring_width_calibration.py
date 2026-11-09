@@ -509,7 +509,24 @@ class RingWidthCalibration:
             if replace is not None:
                 replace(temporary, target)
             else:
-                os.rename(temporary, target)
+                try:
+                    os.rename(temporary, target)
+                except OSError as exc:
+                    # CanMV's FAT rename refuses an existing destination.
+                    # Keep the previous map until the new file is installed.
+                    if not exc.args or exc.args[0] != 17:
+                        raise
+                    previous = target + ".previous"
+                    os.rename(target, previous)
+                    try:
+                        os.rename(temporary, target)
+                    except Exception:
+                        os.rename(previous, target)
+                        raise
+                    try:
+                        os.remove(previous)
+                    except OSError:
+                        pass
         except Exception:
             try:
                 os.remove(temporary)
@@ -519,9 +536,10 @@ class RingWidthCalibration:
         return data
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, calibration=None):
         """Load calibration; missing or invalid files return a not-ready map."""
-        calibration = cls()
+        if calibration is None:
+            calibration = cls()
         try:
             with open(path, "r") as source:
                 data = _json.loads(source.read())
