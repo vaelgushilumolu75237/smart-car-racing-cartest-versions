@@ -72,6 +72,19 @@ class NativeContracts(unittest.TestCase):
    road[:]=bytes(4800)
    with patch.object(accel,'_cv',ThresholdOracle):accel.extract_rows(b)
    self.assertFalse(any(b._counts))
+ def test_calibration_override_restores_dense_rows_then_fast_sampling(self):
+  d=fast_path.FastPathDetector(config)
+  road=bytearray(4800);edge=bytearray([1]*4800);known=bytearray([1]*4800);luma=bytearray([20]*4800)
+  for y in range(60):
+   road[y*80+20:y*80+55]=bytes([255])*35
+   edge[y*80+20:y*80+55]=bytes(35)
+   luma[y*80+20:y*80+55]=bytes([210])*35
+  d._current_luma=luma;d._current_road=road;d._current_known=known;d._current_edge=edge
+  with patch.object(accel,'_cv',ThresholdOracle):
+   d.path_row_step=1;d.path_row_phase=0;accel.extract_rows(d)
+   self.assertGreaterEqual(sum(bool(n) for n in d._counts),20)
+   d.path_row_step=3;d.path_row_phase=1;accel.extract_rows(d)
+   self.assertLessEqual(sum(bool(n) for n in d._counts),18)
  def test_invalid_sampling_is_rejected(self):
   d=fast_path.FastPathDetector(config)
   for name in ('luma','road','known','edge'):setattr(d,'_current_'+name,bytearray(4800))

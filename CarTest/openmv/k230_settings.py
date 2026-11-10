@@ -155,3 +155,5 @@ class WirelessSettingsStore:
 # Full masks/topology remain 80x60; selected path rows keep physical coordinates.
 PATH_ROW_STEP = 3
 PATH_ROW_PHASE = 1
+
+AUTO_BOOT_WIDTH_CALIBRATION = True

@@ -337,8 +337,8 @@ def extract_rows(detector):
     known, road = detector._current_known, detector._current_road
     candidates, counts = detector._candidate_data, detector._counts
     import k230_settings as settings
-    step = getattr(settings, 'PATH_ROW_STEP', 1) if _cv is not None else 1
-    phase = getattr(settings, 'PATH_ROW_PHASE', 0) if _cv is not None else 0
+    step = getattr(detector, 'path_row_step', getattr(settings, 'PATH_ROW_STEP', 1)) if _cv is not None else 1
+    phase = getattr(detector, 'path_row_phase', getattr(settings, 'PATH_ROW_PHASE', 0)) if _cv is not None else 0
     if step not in (1, 2, 3) or not 0 <= phase < step:
         raise ValueError('invalid path row sampling')
     counts[:] = bytes(len(counts))

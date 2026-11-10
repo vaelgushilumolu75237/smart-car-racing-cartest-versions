@@ -7427,6 +7427,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     ring_calibration_passed = bool(
         element_tracker.ring_calibration_ready and
         element_tracker.ring_calibration_check_ready)
+    auto_width_requested = False
     ring_stationary_status_frames = 0
     ring_stationary_last_profile_sequence = None
     ring_stationary_last_profile_id = None
@@ -7780,6 +7781,15 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         road_result = None
         if mask_info is not None:
             try:
+                # Width collection and parked map validation require dense measured
+                # bilateral rows. Never relax their >=20-row acceptance gate.
+                import k230_settings as _sampling_settings
+                _dense_width_rows = (not ring_calibration_passed or
+                    wireless_service.camera_calibration_controller.active)
+                path_detector.path_row_step = (1 if _dense_width_rows else
+                    getattr(_sampling_settings, "PATH_ROW_STEP", 1))
+                path_detector.path_row_phase = (0 if _dense_width_rows else
+                    getattr(_sampling_settings, "PATH_ROW_PHASE", 0))
                 road_result = path_detector.detect(mask_info)
             except Exception as exc:
                 detector_error = "PATH:%s" % exc
@@ -8081,6 +8091,13 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 ring_stationary_last_profile_id = None
                 ring_stationary_last_profile_token = None
                 ring_stationary_last_wheel_position = None
+            if (getattr(config, "AUTO_BOOT_WIDTH_CALIBRATION", False) and
+                    not auto_width_requested and ring_stationary_status_frames >= 3 and
+                    parked_profile and wireless_service._hello_is_fresh(profile_now_ms) and
+                    wireless_service._parked()):
+                auto_width_requested = True
+                wireless_service.camera_calibration_controller.request()
+                print("AUTO_WIDTH_CALIBRATION started required=64 timeout_ms=60000")
             calibration_rows_eligible = bool(
                 element_tracker.ring_calibration_ready and
                 ring_stationary_status_frames >= 3 and parked_profile and
@@ -8090,7 +8107,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 topology.get("complete") and not topology.get("ambiguous") and
                 not topology.get("island_evidence") and
                 not topology.get("branch_evidence"))
-            if calibration_rows_eligible:
+            if (calibration_rows_eligible and not
+                    getattr(config, "AUTO_BOOT_WIDTH_CALIBRATION", False)):
                 element_tracker.observe_ring_calibration(
                     road_rows, road_count, road_stride)
                 ring_calibration_last_eligible = True

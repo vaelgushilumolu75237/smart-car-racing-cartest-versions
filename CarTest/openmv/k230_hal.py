@@ -26,6 +26,7 @@ def _mkdirs(path):
 
 
 def configure_paths(config):
+    config.AUTO_BOOT_WIDTH_CALIBRATION = getattr(settings, "AUTO_BOOT_WIDTH_CALIBRATION", False)
     _mkdirs(settings.DATA_DIRECTORY)
     config.RING_WIDTH_CALIBRATION_PATH = settings.DATA_DIRECTORY + "/ring_width_calibration.json"
     config.RING_DIAGNOSTICS_PATH = settings.DATA_DIRECTORY + "/ring_diagnostics.bin"

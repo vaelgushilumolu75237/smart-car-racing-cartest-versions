@@ -1,9 +1,9 @@
 {
-  "version": "v20261110-k230-native60-experimental-v21",
-  "status": "experimental-camera-65fps-route-validation-pending",
+  "version": "v20261110-k230-auto-width-v22",
+  "status": "experimental-auto-calibration-installed-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 645,
-  "hardware_actions": "K230 Python upload and per-chunk readback; installed finite camera benchmark; no H743 flash/reset; no motor commands",
+  "files": 646,
+  "hardware_actions": "K230 source patch and exact text readback; no H743 flash/reset; no motor commands",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {

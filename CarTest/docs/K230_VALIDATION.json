@@ -1,6 +1,6 @@
 {
   "port": "CARTEST_K230_CAMERA_RECOVERY_20261108",
-  "status": "experimental-camera-fps-measured; scene-valid-route validation pending",
+  "status": "experimental-auto-calibration-installed-hardware-pending",
   "camera_tests": {
     "run": 527,
     "failures": 0,
@@ -36,7 +36,7 @@
   },
   "hal_tests_passed": true,
   "hal_tests": {
-    "run": 32,
+    "run": 37,
     "failures": 0,
     "errors": 0
   },
@@ -301,7 +301,7 @@
     "DebugSteering": "118529f026a451de4e606c4102ce958e48a2ad51591e3484b2297e4e43e6ee2b",
     "DebugWirelessGyro350Speed140": "da04c362676376478ab82fa4e1e82c50df2715efbd226afac4c42b16b207d5d2"
   },
-  "hardware_actions": "K230 Python upload and per-chunk readback; installed finite camera benchmark; no H743 flash/reset; no motor commands",
+  "hardware_actions": "K230 source patch and exact text readback; no H743 flash/reset; no motor commands",
   "board_runtime_fps": 65.3,
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
@@ -1415,5 +1415,14 @@
     "installed_full_uart_writes": 1306,
     "installed_uart_errors": 0,
     "h743_receive_verified": false
+  },
+  "auto_width_v22": {
+    "source_patch_readback": true,
+    "wireless_camera_tests": 10,
+    "host_tests": 37,
+    "bytecode_modules": 33,
+    "end_to_end_auto_calibration": "pending H743 reconnection",
+    "boot_to_ready_ms": null,
+    "protection_bypassed": false
   }
 }

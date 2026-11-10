@@ -52,13 +52,13 @@
     "fast_topology.py": "b3120658be2c92683caf6d0c6a04d2c7579b88ffc3570e602124f04dc45922e5",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
-    "k230_accel.py": "ff659692b700ac839f4d0dba6b3792cc0eb9439e0661b6d85854d4fb9def2013",
+    "k230_accel.py": "2be2383b52e603484321fa3135898e59584e83f0f41ce7554ba2137602d933f9",
     "k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
-    "k230_hal.py": "b7baadedb959984bbf750de52f3e697bdcbe40d3ec77776d7e529d2587dbae2b",
+    "k230_hal.py": "72920de851498cac3cc07e7b0a489e0d93bf1c1ddf9994ed4bbcd30ef1c1e415",
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
-    "k230_settings.py": "85ffa4d1ad782a646556c37fce738a0ab01f0e5e2291fb4bc86aaf7e3dd48fa5",
+    "k230_settings.py": "3ea8a5bf0aa2f55bab946e57f469e0f36f7fc0defb2589e8dc246bb5ded9bd63",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "c5193b7e8a76632853c64145823bc94e8bb8743705273ebffc164c082d9622fc",
+    "main.py": "8714a890dd5dc28caa9e74208c8ecee6bef8f2ae5e58ba58b7c9ec4717f57ba3",
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
     "ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261110-k230-native60-experimental-v21",
+  "release_version": "v20261110-k230-auto-width-v22",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -160,5 +160,23 @@
     "installed_valid_frames": 144,
     "installed_full_uart_writes": 1306,
     "installed_uart_errors": 0
+  },
+  "calibration_sampling_fix": {
+    "dense_until_parked_validation_passes": true,
+    "dense_while_calibration_active": true,
+    "thresholds_unchanged": true,
+    "host_tests": 37,
+    "device_source_patch_readback": true
+  },
+  "automatic_boot_calibration": {
+    "enabled": true,
+    "required_stable_frames": 64,
+    "requires_fresh_parked_h743": true,
+    "requires_three_unchanged_wheel_reports": true,
+    "max_attempts": 600,
+    "timeout_ms": 60000,
+    "expected_sampling_seconds": "about 2; estimate only",
+    "boot_to_ready_seconds": null,
+    "hardware_end_to_end_verified": false
   }
 }
