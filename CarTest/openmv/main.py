@@ -8731,7 +8731,13 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     packet, sequence, 0, 0, 0, 0, 0, 0, profile_ack)
             gyro_link.transform(
                 packet, reverse_parser, element_result,
-                bool(valid and control_source == "road"), time.ticks_ms(), time.ticks_diff,
+                # A verified single-edge fallback is ordinary lane following.
+                # Excluding it here makes the H743 deny steering/motor
+                # authority exactly when one measured boundary disappears.
+                # Confirmed ring routes remain outside ordinary authority.
+                bool(valid and control_source in (
+                    "road", "single_left", "single_right")),
+                time.ticks_ms(), time.ticks_diff,
                 budget_ok=(not late_invalid and detector_error is None and
                     time.ticks_diff(time.ticks_us(), cycle_start_us) + config.V7_UART_WRITE_RESERVE_US
                     <= config.SURFACE_FRAME_BUDGET_MS * 1000),

@@ -128,6 +128,9 @@ def main():
         compilation.append({'file':source.name,'source_sha256':digest(source),'mpy_sha256':digest(bytecode)})
     result=dict(old)
     result.pop('completed_mcu_builds',None)
+    result.pop('camera_ram_benchmark',None)
+    result.pop('camera_evidence_origin',None)
+    result['release_version']=args.release_version
     result.update(port='CARTEST_K230_FRESH_ROUTE_V24_20261110',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,

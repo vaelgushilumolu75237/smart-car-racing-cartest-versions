@@ -106,8 +106,11 @@ def checkpoint(args):
                  "GYRO350_20261106.md", "GYRO350_VENDOR_FILES.json"]
     if (source / 'docs/FRESH_ROUTE_V24_CN.md').is_file():
         doc_files.append('FRESH_ROUTE_V24_CN.md')
-    if manifest.get('release_version') == 'v20261110-k230-uart-rx-v25':
+    if (source / 'docs/UART_RX_V25_CN.md').is_file():
         doc_files += ['UART_RX_V25_CN.md', 'UART_RX_V25_VALIDATION.json']
+    if (source / 'docs/SINGLE_EDGE_AUTHORITY_V26_CN.md').is_file():
+        doc_files += ['SINGLE_EDGE_AUTHORITY_V26_CN.md',
+                      'SINGLE_EDGE_AUTHORITY_V26_VALIDATION.json']
     if manifest.get("wireless_required"):
         doc_files += ["WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_CONTRACT.md",
                       "WIRELESS_VENDOR_FILES.json", "WIRELESS_VALIDATION.json"]

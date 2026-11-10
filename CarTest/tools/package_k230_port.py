@@ -90,8 +90,12 @@ if __name__ == "__main__":
         shutil.copy2(ROOT / "docs" / name, install_root / name)
     if (ROOT / 'docs/FRESH_ROUTE_V24_CN.md').is_file():
         shutil.copy2(ROOT / 'docs/FRESH_ROUTE_V24_CN.md', install_root / 'FRESH_ROUTE_V24_CN.md')
-    if manifest.get('release_version') == 'v20261110-k230-uart-rx-v25':
+    if (ROOT / 'docs/UART_RX_V25_CN.md').is_file():
         for name in ('UART_RX_V25_CN.md','UART_RX_V25_VALIDATION.json'):
+            shutil.copy2(ROOT/'docs'/name, install_root/name)
+    if (ROOT / 'docs/SINGLE_EDGE_AUTHORITY_V26_CN.md').is_file():
+        for name in ('SINGLE_EDGE_AUTHORITY_V26_CN.md',
+                     'SINGLE_EDGE_AUTHORITY_V26_VALIDATION.json'):
             shutil.copy2(ROOT/'docs'/name, install_root/name)
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):

@@ -58,6 +58,36 @@ def metadata(packet):
 
 
 class GyroLinkProtocolTests(unittest.TestCase):
+    def test_main_keeps_verified_single_edge_routes_in_ordinary_authority(self):
+        """Exercise the real dual/single main loop and inspect its V4 input."""
+        from unittest.mock import patch
+        import main
+        import test_singleedge_main as runtime
+
+        calls = {}
+        base = gyro_link.GyroLink
+
+        class RecordingLink(base):
+            def transform(self, packet, parser, evidence, ordinary, now_ms,
+                          ticks_diff, **kwargs):
+                seq = packet[4] | (packet[5] << 8)
+                calls[seq] = (bool(packet[6] & 1), ordinary)
+                return super().transform(packet, parser, evidence, ordinary,
+                                         now_ms, ticks_diff, **kwargs)
+
+        # This existing fixture drives real validated bilateral/left-edge
+        # masks, parser and main loop. Legacy capability mode preserves its
+        # original wire assertions; the recorded ordinary argument is the
+        # production decision passed to the V4 transformer.
+        with patch.object(config, 'GYRO350_REQUIRED', False), \
+                patch.object(main, 'GyroLink', RecordingLink):
+            case = runtime.SingleEdgeMainTests(
+                'test_main_pipeline_dual_single_dual_preserves_filter_and_clears_on_error')
+            case.test_main_pipeline_dual_single_dual_preserves_filter_and_clears_on_error()
+        self.assertEqual(calls[2], (True, True))   # measured bilateral road
+        self.assertEqual(calls[3], (True, True))   # verified left-edge route
+        self.assertEqual(calls[1], (False, False)) # no width cache yet
+
     def test_default_build_requires_the_gyro_capability(self):
         self.assertTrue(config.GYRO350_REQUIRED)
 
