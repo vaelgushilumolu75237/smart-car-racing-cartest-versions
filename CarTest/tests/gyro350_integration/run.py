@@ -135,6 +135,12 @@ def main() -> int:
         "zig_path": str(args.zig),
         "zig_sha256": hashlib.sha256(args.zig.read_bytes()).hexdigest(),
         "hardware_actions": "none",
+        "summary": result.stdout.strip(),
+        "tested_source_sha256": {
+            name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+            for name in sorted(set(sources_c + source_cpp +
+                [str(p.relative_to(ROOT)).replace("\\", "/") for p in (ROOT / "Inc").glob("*.h")]))
+        },
         "cases": [
             "startup release and IMU/profile gate",
             "production car_vision RX V4 parser path",
@@ -145,6 +151,7 @@ def main() -> int:
             "IMU fault and PE7 stop reset",
             "wireless recoverable protocol fault preserves run request and three-route automatic recovery" if args.wireless else "wireless disabled",
             "wireless ordinary line loss keeps session after 3s stop; three fresh routes restore PWM-gated output; local stop cancels" if args.wireless else "wireless disabled",
+            "three sideband chunks plus V4 survive delayed poll and repeated ring wrap" if args.wireless else "wireless disabled",
         ],
     }
     args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

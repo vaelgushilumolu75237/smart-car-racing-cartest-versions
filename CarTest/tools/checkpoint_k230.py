@@ -93,6 +93,7 @@ def checkpoint(args):
         "fixtures/steering_hold3s_20261016/ring_width_calibration.json"))
     for fixture in ("test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.manifest.json",
                     "test-data/OpenMV_V7_FAST_GRAY_RT45_20261005.zip",
+                    "test-data/runtime-log-ab-20261012/baseline/Src__main.c",
                     "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf",
                     "test-data/failure3-20261015/baseline/build/DebugFollowTurn/CarTest.elf"):
         if fixture not in base.PUBLIC_TEST_FIXTURES:
@@ -105,6 +106,8 @@ def checkpoint(args):
                  "GYRO350_20261106.md", "GYRO350_VENDOR_FILES.json"]
     if (source / 'docs/FRESH_ROUTE_V24_CN.md').is_file():
         doc_files.append('FRESH_ROUTE_V24_CN.md')
+    if manifest.get('release_version') == 'v20261110-k230-uart-rx-v25':
+        doc_files += ['UART_RX_V25_CN.md', 'UART_RX_V25_VALIDATION.json']
     if manifest.get("wireless_required"):
         doc_files += ["WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_CONTRACT.md",
                       "WIRELESS_VENDOR_FILES.json", "WIRELESS_VALIDATION.json"]

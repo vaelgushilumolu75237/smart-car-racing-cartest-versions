@@ -26,7 +26,11 @@ typedef struct {
     volatile uint32_t CCR2;
     volatile uint32_t CCR3;
     volatile uint32_t CCR4;
+    volatile uint32_t CCER;
+    volatile uint32_t CR1;
 } runtime_log_test_tim_t;
+#define TIM_CR1_CEN 1u
+#define APP_MOTOR_CHANNEL_MASK 0x1111u
 
 typedef struct {
     uint16_t left_in1_permille;
@@ -48,6 +52,10 @@ static volatile uint32_t car_motor_left_in1_output_permille;
 static volatile uint32_t car_motor_left_in2_output_permille;
 static volatile uint32_t car_motor_right_in1_output_permille;
 static volatile uint32_t car_motor_right_in2_output_permille;
+static volatile uint32_t car_motor_pwm_ccr2;
+static volatile uint32_t car_motor_pwm_ccr3;
+static volatile uint32_t car_motor_pwm_ccer;
+static volatile uint32_t car_motor_pwm_enabled;
 static volatile uint8_t motor_outputs_active;
 static uint16_t applied_motor_duty_permille;
 static uint16_t applied_motor_follow_left_permille;
@@ -409,6 +417,9 @@ static int motor_mapping_case(const char *label,
     runtime_log_test_tim3_regs.CCR3 = follow != 0u ? follow_right :
         ((channel_mask & 0x04u) != 0u ? scalar_duty : 0u);
 
+    /* Mapping cases exclude IRQ injection; dedicated tests below inject it.
+       The production publisher now also reads the physical timer registers. */
+    runtime_log_test_irq_count = 1u;
     publish_motor_channel_debug_snapshot();
     if (car_motor_left_in1_output_permille != expected_left_in1 ||
         car_motor_left_in2_output_permille != expected_left_in2 ||

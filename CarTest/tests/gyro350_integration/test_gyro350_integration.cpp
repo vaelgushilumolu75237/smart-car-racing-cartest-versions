@@ -413,6 +413,25 @@ int main()
         check(mix.control.latest_rx_sequence!=500,"image V4 bytes cannot gain route authority");
     }
     check(mix.send(20,1,0,0,1,0),"normal V4 accepted after image frames");
+    /* At 2 Mbaud a main-loop snapshot can lag several sideband chunks.
+       Buffer a burst larger than the old 255-byte capacity, then parse it
+       together with a fresh control observation. Image contents cannot gain
+       route authority and the real following V4 must survive ring wrap. */
+    packet[n-1]^=1; /* restore valid CRC after the corrupt fixture */
+    for (unsigned burst=0;burst<5;burst++) {
+        const uint16_t expected_seq=static_cast<uint16_t>(600u+burst);
+        embedded.sequence=expected_seq;
+        uint8_t route[VP_FRAME_SIZE]{};
+        check(vp_pack_v4(&embedded,route)!=0,"burst control fixture");
+        for(unsigned chunk=0;chunk<3;chunk++)
+            for(size_t i=0;i<n;i++)
+                car_vision_rx_isr_byte_inline(&mix.rx,packet[i],30+burst);
+        for(uint8_t byte:route)
+            car_vision_rx_isr_byte_inline(&mix.rx,byte,30+burst);
+        check(mix.rx.queue_overflow_count==0,"diagnostic burst fits bounded wireless ring");
+        car_vision_rx_poll(&mix.rx,&mix.control,&mix.config,mix.rx.head,30+burst,1);
+        check(mix.control.latest_rx_sequence==expected_seq,"fresh V4 survives image burst and ring wrap");
+    }
 #endif
     Rig rig;
     test_startup_gate_and_session(rig);

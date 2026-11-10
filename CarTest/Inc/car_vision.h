@@ -4,12 +4,22 @@
 #include "commissioning.h"
 #include "camera_diag.h"
 #include "vision_protocol.h"
+#include "car_rx_fastpath.h"
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#if CARTEST_WIRELESS_ENABLED
+/* Control plus bounded image/diagnostic bursts share this dedicated UART.
+   Preserve headroom while the main loop parses the prior snapshot. */
+#define CAR_VISION_RX_RING_SIZE 1024u
+#else
 #define CAR_VISION_RX_RING_SIZE 256u
+#endif
 #define CAR_VISION_RX_RING_MASK (CAR_VISION_RX_RING_SIZE - 1u)
 #define CAR_VISION_PARTIAL_TIMEOUT_MS 20u
 #define CAR_VISION_MAX_QUEUE_AGE_MS 100u
@@ -54,6 +64,41 @@ typedef struct {
     uint8_t diagnostic_discard_until_sync;
     uint8_t diagnostic_discard_remaining;
 } car_vision_rx_t;
+
+static CAR_RX_INLINE void car_vision_rx_publish_barrier(void)
+{
+#if defined(__arm__) || defined(__thumb__)
+    __asm volatile ("dmb" ::: "memory");
+#elif defined(__GNUC__)
+    __asm volatile ("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+}
+
+/* Caller masks IRQs as for car_vision_rx_isr_byte. Shared with its host-tested
+   wrapper, so the fast target path retains the same overflow and publication
+   semantics without an out-of-line Debug call for every received byte. */
+static CAR_RX_INLINE void car_vision_rx_isr_byte_inline(
+    car_vision_rx_t *rx, uint8_t byte, uint32_t arrival_ms)
+{
+    uint16_t head, next;
+    if (rx == 0) return;
+    ++rx->rx_byte_count;
+    head = rx->head;
+    car_vision_rx_publish_barrier();
+    next = (uint16_t)((head + 1u) & CAR_VISION_RX_RING_MASK);
+    if (next == rx->tail) {
+        ++rx->queue_overflow_count;
+        rx->overflow_fault = 1u;
+        ++rx->isr_fault_generation;
+        return;
+    }
+    rx->ring[head].byte = byte;
+    rx->ring[head].arrival_ms = arrival_ms;
+    car_vision_rx_publish_barrier();
+    rx->head = next;
+}
 
 void car_vision_rx_init(car_vision_rx_t *rx);
 /* Target caller must mask IRQs around each call to protect ISR-only counters

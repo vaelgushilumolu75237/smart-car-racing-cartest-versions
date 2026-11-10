@@ -1,14 +1,14 @@
 {
-  "version": "v20261110-k230-fresh-route-v24",
+  "version": "v20261110-k230-uart-rx-v25",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 651,
-  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
+  "files": 656,
+  "hardware_actions": "read-only SWD diagnostics; no camera upload, H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": false,
+    "camera_runtime_unchanged": true,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,

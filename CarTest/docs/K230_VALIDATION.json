@@ -45,7 +45,7 @@
   "gyro_integration_tests_passed": true,
   "gyro_main_tests": {
     "passed": true,
-    "source_sha256": "79c34aba576d68a960af4f1170d9ca00651f809fa0d31ad1d4635935ff065897",
+    "source_sha256": "3d4366817c28be468b62b83f9c0608de87347edca667aa009fe6e937facfe4e8",
     "summary": "GYRO350_MAIN assertions=24 failures=0",
     "hardware": "not_connected"
   },
@@ -247,29 +247,29 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "674620609a1e186591c82167e1a87cf56153b6d0e0244e0d4f670cd13f163a3b",
-    "DebugBench": "62ba36234d81037587adefa32e5547007fdd4961aaa645e845f8fc902d9ae09e",
-    "DebugFastNoRing": "8518464c70570256827082033fff652a2e79a4f3151f9d5750b9f2d170fe8286",
-    "DebugFollow": "70a735bf063afc7134c359b395402285acc503b84fa0e25e3dd3232037cf54d1",
-    "DebugFollowDiff10": "b2d16db31cf16e29c988a23c0ec1c9bd771240a0553b1a8f01926d7842d0152e",
-    "DebugFollowDiff5": "d7fcb063007b1e3180c9e08578e90745b6af2d1e36f62b11bbe78bc624d81b50",
-    "DebugFollowIncrementalPI": "615557c73b31512a6efe9f9023064d8beccd44d84f1ec1e952f1a6ca4592ad31",
-    "DebugFollowIncrementalPIBaseline": "7cb2d5c6c9c0b97c3b1b98b35f9ec6ad1fab73566cb336ef2486eb849273de81",
-    "DebugFollowNoLog": "e8111eb3080e6fa8388a5860c51d2b57b313c05533afe0db44ce62efe32fd3ee",
-    "DebugFollowSpeedPI": "a98e7345166593c9fa77273291dd305105609dc5c9a0d815167563dbfda4c4cc",
-    "DebugFollowTurn": "0648a01ed315b3a89ddec1e73cd676fa3bbb4662c97b4ec602266743ebd12cff",
-    "DebugFollowTurn65": "fb245edba0029bda7072cf66ea152491a4f3634126e0f566939a90dc97051202",
-    "DebugGyro350Speed140": "6c1911d1edee25e9e5b5fbcb9bd5b56f7a551cc07c636e165887f11386edf554",
-    "DebugRingBase": "ac9170cc48b89deceb9da22371928ba07264d5304ad42d7c9aea4948e1e7f6b8",
-    "DebugRingFast": "49b34c039a886e4d32a9ed3fb94d144dc626a30fd34154413552693aae5e7400",
-    "DebugRingFastSpeed120": "89d4cf95187694013e2c0e5eb3634d9e340c03e1ee415cb750ca84dec6eec3f9",
-    "DebugRingFastSpeed130": "eafc98147b77e681f5b9ed002d4aa316e27b1a2a4a0bd577e128c4438a4a925c",
-    "DebugRingFastSpeed140": "5cc23d3c398675656ded7c9c2b07483911ac6081bf5ec6d3d6695e79823b26d8",
-    "DebugSteering": "cf15a5c5254c0ff8a1f4a8f3a0ddb8bdbf12ddd808ceacc0c165130272b25017",
-    "DebugWirelessGyro350Speed140": "0b0e7d7c4c917a328e3cbbcaab77209ff5f59582cd65e3bd8d0e389ed3923310"
+    "Debug": "4b69321ef8e32335e56cefe8b8a570131f75838e162e8323bb191ee135c4a3ae",
+    "DebugBench": "a2351e533d1d32af57897da73ef6a34a7d2cdf01f8325718ce0f824be4bcfc7c",
+    "DebugFastNoRing": "32353989bec3b91130ae357ef74a982a808cc710fbbdba4f0064d1ba10313c8f",
+    "DebugFollow": "447dd8f4ccc9231e31919167c15091bd725cd2595e47ffc95c9d72b41bfb4f2c",
+    "DebugFollowDiff10": "10029990c82a3279168f881332378566e0723cc8c4ec1f76ad2e0c55ccf602e9",
+    "DebugFollowDiff5": "298e669a8e6a621b29f557616843f8a61583a8d25d0ab9bed113c6f64083cc94",
+    "DebugFollowIncrementalPI": "63b974e8ca5c4ee030bd7ca074a52c7b6a7d3ade743d973a82213efd6a7abff4",
+    "DebugFollowIncrementalPIBaseline": "3fd0b912899c9959dfdb2685c0b27b61f906f5ea0aeca0ea09b82bf5b48c0f83",
+    "DebugFollowNoLog": "4e978bd0974f09d21956c7677fde0cc61e436d1f383522753adc3142eb43782d",
+    "DebugFollowSpeedPI": "bd20dffdba74ce3e130d0d6964458e17b7a762daeae627bcc49cba8571b70c80",
+    "DebugFollowTurn": "e09be8221f5aac4fd70d2b2dbe1c677cd59e33dac0214ea62adc76c5b9214776",
+    "DebugFollowTurn65": "9516aba39e3b79f27b0d0b98b587aa581b4ead138dd2bdee8d4b835e45a53abf",
+    "DebugGyro350Speed140": "8bc519c4896952c049c2a7b875152b0fbff064392152722dce8ce1b241a49115",
+    "DebugRingBase": "841e65d1cf159cfdd59d449c8390711721b332a590c55c685830db7b8bd38c5d",
+    "DebugRingFast": "e3dc4d828b186149b89783deba45864e7d526cea8101091dedec5d04c837178e",
+    "DebugRingFastSpeed120": "6b08c9bd2390f2a36af0c11b2bcc4e4952816220832fe6139eb792ccc36ca1af",
+    "DebugRingFastSpeed130": "308f57d8bfb9d3a8956f9bfca4f1300d7bbb3ce0dedc9c097db76ca269914d29",
+    "DebugRingFastSpeed140": "82faf65b07a625803bb4c0b8c7726b9adb37c3739c4245ab6609d0742cee3421",
+    "DebugSteering": "faffda865ab5fcd3aaaca430f0edc59c8644f4fe0629a5b37e3a9c4aa2582add",
+    "DebugWirelessGyro350Speed140": "8b69b0062da2a38c60a4ef1753c11b11f592ce64834cd5f988bd10285e81dc9c"
   },
-  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
-  "board_runtime_fps": "RAM-only camera benchmark; see camera_ram_benchmark; paired H743 link pending",
+  "hardware_actions": "read-only SWD diagnostics; no camera upload, H743 flash/reset or motor start",
+  "board_runtime_fps": "Camera runtime unchanged; prior V24 RAM benchmark retained as historical evidence only; paired current H743 receive rate pending",
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
   "exposure_control": "K230 firmware ISP default; OpenMV cap not applied",
@@ -277,7 +277,7 @@
   "mcu_source_sha256": {
     "App/ackermann_control.c": "a68ff82a141fcbcabf3499f36d521d6000a8d514987f9e016974655f90e91ccd",
     "App/ackermann_snapshot.c": "374056244d7269c18d8a8cefc24c92aa21fcd652b767ae4e635d12288ea2684a",
-    "App/car_vision.c": "57c2296ab65d04a49b0b57b9bb76799a9460511e24de3e20a9112c536e234880",
+    "App/car_vision.c": "5de08dc2bbd51898194cd1b3e3fa49532a4cf1cac0eee83b281f3022bf66b7e5",
     "App/commissioning.c": "30561e9c077375171b1e2f606c7b18da37580d4930d3c2b2308b56f52aac7639",
     "App/encoder_diag.c": "5ebda489edb0cd5226a25e23148ab670c22db7689d67aa6474cca3e079f7951c",
     "App/follow_incremental_pi.c": "b6698127374d9b68dad2a643623ba92f42cb5d52491c6cf800c90573833ca0e0",
@@ -299,7 +299,7 @@
     "App/speed_pi.c": "66af2775429a794677c35e42bb9ce720585003c5ab16ae235575e91328ebc521",
     "App/speed_pi_diag.c": "b51ebb7b5e1e96e020e6959498f7bd9ed208a4400b33b58f5228cf547bb20e3f",
     "App/speed_pi_trace.c": "504d9763973fc59cfbdc09a7c63bb730d398d8cfa2d893e6e964ddca3411642d",
-    "App/uart_rx_service.c": "86771d14f72bc679767f4475c3deea1fc90549d1412b67ce8cef1baa15b63dbc",
+    "App/uart_rx_service.c": "b7b3a3b39214f7c2d0cbc6bb06b100c2f729f6ad2f300acf6a57a5416216e566",
     "App/vision_protocol.cpp": "1c85edfc033bdcd1de6115eed7a7a8f4fc1492283c7827db17ed942e543da039",
     "App/wireless_control.c": "fd9a28907f662aff9ba719a06d29d8babd9ca428ad565fe8f685ec18c4f12392",
     "App/wireless_flash_stm32.c": "dd0f9211c3b93abef6e139ddcef1fd73cace6dede5d79813941977adb6a8e185",
@@ -499,8 +499,9 @@
     "Inc/ackermann_snapshot.h": "c678e25338bdd8dd13ded1c353171a3b8516d5d8de26fc3434dfbf5239a30bab",
     "Inc/camera_diag.h": "b666990fe0ef22afc0891dcd536387aa618a6913b9e656a252b87f77d2d08b77",
     "Inc/car_calibration.h": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
+    "Inc/car_rx_fastpath.h": "7077e68a88870104cad6446c0924f063c0137324400a442947e7c6e0bdc843c2",
     "Inc/car_track_profile.h": "8343579c381c5f9c8c6ac82fe40aa3df4d4c30b22176b81bef8b975b76f30c08",
-    "Inc/car_vision.h": "fde0388735672df26354e445b7ec07a4a30d85c9ce9fc4b651b62077f0785034",
+    "Inc/car_vision.h": "260745c8428bb507c2ab81d3e6de616a4b199c3b1ff73a9c045e4f96f83e1a4b",
     "Inc/commissioning.h": "da56fa53a6cef09b996303c24fd3bebae154c0f08b1714529219c9d733a48587",
     "Inc/encoder_diag.h": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
     "Inc/follow_incremental_pi.h": "93128874681f3a640711e880a93b3ff57b85b45d6ad8285e6b4b85757c7f1115",
@@ -523,14 +524,14 @@
     "Inc/speed_pi_diag.h": "ed3722b33a12f65a995abf7694957f4b7b18809417e69f46d064d24bb0b86a81",
     "Inc/speed_pi_trace.h": "50e54ec0a711f0bb6ea67e8ee35ac8c96316bf3b1db7559987ab59bd1fbc25b8",
     "Inc/stm32h7xx_hal_conf.h": "bbec9b28c2e1631509dd1738ee0a05e63acbce708987342094a887c82ea94565",
-    "Inc/uart_rx_service.h": "18b14e4cacd14c4b7d4b0a487cf3c54d4dbe330c16f9aed5e8f724873331bdb4",
+    "Inc/uart_rx_service.h": "d85ed3514cadbd47fe223cfdb1ff45f995ad53767f96fc1129ab346c92b5b242",
     "Inc/vision_protocol.h": "1b9044b337199eeee6ad0761c224c5533b50a56d93b1538278b47b0e33e89e8f",
     "Inc/wireless_control.h": "69f2d7c1379e34568f90745c9188ef4228b5148592ea4f5182ff327dac40071f",
     "Inc/wireless_flash_stm32.h": "19a072ebc82cc856ac8bb0005f3a4bd28fe3d188556c7e7ffd6a2cb48c5ac626",
     "Inc/wireless_protocol.h": "6e5e48ca5819ca69586420377d308e91d07ea48d5671679431a631d8da2b2882",
     "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
     "Inc/wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
-    "Src/main.c": "7d362b786e4547d5f9ea5c98dad253593acb8d2c826e782dca0ec0658265cc37",
+    "Src/main.c": "3d4366817c28be468b62b83f9c0608de87347edca667aa009fe6e937facfe4e8",
     "Src/startup_stm32h743xx.S": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
     "Src/syscall.c": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
     "Src/sysmem.c": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
@@ -570,7 +571,7 @@
         "production SysTick expiry motor stop preserves main-loop return-center path"
       ],
       "tested_source_sha256": {
-        "Src/main.c": "7d362b786e4547d5f9ea5c98dad253593acb8d2c826e782dca0ec0658265cc37",
+        "Src/main.c": "3d4366817c28be468b62b83f9c0608de87347edca667aa009fe6e937facfe4e8",
         "tests/test_wireless_main.py": "8857bbc0be2748887ba93e4e7edc75b7254c99ced8b3a93245b0c2a4dc3eff0b"
       }
     },
@@ -1018,6 +1019,70 @@
       "zig_path": "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe",
       "zig_sha256": "1ddf230367e07738c4a769eae66c1db7469e37bd520e81c86356453d0db2b9fd",
       "hardware_actions": "none",
+      "summary": "GYRO350_INTEGRATION checks=220 failures=0",
+      "tested_source_sha256": {
+        "App/car_vision.c": "5de08dc2bbd51898194cd1b3e3fa49532a4cf1cac0eee83b281f3022bf66b7e5",
+        "App/commissioning.c": "30561e9c077375171b1e2f606c7b18da37580d4930d3c2b2308b56f52aac7639",
+        "App/encoder_diag.c": "5ebda489edb0cd5226a25e23148ab670c22db7689d67aa6474cca3e079f7951c",
+        "App/follow_incremental_pi.c": "b6698127374d9b68dad2a643623ba92f42cb5d52491c6cf800c90573833ca0e0",
+        "App/follow_output.c": "aed250a7f196802fca0d2079562afaa35c4a4a824dc5432493d7973548414097",
+        "App/follow_speed_pi.c": "15eef5fa798cc6eef2292ed8ff18fbcd557a6d12587371d0971b00956b61b562",
+        "App/gyro350_authority.c": "c64d133d7b6e62eb3f20829cb461489ca0c86f8ee32da49e5ad84f0f5395b753",
+        "App/gyro_ring.c": "58ce1c90a642f317b4cb0543ab9bfbeeadea560e65d89e7498c69b0db9659076",
+        "App/manual_run_button.c": "9f180df53b5c43172b5c3d6c3de3e4e78fa96e227c679b49b5891554893d7a2d",
+        "App/receive_diag.c": "35f5917b059fea9989143edfe67db09b4bdee414a871814fd0af1670f0f56774",
+        "App/reverse_control.c": "4009cea434a4c029d8b5d16841cf743d59dbe7c6dc4e3e5f4da78b04571a5e1b",
+        "App/run_block_reason.c": "6ffeaa0e4e77043cd9b117a3e987b2651176441be00d19a0524638666b0089e6",
+        "App/runtime_diag.c": "5f0c1a1bd7809c35f684da020695dd4abb1552dfe2874dc46b0d9d2e7561c135",
+        "App/runtime_log.c": "e32af60a795c878adf0d541df4774877e8dbadb828e67d9d1f7f59b49e0e73b3",
+        "App/servo_safety.c": "ee437b84122895140e3078aebda00de4209575b335de0df78894a506ef1c0780",
+        "App/speed_observer.c": "dce11b0db8a1bba6e7fcac3c3340257b3f0178faa0f2bdc450a2c71b6353eafb",
+        "App/speed_pi.c": "66af2775429a794677c35e42bb9ce720585003c5ab16ae235575e91328ebc521",
+        "App/uart_rx_service.c": "b7b3a3b39214f7c2d0cbc6bb06b100c2f729f6ad2f300acf6a57a5416216e566",
+        "App/vision_protocol.cpp": "1c85edfc033bdcd1de6115eed7a7a8f4fc1492283c7827db17ed942e543da039",
+        "App/wireless_control.c": "fd9a28907f662aff9ba719a06d29d8babd9ca428ad565fe8f685ec18c4f12392",
+        "App/wireless_flash_stm32.c": "dd0f9211c3b93abef6e139ddcef1fd73cace6dede5d79813941977adb6a8e185",
+        "App/wireless_protocol.c": "a0d794fd5490cf5ee9106102c18fe42a6545239034de15aa172f02f473c607c9",
+        "App/wireless_runtime.c": "0209cb8942aa5be4d7ab92c5b757a0b9301bfe2335c6dcf934395f7f15d77083",
+        "App/wireless_settings.c": "77b25a2481feaea17e08310d9532d7a2781f57ff4204327a770db932d879f062",
+        "Inc/ackermann_control.h": "20d1a97304046f5c1ed345abad4f8eb2f7ec7d882f6520951baea4d1cb80b0f2",
+        "Inc/ackermann_snapshot.h": "c678e25338bdd8dd13ded1c353171a3b8516d5d8de26fc3434dfbf5239a30bab",
+        "Inc/camera_diag.h": "b666990fe0ef22afc0891dcd536387aa618a6913b9e656a252b87f77d2d08b77",
+        "Inc/car_calibration.h": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
+        "Inc/car_rx_fastpath.h": "7077e68a88870104cad6446c0924f063c0137324400a442947e7c6e0bdc843c2",
+        "Inc/car_track_profile.h": "8343579c381c5f9c8c6ac82fe40aa3df4d4c30b22176b81bef8b975b76f30c08",
+        "Inc/car_vision.h": "260745c8428bb507c2ab81d3e6de616a4b199c3b1ff73a9c045e4f96f83e1a4b",
+        "Inc/commissioning.h": "da56fa53a6cef09b996303c24fd3bebae154c0f08b1714529219c9d733a48587",
+        "Inc/encoder_diag.h": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
+        "Inc/follow_incremental_pi.h": "93128874681f3a640711e880a93b3ff57b85b45d6ad8285e6b4b85757c7f1115",
+        "Inc/follow_output.h": "402faac9529516df2a93161c11864036bd9cc7e3cd8f21f661c2b84bbf310708",
+        "Inc/follow_speed_pi.h": "f34c8857b407f79d285e9e1d2cb38f1c39e1e0c403a27cbd5c6b2fb4ed1ba569",
+        "Inc/gyro350_config.h": "bce22ffbf99bb15fc95a5337d0a95d00070dcbd6177d42c97a8d15444587644e",
+        "Inc/gyro_ring.h": "e8b7508404ccf296cd15777bd251ed8625df36774845247f84dc1b6b6714789e",
+        "Inc/icm42688.h": "db6ad103e53bf422f633e60dc4425da8f5eca78a7e08744834bc7dad99fa0b78",
+        "Inc/icm42688_stm32.h": "c4df19bc0d5648a6f42af55aff5b58563a11df3436f467815300eebdc41baef5",
+        "Inc/manual_run_button.h": "f66cca80884a5087a5d8a1afae4bb9671acca300413c6b641657d14aa2bbf09f",
+        "Inc/receive_diag.h": "21a9f1152db36162038c26a4b15c21797d27c05dd249c3bc568471c4129739f5",
+        "Inc/reverse_control.h": "606dd991ea54bdefd812d00d1bf64fb41172763648c981d1d1d1956968cfdf6b",
+        "Inc/run_block_reason.h": "81a7d81e4609845e6c53fb791c957598d3d0303f6183b55d1faca583915cc449",
+        "Inc/runtime_diag.h": "84baf9e9cc65e4246d5b3469af6410e4320017a2fe403abba509bb04c9a13298",
+        "Inc/runtime_log.h": "872a83541d720364a5c9e867207cccf71d383b062f86979f5d31157892b2b760",
+        "Inc/servo_safety.h": "29516a50832c93948acf7e0615c5e603d8f300ee04a5270722bba30247a0a6c8",
+        "Inc/session_odometry.h": "8dd5b197e8276c1f370adc4539f62f920311fe73197f1e4ecd0a2dfc529875ee",
+        "Inc/speed_observer.h": "c3a4db4b6c026962eeb5ccd1da39593de3e8fa846da8540e1345866a3c588b4c",
+        "Inc/speed_pi.h": "f3e22283ec7b3f36381d348d7231a16a70d83f71a4d85b5d4fbcfb9ae01a6e5f",
+        "Inc/speed_pi_diag.h": "ed3722b33a12f65a995abf7694957f4b7b18809417e69f46d064d24bb0b86a81",
+        "Inc/speed_pi_trace.h": "50e54ec0a711f0bb6ea67e8ee35ac8c96316bf3b1db7559987ab59bd1fbc25b8",
+        "Inc/stm32h7xx_hal_conf.h": "bbec9b28c2e1631509dd1738ee0a05e63acbce708987342094a887c82ea94565",
+        "Inc/uart_rx_service.h": "d85ed3514cadbd47fe223cfdb1ff45f995ad53767f96fc1129ab346c92b5b242",
+        "Inc/vision_protocol.h": "1b9044b337199eeee6ad0761c224c5533b50a56d93b1538278b47b0e33e89e8f",
+        "Inc/wireless_control.h": "69f2d7c1379e34568f90745c9188ef4228b5148592ea4f5182ff327dac40071f",
+        "Inc/wireless_flash_stm32.h": "19a072ebc82cc856ac8bb0005f3a4bd28fe3d188556c7e7ffd6a2cb48c5ac626",
+        "Inc/wireless_protocol.h": "6e5e48ca5819ca69586420377d308e91d07ea48d5671679431a631d8da2b2882",
+        "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
+        "Inc/wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
+        "tests\\gyro350_integration\\test_gyro350_integration.cpp": "9a3c2547ea23d5d4c03015b30729b362e280b0c0a71e9c593bddee15679b007b"
+      },
       "cases": [
         "startup release and IMU/profile gate",
         "production car_vision RX V4 parser path",
@@ -1027,7 +1092,8 @@
         "right mirrored signed progress",
         "IMU fault and PE7 stop reset",
         "wireless recoverable protocol fault preserves run request and three-route automatic recovery",
-        "wireless ordinary line loss keeps session after 3s stop; three fresh routes restore PWM-gated output; local stop cancels"
+        "wireless ordinary line loss keeps session after 3s stop; three fresh routes restore PWM-gated output; local stop cancels",
+        "three sideband chunks plus V4 survive delayed poll and repeated ring wrap"
       ]
     },
     "WIRELESS_AUX_PINS": {
@@ -1036,7 +1102,7 @@
       "scope": "Extracted production RTS/CMD input-pullup initialization; host execution only",
       "runner": "python tests/test_wireless_aux_pins.py",
       "source_sha256": {
-        "Src/main.c": "7d362b786e4547d5f9ea5c98dad253593acb8d2c826e782dca0ec0658265cc37",
+        "Src/main.c": "3d4366817c28be468b62b83f9c0608de87347edca667aa009fe6e937facfe4e8",
         "tests/test_wireless_aux_pins.py": "cbf1fcac4bbf3a5322568cb67264ce559da063cb82d41b89c5740c59979de3c8"
       }
     },
@@ -1109,7 +1175,7 @@
   "imu_gpio_spi_tests_passed": true,
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": false,
+    "camera_runtime_unchanged": true,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
@@ -1612,12 +1678,14 @@
       "Left/right roundabout behavior"
     ]
   },
+  "release_version": "v20261110-k230-uart-rx-v25",
+  "camera_evidence_origin": "v20261110-k230-fresh-route-v24",
   "completed_mcu_builds": {
     "passed": true,
     "mcu_source_sha256": {
       "App/ackermann_control.c": "a68ff82a141fcbcabf3499f36d521d6000a8d514987f9e016974655f90e91ccd",
       "App/ackermann_snapshot.c": "374056244d7269c18d8a8cefc24c92aa21fcd652b767ae4e635d12288ea2684a",
-      "App/car_vision.c": "57c2296ab65d04a49b0b57b9bb76799a9460511e24de3e20a9112c536e234880",
+      "App/car_vision.c": "5de08dc2bbd51898194cd1b3e3fa49532a4cf1cac0eee83b281f3022bf66b7e5",
       "App/commissioning.c": "30561e9c077375171b1e2f606c7b18da37580d4930d3c2b2308b56f52aac7639",
       "App/encoder_diag.c": "5ebda489edb0cd5226a25e23148ab670c22db7689d67aa6474cca3e079f7951c",
       "App/follow_incremental_pi.c": "b6698127374d9b68dad2a643623ba92f42cb5d52491c6cf800c90573833ca0e0",
@@ -1639,7 +1707,7 @@
       "App/speed_pi.c": "66af2775429a794677c35e42bb9ce720585003c5ab16ae235575e91328ebc521",
       "App/speed_pi_diag.c": "b51ebb7b5e1e96e020e6959498f7bd9ed208a4400b33b58f5228cf547bb20e3f",
       "App/speed_pi_trace.c": "504d9763973fc59cfbdc09a7c63bb730d398d8cfa2d893e6e964ddca3411642d",
-      "App/uart_rx_service.c": "86771d14f72bc679767f4475c3deea1fc90549d1412b67ce8cef1baa15b63dbc",
+      "App/uart_rx_service.c": "b7b3a3b39214f7c2d0cbc6bb06b100c2f729f6ad2f300acf6a57a5416216e566",
       "App/vision_protocol.cpp": "1c85edfc033bdcd1de6115eed7a7a8f4fc1492283c7827db17ed942e543da039",
       "App/wireless_control.c": "fd9a28907f662aff9ba719a06d29d8babd9ca428ad565fe8f685ec18c4f12392",
       "App/wireless_flash_stm32.c": "dd0f9211c3b93abef6e139ddcef1fd73cace6dede5d79813941977adb6a8e185",
@@ -1839,8 +1907,9 @@
       "Inc/ackermann_snapshot.h": "c678e25338bdd8dd13ded1c353171a3b8516d5d8de26fc3434dfbf5239a30bab",
       "Inc/camera_diag.h": "b666990fe0ef22afc0891dcd536387aa618a6913b9e656a252b87f77d2d08b77",
       "Inc/car_calibration.h": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
+      "Inc/car_rx_fastpath.h": "7077e68a88870104cad6446c0924f063c0137324400a442947e7c6e0bdc843c2",
       "Inc/car_track_profile.h": "8343579c381c5f9c8c6ac82fe40aa3df4d4c30b22176b81bef8b975b76f30c08",
-      "Inc/car_vision.h": "fde0388735672df26354e445b7ec07a4a30d85c9ce9fc4b651b62077f0785034",
+      "Inc/car_vision.h": "260745c8428bb507c2ab81d3e6de616a4b199c3b1ff73a9c045e4f96f83e1a4b",
       "Inc/commissioning.h": "da56fa53a6cef09b996303c24fd3bebae154c0f08b1714529219c9d733a48587",
       "Inc/encoder_diag.h": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
       "Inc/follow_incremental_pi.h": "93128874681f3a640711e880a93b3ff57b85b45d6ad8285e6b4b85757c7f1115",
@@ -1863,14 +1932,14 @@
       "Inc/speed_pi_diag.h": "ed3722b33a12f65a995abf7694957f4b7b18809417e69f46d064d24bb0b86a81",
       "Inc/speed_pi_trace.h": "50e54ec0a711f0bb6ea67e8ee35ac8c96316bf3b1db7559987ab59bd1fbc25b8",
       "Inc/stm32h7xx_hal_conf.h": "bbec9b28c2e1631509dd1738ee0a05e63acbce708987342094a887c82ea94565",
-      "Inc/uart_rx_service.h": "18b14e4cacd14c4b7d4b0a487cf3c54d4dbe330c16f9aed5e8f724873331bdb4",
+      "Inc/uart_rx_service.h": "d85ed3514cadbd47fe223cfdb1ff45f995ad53767f96fc1129ab346c92b5b242",
       "Inc/vision_protocol.h": "1b9044b337199eeee6ad0761c224c5533b50a56d93b1538278b47b0e33e89e8f",
       "Inc/wireless_control.h": "69f2d7c1379e34568f90745c9188ef4228b5148592ea4f5182ff327dac40071f",
       "Inc/wireless_flash_stm32.h": "19a072ebc82cc856ac8bb0005f3a4bd28fe3d188556c7e7ffd6a2cb48c5ac626",
       "Inc/wireless_protocol.h": "6e5e48ca5819ca69586420377d308e91d07ea48d5671679431a631d8da2b2882",
       "Inc/wireless_runtime.h": "af1fd5ee1b8858a5748469da207f7aade4f6f51a6e52801d691c60e77b5f93b7",
       "Inc/wireless_settings.h": "17bf7a04536022664a90f529c75e92085a89571840d4cbe4234ad3e498573880",
-      "Src/main.c": "7d362b786e4547d5f9ea5c98dad253593acb8d2c826e782dca0ec0658265cc37",
+      "Src/main.c": "3d4366817c28be468b62b83f9c0608de87347edca667aa009fe6e937facfe4e8",
       "Src/startup_stm32h743xx.S": "ddfa325b99e5b4a195db19fb26e5e00894f7b2ac570c36485d7d76f3f3e89a31",
       "Src/syscall.c": "c8e4fbb50d02efd8e5327e1c10d3e04980270d81540261afdd11e3e2bf8bd194",
       "Src/sysmem.c": "3dbf64e712f54e6afb4c3adc3a98ccfca303eac57e52ac40073957ae4a4e8f4b",
@@ -1880,84 +1949,141 @@
     "profiles": {
       "Debug": {
         "passed": true,
-        "elf_sha256": "674620609a1e186591c82167e1a87cf56153b6d0e0244e0d4f670cd13f163a3b"
+        "elf_sha256": "4b69321ef8e32335e56cefe8b8a570131f75838e162e8323bb191ee135c4a3ae"
       },
       "DebugBench": {
         "passed": true,
-        "elf_sha256": "62ba36234d81037587adefa32e5547007fdd4961aaa645e845f8fc902d9ae09e"
+        "elf_sha256": "a2351e533d1d32af57897da73ef6a34a7d2cdf01f8325718ce0f824be4bcfc7c"
       },
       "DebugFastNoRing": {
         "passed": true,
-        "elf_sha256": "8518464c70570256827082033fff652a2e79a4f3151f9d5750b9f2d170fe8286"
+        "elf_sha256": "32353989bec3b91130ae357ef74a982a808cc710fbbdba4f0064d1ba10313c8f"
       },
       "DebugFollow": {
         "passed": true,
-        "elf_sha256": "70a735bf063afc7134c359b395402285acc503b84fa0e25e3dd3232037cf54d1"
+        "elf_sha256": "447dd8f4ccc9231e31919167c15091bd725cd2595e47ffc95c9d72b41bfb4f2c"
       },
       "DebugFollowDiff10": {
         "passed": true,
-        "elf_sha256": "b2d16db31cf16e29c988a23c0ec1c9bd771240a0553b1a8f01926d7842d0152e"
+        "elf_sha256": "10029990c82a3279168f881332378566e0723cc8c4ec1f76ad2e0c55ccf602e9"
       },
       "DebugFollowDiff5": {
         "passed": true,
-        "elf_sha256": "d7fcb063007b1e3180c9e08578e90745b6af2d1e36f62b11bbe78bc624d81b50"
+        "elf_sha256": "298e669a8e6a621b29f557616843f8a61583a8d25d0ab9bed113c6f64083cc94"
       },
       "DebugFollowIncrementalPI": {
         "passed": true,
-        "elf_sha256": "615557c73b31512a6efe9f9023064d8beccd44d84f1ec1e952f1a6ca4592ad31"
+        "elf_sha256": "63b974e8ca5c4ee030bd7ca074a52c7b6a7d3ade743d973a82213efd6a7abff4"
       },
       "DebugFollowIncrementalPIBaseline": {
         "passed": true,
-        "elf_sha256": "7cb2d5c6c9c0b97c3b1b98b35f9ec6ad1fab73566cb336ef2486eb849273de81"
+        "elf_sha256": "3fd0b912899c9959dfdb2685c0b27b61f906f5ea0aeca0ea09b82bf5b48c0f83"
       },
       "DebugFollowNoLog": {
         "passed": true,
-        "elf_sha256": "e8111eb3080e6fa8388a5860c51d2b57b313c05533afe0db44ce62efe32fd3ee"
+        "elf_sha256": "4e978bd0974f09d21956c7677fde0cc61e436d1f383522753adc3142eb43782d"
       },
       "DebugFollowSpeedPI": {
         "passed": true,
-        "elf_sha256": "a98e7345166593c9fa77273291dd305105609dc5c9a0d815167563dbfda4c4cc"
+        "elf_sha256": "bd20dffdba74ce3e130d0d6964458e17b7a762daeae627bcc49cba8571b70c80"
       },
       "DebugFollowTurn": {
         "passed": true,
-        "elf_sha256": "0648a01ed315b3a89ddec1e73cd676fa3bbb4662c97b4ec602266743ebd12cff"
+        "elf_sha256": "e09be8221f5aac4fd70d2b2dbe1c677cd59e33dac0214ea62adc76c5b9214776"
       },
       "DebugFollowTurn65": {
         "passed": true,
-        "elf_sha256": "fb245edba0029bda7072cf66ea152491a4f3634126e0f566939a90dc97051202"
+        "elf_sha256": "9516aba39e3b79f27b0d0b98b587aa581b4ead138dd2bdee8d4b835e45a53abf"
       },
       "DebugGyro350Speed140": {
         "passed": true,
-        "elf_sha256": "6c1911d1edee25e9e5b5fbcb9bd5b56f7a551cc07c636e165887f11386edf554"
+        "elf_sha256": "8bc519c4896952c049c2a7b875152b0fbff064392152722dce8ce1b241a49115"
       },
       "DebugRingBase": {
         "passed": true,
-        "elf_sha256": "ac9170cc48b89deceb9da22371928ba07264d5304ad42d7c9aea4948e1e7f6b8"
+        "elf_sha256": "841e65d1cf159cfdd59d449c8390711721b332a590c55c685830db7b8bd38c5d"
       },
       "DebugRingFast": {
         "passed": true,
-        "elf_sha256": "49b34c039a886e4d32a9ed3fb94d144dc626a30fd34154413552693aae5e7400"
+        "elf_sha256": "e3dc4d828b186149b89783deba45864e7d526cea8101091dedec5d04c837178e"
       },
       "DebugRingFastSpeed120": {
         "passed": true,
-        "elf_sha256": "89d4cf95187694013e2c0e5eb3634d9e340c03e1ee415cb750ca84dec6eec3f9"
+        "elf_sha256": "6b08c9bd2390f2a36af0c11b2bcc4e4952816220832fe6139eb792ccc36ca1af"
       },
       "DebugRingFastSpeed130": {
         "passed": true,
-        "elf_sha256": "eafc98147b77e681f5b9ed002d4aa316e27b1a2a4a0bd577e128c4438a4a925c"
+        "elf_sha256": "308f57d8bfb9d3a8956f9bfca4f1300d7bbb3ce0dedc9c097db76ca269914d29"
       },
       "DebugRingFastSpeed140": {
         "passed": true,
-        "elf_sha256": "5cc23d3c398675656ded7c9c2b07483911ac6081bf5ec6d3d6695e79823b26d8"
+        "elf_sha256": "82faf65b07a625803bb4c0b8c7726b9adb37c3739c4245ab6609d0742cee3421"
       },
       "DebugSteering": {
         "passed": true,
-        "elf_sha256": "cf15a5c5254c0ff8a1f4a8f3a0ddb8bdbf12ddd808ceacc0c165130272b25017"
+        "elf_sha256": "faffda865ab5fcd3aaaca430f0edc59c8644f4fe0629a5b37e3a9c4aa2582add"
       },
       "DebugWirelessGyro350Speed140": {
         "passed": true,
-        "elf_sha256": "0b0e7d7c4c917a328e3cbbcaab77209ff5f59582cd65e3bd8d0e389ed3923310"
+        "elf_sha256": "8b69b0062da2a38c60a4ef1753c11b11f592ce64834cd5f988bd10285e81dc9c"
       }
     }
+  },
+  "uart_rx_v25": {
+    "release_version": "v20261110-k230-uart-rx-v25",
+    "status": "software-tested-awaiting-manual-h743-flash",
+    "camera_runtime": "Unchanged V24 33 modules; camera-side no upload required",
+    "baseline_hardware_observation": {
+      "date": "2026-11-10",
+      "flash_load_regions_match_v24": true,
+      "uart_baudrate": 2000000,
+      "fifo_enabled": true,
+      "ore_counter": [
+        3910,
+        4095
+      ],
+      "pe_fe_ne": [
+        0,
+        0,
+        0
+      ],
+      "cause": "H743 USART1 receive overrun under high-rate bursts; not a proven framing or noise failure"
+    },
+    "host": {
+      "passed": true,
+      "cases": 72,
+      "assertions": 10060,
+      "failures": 0,
+      "full_runner_exit": 0,
+      "runtime_log_snapshot_harness_passed": true
+    },
+    "wireless_integration": {
+      "passed": true,
+      "checks": 220,
+      "failures": 0,
+      "includes_delayed_poll_burst_and_ring_wrap": true
+    },
+    "arm_codegen": {
+      "passed": true,
+      "elf_sha256": "8b69b0062da2a38c60a4ef1753c11b11f592ce64834cd5f988bd10285e81dc9c",
+      "irq_instructions_static": 72,
+      "calls": [
+        "HAL_GetTick",
+        "uart_service_on_abort",
+        "uart_service_on_error",
+        "car_control_note_fast_stop_isr"
+      ],
+      "indirect_calls": false,
+      "publication_barriers": true,
+      "bounded_batch": 16,
+      "board_timing_measured": false,
+      "hardware_actions": "none"
+    },
+    "built_profiles": 20,
+    "camera_ram_fps_current_version_verified": false,
+    "paired_h743_rx_fps_current_version": null,
+    "road_verified": false,
+    "hardware_actions": "read-only SWD; no camera upload, H743 flash/reset or motor start",
+    "camera_runtime_unchanged_verified": true
   }
 }

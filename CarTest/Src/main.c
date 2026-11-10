@@ -663,7 +663,7 @@ static motor_applied_channels_t motor_applied_channels_snapshot(void);
 static void publish_motor_channel_debug_snapshot(void);
 static void publish_debug_snapshot(const car_inputs_t *inputs);
 static void protected_uart_error_note(uint32_t status);
-static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
+static CAR_RX_INLINE void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
 static uint16_t vision_rx_snapshot(uint32_t *now_ms);
 static uint8_t pe7_is_high(void);
 static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
@@ -700,13 +700,13 @@ static uint32_t uart_error_icr_mask(uint32_t status)
     return clear_flags;
 }
 
-static uint32_t uart_service_read_status(void *context)
+static CAR_RX_INLINE uint32_t uart_service_read_status(void *context)
 {
     (void)context;
     return USART1->ISR;
 }
 
-static uint8_t uart_service_read_data(void *context)
+static CAR_RX_INLINE uint8_t uart_service_read_data(void *context)
 {
     (void)context;
     return (uint8_t)(USART1->RDR & 0xFFu);
@@ -727,7 +727,7 @@ static void uart_service_on_error(void *context, uint32_t status)
     uart_service_stop_receive();
 }
 
-static uint8_t uart_service_on_byte(void *context, uint8_t byte)
+static CAR_RX_INLINE uint8_t uart_service_on_byte(void *context, uint8_t byte)
 {
     (void)context;
     protected_uart_byte_note(byte, HAL_GetTick());
@@ -805,13 +805,13 @@ static void protected_uart_error_note(uint32_t status)
     __set_PRIMASK(primask);
 }
 
-static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms)
+static CAR_RX_INLINE void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms)
 {
     uint32_t primask = __get_PRIMASK();
     uint8_t overflow_before;
     __disable_irq();
     overflow_before = car_vision_rx.overflow_fault;
-    car_vision_rx_isr_byte(&car_vision_rx, byte, arrival_ms);
+    car_vision_rx_isr_byte_inline(&car_vision_rx, byte, arrival_ms);
     if (overflow_before == 0u && car_vision_rx.overflow_fault != 0u) {
         car_control_note_fast_stop_isr(&car_control_state,
                                        CAR_FAULT_RX_OVERFLOW);
@@ -4803,7 +4803,7 @@ void USART2_IRQHandler(void)
 }
 #endif
 
-void USART1_IRQHandler(void)
+CAR_RX_IRQ_OPTIMIZE void USART1_IRQHandler(void)
 {
     static const car_uart_rx_service_io_t service = {
         .context = 0,
@@ -4817,7 +4817,7 @@ void USART1_IRQHandler(void)
         .on_abort = uart_service_on_abort
     };
     const car_uart_rx_service_result_t result =
-        car_uart_rx_service_drain(&service);
+        car_uart_rx_service_drain_inline(&service);
     if (result.bytes_drained > car_uart_rx_irq_max_batch) {
         car_uart_rx_irq_max_batch = result.bytes_drained;
     }

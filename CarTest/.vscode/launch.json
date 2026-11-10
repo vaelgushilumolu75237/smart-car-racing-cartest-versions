@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Latest v24 | Fresh route 320x120 / camera 2M | Wireless C +40%",
+      "name": "Latest v25 | UART RX overrun fix / camera V24 2M | Wireless C +40%",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",

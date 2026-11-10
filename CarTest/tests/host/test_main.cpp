@@ -4298,11 +4298,12 @@ void test_follow_resume_is_session_scoped_and_pe7_isr_cancels()
              stopped.mode == CAR_MODE_FOLLOW_RUNNING, 0u);
 }
 
-void test_uart_fifo_service_batches_errors_and_follow_recovery()
+void check_uart_fifo_service_batches_errors_and_follow_recovery(bool use_inline)
 {
-    auto drain = [](UartFifoMock *mock) {
+    auto drain = [use_inline](UartFifoMock *mock) {
         const car_uart_rx_service_io_t io = uart_mock_io(mock);
-        return car_uart_rx_service_drain(&io);
+        return use_inline ? car_uart_rx_service_drain_inline(&io)
+                          : car_uart_rx_service_drain(&io);
     };
 
     UartFifoMock two{};
@@ -4458,6 +4459,35 @@ void test_uart_fifo_service_batches_errors_and_follow_recovery()
     }
     CHECK_EQ("UART-only ORE resumes only after KEEP and three more new frames",
              control.mode, CAR_MODE_FOLLOW_RUNNING);
+}
+
+void test_uart_fifo_service_batches_errors_and_follow_recovery()
+{
+    check_uart_fifo_service_batches_errors_and_follow_recovery(false);
+    check_uart_fifo_service_batches_errors_and_follow_recovery(true);
+
+    car_vision_rx_t rx{};
+    car_vision_rx_init(&rx);
+    for (uint32_t i = 0; i < CAR_VISION_RX_RING_SIZE * 3u; ++i) {
+        const uint16_t old_head = rx.head;
+        car_vision_rx_isr_byte_inline(&rx, static_cast<uint8_t>(i), 1000u + i);
+        CHECK_EQ("inline sink preserves byte across ring wrap",
+                 rx.ring[old_head].byte, static_cast<uint8_t>(i));
+        CHECK_EQ("inline sink preserves each byte arrival time",
+                 rx.ring[old_head].arrival_ms, 1000u + i);
+        CHECK_EQ("inline sink publishes one new slot", rx.head,
+                 (old_head + 1u) & CAR_VISION_RX_RING_MASK);
+        rx.tail = rx.head;
+    }
+    for (uint32_t i = 0; i < CAR_VISION_RX_RING_SIZE - 1u; ++i)
+        car_vision_rx_isr_byte_inline(&rx, static_cast<uint8_t>(i), i);
+    const uint16_t head_when_full = rx.head;
+    car_vision_rx_isr_byte_inline(&rx, 0xEEu, 9000u);
+    CHECK_EQ("full inline sink leaves published head unchanged", rx.head,
+             head_when_full);
+    CHECK_EQ("full inline sink records exactly one overflow", rx.queue_overflow_count, 1u);
+    CHECK_EQ("full inline sink latches overflow stop", rx.overflow_fault, 1u);
+    CHECK_EQ("full inline sink advances fault generation", rx.isr_fault_generation, 1u);
 }
 
 void test_application_follow_profile_recovers_and_runs_past_bench_limit()

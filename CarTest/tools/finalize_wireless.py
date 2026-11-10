@@ -21,6 +21,8 @@ def main():
     parser.add_argument("--rebuild-wireless-only", action="store_true")
     parser.add_argument("--completed-mcu-evidence", type=Path,
                         help="Reuse separately recorded successful builds after exact source/ELF hash checks")
+    parser.add_argument('--mcu-only', action='store_true',
+                        help='Require camera runtime to match prior evidence; record a host-built MCU-only release')
     args=parser.parse_args()
     reports={}
     for name in ('WIRELESS_CONTROL','WIRELESS_MAIN','WIRELESS_CAMERA','WIRELESS_TOOLS','WIRELESS_RUNTIME','WIRELESS_VISION_INTEGRATION','WIRELESS_AUX_PINS','IMU_GPIO_SPI'):
@@ -49,6 +51,11 @@ def main():
         print('BUILT '+profile,flush=True)
         return profile,digest(ROOT/'build'/profile/'CarTest.elf')
     old=read(ROOT/'docs/K230_VALIDATION.json')
+    if args.mcu_only:
+        prior_manifest=read(ROOT/'openmv/PACKAGE_MANIFEST.json')
+        for name,expected in prior_manifest['source_sha256'].items():
+            if digest(ROOT/'openmv'/name)!=expected:
+                raise RuntimeError('MCU-only release changed camera runtime: '+name)
     source_inputs=[p for directory in ('App','Inc','Src','Drivers','cmake') for p in (ROOT/directory).rglob('*') if p.is_file()]
     source_inputs += [ROOT/n for n in ('CMakeLists.txt','CMakePresets.json','stm32h743xi_flash.ld')]
     current_sources={p.relative_to(ROOT).as_posix():digest(p) for p in sorted(source_inputs)}
@@ -144,6 +151,12 @@ def main():
         result['board_runtime_fps']='RAM-only camera benchmark; see camera_ram_benchmark; paired H743 link pending'
     else:
         result['board_runtime_fps']='final runtime not benchmarked; hardware verification pending'
+    if args.mcu_only:
+        result['release_version']=args.release_version
+        result['camera_evidence_origin']=old.get('release_version','v20261110-k230-fresh-route-v24')
+        result['hardware_actions']='read-only SWD diagnostics; no camera upload, H743 flash/reset or motor start'
+        result['hardware_diagnostics'].update(camera_runtime_unchanged=True)
+        result['board_runtime_fps']='Camera runtime unchanged; prior V24 RAM benchmark retained as historical evidence only; paired current H743 receive rate pending'
     if completed:
         result['completed_mcu_builds']=completed
     (ROOT/'docs/K230_VALIDATION.json').write_text(json.dumps(result,indent=2),encoding='utf-8')

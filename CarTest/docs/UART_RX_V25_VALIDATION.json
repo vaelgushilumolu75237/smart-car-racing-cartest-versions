@@ -1,0 +1,57 @@
+{
+  "release_version": "v20261110-k230-uart-rx-v25",
+  "status": "software-tested-awaiting-manual-h743-flash",
+  "camera_runtime": "Unchanged V24 33 modules; camera-side no upload required",
+  "baseline_hardware_observation": {
+    "date": "2026-11-10",
+    "flash_load_regions_match_v24": true,
+    "uart_baudrate": 2000000,
+    "fifo_enabled": true,
+    "ore_counter": [
+      3910,
+      4095
+    ],
+    "pe_fe_ne": [
+      0,
+      0,
+      0
+    ],
+    "cause": "H743 USART1 receive overrun under high-rate bursts; not a proven framing or noise failure"
+  },
+  "host": {
+    "passed": true,
+    "cases": 72,
+    "assertions": 10060,
+    "failures": 0,
+    "full_runner_exit": 0,
+    "runtime_log_snapshot_harness_passed": true
+  },
+  "wireless_integration": {
+    "passed": true,
+    "checks": 220,
+    "failures": 0,
+    "includes_delayed_poll_burst_and_ring_wrap": true
+  },
+  "arm_codegen": {
+    "passed": true,
+    "elf_sha256": "8b69b0062da2a38c60a4ef1753c11b11f592ce64834cd5f988bd10285e81dc9c",
+    "irq_instructions_static": 72,
+    "calls": [
+      "HAL_GetTick",
+      "uart_service_on_abort",
+      "uart_service_on_error",
+      "car_control_note_fast_stop_isr"
+    ],
+    "indirect_calls": false,
+    "publication_barriers": true,
+    "bounded_batch": 16,
+    "board_timing_measured": false,
+    "hardware_actions": "none"
+  },
+  "built_profiles": 20,
+  "camera_ram_fps_current_version_verified": false,
+  "paired_h743_rx_fps_current_version": null,
+  "road_verified": false,
+  "hardware_actions": "read-only SWD; no camera upload, H743 flash/reset or motor start",
+  "camera_runtime_unchanged_verified": true
+}

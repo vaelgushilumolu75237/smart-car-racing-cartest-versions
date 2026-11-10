@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261110-k230-fresh-route-v24",
+  "release_version": "v20261110-k230-uart-rx-v25",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

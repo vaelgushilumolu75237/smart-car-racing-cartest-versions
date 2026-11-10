@@ -549,25 +549,7 @@ void car_vision_rx_isr_byte(car_vision_rx_t *rx,
                             uint8_t byte,
                             uint32_t arrival_ms)
 {
-    uint16_t head;
-    uint16_t next;
-    if (rx == 0) {
-        return;
-    }
-    ++rx->rx_byte_count;
-    head = rx->head;
-    publish_barrier();
-    next = (uint16_t)((head + 1u) & CAR_VISION_RX_RING_MASK);
-    if (next == rx->tail) {
-        ++rx->queue_overflow_count;
-        rx->overflow_fault = 1u;
-        ++rx->isr_fault_generation;
-        return;
-    }
-    rx->ring[head].byte = byte;
-    rx->ring[head].arrival_ms = arrival_ms;
-    publish_barrier();
-    rx->head = next;
+    car_vision_rx_isr_byte_inline(rx, byte, arrival_ms);
 }
 
 void car_vision_rx_isr_error(car_vision_rx_t *rx)
