@@ -14,7 +14,7 @@ class ReadinessTests(unittest.TestCase):
     tearDown = fixtures.HALTests.tearDown
 
     def exercise(self, old_semantics=False):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         stream = bytearray()
         uart.device.any = lambda: int(bool(stream))
 
@@ -63,7 +63,7 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(remaining, 0)
 
     def test_no_read_when_native_reports_not_ready(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         uart.device.any = lambda: 0
         uart.device.read = lambda count: self.fail("read on empty native UART")
         self.assertEqual(uart.any(), 0)
@@ -73,7 +73,7 @@ class ReadinessTests(unittest.TestCase):
             def __delitem__(self, key):
                 raise TypeError("'bytearray' object doesn't support item deletion")
 
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         uart.pending = CanMVBytearray(b"abc\0de")
         buf = bytearray(4)
         self.assertEqual(uart.readinto(buf, 4), 4)

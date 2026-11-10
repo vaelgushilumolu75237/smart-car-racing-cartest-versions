@@ -1,18 +1,19 @@
 {
-  "version": "v20261110-k230-single-edge-seed-v23",
-  "status": "experimental-single-edge-seed-host-tested-deployment-pending",
+  "version": "v20261110-k230-fresh-route-v24",
+  "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 647,
-  "hardware_actions": "none for v23; existing SeekFree window history read only",
+  "files": 651,
+  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
     "camera_runtime_unchanged": false,
+    "production_camera_installed": false,
+    "h743_camera_link_verified": false,
+    "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
-    "camera_recovery_tested_on_vehicle": false,
-    "camera_source_readback_verified": true,
-    "camera_pipeline_fps_verified": true
+    "radio_start_tested_on_vehicle": false
   },
   "private_calibration_included": false
 }

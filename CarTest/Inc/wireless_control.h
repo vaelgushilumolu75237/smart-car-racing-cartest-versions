@@ -86,6 +86,9 @@ typedef struct {
     uint8_t motor_hardware_accepted;
     uint8_t calibration_busy;
     uint8_t capture_busy;
+    /* Recoverable vehicle fault: block new operations, let commissioning
+       retain the existing Follow request and perform its own recovery. */
+    uint8_t command_inhibited;
 } wireless_control_runtime_t;
 
 typedef struct {

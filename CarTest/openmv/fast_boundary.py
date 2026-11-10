@@ -183,20 +183,26 @@ def _gate_viper(self) -> int:
                 left_value1 = 0
                 left_value2 = 0
                 left_sample_count = 0
-                for sample in range(3):
-                    index = records[record_base + 2 + sample]
-                    if index < 0 or index >= total:
-                        continue
-                    if known[index] == 0 or white[index] == 0:
-                        continue
-                    value = luma[index]
-                    if left_sample_count == 0:
-                        left_value0 = value
-                    elif left_sample_count == 1:
-                        left_value1 = value
-                    else:
-                        left_value2 = value
-                    left_sample_count += 1
+                i0, i1, i2 = records[record_base + 2], records[record_base + 3], records[record_base + 4]
+                if (0 <= i0 < total and 0 <= i1 < total and 0 <= i2 < total and
+                        known[i0] and known[i1] and known[i2] and
+                        white[i0] and white[i1] and white[i2]):
+                    left_value0, left_value1, left_value2 = luma[i0], luma[i1], luma[i2]
+                    left_sample_count = 3
+                else:
+                    for index in (i0, i1, i2):
+                        if index < 0 or index >= total:
+                            continue
+                        if known[index] == 0 or white[index] == 0:
+                            continue
+                        value = luma[index]
+                        if left_sample_count == 0:
+                            left_value0 = value
+                        elif left_sample_count == 1:
+                            left_value1 = value
+                        else:
+                            left_value2 = value
+                        left_sample_count += 1
                 if left_sample_count >= 2:
                     left_measured = 1
                     if left_sample_count == 2:
@@ -238,20 +244,26 @@ def _gate_viper(self) -> int:
                 right_value1 = 0
                 right_value2 = 0
                 right_sample_count = 0
-                for sample in range(3):
-                    index = records[record_base + 6 + sample]
-                    if index < 0 or index >= total:
-                        continue
-                    if known[index] == 0 or white[index] == 0:
-                        continue
-                    value = luma[index]
-                    if right_sample_count == 0:
-                        right_value0 = value
-                    elif right_sample_count == 1:
-                        right_value1 = value
-                    else:
-                        right_value2 = value
-                    right_sample_count += 1
+                i0, i1, i2 = records[record_base + 6], records[record_base + 7], records[record_base + 8]
+                if (0 <= i0 < total and 0 <= i1 < total and 0 <= i2 < total and
+                        known[i0] and known[i1] and known[i2] and
+                        white[i0] and white[i1] and white[i2]):
+                    right_value0, right_value1, right_value2 = luma[i0], luma[i1], luma[i2]
+                    right_sample_count = 3
+                else:
+                    for index in (i0, i1, i2):
+                        if index < 0 or index >= total:
+                            continue
+                        if known[index] == 0 or white[index] == 0:
+                            continue
+                        value = luma[index]
+                        if right_sample_count == 0:
+                            right_value0 = value
+                        elif right_sample_count == 1:
+                            right_value1 = value
+                        else:
+                            right_value2 = value
+                        right_sample_count += 1
                 if right_sample_count >= 2:
                     right_measured = 1
                     if right_sample_count == 2:
@@ -779,7 +791,11 @@ class FastBoundaryEvidence:
         hit = self._records[record_base + hit_offset]
         total = self.width * self.height
         output = self._row_output
-        if hit < 0 or hit >= total or not self._current_known[hit] or \
+        known = self._current_known
+        white = self._current_white
+        luma = self._current_luma
+        records = self._records
+        if hit < 0 or hit >= total or not known[hit] or \
                 not self._current_dark[hit]:
             return 0
 
@@ -787,30 +803,39 @@ class FastBoundaryEvidence:
         value1 = 0
         value2 = 0
         sample_count = 0
-        for sample in range(3):
-            index = self._records[record_base + hit_offset + 1 + sample]
-            if (index < 0 or index >= total or
-                    not self._current_known[index] or
-                    not self._current_white[index]):
-                continue
-            value = self._current_luma[index]
-            if sample_count == 0:
-                value0 = value
-            elif sample_count == 1:
-                value1 = value
-            else:
-                value2 = value
-            sample_count += 1
+        base = record_base + hit_offset + 1
+        i0, i1, i2 = records[base], records[base + 1], records[base + 2]
+        if (0 <= i0 < total and 0 <= i1 < total and 0 <= i2 < total and
+                known[i0] and known[i1] and known[i2] and
+                white[i0] and white[i1] and white[i2]):
+            value0, value1, value2 = luma[i0], luma[i1], luma[i2]
+            sample_count = 3
+        else:
+            for index in (i0, i1, i2):
+                if (index < 0 or index >= total or
+                        not known[index] or not white[index]):
+                    continue
+                value = luma[index]
+                if sample_count == 0:
+                    value0 = value
+                elif sample_count == 1:
+                    value1 = value
+                else:
+                    value2 = value
+                sample_count += 1
         if sample_count < 2:
             return 0
         if sample_count == 2:
             white2 = value0 + value1
         else:
-            values = (value0, value1, value2)
-            low = min(values)
-            high = max(values)
-            white2 = (sum(values) - low - high) * 2
-        step2 = white2 - 2 * self._current_luma[hit]
+            if value0 > value1:
+                value0, value1 = value1, value0
+            if value1 > value2:
+                value1 = value2
+            if value0 > value1:
+                value1 = value0
+            white2 = value1 * 2
+        step2 = white2 - 2 * luma[hit]
         denominator2 = max(2, white2)
         output[output_base] = step2
         output[output_base + 1] = white2

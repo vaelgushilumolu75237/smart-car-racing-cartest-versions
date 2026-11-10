@@ -143,6 +143,8 @@ def main() -> int:
             "invalid route bounded search and three-frame recovery",
             "right mirrored signed progress",
             "IMU fault and PE7 stop reset",
+            "wireless recoverable protocol fault preserves run request and three-route automatic recovery" if args.wireless else "wireless disabled",
+            "wireless ordinary line loss keeps session after 3s stop; three fresh routes restore PWM-gated output; local stop cancels" if args.wireless else "wireless disabled",
         ],
     }
     args.json.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import main
 import config
 import ring_width_calibration as calibration
+import track_elements
 import wireless_link as wl
 from test_wireless_camera import FakeClock, Sink, hello, command
 
@@ -94,5 +95,47 @@ class Actions(unittest.TestCase):
             controller.step(1000,None,0,4,False)
             self.assertFalse(controller.active)
             self.assertIsNone(self.link.pending_camera_cal_seq)
+
+    def test_collected_map_requires_real_parked_check_before_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tracker = track_elements.TrackElementsTracker(
+                config, require_calibration=True)
+            controller = main._WirelessCameraCalibrationController(
+                str(Path(tmp)/"calibration.json"), tracker, self.link)
+            controller.request()
+            rows = [value for y in range(8,60) for value in (y,24,53,7)]
+            for _ in range(calibration.MAX_ATTEMPTS):
+                if controller.step(1000,rows,len(rows)//4,4,True): break
+            self.assertTrue(controller.last_success)
+            self.assertTrue(tracker.ring_calibration_ready)
+            self.assertFalse(tracker.ring_calibration_check_ready)
+            was = False
+            for expected in (False, False, True):
+                ready, was = main._advance_parked_width_check(
+                    tracker,controller,True,rows,len(rows)//4,4,was)
+                self.assertEqual(ready,expected)
+            self.assertTrue(tracker.ring_calibration_check_ready)
+
+            # A new collection must not reuse the old successful startup check.
+            controller.request()
+            ready, was = main._advance_parked_width_check(
+                tracker,controller,True,rows,len(rows)//4,4,was)
+            self.assertFalse(ready)
+            for _ in range(calibration.MAX_ATTEMPTS):
+                if controller.step(1000,rows,len(rows)//4,4,True): break
+            self.assertTrue(controller.last_success)
+            self.assertFalse(tracker.ring_calibration_check_ready)
+            for _ in range(2):
+                ready, was = main._advance_parked_width_check(
+                    tracker,controller,True,rows,len(rows)//4,4,was)
+                self.assertFalse(ready)
+            ready, was = main._advance_parked_width_check(
+                tracker,controller,False,None,0,4,was)
+            self.assertFalse(ready)
+            # Losing stationary/route eligibility restarts the three-frame check.
+            for expected in (False, False, True):
+                ready, was = main._advance_parked_width_check(
+                    tracker,controller,True,rows,len(rows)//4,4,was)
+                self.assertEqual(ready,expected)
 
 if __name__=="__main__": unittest.main()

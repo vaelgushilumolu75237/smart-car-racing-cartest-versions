@@ -153,7 +153,7 @@ static void try_start_calibration(uint32_t now,
         !runtime->local_button_released || !runtime->startup_release_confirmed) {
         reject_calibration(WIRELESS_ACK_NOT_PARKED); return;
     }
-    if (runtime->hard_fault) { reject_calibration(WIRELESS_ACK_FAULT); return; }
+    if (runtime->hard_fault || runtime->command_inhibited) { reject_calibration(WIRELESS_ACK_FAULT); return; }
     if (runtime->calibration_busy || runtime->capture_busy || engine.test.active ||
         effect!=CAR_WIRELESS_EFFECT_NONE) {
         reject_calibration(WIRELESS_ACK_BUSY); return;
@@ -262,7 +262,7 @@ static void assistant_line(uint32_t now) {
     if (!strcmp(assistant_text,"ARM")) {
         const wireless_control_runtime_t *r=&engine.runtime;
         assistant_ticket=0;
-        if (r->hard_fault) {assistant_reject(WIRELESS_ACK_FAULT);return;}
+        if (r->hard_fault || r->command_inhibited) {assistant_reject(WIRELESS_ACK_FAULT);return;}
         if (!r->parked || !r->local_button_released || !r->startup_release_confirmed ||
             r->follow_active || last_snapshot.outputs_active) {
             assistant_reject(WIRELESS_ACK_NOT_PARKED);return;
@@ -295,7 +295,7 @@ static void assistant_line(uint32_t now) {
     /* Consume before validation: neither rejection nor a duplicate can queue
        a delayed start when readiness later improves. ARM is then required. */
     assistant_ticket=0;
-    if (engine.runtime.hard_fault) {assistant_reject(WIRELESS_ACK_FAULT);return;}
+    if (engine.runtime.hard_fault || engine.runtime.command_inhibited) {assistant_reject(WIRELESS_ACK_FAULT);return;}
     if (!engine.runtime.parked || !engine.runtime.local_button_released ||
         !engine.runtime.startup_release_confirmed || engine.runtime.follow_active ||
         last_snapshot.outputs_active) {assistant_reject(WIRELESS_ACK_NOT_PARKED);return;}
@@ -408,7 +408,7 @@ uint8_t car_wireless_capture_busy(void){
 uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_stop_latched &&
     now-last_snapshot.now_ms<20u && engine.test.active && engine.runtime.parked &&
     engine.runtime.local_button_released && engine.runtime.startup_release_confirmed &&
-    !engine.runtime.hard_fault && !engine.runtime.follow_active && !engine.runtime.calibration_busy &&
+    !engine.runtime.hard_fault && !engine.runtime.command_inhibited && !engine.runtime.follow_active && !engine.runtime.calibration_busy &&
     !car_wireless_capture_busy() && engine.runtime.motor_hardware_accepted &&
     now-engine.test.started_ms<engine.test.deadline_ms-engine.test.started_ms;}
 car_wireless_effect_t car_wireless_take_effect(void){car_wireless_effect_t result=effect;effect=CAR_WIRELESS_EFFECT_NONE;return result;}
@@ -586,7 +586,11 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
     state=(wireless_control_runtime_t){0};state.parked=!c->follow_session_active && !c->manual_run_request &&
         (!s->outputs_active || engine.test.active);
     state.local_button_released=s->button_released;state.startup_release_confirmed=s->startup_released;
-    state.hard_fault=c->fault_latched || c->fault!=CAR_FAULT_NONE || c->isr_stop_request || c->isr_stop_fault || s->servo_fault || c->imu_fault;
+    /* The controller owns receive-fault stopping/recovery. Treating a soft
+       fault as a wireless hard fault used to synthesize NORMAL_STOP, clearing
+       manual_run_request and the session before the 3 s rule could recover. */
+    state.hard_fault=c->fault_latched || c->isr_release_seen || s->servo_fault || c->imu_fault;
+    state.command_inhibited=c->fault!=CAR_FAULT_NONE || c->isr_stop_request || c->isr_stop_fault;
     state.follow_active=c->follow_session_active;state.motor_hardware_accepted=config->motor_hardware_accepted;
     state.calibration_busy=s->calibration_busy || wireless_flash_busy(&flash_writer);state.capture_busy=car_wireless_capture_busy();
     wireless_control_set_runtime(&engine,&state);
@@ -597,7 +601,7 @@ void car_wireless_service(const car_wireless_snapshot_t *s,car_control_t *c,car_
     }
     if (assistant_ticket && (now-assistant_issued_ms>=ASSISTANT_TICKET_MS ||
         !engine.runtime.local_button_released || !engine.runtime.startup_release_confirmed ||
-        engine.runtime.hard_fault || engine.runtime.follow_active ||
+        engine.runtime.hard_fault || engine.runtime.command_inhibited || engine.runtime.follow_active ||
         !engine.runtime.parked || engine.runtime.calibration_busy || engine.runtime.capture_busy)) {
         assistant_ticket=0;assistant_status=ASSISTANT_EXPIRED;assistant_ack=WIRELESS_ACK_STALE;
     }

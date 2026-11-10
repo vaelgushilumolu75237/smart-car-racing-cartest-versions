@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import hashlib
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -111,6 +113,16 @@ int main(void)
                              check=False)
         print(run.stdout, end="")
         print(run.stderr, end="")
+        if run.returncode == 0:
+            evidence = ROOT.parent / 'validation/WIRELESS_AUX_PINS.json'
+            evidence.parent.mkdir(exist_ok=True)
+            evidence.write_text(json.dumps({
+                'passed': True, 'hardware_actions': 'none',
+                'scope': 'Extracted production RTS/CMD input-pullup initialization; host execution only',
+                'runner': 'python tests/test_wireless_aux_pins.py',
+                'source_sha256': {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                  for name in ('Src/main.c', 'tests/test_wireless_aux_pins.py')},
+            }, indent=2), encoding='utf-8')
         return run.returncode
 
 

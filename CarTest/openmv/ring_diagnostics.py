@@ -189,6 +189,11 @@ def _classify_reject_counts_array(values):
 @_k230_identity
 def _serialize_i16_fields_viper(values_object, destination_object,
                                 count: int):
+    if isinstance(values_object, array):
+        raw = bytes(values_object)
+        if len(raw) == len(values_object) * 2:
+            destination_object[:count * 2] = raw[:count * 2]
+            return
     values = ptr16(values_object)
     destination = ptr8(destination_object)
     index = 0
@@ -226,13 +231,8 @@ def _serialize_i32_rejects_viper(values_object, destination_object,
 def _copy_record_viper(destination_object, destination_offset: int,
                        source_object, source_offset: int,
                        count: int):
-    destination = ptr8(destination_object)
-    source = ptr8(source_object)
-    byte_index = 0
-    while byte_index < count:
-        destination[destination_offset + byte_index] = \
-            source[source_offset + byte_index]
-        byte_index += 1
+    destination_object[destination_offset:destination_offset + count] = \
+        source_object[source_offset:source_offset + count]
 
 
 _SOURCE_CODES = {

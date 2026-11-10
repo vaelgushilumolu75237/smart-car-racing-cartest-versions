@@ -14,6 +14,9 @@ def read(p): return json.loads(p.read_text(encoding='utf-8-sig'))
 
 def main():
     parser=argparse.ArgumentParser()
+    parser.add_argument('--release-version', required=True)
+    parser.add_argument('--camera-ram-evidence', type=Path,
+                        help='Sanitized RAM benchmark summary, with exact runtime hashes; no images/logs')
     parser.add_argument("--reuse-verified-mcu", action="store_true")
     parser.add_argument("--rebuild-wireless-only", action="store_true")
     parser.add_argument("--completed-mcu-evidence", type=Path,
@@ -101,6 +104,15 @@ def main():
         if digest(ROOT/name)!=baseline['files'][name]: raise RuntimeError('Diagnostic evidence needs refresh: '+name)
     if not old.get('diagnostic_tests_passed'): raise RuntimeError('Missing original diagnostic test evidence')
     runtime=sorted((ROOT/'openmv').glob('*.py'))
+    ram=None
+    if args.camera_ram_evidence:
+        ram=read(args.camera_ram_evidence)
+        if ram.get('source_sha256') != {p.name:digest(p) for p in runtime}:
+            raise RuntimeError('RAM camera benchmark source changed')
+        if ram.get('actual_camera') is not True or ram.get('actual_h743') is not False:
+            raise RuntimeError('RAM evidence must describe the actual camera with simulated H743 input')
+        if ram.get('deployed') is not False:
+            raise RuntimeError('This finalizer only records an undeployed RAM candidate')
     compilation=[]
     for source in runtime:
         bytecode=OUT/'mpy'/(source.stem+'.mpy')
@@ -109,7 +121,7 @@ def main():
         compilation.append({'file':source.name,'source_sha256':digest(source),'mpy_sha256':digest(bytecode)})
     result=dict(old)
     result.pop('completed_mcu_builds',None)
-    result.update(port='CARTEST_K230_SEEKFREE_START_20261108',status='experimental-software-tested-hardware-pending',
+    result.update(port='CARTEST_K230_FRESH_ROUTE_V24_20261110',status='experimental-software-tested-hardware-pending',
         camera_tests=read(OUT/'CAMERA_TESTS.json'),hal_tests_passed=True,
         gyro_camera_tests_passed=True,gyro_driver_state_tests_passed=True,
         gyro_integration_tests_passed=True,gyro_main_tests=read(OUT/'GYRO_MAIN.json'),
@@ -121,10 +133,17 @@ def main():
         imu_gpio_spi_tests_passed=True,
         diagnostic_evidence='reused prior passing evidence after unchanged source hash checks',
         pairing='DebugWirelessGyro350Speed140 + wireless-enabled K230 V4 production camera',
-        hardware_actions='none; offline SeekFree command tests/build/package only; no serial access, flash/reset/camera upload/motor start',
+        hardware_actions='finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start',
         hardware_diagnostics={'current_version_hardware_verified':False,
-            'camera_runtime_unchanged':True,'raw_vehicle_logs_published':False,
+            'camera_runtime_unchanged':False,'production_camera_installed':False,
+            'h743_camera_link_verified':False,'road_behavior_verified':False,
+            'raw_vehicle_logs_published':False,
             'radio_start_tested_on_vehicle':False})
+    if ram:
+        result['camera_ram_benchmark']=ram
+        result['board_runtime_fps']='RAM-only camera benchmark; see camera_ram_benchmark; paired H743 link pending'
+    else:
+        result['board_runtime_fps']='final runtime not benchmarked; hardware verification pending'
     if completed:
         result['completed_mcu_builds']=completed
     (ROOT/'docs/K230_VALIDATION.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
@@ -136,7 +155,8 @@ def main():
     manifest.update(port=result['port'],runtime_files=[p.name for p in runtime],
         source_sha256={p.name:digest(p) for p in runtime},
         paired_mcu_preset='DebugWirelessGyro350Speed140',wireless_required=True,
-        release_version='v20261108-k230-seekfree-start-v10',
+        release_version=args.release_version,
+        dedicated_camera_uart_baudrate=2000000,wireless_pc_uart_baudrate=115200,
         wireless_aux_gpio={'rts':'PA4','cmd':'PA5','mode':'input-pullup',
                           'external_resistor':'software alternative; physical verification pending',
                           'hardware_flow_control':False})

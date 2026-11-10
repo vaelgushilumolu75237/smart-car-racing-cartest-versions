@@ -9,6 +9,10 @@ width. All pixel scans and cache updates use fixed-size buffers.
 """
 
 from array import array
+import sys
+_K230_ACCEL = None
+if sys.implementation.name == "micropython":
+    import k230_accel as _K230_ACCEL
 
 try:
     import uctypes as _uctypes
@@ -356,27 +360,25 @@ def _observe_bilateral_viper(self) -> int:
     cache_right2 = ptr32(self._cache_right2)
     anchor_left2 = ptr32(self._anchor_left2)
     anchor_right2 = ptr32(self._anchor_right2)
-    width = int(self.width)
-    height = int(self.height)
-    floor = int(self.floor_y)
-    count = int(self._observed_count)
-    stride = int(self._observed_stride)
-    minimum_width = int(self.min_width)
-    maximum_width = int(self.max_width)
-    minimum_step_scaled = int(self.minimum_step_scaled)
-    minimum_fraction_scaled = int(self.minimum_fraction_scaled)
+    width = self.width
+    height = self.height
+    floor = self.floor_y
+    count = self._observed_count
+    stride = self._observed_stride
+    minimum_width = self.min_width
+    maximum_width = self.max_width
+    minimum_step_scaled = self.minimum_step_scaled
+    minimum_fraction_scaled = self.minimum_fraction_scaled
     total = width * height
     accepted = 0
     new_cache_rows = 0
-
     for row_index in range(count):
         base = row_index * stride
-        y = int(rows[base])
-        left = int(rows[base + 1])
-        right = int(rows[base + 2])
-        flags = int(rows[base + 3])
-        if (y < floor or y >= height or left < 1 or right < left or
-                right >= width - 1 or (flags & 7) != 7):
+        y = rows[base]
+        left = rows[base + 1]
+        right = rows[base + 2]
+        flags = rows[base + 3]
+        if y < floor or y >= height or left < 1 or (right < left) or (right >= width - 1) or (flags & 7 != 7):
             continue
         run_width = right - left + 1
         if run_width < minimum_width or run_width > maximum_width:
@@ -384,36 +386,21 @@ def _observe_bilateral_viper(self) -> int:
         row = y * width
         left_hit = row + left - 1
         right_hit = row + right + 1
-        if (left_hit < 0 or right_hit >= total or
-                known[left_hit] == 0 or known[right_hit] == 0 or
-                edge[left_hit] == 0 or edge[right_hit] == 0 or
-                road[left_hit] != 0 or road[right_hit] != 0):
+        if left_hit < 0 or right_hit >= total or known[left_hit] == 0 or (known[right_hit] == 0) or (edge[left_hit] == 0) or (edge[right_hit] == 0) or (road[left_hit] != 0) or (road[right_hit] != 0):
             continue
-
         left_sample0 = left_hit + 1
         left_sample1 = left_sample0 + 1
         left_sample2 = left_sample1 + 1
         right_sample0 = right_hit - 1
         right_sample1 = right_sample0 - 1
         right_sample2 = right_sample1 - 1
-        if (left_sample0 < 0 or left_sample0 >= total or
-                left_sample1 < 0 or left_sample1 >= total or
-                left_sample2 < 0 or left_sample2 >= total or
-                right_sample0 < 0 or right_sample0 >= total or
-                right_sample1 < 0 or right_sample1 >= total or
-                right_sample2 < 0 or right_sample2 >= total):
+        if left_sample0 < 0 or left_sample0 >= total or left_sample1 < 0 or (left_sample1 >= total) or (left_sample2 < 0) or (left_sample2 >= total) or (right_sample0 < 0) or (right_sample0 >= total) or (right_sample1 < 0) or (right_sample1 >= total) or (right_sample2 < 0) or (right_sample2 >= total):
             continue
-        if (known[left_sample0] == 0 or known[left_sample1] == 0 or
-                known[left_sample2] == 0 or known[right_sample0] == 0 or
-                known[right_sample1] == 0 or known[right_sample2] == 0 or
-                road[left_sample0] == 0 or road[left_sample1] == 0 or
-                road[left_sample2] == 0 or road[right_sample0] == 0 or
-                road[right_sample1] == 0 or road[right_sample2] == 0):
+        if known[left_sample0] == 0 or known[left_sample1] == 0 or known[left_sample2] == 0 or (known[right_sample0] == 0) or (known[right_sample1] == 0) or (known[right_sample2] == 0) or (road[left_sample0] == 0) or (road[left_sample1] == 0) or (road[left_sample2] == 0) or (road[right_sample0] == 0) or (road[right_sample1] == 0) or (road[right_sample2] == 0):
             continue
-
-        left_value0 = int(luma[left_sample0])
-        left_value1 = int(luma[left_sample1])
-        left_value2 = int(luma[left_sample2])
+        left_value0 = luma[left_sample0]
+        left_value1 = luma[left_sample1]
+        left_value2 = luma[left_sample2]
         if left_value0 > left_value1:
             temp = left_value0
             left_value0 = left_value1
@@ -427,15 +414,12 @@ def _observe_bilateral_viper(self) -> int:
             left_value0 = left_value1
             left_value1 = temp
         left_white2 = left_value1 * 2
-        left_step2 = left_white2 - int(luma[left_hit]) * 2
-        if (left_step2 * 4 < minimum_step_scaled * 2 or
-                left_step2 * 1000000 <
-                left_white2 * minimum_fraction_scaled):
+        left_step2 = left_white2 - luma[left_hit] * 2
+        if left_step2 * 4 < minimum_step_scaled * 2 or left_step2 * 1000000 < left_white2 * minimum_fraction_scaled:
             continue
-
-        right_value0 = int(luma[right_sample0])
-        right_value1 = int(luma[right_sample1])
-        right_value2 = int(luma[right_sample2])
+        right_value0 = luma[right_sample0]
+        right_value1 = luma[right_sample1]
+        right_value2 = luma[right_sample2]
         if right_value0 > right_value1:
             temp = right_value0
             right_value0 = right_value1
@@ -449,12 +433,9 @@ def _observe_bilateral_viper(self) -> int:
             right_value0 = right_value1
             right_value1 = temp
         right_white2 = right_value1 * 2
-        right_step2 = right_white2 - int(luma[right_hit]) * 2
-        if (right_step2 * 4 < minimum_step_scaled * 2 or
-                right_step2 * 1000000 <
-                right_white2 * minimum_fraction_scaled):
+        right_step2 = right_white2 - luma[right_hit] * 2
+        if right_step2 * 4 < minimum_step_scaled * 2 or right_step2 * 1000000 < right_white2 * minimum_fraction_scaled:
             continue
-
         left2 = left * 2 - 1
         right2 = right * 2 + 1
         if cache_valid[y] == 0:
@@ -466,51 +447,40 @@ def _observe_bilateral_viper(self) -> int:
             anchor_right2[y] = right2
             cache_valid[y] = 1
         else:
-            if (cache_width[y] == run_width and
-                    cache_left2[y] == left2 and
-                    cache_right2[y] == right2 and
-                    anchor_left2[y] == left2 and
-                    anchor_right2[y] == right2):
-                # All measured values and identity anchors already match, so
-                # the zero-delta smoother would leave every cache word intact.
+            if cache_width[y] == run_width and cache_left2[y] == left2 and (cache_right2[y] == right2) and (anchor_left2[y] == left2) and (anchor_right2[y] == right2):
                 accepted += 1
                 continue
-            delta = run_width - int(cache_width[y])
+            delta = run_width - cache_width[y]
             if delta > 4:
                 delta = 4
             elif delta < -4:
                 delta = -4
             if delta >= 0:
-                cache_width[y] = int(cache_width[y]) + (delta + 1) // 2
+                cache_width[y] = cache_width[y] + (delta + 1) // 2
             else:
-                cache_width[y] = int(cache_width[y]) - ((-delta + 1) // 2)
-
-            delta = left2 - int(cache_left2[y])
+                cache_width[y] = cache_width[y] - (-delta + 1) // 2
+            delta = left2 - cache_left2[y]
             if delta > 8:
                 delta = 8
             elif delta < -8:
                 delta = -8
             if delta >= 0:
-                cache_left2[y] = int(cache_left2[y]) + (delta + 1) // 2
+                cache_left2[y] = cache_left2[y] + (delta + 1) // 2
             else:
-                cache_left2[y] = int(cache_left2[y]) - ((-delta + 1) // 2)
-
-            delta = right2 - int(cache_right2[y])
+                cache_left2[y] = cache_left2[y] - (-delta + 1) // 2
+            delta = right2 - cache_right2[y]
             if delta > 8:
                 delta = 8
             elif delta < -8:
                 delta = -8
             if delta >= 0:
-                cache_right2[y] = int(cache_right2[y]) + (delta + 1) // 2
+                cache_right2[y] = cache_right2[y] + (delta + 1) // 2
             else:
-                cache_right2[y] = int(cache_right2[y]) - ((-delta + 1) // 2)
-
+                cache_right2[y] = cache_right2[y] - (-delta + 1) // 2
             anchor_left2[y] = cache_left2[y]
             anchor_right2[y] = cache_right2[y]
         accepted += 1
-    # Six low bits hold the number of newly cached rows (0..60); higher bits
-    # preserve the accepted-row count returned by the original kernel.
-    return (accepted << 6) | new_cache_rows
+    return accepted << 6 | new_cache_rows
 
 
 @_k230_identity
@@ -530,6 +500,8 @@ def _scan_single_edges_viper(self) -> int:
     row_contrast = ptr32(self._row_contrast)
     component_class = ptr8(self._component_class)
     diagnostics = ptr32(self._diagnostic_counts)
+    scan_positions = (_K230_ACCEL.single_edge_positions(self)
+                      if _K230_ACCEL is not None else None)
     width = int(self.width)
     height = int(self.height)
     floor = int(self.floor_y)
@@ -586,7 +558,8 @@ def _scan_single_edges_viper(self) -> int:
             clipped_ambiguous = 0
             opposite_seen = 0
 
-            for x in range(1, width - 1):
+            for x in (scan_positions[side][y] if scan_positions is not None
+                      else range(1, width - 1)):
                 hit = row + x
                 if known[hit] == 0 or edge[hit] == 0:
                     continue

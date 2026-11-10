@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Latest v15 | Camera UART FIFO fix | Wireless C +40%",
+      "name": "Latest v24 | Fresh route 320x120 / camera 2M | Wireless C +40%",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",

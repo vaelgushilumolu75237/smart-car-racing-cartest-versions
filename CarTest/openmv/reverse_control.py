@@ -6,6 +6,7 @@ and 250 ms lease. Parser storage is allocated once; each feed is capped.
 """
 
 RUNTIME_API_VERSION = 2
+from vision_protocol import _CRC16_BYTE_TABLE
 
 SYNC_0 = 0xA6
 SYNC_1 = 0x5A
@@ -38,13 +39,9 @@ PROFILE_REVISION = 1
 def crc16_ccitt_false(data, length):
     """Return CRC-16/CCITT-FALSE over the first ``length`` bytes."""
     crc = 0xFFFF
+    table = _CRC16_BYTE_TABLE
     for index in range(length):
-        crc ^= int(data[index]) << 8
-        for _bit in range(8):
-            if crc & 0x8000:
-                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
-            else:
-                crc = (crc << 1) & 0xFFFF
+        crc = ((crc << 8) ^ table[(crc >> 8) ^ int(data[index])]) & 0xFFFF
     return crc
 
 

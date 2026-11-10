@@ -103,6 +103,8 @@ def checkpoint(args):
         base.copy_allowlisted_file(source, target, fixture)
     doc_files = ["K230_PORT_20261106.md", "K230_VALIDATION.json", "K230_PORT_TRANSFORM.json",
                  "GYRO350_20261106.md", "GYRO350_VENDOR_FILES.json"]
+    if (source / 'docs/FRESH_ROUTE_V24_CN.md').is_file():
+        doc_files.append('FRESH_ROUTE_V24_CN.md')
     if manifest.get("wireless_required"):
         doc_files += ["WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_CONTRACT.md",
                       "WIRELESS_VENDOR_FILES.json", "WIRELESS_VALIDATION.json"]

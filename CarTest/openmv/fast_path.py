@@ -230,9 +230,8 @@ class _StateFieldView:
 def _reset_viper(self):
     counts = ptr8(self._counts)
     observed = ptr8(self._best_layer_observed)
-    for layer in range(int(self.row_count)):
-        counts[layer] = 0
-        observed[layer] = 0
+    counts[:] = bytes(self.row_count)
+    observed[:] = bytes(self.row_count)
     control = ptr32(self._control)
     for index in range(12):
         control[index] = 0
@@ -512,8 +511,11 @@ def _select_viper(self) -> int:
     best_state = -1
     best_score = sentinel
     viable_count = 0
+    single_candidate_rows = True
 
     for layer in range(layers):
+        if counts[layer] > 1:
+            single_candidate_rows = False
         current_y = height - 1 - layer
         for slot in range(counts[layer]):
             node = layer * max_per_row + slot
@@ -609,6 +611,12 @@ def _select_viper(self) -> int:
     control[8] = best_score
     control[9] = (states[best_base + 2])
     control[10] = (states[best_base + 5])
+
+    if single_candidate_rows:
+        # Every path that shares an observed layer uses its sole candidate.
+        # Its separation from the selected route is therefore exactly zero.
+        # connect_rows already cleared field 9 for both states at every node.
+        return 1
 
     # Propagate separation from the selected route once, in increasing layer
     # order. Every parent is in an earlier layer, so field 9 can hold an exact
@@ -1101,7 +1109,10 @@ class FastPathDetector:
                 self.reference_y_milli, self.max_per_row,
                 self.state_capacity)
         else:
-            _connect_viper(self)
+            if _K230_ACCEL is not None:
+                _K230_ACCEL.connect_rows(self)
+            else:
+                _connect_viper(self)
         select_status = _select_viper(self)
         if select_status == 2:
             rows = self._rows() if mask_info.get("debug") else ()

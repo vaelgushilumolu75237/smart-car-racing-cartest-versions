@@ -163,6 +163,109 @@ void prime_ring(Rig &rig)
           "rearm state does not drive ring");
 }
 
+#if CARTEST_WIRELESS_ENABLED
+void test_wireless_hold_deadline_recovery()
+{
+    Rig rig;
+    test_startup_gate_and_session(rig);
+    car_wireless_init(150u, 125u);
+    car_wireless_snapshot_t snapshot{};
+    snapshot.button_released = snapshot.startup_released = 1u;
+    const uint32_t deadline = 150u + CAR_CONTROL_VISION_HOLD_MS;
+    for (uint32_t now = 160u; now < deadline; now += 100u) {
+        check(rig.send(now, 0u, 0u, 0, 0u, 0),
+              "fresh invalid-route transport through ordinary hold");
+        rig.tick(now, 1u);
+        snapshot.now_ms = now;
+        car_wireless_service(&snapshot, &rig.control, &rig.config);
+        check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE,
+              "wireless preserves ordinary hold request");
+    }
+    check(rig.send(deadline, 0u, 0u, 0, 0u, 0),
+          "fresh invalid route at ordinary hold deadline");
+    rig.tick(deadline, 1u);
+    check(rig.control.vision_hold_expired != 0u &&
+              rig.control.follow_output_duty_permille == 0u &&
+              rig.control.road_drive_allowed == 0u,
+          "ordinary three-second deadline stops outputs");
+    check(rig.control.follow_session_active != 0u,
+          "ordinary deadline retains session waiting for fresh route");
+    for (uint32_t step = 1u; step <= 3u; ++step) {
+        const uint32_t now = deadline + step * 10u;
+        check(rig.send(now, 1u, 0u, 0, 1u, 0),
+              "new ordinary route after hold deadline");
+        rig.tick(now, 1u);
+        snapshot.now_ms = now;
+        car_wireless_service(&snapshot, &rig.control, &rig.config);
+        check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE,
+              "wireless never converts automatic route recovery to STOP");
+        if (step < 3u) {
+            check(rig.control.road_drive_allowed == 0u,
+                  "one or two route frames cannot resume outputs");
+        }
+    }
+    check(rig.control.follow_session_active != 0u &&
+              rig.control.mode == CAR_MODE_FOLLOW_RUNNING &&
+              rig.control.vision_hold_expired == 0u,
+          "three fresh route frames resume session after stopped deadline");
+    rig.tick(deadline + 40u, 0u);
+    check(rig.control.follow_session_active == 0u,
+          "local stop cancels session after automatic recovery");
+}
+
+void test_wireless_soft_fault_recovery()
+{
+    Rig rig;
+    test_startup_gate_and_session(rig);
+    car_wireless_init(150u, 124u);
+    car_wireless_snapshot_t snapshot{};
+    snapshot.now_ms = 150u;
+    snapshot.button_released = snapshot.startup_released = 1u;
+    snapshot.outputs_active = 1u;
+    car_wireless_service(&snapshot, &rig.control, &rig.config);
+    check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE,
+          "wireless service leaves local follow session intact");
+
+    car_control_note_fault(&rig.control, CAR_FAULT_PROTOCOL);
+    check(rig.control.fault == CAR_FAULT_PROTOCOL &&
+              rig.control.fault_latched == 0u,
+          "protocol error is a recoverable communication fault");
+    check(rig.control.follow_output_duty_permille == 0u &&
+              rig.control.road_drive_allowed == 0u,
+          "communication fault immediately inhibits physical motion");
+    snapshot.now_ms = 160u;
+    snapshot.outputs_active = 0u;
+    car_wireless_service(&snapshot, &rig.control, &rig.config);
+    check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE,
+          "wireless does not turn communication fault into normal STOP");
+    check(rig.control.follow_session_active != 0u,
+          "communication fault preserves running session for route recovery");
+
+    car_control_rx_recovery_flush_complete(&rig.control);
+    car_control_reverse_control_reset_phase_complete(&rig.control);
+    car_control_reverse_control_keep_started(&rig.control);
+    for (uint32_t now = 170u; now <= 190u; now += 10u) {
+        check(rig.send(now, 1u, 0u, 0, 1u, 0),
+              "fresh ordinary frame after communication fault");
+        rig.tick(now, 1u);
+        snapshot.now_ms = now;
+        car_wireless_service(&snapshot, &rig.control, &rig.config);
+        check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE,
+              "wireless preserves original run request throughout recovery");
+    }
+    check(rig.control.fault == CAR_FAULT_NONE &&
+              rig.control.follow_session_active != 0u &&
+              rig.control.road_drive_allowed != 0u,
+          "three fresh routes automatically resume original follow session");
+
+    car_wireless_local_stop(200u);
+    snapshot.now_ms = 200u;
+    car_wireless_service(&snapshot, &rig.control, &rig.config);
+    check(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_STOP,
+          "explicit local STOP still cancels run authority");
+}
+#endif
+
 void test_left_ring_and_search(Rig &rig)
 {
     prime_ring(rig);
@@ -286,6 +389,8 @@ void test_fault_and_stop(Rig &rig)
 int main()
 {
 #if CARTEST_WIRELESS_ENABLED
+    test_wireless_hold_deadline_recovery();
+    test_wireless_soft_fault_recovery();
     car_wireless_init(0,123);
     /* Valid and corrupt side-band envelopes containing a complete V4 frame
        must never inject that payload as a route observation. */

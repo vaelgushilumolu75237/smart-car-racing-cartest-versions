@@ -92,6 +92,7 @@ static uint8_t is_parked_and_safe(const wireless_control_t *control)
     const wireless_control_runtime_t *runtime = &control->runtime;
     return (runtime->parked != 0u && runtime->local_button_released != 0u &&
             runtime->startup_release_confirmed != 0u && runtime->hard_fault == 0u &&
+            runtime->command_inhibited == 0u &&
             runtime->follow_active == 0u && runtime->calibration_busy == 0u &&
             runtime->capture_busy == 0u && control->test.active == 0u) ? 1u : 0u;
 }
@@ -188,6 +189,10 @@ void wireless_control_set_runtime(wireless_control_t *control,
     control->runtime = *runtime;
     if (runtime->hard_fault != 0u || runtime->local_button_released == 0u)
         wireless_control_revoke_outputs(control, 0u);
+    else if (runtime->command_inhibited != 0u) {
+        control->test = (wireless_control_test_t){.servo_us = SERVO_CENTER_US};
+        control->start_requested = 0u;
+    }
 }
 
 uint8_t wireless_control_open_session(wireless_control_t *control,
@@ -223,6 +228,11 @@ void wireless_control_tick(wireless_control_t *control, uint32_t now_ms)
         control->runtime.local_button_released == 0u ||
         control->runtime.startup_release_confirmed == 0u) {
         wireless_control_revoke_outputs(control, now_ms);
+        return;
+    }
+    if (control->runtime.command_inhibited != 0u) {
+        control->test = (wireless_control_test_t){.servo_us = SERVO_CENTER_US};
+        control->start_requested = 0u;
         return;
     }
     if (control->test.active != 0u &&
@@ -358,7 +368,8 @@ wireless_ack_status_t wireless_control_command(
         ack->detail = control->parameter_page;
         break;
     case WIRELESS_OP_START:
-        if (control->runtime.hard_fault != 0u) status = WIRELESS_ACK_FAULT;
+        if (control->runtime.hard_fault != 0u ||
+            control->runtime.command_inhibited != 0u) status = WIRELESS_ACK_FAULT;
         else { control->start_requested = 1u; status = WIRELESS_ACK_PENDING; }
         break;
     case WIRELESS_OP_STOP:

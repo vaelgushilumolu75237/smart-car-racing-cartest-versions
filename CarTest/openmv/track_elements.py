@@ -10,6 +10,8 @@ bilateral width cache; inferred opposite edges are output-only.
 from array import array
 import time as _time
 
+_ZERO_ROWS_120 = array('i', [0] * 120)
+
 try:
     raise ImportError('K230 portable reference backend')
     _IS_MICROPYTHON = True
@@ -391,15 +393,9 @@ def _load_road_rows_viper(rows_object, count: int, floor_y: int,
     status = ptr8(status_object)
     edges = ptr32(edge_object)
     seen = ptr8(seen_object)
-    index = 0
-    while index < 120:
-        status[index] = 0
-        edges[index] = 0
-        index += 1
-    y = 0
-    while y < 60:
-        seen[y] = 0
-        y += 1
+    status[:] = bytes(120)
+    edges[:] = _ZERO_ROWS_120
+    seen[:] = bytes(60)
     index = 0
     while index < count:
         source = index * 4
@@ -687,16 +683,10 @@ def _clear_rows_viper(status_object, edge_object, contrast_object,
     edges = ptr32(edge_object)
     contrast = ptr32(contrast_object)
     seen = ptr8(seen_object)
-    index = 0
-    while index < 120:
-        status[index] = 0
-        edges[index] = 0
-        contrast[index] = 0
-        index += 1
-    index = 0
-    while index < 60:
-        seen[index] = 0
-        index += 1
+    status[:] = bytes(120)
+    edges[:] = _ZERO_ROWS_120
+    contrast[:] = _ZERO_ROWS_120
+    seen[:] = bytes(60)
     return 0
 
 
@@ -2091,11 +2081,9 @@ class TrackElementsTracker:
 
     @_k230_identity
     def _retain_ordinary_observation(self):
-        for i in range(2 * self.height):
-            self._ordinary_status[i] = self._current_status[i]
-            self._ordinary_edge2[i] = self._current_edge2[i]
-        for i in range(10):
-            self._ordinary_side_summary[i] = self._side_summary[i]
+        self._ordinary_status[:] = self._current_status
+        self._ordinary_edge2[:] = self._current_edge2
+        self._ordinary_side_summary[:] = self._side_summary
         self._ordinary_snapshot_active = True
 
     @_k230_identity

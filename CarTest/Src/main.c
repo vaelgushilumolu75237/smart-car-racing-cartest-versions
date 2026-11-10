@@ -178,7 +178,11 @@
     CARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE
 #define APP_FOLLOW_HARD_LIMIT_PERMILLE CARTEST_FOLLOW_HARD_LIMIT_PERMILLE
 #define APP_BENCH_RAMP_STEP_PERMILLE 10u
+#if CARTEST_WIRELESS_ENABLED
+#define APP_USART_BAUDRATE 2000000u
+#else
 #define APP_USART_BAUDRATE 115200u
+#endif
 #define APP_IWDG_RELOAD_COUNTS 500u
 #define APP_IWDG_PRESCALER_BITS 4u /* LSI / 64. */
 #define APP_IWDG_WINDOW_DISABLED 0x0FFFu
@@ -1737,7 +1741,8 @@ static HAL_StatusTypeDef usart1_init(void)
                                  (USART_CR1_UE | USART_CR1_TE | USART_CR1_RE |
                                   USART_CR1_FIFOEN | USART_CR1_RXNEIE_RXFNEIE) &&
                                  (USART1->CR3 & USART_CR3_OVRDIS) == 0u &&
-                                 USART1->BRR == 556u)
+                                 USART1->BRR ==
+                                    (pclk + APP_USART_BAUDRATE / 2u) / APP_USART_BAUDRATE)
                                     ? HAL_OK : HAL_ERROR);
     if (status != HAL_OK) {
         return status;

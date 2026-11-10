@@ -1,4 +1,5 @@
 """Create a complete local delivery without captured/user calibration data."""
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -37,6 +38,12 @@ def make_hex(elf, hex_path):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output-name', help='New local install/archive stem; never reuses a historical installer')
+    args = parser.parse_args()
+    if args.output_name and (Path(args.output_name).name != args.output_name or
+                            any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in args.output_name)):
+        raise ValueError('Output name must be a plain ASCII filename stem')
     manifest = json.loads((ROOT / "openmv/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     wireless = manifest.get("wireless_required", False)
     aux_pins = bool(manifest.get("wireless_aux_gpio"))
@@ -45,7 +52,13 @@ if __name__ == "__main__":
     imu_fix = manifest.get("release_version") == "v20261108-k230-imu-mode0-v8"
     uart_fix = manifest.get("release_version") == "v20261108-k230-uart-readinto-v7"
     display_fix = manifest.get("release_version") == "v20261108-k230-transport-diag-v6"
+    if (manifest.get('release_version') and
+            not any((seekfree_start, timing_fix, imu_fix, uart_fix, display_fix)) and
+            not args.output_name):
+        raise ValueError('A new release requires --output-name to preserve historical installers')
     install_root = OUT / ("Install_SeekFree_Start_v10" if seekfree_start else "Install_IMU_Timing_v9" if timing_fix else "Install_IMU_Mode0_v8" if imu_fix else "Install_UART_Readinto_v7" if uart_fix else "Install_Transport_Diag_v6" if display_fix else "Install_Wireless_v2_RTS_CMD" if aux_pins else "Install")
+    if args.output_name:
+        install_root = OUT / ('Install_' + args.output_name)
     install = install_root / "K230"
     install.mkdir(parents=True, exist_ok=True)
     for name in manifest["runtime_files"] + ["PACKAGE_MANIFEST.json", "README.md", "ring_width_calibration.json"]:
@@ -75,6 +88,8 @@ if __name__ == "__main__":
             "release_version": manifest.get("release_version"), "flashed": False}, indent=2), encoding="utf-8")
     for name in ("GYRO350_20261106.md", "K230_PORT_20261106.md", "K230_VALIDATION.json"):
         shutil.copy2(ROOT / "docs" / name, install_root / name)
+    if (ROOT / 'docs/FRESH_ROUTE_V24_CN.md').is_file():
+        shutil.copy2(ROOT / 'docs/FRESH_ROUTE_V24_CN.md', install_root / 'FRESH_ROUTE_V24_CN.md')
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)
@@ -108,7 +123,9 @@ if __name__ == "__main__":
         candidates.append(p)
     candidates.append(ROOT / "deliverables/CarTest-20261014-0422-after/build/DebugFollowTurn/CarTest.elf")
     if (OUT / "PUBLISH_RESULT.json").is_file():
-        candidates.append(OUT / "PUBLISH_RESULT.json")
+        published = json.loads((OUT / 'PUBLISH_RESULT.json').read_text(encoding='utf-8'))
+        if published.get('version') == manifest.get('release_version'):
+            candidates.append(OUT / "PUBLISH_RESULT.json")
     candidates.extend(p for p in install_root.rglob("*") if p.is_file())
     candidates.extend(p for p in (OUT / "validation").glob("*.json") if p.is_file())
     hashes = {p.relative_to(OUT).as_posix(): digest(p) for p in sorted(candidates)}
@@ -116,6 +133,8 @@ if __name__ == "__main__":
     inventory.write_text(json.dumps(hashes, indent=2), encoding="utf-8")
     archive = OUT / ("CarTest_K230_SeekFree_Start_v10_20261108.zip" if seekfree_start else "CarTest_K230_IMU_Timing_v9_20261108.zip" if timing_fix else "CarTest_K230_IMU_Mode0_v8_20261108.zip" if imu_fix else "CarTest_K230_UART_Readinto_v7_20261108.zip" if uart_fix else "CarTest_K230_Transport_Diag_v6_20261108.zip" if display_fix else "CarTest_K230_Wireless_v2_RTS_CMD_20261107.zip" if aux_pins else
                      "CarTest_K230_Wireless_20261107.zip" if wireless else "CarTest_K230_Gyro350_20261106.zip")
+    if args.output_name:
+        archive = OUT / ('CarTest_' + args.output_name + '_COMPLETE.zip')
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p in candidates + [inventory]:
             z.write(p, p.relative_to(OUT).as_posix())

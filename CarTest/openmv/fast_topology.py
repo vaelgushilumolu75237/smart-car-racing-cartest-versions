@@ -1210,9 +1210,8 @@ class FastTopologyGuard:
                                     ambiguous=True)
 
         if not _IS_MICROPYTHON and not use_native_accel:
-            for y in range(floor, self.height):
-                if self._trusted_rows[y]:
-                    self._trusted_row_count += 1
+            self._trusted_row_count = self._trusted_rows.count(
+                b'\x01', floor, self.height)
 
         island = 0
         branch = 0

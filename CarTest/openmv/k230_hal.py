@@ -223,8 +223,11 @@ class UARTAdapter:
     def __init__(self, uart_id, baudrate, bits=8, parity=None, stop=1,
                  timeout=20, timeout_char=20):
         from machine import UART, FPIOA
-        if bits != 8 or parity is not None or stop != 1 or baudrate != 115200:
-            raise ValueError("CarTest requires 115200/8N1")
+        expected_baudrate = getattr(settings, 'CAMERA_UART_BAUDRATE', 115200)
+        if (bits != 8 or parity is not None or stop != 1 or
+                baudrate != expected_baudrate or
+                baudrate not in (115200, 2000000)):
+            raise ValueError("CarTest requires the paired camera baudrate/8N1")
         # Board settings select the physical UART and its FPIOA pins.
         # UART3 GPIO32/33 leaves the USB-adjacent connector free for debugging.
         fpioa = FPIOA()

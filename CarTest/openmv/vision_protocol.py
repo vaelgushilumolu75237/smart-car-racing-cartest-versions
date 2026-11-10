@@ -43,6 +43,19 @@ _CRC16_NIBBLE_TABLE = (
 )
 
 
+def _make_crc16_byte_table():
+    values = []
+    for value in range(256):
+        crc = value << 8
+        for _ in range(2):
+            crc = ((crc << 4) ^ _CRC16_NIBBLE_TABLE[crc >> 12]) & 0xFFFF
+        values.append(crc)
+    return tuple(values)
+
+
+_CRC16_BYTE_TABLE = _make_crc16_byte_table()
+
+
 @_k230_identity
 def _require_int(value, name):
     if not isinstance(value, int):
@@ -83,14 +96,10 @@ def _check_frame(sequence, valid, confidence, lateral_error, slope_hint,
 
 @_k230_identity
 def _crc16_ccitt_false_range(data, start, end):
-    table = _CRC16_NIBBLE_TABLE
+    table = _CRC16_BYTE_TABLE
     crc = 0xFFFF
     for index in range(start, end):
-        crc ^= data[index] << 8
-        crc = ((crc << 4) ^
-               table[(crc >> 12) & 0x0F]) & 0xFFFF
-        crc = ((crc << 4) ^
-               table[(crc >> 12) & 0x0F]) & 0xFFFF
+        crc = ((crc << 8) ^ table[(crc >> 8) ^ data[index]]) & 0xFFFF
     return crc
 
 
@@ -100,17 +109,13 @@ def crc16_ccitt_false(data):
     if data is None:
         raise TypeError("data must be a byte sequence")
 
-    table = _CRC16_NIBBLE_TABLE
+    table = _CRC16_BYTE_TABLE
     crc = 0xFFFF
     for value in data:
         _require_int(value, "data byte")
         if value < 0 or value > 0xFF:
             raise ValueError("data byte must be in 0..255")
-        crc ^= value << 8
-        crc = ((crc << 4) ^
-               table[(crc >> 12) & 0x0F]) & 0xFFFF
-        crc = ((crc << 4) ^
-               table[(crc >> 12) & 0x0F]) & 0xFFFF
+        crc = ((crc << 8) ^ table[(crc >> 8) ^ value]) & 0xFFFF
     return crc
 
 

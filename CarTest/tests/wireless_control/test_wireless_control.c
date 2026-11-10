@@ -60,7 +60,7 @@ static void test_settings(void)
 static void test_control(void)
 {
     wireless_control_t control;
-    wireless_control_runtime_t runtime = {1u, 1u, 1u, 0u, 0u, 1u, 0u, 0u};
+    wireless_control_runtime_t runtime = {1u, 1u, 1u, 0u, 0u, 1u, 0u, 0u, 0u};
     wireless_control_ack_t ack;
     uint8_t payload[32] = {0};
     wireless_control_init(&control, NULL, 3u);

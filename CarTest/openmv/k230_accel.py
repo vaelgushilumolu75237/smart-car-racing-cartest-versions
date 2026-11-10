@@ -11,6 +11,7 @@ try:
     import cv_lite as _cv
 except ImportError:
     _cv = None
+from struct import pack_into as _pack_into
 
 _FLOAT = getattr(np, "float", float)
 try:
@@ -21,10 +22,9 @@ except ImportError:
 
 def min_pool(source, target, source_width, width, height):
     pixels = np.frombuffer(source, dtype=np.uint8).reshape((height * 2, source_width))
-    pooled = pixels[0::2, 0::4].copy()
-    for dy, dx in ((0, 1), (0, 2), (0, 3), (1, 0), (1, 1), (1, 2), (1, 3)):
-        pooled = np.minimum(pooled, pixels[dy::2, dx::4])
-    target[:] = pooled.tobytes()
+    pairs = np.minimum(pixels[:, 0::2], pixels[:, 1::2])
+    fours = np.minimum(pairs[:, 0::2], pairs[:, 1::2])
+    target[:] = np.minimum(fours[0::2, :], fours[1::2, :]).tobytes()
 
 
 def histogram(luma, histograms, rectangles, width, blocks, values, counts, stats):
@@ -175,8 +175,8 @@ def region_segments(guard, floor):
     mask = guard._current_mask
     known = guard._current_known
     guard._trusted_rows[:] = bytes(height)
-    for y in range(height):
-        guard._segment_starts[y] = guard._segment_ends[y] = 0
+    guard._segment_starts[:] = bytes(height)
+    guard._segment_ends[:] = bytes(height)
     guard._segment_count_buffer[0] = 0
     start = -1
     segments = 0
@@ -215,7 +215,82 @@ _BIT_LOW = bytes(next((bit for bit in range(8) if value & (1<<bit)),0) for value
 _BIT_HIGH = bytes(next((bit for bit in range(7,-1,-1) if value & (1<<bit)),0) for value in range(256))
 
 
+def _white_exterior_runs(binary, width, floor, band_end):
+    """Prove every four-connected white run reaches the trusted band's edge.
+
+    Unlike external contours this enumerates nested white components too.
+    A bounded inconclusive scan falls back to the complete island verifier.
+    """
+    parents = []
+    exterior = []
+    previous = []
+    run_count = 0
+    for y in range(floor, band_end):
+        row = y * width
+        limit = row + width
+        current = []
+        at = row
+        cursor = 0
+        while at < limit:
+            start = binary.find(b'\x00', at, limit)
+            if start < 0:
+                break
+            stop = binary.find(b'\x01', start, limit)
+            if stop < 0:
+                stop = limit
+            at = stop
+            left, right = start - row, stop - row
+            run_count += 1
+            if run_count > 128:
+                return False
+            while cursor < len(previous) and previous[cursor][1] <= left:
+                cursor += 1
+            index = cursor
+            label = -1
+            while index < len(previous) and previous[index][0] < right:
+                other = previous[index][2]
+                while parents[other] != other:
+                    other = parents[other]
+                if label < 0:
+                    label = other
+                elif other > label:
+                    parents[label] = other
+                    exterior[other] = exterior[other] or exterior[label]
+                    label = other
+                elif other < label:
+                    parents[other] = label
+                    exterior[label] = exterior[label] or exterior[other]
+                index += 1
+            if label < 0:
+                label = len(parents)
+                parents.append(label)
+                exterior.append(False)
+            if y == floor or y == band_end - 1 or left == 0 or right == width:
+                exterior[label] = True
+            current.append((left, right, label))
+        previous = current
+    # Every union points to the larger label. Resolve in
+    # reverse order rather than repeatedly walking long straight-road chains.
+    for label in range(len(parents) - 1, -1, -1):
+        exterior[label] = exterior[parents[label]]
+        if not exterior[label]:
+            return False
+    return True
+
+
 def internal_component(guard, floor, band_end):
+    # If every dark run touches a horizontal image edge, every dark pixel
+    # already belongs to an exterior component. This proves absence of an
+    # internal island using this frame alone; internal runs use full checking.
+    width = guard.width
+    binary = (np.frombuffer(guard._current_mask, dtype=np.uint8) != 0).tobytes()
+    for y in range(floor, band_end):
+        if b'\x01' in binary[y*width:(y+1)*width].strip(b'\x01'):
+            break
+    else:
+        return 0
+    if _white_exterior_runs(binary, width, floor, band_end):
+        return 0
     if _cv is not None:
         try:
             if _native_no_candidate(guard, floor, band_end):
@@ -342,7 +417,20 @@ def extract_rows(detector):
     if step not in (1, 2, 3) or not 0 <= phase < step:
         raise ValueError('invalid path row sampling')
     counts[:] = bytes(len(counts))
-    for layer in range(phase, detector.row_count, step):
+    layers = range(phase, detector.row_count, step)
+    reference_layer = height - 1 - (detector.reference_y_milli + 500) // 1000
+    if (step > 1 and 0 <= reference_layer < detector.row_count and
+            reference_layer % step != phase):
+        # Keep the same actually measured control row while refreshing the
+        # remaining cache rows. A rotating nearest row resets position PD.
+        layers = list(layers) + [reference_layer]
+    if step > 1:
+        # The ring observer requires a real contiguous near-field baseline.
+        # Keep its four measured adjacent rows in every phase; sparse rows
+        # alone never satisfy TRACK_ELEMENTS_MIN_NEAR_CONTIGUOUS=4.
+        contiguous = getattr(detector.config, 'TRACK_ELEMENTS_MIN_NEAR_CONTIGUOUS', 4)
+        layers = sorted(set(layers) | set(range(min(contiguous, detector.row_count))))
+    for layer in layers:
         y = height-1-layer
         row, limit = y*width, (y+1)*width
         at = row
@@ -375,6 +463,193 @@ def extract_rows(detector):
     return 0
 
 
+def connect_rows(self):
+    """Exact two-best path search with a nonnegative-penalty upper bound."""
+    counts = self._counts
+    candidates = self._candidate_data
+    states = self._state_data
+    width = (self.width)
+    height = (self.height)
+    layers = (self.row_count)
+    max_per_row = (self.max_per_row)
+    max_gap = (self.max_gap)
+    max_width_change = (self.max_width_change)
+    max_slope_milli = (self.max_slope_milli)
+    link_tolerance_milli = (self.link_tolerance_milli)
+    reference_y_milli = (self.reference_y_milli)
+    state_capacity = (self.state_capacity)
+    sentinel = (-2147483647)
+
+    for layer in range(layers):
+        current_y = height - 1 - layer
+        layer_reference_delta = abs(current_y * 1000 - reference_y_milli)
+        for slot in range(counts[layer]):
+            node = layer * max_per_row + slot
+            cbase = node * 4
+            center_twice = (candidates[cbase + 1])
+            run_width = (candidates[cbase + 2])
+            contrast_milli = (candidates[cbase + 3])
+            if contrast_milli < 0:
+                contrast_milli = 0
+            elif contrast_milli > 80000:
+                contrast_milli = 80000
+            local_reward = 10000 + (contrast_milli * 25 + 500) // 1000
+
+            first = node * 2
+            first_base = first * 10
+            second_base = (first + 1) * 10
+            states[first_base] = sentinel
+            states[first_base + 1] = -1
+            states[first_base + 8] = -1
+            states[first_base + 9] = 0
+            states[second_base] = sentinel
+            states[second_base + 1] = -1
+            states[second_base + 8] = -1
+            states[second_base + 9] = 0
+
+            distance_limit = max_gap + 1
+            if distance_limit > layer:
+                distance_limit = layer
+            for distance in range(1, distance_limit + 1):
+                previous_layer = layer - distance
+                previous_count = counts[previous_layer]
+                if previous_count == 0:
+                    continue
+                old_y = height - 1 - previous_layer
+                for previous_slot in range(previous_count):
+                    previous_node = previous_layer * max_per_row + previous_slot
+                    previous_center_twice = (
+                        candidates[previous_node * 4 + 1])
+                    previous_width = (candidates[previous_node * 4 + 2])
+                    width_delta = run_width - previous_width
+                    if width_delta < 0:
+                        width_delta = -width_delta
+                    if width_delta > max_width_change * distance:
+                        continue
+                    center_step_twice = center_twice - previous_center_twice
+                    if center_step_twice < 0:
+                        center_step_twice = -center_step_twice
+                    actual_step_milli = center_step_twice * 500
+                    if actual_step_milli > (
+                            max_slope_milli * distance +
+                            link_tolerance_milli):
+                        continue
+
+                    edge_reward = (local_reward + distance * 550 -
+                        (width_delta * 1925 + 5) // 10 - (distance - 1) * 2000)
+                    step_slope_milli = (actual_step_milli + distance // 2) // distance
+
+                    for previous_slot_state in range(2):
+                        previous_state = previous_node * 2 + previous_slot_state
+                        previous_base = previous_state * 10
+                        previous_score = (states[previous_base])
+                        if previous_score <= sentinel // 2:
+                            continue
+                        # A candidate can never exceed this score: the
+                        # omitted center penalty is nonnegative. Once two
+                        # better paths exist, skip prediction and field reads.
+                        upper_score = previous_score + edge_reward
+                        if (upper_score <= states[first_base] and
+                                upper_score <= states[second_base]):
+                            continue
+                        parent_state = (states[previous_base + 1])
+                        if parent_state < -1 or parent_state >= state_capacity:
+                            continue
+
+                        predicted_twice = previous_center_twice
+                        if parent_state >= 0:
+                            parent_node = parent_state // 2
+                            prior_layer = parent_node // max_per_row
+                            base_dy = previous_layer - prior_layer
+                            if base_dy <= 0 or prior_layer >= layers:
+                                continue
+                            prior_center_twice = (
+                                candidates[parent_node * 4 + 1])
+                            prediction_delta = (
+                                (previous_center_twice - prior_center_twice) *
+                                distance)
+                            if prediction_delta >= 0:
+                                predicted_twice += prediction_delta // base_dy
+                            else:
+                                predicted_twice -= (-prediction_delta) // base_dy
+
+                        center_error_twice = center_twice - predicted_twice
+                        if center_error_twice < 0:
+                            center_error_twice = -center_error_twice
+                        center_error_milli = center_error_twice * 500
+                        if center_error_milli > (
+                                max_slope_milli * distance +
+                                link_tolerance_milli):
+                            continue
+
+                        center_penalty = (
+                            center_error_milli * 550 + 500) // 1000
+                        score = upper_score - center_penalty
+
+                        reference_delta = layer_reference_delta
+                        old_reference_delta = (states[previous_base + 5])
+                        if reference_delta < old_reference_delta:
+                            reference_node = node
+                        else:
+                            reference_node = (states[previous_base + 4])
+                            reference_delta = old_reference_delta
+                        slope_sum = (states[previous_base + 6]) + step_slope_milli
+                        width_sum = (states[previous_base + 7]) + width_delta
+                        path_count = (states[previous_base + 2]) + 1
+                        bottom_y = (states[previous_base + 3])
+                        first_score = (states[first_base])
+                        if score > first_score:
+                            states[second_base:second_base+10] = states[first_base:first_base+10]
+                            _pack_into('<10i', states, first_base * 4,
+                                score, previous_state, path_count, bottom_y,
+                                reference_node, reference_delta, slope_sum,
+                                width_sum, -1, 0)
+                        elif (previous_state != (states[first_base + 1]) and
+                              score > (states[second_base])):
+                            _pack_into('<10i', states, second_base * 4,
+                                score, previous_state, path_count, bottom_y,
+                                reference_node, reference_delta, slope_sum,
+                                width_sum, -1, 0)
+
+            reference_delta = layer_reference_delta
+            if local_reward > (states[first_base]):
+                states[second_base:second_base+10] = states[first_base:first_base+10]
+                _pack_into('<10i', states, first_base * 4,
+                    local_reward, -1, 1, current_y, node,
+                    reference_delta, 0, 0, -1, 0)
+            elif ((states[first_base + 1]) != -1 and
+                  local_reward > (states[second_base])):
+                _pack_into('<10i', states, second_base * 4,
+                    local_reward, -1, 1, current_y, node,
+                    reference_delta, 0, 0, -1, 0)
+    return 0
+
+
+
+
+def single_edge_positions(tracker):
+    """Enumerate every dark/white transition, preserving original gate order."""
+    width, height = tracker.width, tracker.height
+    edge = np.frombuffer(tracker._current_edge, dtype=np.uint8)
+    road = np.frombuffer(tracker._current_road, dtype=np.uint8)
+    left = np.bitwise_and(edge[:-1] != 0, road[1:] != 0).tobytes() + b'\x00'
+    right = b'\x00' + np.bitwise_and(edge[1:] != 0, road[:-1] != 0).tobytes()
+    result = ([], [])
+    for side, bits in enumerate((left, right)):
+        rows = result[side]
+        for y in range(height):
+            start, end = y*width+1, (y+1)*width-1
+            positions = []
+            while start < end:
+                found = bits.find(b'\x01', start, end)
+                if found < 0:
+                    break
+                positions.append(found-y*width)
+                start = found+1
+            rows.append(positions)
+    return result
+
+
 def batch_otsu(builder):
  blocks=builder._block_count
  raw=np.array(np.frombuffer(builder._histograms,dtype=np.uint16)[::2],dtype=_FLOAT).reshape((blocks,256))
@@ -405,23 +680,31 @@ def native_thresholds(builder):
  luma=builder.luma;rectangles=builder._rectangles;width=builder.width
  blocks=builder._block_count;stats=builder._block_stats
  pixels=np.frombuffer(luma,dtype=np.uint8).reshape((len(luma)//width,width))
+ rgb=getattr(builder,'_native_rgb',None)
+ if rgb is None:
+  rgb=np.empty((len(luma),3),dtype=np.uint8)
+  builder._native_rgb=rgb
+ rgb[:,:]=pixels.reshape((len(luma),1))
  results=[];binaries=[]
  for b in range(blocks):
   x0,y0,x1,y1=rectangles[b*4:b*4+4]
   w,h=x1-x0,y1-y0;n=w*h
-  gray=pixels[y0:y1,x0:x1].copy()
-  rgb=np.empty((n,3),dtype=np.uint8)
-  flat=gray.reshape((n,))
-  rgb[:,:]=flat.reshape((n,1))
-  binary=_cv.rgb888_erode([h,w],rgb,1,1,0).reshape((h,w))
+  gray=pixels[y0:y1,x0:x1]
+  block_rgb=(rgb[y0*width:y1*width,:] if x0==0 and x1==width else
+             np.empty((n,3),dtype=np.uint8))
+  if x0!=0 or x1!=width:
+   block_rgb[:,:]=gray.copy().reshape((n,1))
+  binary=_cv.rgb888_erode([h,w],block_rgb,1,1,0).reshape((h,w))
   data=binary.tobytes();low_count=data.count(b'\x00');high_count=n-low_count
-  total=sum(gray.tobytes())
+  total=int(np.sum(gray))
   stats[b*4]=n;stats[b*4+1]=total;stats[b*4+2]=int(np.min(gray));stats[b*4+3]=int(np.max(gray))
   if not low_count or not high_count:
    results.append((0,0,0,0.0,0.0,0.0))
   else:
    dark=binary==0
-   low_total=int(np.sum(np.array(gray*dark,dtype=np.uint16))+0.5)
+   # Multiplication is at most 255; ulab's reduction accumulates in float,
+   # exactly for this <=4800-cell plane. No intermediate uint16 copy is needed.
+   low_total=int(np.sum(gray*dark)+0.5)
    threshold=int(np.max(gray*dark))
    low_mean=low_total/low_count;high_mean=(total-low_total)/high_count
    results.append((threshold,low_count,high_count,low_mean,high_mean,high_mean-low_mean))
@@ -438,21 +721,41 @@ def native_masks(builder):
   return False
  road=builder.road_mask;edge=builder.edge_mask;known=builder.known_region
  road_rows=builder.road_row_counts;edge_rows=builder.row_counts;totals=builder._pixel_totals
- road[:]=bytes(width*height);edge[:]=bytes(width*height);known[:]=bytes(width*height)
- road_rows[:]=bytes(height);edge_rows[:]=bytes(height);totals[0]=totals[1]=0
+ road[:]=bytes(width*height);known[:]=bytes(width*height)
  for b in range(blocks):
   if not builder._trusted_values[b]:continue
   y0,y1=rectangles[b*4+1],rectangles[b*4+3]
   data=builder._native_binaries[b]
   start,stop=y0*width,y1*width
   road[start:stop]=data
-  bright=np.frombuffer(data,dtype=np.uint8).reshape((y1-y0,width))
-  edge[start:stop]=np.array(bright==0,dtype=np.uint8).tobytes()
   known[start:stop]=b'\x01'*(stop-start)
-  for y in range(y0,y1):
-   n=data.count(b'\xff',(y-y0)*width,(y-y0+1)*width)
-   road_rows[y]=n;edge_rows[y]=width-n;totals[0]+=n;totals[1]+=width-n
+ pixels=np.frombuffer(road,dtype=np.uint8)
+ trusted=np.frombuffer(known,dtype=np.uint8)
+ # Trusted cells are 1 and the binary road is 0/255. Unknown cells were
+ # cleared above, so subtraction preserves unknown=0 with no extra mask.
+ bright=pixels!=0
+ edge[:]=(trusted-bright).tobytes()
+ bright_counts=np.sum(bright.reshape((height,width)),axis=1)
+ # All trusted rectangles span full rows, so each row contains either width
+ # known cells or none. Counts stay <=80 even with ulab's uint8 reduction.
+ dark_counts=trusted.reshape((height,width))[:,0]*width-bright_counts
+ road_rows[:]=np.array(bright_counts,dtype=np.uint8).tobytes()
+ edge_rows[:]=np.array(dark_counts,dtype=np.uint8).tobytes()
+ totals[0]=int(np.sum(bright_counts));totals[1]=int(np.sum(dark_counts))
  return True
+
+
+def pack_binary(source):
+    """Pack all current nonzero cells with the wire protocol's LSB bit order."""
+    size = 80 * 60
+    data = source[:size]
+    if len(data) < size:
+        data = bytes(data) + bytes(size - len(data))
+    pixels = (np.frombuffer(data, dtype=np.uint8) != 0).reshape((size // 8, 8))
+    result = np.zeros(size // 8, dtype=np.uint8)
+    for bit in range(8):
+        result = np.bitwise_or(result, np.left_shift(pixels[:, bit], bit))
+    return bytearray(np.array(result, dtype=np.uint8).tobytes())
 
 
 def _native_no_candidate(guard,floor,band_end):
@@ -463,23 +766,26 @@ def _native_no_candidate(guard,floor,band_end):
  while pending:
   x0,y0,x1,y1=pending.pop()
   w,h=x1-x0,y1-y0
-  region=pixels[y0:y1,x0:x1].copy()
-  dark=_cv.grayscale_find_blobs([h,w],region,1,255,0,1)
-  calls+=1
-  for i in range(0,len(dark),4):
-   x,y,bw,bh=dark[i:i+4]
-   if (x>0 and y>0 and x+bw<w and y+bh<h and
-       guard.component_min_extent<=bw<=guard.component_max_extent and
-       guard.component_min_extent<=bh<=guard.component_max_extent and
-       bw*bh>=guard.component_min_area):return False
+  region=pixels[y0:y1,x0:x1]
   white=np.array(region==0,dtype=np.uint8)
-  graph=np.empty((h,w*2-1),dtype=np.uint8)
-  graph[:,::2]=white
-  graph[:,1::2]=np.bitwise_and(white[:,:-1],white[:,1:])
-  light=_cv.grayscale_find_blobs([h,w*2-1],graph,1,255,0,1)
-  calls+=1
-  for i in range(0,len(light),4):
-   x,y,bw,bh=light[i:i+4]
+  # Separate tiles share one native contour call. The zero spacer prevents
+  # even diagonal foreground connectivity between the dark and white tiles.
+  # White's inserted horizontal connectors encode four-connectivity exactly.
+  graph=np.zeros((h,w*3),dtype=np.uint8)
+  graph[:,:w]=region
+  graph[:,w+1::2]=white
+  graph[:,w+2::2]=np.bitwise_and(white[:,:-1],white[:,1:])
+  contours=_cv.grayscale_find_blobs([h,w*3],graph,1,255,0,1)
+  calls+=2
+  for i in range(0,len(contours),4):
+   x,y,bw,bh=contours[i:i+4]
+   if x<w:
+    if (x>0 and y>0 and x+bw<w and y+bh<h and
+        guard.component_min_extent<=bw<=guard.component_max_extent and
+        guard.component_min_extent<=bh<=guard.component_max_extent and
+        bw*bh>=guard.component_min_area):return False
+    continue
+   x-=w+1
    x//=2;bw=(bw+1)//2
    if (x>0 and y>0 and x+bw<w and y+bh<h and
        bw>=guard.component_min_extent+2 and bh>=guard.component_min_extent+2):

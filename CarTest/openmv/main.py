@@ -1218,12 +1218,8 @@ class _SteeringDiagBuffer:
             _crc16_control_extension_viper(
                 data, offset, self._CRC16_NIBBLE_TABLE_ARRAY)
         else:
-            crc = 0xFFFF
-            table = self._CRC16_NIBBLE_TABLE
-            for index in range(record_size - 2):
-                crc ^= data[offset + index] << 8
-                crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
-                crc = ((crc << 4) ^ table[(crc >> 12) & 0x0F]) & 0xFFFF
+            crc = vision_protocol._crc16_ccitt_false_range(
+                data, offset, offset + record_size - 2)
             self._put_u16(data, offset + record_size - 2, crc)
 
     def freeze(self, reason="STOP"):
@@ -3776,9 +3772,11 @@ def _validate_fast_config():
     if not 0 < config.SURFACE_FRAME_BUDGET_MS <= 200:
         raise ValueError("V7 frame budget must remain in 1..200 ms")
     if (config.UART_ID, k230_settings.UART_TX_PIN, k230_settings.UART_RX_PIN) not in \
-            ((1, 9, 10), (3, 32, 33)) or config.UART_BAUDRATE != 115200 or \
+            ((1, 9, 10), (3, 32, 33)) or \
+            config.UART_BAUDRATE != k230_settings.CAMERA_UART_BAUDRATE or \
+            config.UART_BAUDRATE not in (115200, 2000000) or \
             config.UART_BITS != 8 or config.UART_STOP_BITS != 1:
-        raise ValueError("K230 requires UART1 GPIO9/10 or UART3 GPIO32/33, 115200 8N1")
+        raise ValueError("K230 requires paired UART1 GPIO9/10 or UART3 GPIO32/33 baud, 8N1")
     if getattr(config, "PERF_WINDOW_MS", None) != 10000:
         raise ValueError("V7 performance windows must remain 10000 ms")
     gc_period = getattr(config, "PERF_GC_PERIOD_FRAMES", None)
@@ -5223,6 +5221,22 @@ class _WirelessCameraCalibrationController:
         return False
 
 
+def _advance_parked_width_check(tracker, controller, eligible, rows, count,
+                                stride, was_eligible):
+    """Validate the installed map on three fresh parked width profiles.
+
+    Collection/save success installs a map but does not satisfy this check.
+    The same check applies after automatic and explicitly requested collection.
+    """
+    if eligible and not controller.active:
+        tracker.observe_ring_calibration(rows, count, stride)
+        return bool(tracker.ring_calibration_ready and
+                    tracker.ring_calibration_check_ready), True
+    if was_eligible:
+        tracker.reset_ring_calibration_check("PARKED_GATE")
+    return False, False
+
+
 class _WirelessCameraRuntime:
     """Keep wireless callbacks out of the large frame-loop local scope."""
 
@@ -5289,6 +5303,46 @@ def _needs_dense_single_edge_seed(tracker, control_fresh):
     return bool(control_fresh and
                 getattr(tracker, "route_mode", "cached_width") == "cached_width" and
                 getattr(tracker, "_cache_row_count", 0) == 0)
+
+
+def _detect_sampled_road(detector, mask_info, dense, step, phase, frame_index=0):
+    """Retry this same frame densely when sampled rows cannot form a route.
+
+    Three-row sampling consumes all of the linker's missing-row allowance.
+    Losing one sampled row can split an otherwise connected straight. Dense
+    retry restores that allowance before contour/single-edge recovery.
+    """
+    if not dense and (step not in (1, 2, 3) or not 0 <= phase < step):
+        raise ValueError("invalid path row sampling")
+    detector.path_row_step = 1 if dense else step
+    # Refresh every measured width/identity row over one sampling period.
+    # A fixed phase leaves the other rows anchored to the initial straight,
+    # even after many accepted bilateral frames through a moving curve.
+    detector.path_row_phase = 0 if dense else (phase + frame_index) % step
+    result = detector.detect(mask_info)
+    if not dense and step > 1 and not result.get("valid"):
+        detector.path_row_step = 1
+        detector.path_row_phase = 0
+        result = detector.detect(mask_info)
+    return result
+
+
+def _gate_sampled_road_boundary(detector, candidate, mask_info, validator,
+                                settings):
+    """Retry weak sparse boundary support using this frame's measured rows."""
+    gate = validator.gate_fast_path_candidate
+    luma, edge = mask_info.get("luma"), mask_info.get("edge_mask")
+    road, known = mask_info.get("road_mask"), mask_info.get("known_region")
+    gate(candidate, luma, edge, road, known, settings)
+    if (not candidate.get("valid") and
+            candidate.get("reason") == "BOUNDARY_EVIDENCE_REJECTED" and
+            getattr(detector, "path_row_step", 1) > 1):
+        detector.path_row_step = 1
+        detector.path_row_phase = 0
+        candidate = detector.detect(mask_info)
+        if candidate.get("valid"):
+            gate(candidate, luma, edge, road, known, settings)
+    return candidate
 
 
 def _single_edge_fallback_allowed(path_result):
@@ -7321,7 +7375,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
           "sensor_id=%s "
           "camera=320x120 crop=QVGA(0,60,320,120) grid=80x60 floor=%d budget=%dms "
           "detail_text=%dms control_profile=%s preview=per_frame "
-          "uart=%d@115200/8N1 exposure_us=%s "
+          "uart=%d@%d/8N1 exposure_us=%s "
           "exposure_cap_us=%s gain_db=%s "
           "gray_backend=%s topology_backend=%s boundary_backend=%s "
           "single_backend=%s native_row_preview=%d "
@@ -7334,7 +7388,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
               config.SURFACE_ROI_FLOOR_Y, config.SURFACE_FRAME_BUDGET_MS,
               config.OVERLAY_PERIOD_MS,
               control_profile,
-              config.UART_ID, str(exposure_us), str(exposure_cap_us), str(gain_db),
+              config.UART_ID, config.UART_BAUDRATE,
+              str(exposure_us), str(exposure_cap_us), str(gain_db),
               getattr(fast_gray, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_topology, "COMPILER_BACKEND", "UNKNOWN"),
               getattr(fast_boundary, "COMPILER_BACKEND", "UNKNOWN"),
@@ -7794,11 +7849,11 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 _dense_width_rows = (not ring_calibration_passed or
                     wireless_service.camera_calibration_controller.active or
                     _needs_dense_single_edge_seed(single_edge_tracker, reverse_fresh))
-                path_detector.path_row_step = (1 if _dense_width_rows else
-                    getattr(_sampling_settings, "PATH_ROW_STEP", 1))
-                path_detector.path_row_phase = (0 if _dense_width_rows else
-                    getattr(_sampling_settings, "PATH_ROW_PHASE", 0))
-                road_result = path_detector.detect(mask_info)
+                road_result = _detect_sampled_road(
+                    path_detector, mask_info, _dense_width_rows,
+                    getattr(_sampling_settings, "PATH_ROW_STEP", 1),
+                    getattr(_sampling_settings, "PATH_ROW_PHASE", 0),
+                    frame_count)
             except Exception as exc:
                 detector_error = "PATH:%s" % exc
         if road_result is None:
@@ -7859,11 +7914,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     detector_error = "BOUNDARY:%s" % contour_gate_error
             else:
                 try:
-                    boundary_validator.gate_fast_path_candidate(
-                        road_result, mask_info.get("luma"),
-                        mask_info.get("edge_mask"),
-                        mask_info.get("road_mask"),
-                        mask_info.get("known_region"), config)
+                    road_result = _gate_sampled_road_boundary(
+                        path_detector, road_result, mask_info,
+                        boundary_validator, config)
                 except Exception as exc:
                     detector_error = "BOUNDARY:%s" % exc
                     road_result["valid"] = False
@@ -8072,7 +8125,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                      not topology.get("branch_evidence"))):
             ring_calibration = (
                 wireless_service.camera_calibration_controller.calibration)
-            ring_calibration_passed = True
+            ring_calibration_passed = False
+            ring_calibration_last_eligible = False
         if not ring_calibration_passed:
             profile_sequence = getattr(
                 reverse_parser, "_profile_last_sequence", None)
@@ -8115,16 +8169,11 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 topology.get("complete") and not topology.get("ambiguous") and
                 not topology.get("island_evidence") and
                 not topology.get("branch_evidence"))
-            if (calibration_rows_eligible and not
-                    getattr(config, "AUTO_BOOT_WIDTH_CALIBRATION", False)):
-                element_tracker.observe_ring_calibration(
-                    road_rows, road_count, road_stride)
-                ring_calibration_last_eligible = True
-                if element_tracker.ring_calibration_check_ready:
-                    ring_calibration_passed = True
-            elif ring_calibration_last_eligible:
-                element_tracker.reset_ring_calibration_check("PARKED_GATE")
-                ring_calibration_last_eligible = False
+            (ring_calibration_passed,
+             ring_calibration_last_eligible) = _advance_parked_width_check(
+                element_tracker, wireless_service.camera_calibration_controller,
+                calibration_rows_eligible, road_rows, road_count, road_stride,
+                ring_calibration_last_eligible)
         single_rows_fresh = bool(getattr(
             single_edge_tracker, "_frame_scan_done", False))
         ring_start_us = time.ticks_us()

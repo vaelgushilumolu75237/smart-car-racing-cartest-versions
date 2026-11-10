@@ -514,6 +514,7 @@ LEGACY_DETECTOR_PARAMS = {
 import k230_settings as _board
 K230_PORT_BUILD = _board.PORT_BUILD
 UART_ID = _board.UART_ID
+UART_BAUDRATE = int(getattr(_board, 'CAMERA_UART_BAUDRATE', 115200))
 MIRROR_X = _board.MIRROR_X
 FLIP_Y = _board.FLIP_Y
 # AUTO_EXPOSURE_MAX_US remains an upstream request, not applied by K230.

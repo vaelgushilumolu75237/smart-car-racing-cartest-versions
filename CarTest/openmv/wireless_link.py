@@ -15,6 +15,11 @@ width:u16, height:u16``.
 """
 
 import time
+import sys
+
+_K230_ACCEL = None
+if sys.implementation.name == "micropython":
+    import k230_accel as _K230_ACCEL
 
 try:
     import binascii
@@ -842,8 +847,18 @@ class WirelessCameraLink:
             if forward_legacy and reverse_parser is not None:
                 reverse_parser.feed(data, length, now_ms)
             return 0
+        count = max(0, min(int(length), len(data)))
+        if (self._legacy_length == 0 and count <= 64 and
+                isinstance(data, (bytes, bytearray)) and
+                data.find(b'\xd3', 0, count) < 0):
+            # With no pending outer frame and no outer sync candidate, this
+            # entire bounded chunk belongs to the legacy parser. Its own
+            # incremental framing and CRC checks remain authoritative.
+            if forward_legacy and reverse_parser is not None:
+                reverse_parser.feed(data, count, now_ms)
+            return 0
         handled = 0
-        for index in range(max(0, min(int(length), len(data)))):
+        for index in range(count):
             value = int(data[index]) & 0xFF
             if self._legacy_length == 0:
                 buffered = getattr(reverse_parser, "buffered_bytes", 0)
@@ -1021,6 +1036,8 @@ def pack_binary_80x60(mask_info):
             source = mask_info.get("luma")
     if source is None:
         source = bytearray(80 * 60)
+    if _K230_ACCEL is not None:
+        return _K230_ACCEL.pack_binary(source)
     result = bytearray((80 * 60 + 7) // 8)
     limit = min(80 * 60, len(source))
     for index in range(limit):

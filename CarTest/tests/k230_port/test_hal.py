@@ -87,16 +87,33 @@ class HALTests(unittest.TestCase):
         PreviewImage.created[:] = []
 
     def test_factory_uart1_mapping_uses_one_stop_not_openmv_numeric_one(self):
-        hal.UARTAdapter(1, 115200)
+        hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         self.assertEqual(UARTDevice.last.kwargs,
-                         dict(baudrate=115200, bits=8, parity=0, stop=0))
+                         dict(baudrate=hal.settings.CAMERA_UART_BAUDRATE, bits=8, parity=0, stop=0))
         self.assertEqual((1,), UARTDevice.last.args)
         self.assertEqual([(9, 101), (10, 102)], [m[0] for m in FPIOA.mappings])
         self.assertEqual([dict(ie=0, oe=1), dict(ie=1, oe=0)],
                          [m[1] for m in FPIOA.mappings])
 
+    def test_mismatched_camera_baud_is_rejected_before_pin_configuration(self):
+        for baud in (115200, 230400, 1000000):
+            if baud == hal.settings.CAMERA_UART_BAUDRATE:
+                continue
+            with self.assertRaises(ValueError):
+                hal.UARTAdapter(1, baud)
+            self.assertEqual(FPIOA.mappings, [])
+
+    def test_runtime_and_hal_use_same_paired_camera_baud(self):
+        import config
+        import main
+        self.assertEqual(config.UART_BAUDRATE, hal.settings.CAMERA_UART_BAUDRATE)
+        main._validate_fast_config()
+        with patch.object(config, 'UART_BAUDRATE', 115200):
+            with self.assertRaises(ValueError):
+                main._validate_fast_config()
+
     def test_no_any_binary_prefetch_preserves_split_frames_and_zero_bytes(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         self.assertEqual(uart.any(), 4)
         self.assertEqual(uart.any(), 4)
         small = bytearray(2)
@@ -108,13 +125,13 @@ class HALTests(unittest.TestCase):
         self.assertEqual(uart.any(), 0)
 
     def test_none_and_short_write_are_not_promoted_to_success(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         for result in (None, 0, 7, 16):
             uart.device.result = result
             self.assertEqual(uart.write(b"x" * 16), result)
 
     def test_requested_read_preserves_prefetched_tail_and_buffer_boundary(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         self.assertEqual(uart.any(), 4)
         buffer = bytearray(b"????????")
         self.assertEqual(uart.readinto(buffer, 2), 2)
@@ -129,7 +146,7 @@ class HALTests(unittest.TestCase):
         self.assertEqual(buffer[0], 0xff)
 
     def test_requested_read_uses_native_one_argument_readinto(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         pending = bytearray(b"abcdef")
         calls = []
 
@@ -167,7 +184,7 @@ class HALTests(unittest.TestCase):
         for native_any in (False, True):
             with self.subTest(native_any=native_any), \
                     patch.object(camera_main, "reverse_control", reverse):
-                uart = hal.UARTAdapter(1, 115200)
+                uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
                 stream = bytearray(profile + hello)
                 if native_any:
                     uart.device.any = lambda: int(bool(stream))
@@ -210,7 +227,7 @@ class HALTests(unittest.TestCase):
         import reverse_control as reverse
         import wireless_link as wireless
 
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         epoch = 17
         profile = reverse.pack_profile_state(
             1, reverse.PROFILE_C, reverse.PROFILE_SESSION_ACTIVE)
@@ -232,7 +249,7 @@ class HALTests(unittest.TestCase):
         self.assertEqual(link.session, epoch)
 
     def test_oversized_or_nonbinary_receive_is_rejected(self):
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         for data in (b"x" * 257, "text"):
             uart.device.rx = [data]
             with self.assertRaises(ValueError):
@@ -243,7 +260,7 @@ class HALTests(unittest.TestCase):
         import reverse_control as reverse
         import wireless_link as wireless
 
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         stream = bytearray(b"\x00" * 300)
         consumed = [0]
         uart.device.any = lambda: len(stream)
@@ -289,7 +306,7 @@ class HALTests(unittest.TestCase):
         import main as camera_main
         import reverse_control as reverse
 
-        uart = hal.UARTAdapter(1, 115200)
+        uart = hal.UARTAdapter(1, hal.settings.CAMERA_UART_BAUDRATE)
         old = reverse.pack_profile_state(1, reverse.PROFILE_C,
                                          reverse.PROFILE_GYRO350_SUPPORTED)
         stream = bytearray(old * 5)

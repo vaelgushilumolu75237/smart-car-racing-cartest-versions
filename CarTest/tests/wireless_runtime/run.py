@@ -27,7 +27,7 @@ def main():
         result=run([exe]);print(result)
     out=ROOT.parent/'validation/WIRELESS_RUNTIME.json'
     sources=['App/wireless_runtime.c','App/wireless_control.c','App/wireless_settings.c','App/wireless_protocol.c',
-             'Inc/wireless_runtime.h','tests/wireless_runtime/test_runtime.c']
+             'Inc/wireless_runtime.h','Inc/wireless_control.h','tests/wireless_runtime/test_runtime.c']
     out.write_text(json.dumps({'passed':True,'summary':result.strip(),'hardware_actions':'none',
         'source_sha256':{n:hashlib.sha256((ROOT/n).read_bytes()).hexdigest() for n in sources}},indent=2),encoding='utf-8')
 

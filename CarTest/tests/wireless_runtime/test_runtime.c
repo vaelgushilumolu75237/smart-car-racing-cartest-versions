@@ -313,6 +313,35 @@ int main(void){
     assert(car_seekfree_debug_param_frame(page,sizeof page,0,500.0f));
     raw_feed(page,sizeof page,190051);assert(car_wireless_settings()->wheel_scale_permille==before);
     assert(get32((uint8_t[]){1,2,3,4})==0x04030201u);
+    /* A recoverable receive fault stops physical outputs in commissioning.
+       Telemetry must not turn it into NORMAL_STOP and erase the driver's
+       request, including when no PC session has ever been opened. */
+    const car_fault_t recoverable[] = {CAR_FAULT_PROTOCOL, CAR_FAULT_SEQUENCE,
+        CAR_FAULT_VISION_INVALID, CAR_FAULT_VISION_TIMEOUT, CAR_FAULT_UART,
+        CAR_FAULT_RX_OVERFLOW, CAR_FAULT_RX_STALE};
+    for(unsigned i=0;i<sizeof(recoverable)/sizeof(recoverable[0]);++i){
+        assistant_fixture(300000u+i*1000u,40000u+i);
+        control.manual_run_request=control.follow_session_active=1u;
+        control.mode=CAR_MODE_RECOVERY_WAIT;control.fault=recoverable[i];
+        service(300001u+i*1000u);
+        assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+        assert(control.manual_run_request && control.follow_session_active);
+        text_feed("ARM\n",300002u+i*1000u);
+        assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+        control.fault=CAR_FAULT_NONE;service(300003u+i*1000u);
+        assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+        /* An explicit operator stop still cancels during recovery. */
+        text_feed("STOP\n",300004u+i*1000u);
+        assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    }
+    assistant_fixture(320000,40010);
+    control.manual_run_request=control.follow_session_active=1;
+    control.fault=CAR_FAULT_ENCODER_INIT;control.fault_latched=1;
+    service(320001);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
+    assistant_fixture(321000,40011);
+    control.manual_run_request=control.follow_session_active=1;
+    control.fault=CAR_FAULT_PROTOCOL;snapshot.button_released=0;
+    service(321001);assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_STOP);
     assistant_tests();
     puts("wireless runtime: legacy replay/output gates; CALWIDTH split/CRLF/replay, parked/fault gates, progress, save ACK, disconnect, 65s timeout and binary isolation passed");
     return 0;
