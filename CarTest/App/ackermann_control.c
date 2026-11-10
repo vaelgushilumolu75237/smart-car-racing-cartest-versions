@@ -101,14 +101,13 @@ static uint16_t ramp_value_at(const car_ackermann_control_state_t *state,
 
 static uint16_t requested_fastest_target(uint16_t request_permille)
 {
-    /* Interpolate toward the configured ordinary-turn endpoint before the
-       profile scale. The wireless car lowers that endpoint by 20%; the
-       gyro manoeuvre target is independently selected by the main loop. */
+    /* Interpolate between the configured ordinary straight and turn
+       endpoints before profile scaling. Gyro manoeuvres use their own target. */
     uint32_t reduction =
-        ((uint32_t)(CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS -
+        ((uint32_t)(CARTEST_ORDINARY_STRAIGHT_BASE_MILLIRPS -
                     CARTEST_ORDINARY_TURN_BASE_MILLIRPS) *
          request_permille + 500u) / CAR_ACKERMANN_REQUEST_MAX_PERMILLE;
-    uint32_t base_target = CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS - reduction;
+    uint32_t base_target = CARTEST_ORDINARY_STRAIGHT_BASE_MILLIRPS - reduction;
     return (uint16_t)CARTEST_SCALE_WHEEL_TARGET(base_target);
 }
 

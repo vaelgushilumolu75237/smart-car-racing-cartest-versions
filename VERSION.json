@@ -1,8 +1,8 @@
 {
-  "version": "v20261110-k230-turn-speed-v27",
+  "version": "v20261110-k230-speed-v28",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 661,
+  "files": 664,
   "hardware_actions": "none this release; unchanged V26 camera retained; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",

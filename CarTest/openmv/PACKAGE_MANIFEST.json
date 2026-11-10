@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261110-k230-turn-speed-v27",
+  "release_version": "v20261110-k230-speed-v28",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

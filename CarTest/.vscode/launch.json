@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Latest v27 | Turn speed -20% / camera V26 2M | Wireless C +40%",
+      "name": "Latest v28 | Straight -20%, turn -10% / camera V26 | Wireless C +40%",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",

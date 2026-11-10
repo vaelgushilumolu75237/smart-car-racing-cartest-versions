@@ -100,6 +100,9 @@ if __name__ == "__main__":
     if (ROOT / 'docs/TURN_SPEED_V27_CN.md').is_file():
         for name in ('TURN_SPEED_V27_CN.md', 'TURN_SPEED_V27_VALIDATION.json'):
             shutil.copy2(ROOT/'docs'/name, install_root/name)
+    if (ROOT / 'docs/SPEED_V28_CN.md').is_file():
+        for name in ('SPEED_V28_CN.md', 'SPEED_V28_VALIDATION.json'):
+            shutil.copy2(ROOT/'docs'/name, install_root/name)
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)
