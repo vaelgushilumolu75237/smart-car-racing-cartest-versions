@@ -6320,6 +6320,13 @@ def _render_v7_preview_frame(img, selection, surface_result, road_result,
     """
     overlay_state.draw_us = 0
     overlay_state.flush_us = 0
+    import sys
+    if sys.implementation.name == 'micropython':
+        import k230_settings
+        previous = getattr(overlay_state, '_last_render_ms', None)
+        if previous is not None and time.ticks_diff(now_ms, previous) < k230_settings.DISPLAY_UPDATE_PERIOD_MS:
+            return
+        overlay_state._last_render_ms = now_ms
     if img is None:
         return
     if config.OVERLAY_ENABLED and draw_enabled:

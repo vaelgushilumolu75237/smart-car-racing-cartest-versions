@@ -9,16 +9,16 @@ UART_ID = 1
 UART_TX_PIN = 9
 UART_RX_PIN = 10
 SENSOR_CSI_ID = None  # Use Yahboom firmware's default CSI (normally CSI2).
-SENSOR_INPUT_WIDTH = 1920
-SENSOR_INPUT_HEIGHT = 1080
-SENSOR_FPS = 60  # Requested rate; not a measured processing/display rate.
+SENSOR_INPUT_WIDTH = 1280
+SENSOR_INPUT_HEIGHT = 720
+SENSOR_FPS = 90  # Requested rate; not a measured processing/display rate.
 MIRROR_X = False
 FLIP_Y = False
 DISPLAY_MODE = "lcd"  # lcd (ST7701 + IDE), ide (VIRT), or off.
 DISPLAY_WIDTH = 640
 DISPLAY_HEIGHT = 480
 DISPLAY_FPS = 60
-DISPLAY_UPDATE_PERIOD_MS = 50  # LCD 20 Hz; perception/control are never throttled.
+DISPLAY_UPDATE_PERIOD_MS = 100  # LCD 10 Hz; perception/control are never throttled.
 DISPLAY_QUALITY = 50
 DATA_DIRECTORY = "/sdcard/cartest-k230"
 MOUNT_REVISION = "mount-1"  # Change after camera/lens/height/pitch adjustment.
@@ -151,3 +151,7 @@ class WirelessSettingsStore:
         return self.save({"generation": 0, "vision_p": 1000,
                           "vision_d": 1000})
 
+
+# Full masks/topology remain 80x60; selected path rows keep physical coordinates.
+PATH_ROW_STEP = 3
+PATH_ROW_PHASE = 1

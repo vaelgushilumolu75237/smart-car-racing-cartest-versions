@@ -149,22 +149,21 @@ def _gate_viper(self) -> int:
     metrics = ptr32(self._metrics)
     support_x = ptr32(self._support_x)
     support_y = ptr32(self._support_y)
-    row_stride = int(_ROW_STRIDE)
-    output_stride = int(_OUTPUT_STRIDE)
-    step_scale = int(STEP_SCALE)
-    fraction_scale = int(FRACTION_SCALE)
-    total = int(PIXELS)
-    count = int(self._current_count)
-    minimum_step_scaled = int(self._minimum_step_scaled)
-    minimum_fraction_scaled = int(self._minimum_fraction_scaled)
-    target_available = int(self._target_available)
-    target_x = int(self._target_x_q)
-    target_y = int(self._target_y_q)
-    target_radius = int(self._target_radius_q)
+    row_stride = _ROW_STRIDE
+    output_stride = _OUTPUT_STRIDE
+    step_scale = STEP_SCALE
+    fraction_scale = FRACTION_SCALE
+    total = PIXELS
+    count = self._current_count
+    minimum_step_scaled = self._minimum_step_scaled
+    minimum_fraction_scaled = self._minimum_fraction_scaled
+    target_available = self._target_available
+    target_x = self._target_x_q
+    target_y = self._target_y_q
+    target_radius = self._target_radius_q
     for metric in range(8):
         metrics[metric] = 0
     support_count = 0
-
     for row in range(count):
         output_base = row * output_stride
         record_base = row * row_stride
@@ -172,18 +171,12 @@ def _gate_viper(self) -> int:
             for field in range(output_stride):
                 output[output_base + field] = 0
             continue
-        # The sample result fields are overwritten when a side has enough
-        # support. Eagerly clear only the accepted and bilateral flags.
         output[output_base + 3] = 0
         output[output_base + 7] = 0
         output[output_base + 8] = 0
-
-        # Inline the left and right side measurements here. Calling the Viper
-        # helper through the Python bridge twice per row dominated this small
-        # bounded gate on OpenMV even though the helper itself was compiled.
         left_ok = 0
         left_measured = 0
-        left_hit = int(records[record_base + 1])
+        left_hit = records[record_base + 1]
         if left_hit >= 0 and left_hit < total:
             if known[left_hit] != 0 and dark[left_hit] != 0:
                 left_value0 = 0
@@ -191,12 +184,12 @@ def _gate_viper(self) -> int:
                 left_value2 = 0
                 left_sample_count = 0
                 for sample in range(3):
-                    index = int(records[record_base + 2 + sample])
+                    index = records[record_base + 2 + sample]
                     if index < 0 or index >= total:
                         continue
                     if known[index] == 0 or white[index] == 0:
                         continue
-                    value = int(luma[index])
+                    value = luma[index]
                     if left_sample_count == 0:
                         left_value0 = value
                     elif left_sample_count == 1:
@@ -222,29 +215,23 @@ def _gate_viper(self) -> int:
                             left_value0 = left_value1
                             left_value1 = temp
                         left_white2 = left_value1 * 2
-
-                    left_step2 = left_white2 - int(luma[left_hit]) * 2
+                    left_step2 = left_white2 - luma[left_hit] * 2
                     left_denominator2 = left_white2
                     if left_denominator2 < 2:
                         left_denominator2 = 2
                     output[output_base] = left_step2
                     output[output_base + 1] = left_white2
                     output[output_base + 2] = 1
-
-                    if (left_step2 * step_scale >=
-                            minimum_step_scaled * 2 and
-                            left_step2 * fraction_scale >=
-                            left_denominator2 * minimum_fraction_scaled):
+                    if left_step2 * step_scale >= minimum_step_scaled * 2 and left_step2 * fraction_scale >= left_denominator2 * minimum_fraction_scaled:
                         output[output_base + 3] = 1
                         left_ok = 1
         if left_measured == 0:
             output[output_base] = 0
             output[output_base + 1] = 0
             output[output_base + 2] = 0
-
         right_ok = 0
         right_measured = 0
-        right_hit = int(records[record_base + 5])
+        right_hit = records[record_base + 5]
         if right_hit >= 0 and right_hit < total:
             if known[right_hit] != 0 and dark[right_hit] != 0:
                 right_value0 = 0
@@ -252,12 +239,12 @@ def _gate_viper(self) -> int:
                 right_value2 = 0
                 right_sample_count = 0
                 for sample in range(3):
-                    index = int(records[record_base + 6 + sample])
+                    index = records[record_base + 6 + sample]
                     if index < 0 or index >= total:
                         continue
                     if known[index] == 0 or white[index] == 0:
                         continue
-                    value = int(luma[index])
+                    value = luma[index]
                     if right_sample_count == 0:
                         right_value0 = value
                     elif right_sample_count == 1:
@@ -283,44 +270,35 @@ def _gate_viper(self) -> int:
                             right_value0 = right_value1
                             right_value1 = temp
                         right_white2 = right_value1 * 2
-
-                    right_step2 = right_white2 - int(luma[right_hit]) * 2
+                    right_step2 = right_white2 - luma[right_hit] * 2
                     right_denominator2 = right_white2
                     if right_denominator2 < 2:
                         right_denominator2 = 2
                     output[output_base + 4] = right_step2
                     output[output_base + 5] = right_white2
                     output[output_base + 6] = 1
-
-                    if (right_step2 * step_scale >=
-                            minimum_step_scaled * 2 and
-                            right_step2 * fraction_scale >=
-                            right_denominator2 * minimum_fraction_scaled):
+                    if right_step2 * step_scale >= minimum_step_scaled * 2 and right_step2 * fraction_scale >= right_denominator2 * minimum_fraction_scaled:
                         output[output_base + 7] = 1
                         right_ok = 1
         if right_measured == 0:
             output[output_base + 4] = 0
             output[output_base + 5] = 0
             output[output_base + 6] = 0
-
         metrics[2] += left_ok
         metrics[3] += right_ok
-        metrics[4] += int(output[output_base + 2])
-        metrics[5] += int(output[output_base + 6])
+        metrics[4] += output[output_base + 2]
+        metrics[5] += output[output_base + 6]
         if left_ok != 0 and right_ok != 0:
             metrics[0] += 1
-            support_x[support_count] = int(records[record_base + 9])
-            support_y[support_count] = int(records[record_base + 10])
+            support_x[support_count] = records[record_base + 9]
+            support_y[support_count] = records[record_base + 10]
             if target_available != 0:
-                dx = target_x - int(support_x[support_count])
-                dy = target_y - int(support_y[support_count])
-                if dx <= target_radius and dx >= -target_radius and \
-                        dy <= target_radius and dy >= -target_radius and \
-                        dx * dx + dy * dy <= target_radius * target_radius:
+                dx = target_x - support_x[support_count]
+                dy = target_y - support_y[support_count]
+                if dx <= target_radius and dx >= -target_radius and (dy <= target_radius) and (dy >= -target_radius) and (dx * dx + dy * dy <= target_radius * target_radius):
                     metrics[1] += 1
             support_count += 1
         output[output_base + 8] = 1 if left_ok != 0 and right_ok != 0 else 0
-
     self._support_count = support_count
     return 0
 
@@ -440,23 +418,22 @@ def _stage_path_viper(self) -> int:
     """Stage FastPathDetector's reusable [y,left,right,flags] integer rows."""
     rows = ptr32(self._current_path_rows)
     records = ptr32(self._records)
-    row_stride = int(_ROW_STRIDE)
-    count = int(self._current_count)
-    width = int(self.width)
-    height = int(self.height)
-    stride = int(self._current_stride)
+    row_stride = _ROW_STRIDE
+    count = self._current_count
+    width = self.width
+    height = self.height
+    stride = self._current_stride
     for row in range(count):
         record_base = row * row_stride
         records[record_base] = 0
         source_base = row * stride
-        y = int(rows[source_base])
-        left = int(rows[source_base + 1])
-        right = int(rows[source_base + 2])
-        flags = int(rows[source_base + 3])
+        y = rows[source_base]
+        left = rows[source_base + 1]
+        right = rows[source_base + 2]
+        flags = rows[source_base + 3]
         if flags & 7 != 7:
             continue
-        if y < 0 or y >= height or left < 0 or right < left or \
-                right >= width:
+        if y < 0 or y >= height or left < 0 or (right < left) or (right >= width):
             continue
         row_offset = y * width
         if left > 0:
@@ -1323,3 +1300,11 @@ class FastBoundaryEvidence:
 
 
 __all__ = ("FastBoundaryEvidence", "RUNTIME_API_VERSION", "COMPILER_BACKEND")
+
+
+# Integer staging buffers already provide Python ints on the portable backend.
+if not _IS_MICROPYTHON:
+    ptr8 = lambda value: value
+    ptr32 = lambda value: value
+    FastBoundaryEvidence._host_gate = _gate_viper
+    FastBoundaryEvidence._stage_path_host = _stage_path_viper

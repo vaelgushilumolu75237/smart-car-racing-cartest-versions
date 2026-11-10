@@ -1,6 +1,6 @@
 {
   "port": "CARTEST_K230_CAMERA_RECOVERY_20261108",
-  "status": "experimental-software-tested-fps60-target-pending",
+  "status": "experimental-camera-fps-measured; scene-valid-route validation pending",
   "camera_tests": {
     "run": 527,
     "failures": 0,
@@ -35,7 +35,11 @@
     "hardware": "not_connected"
   },
   "hal_tests_passed": true,
-  "hal_tests": 28,
+  "hal_tests": {
+    "run": 32,
+    "failures": 0,
+    "errors": 0
+  },
   "gyro_camera_tests_passed": true,
   "gyro_driver_state_tests_passed": true,
   "gyro_integration_tests_passed": true,
@@ -297,8 +301,8 @@
     "DebugSteering": "118529f026a451de4e606c4102ce958e48a2ad51591e3484b2297e4e43e6ee2b",
     "DebugWirelessGyro350Speed140": "da04c362676376478ab82fa4e1e82c50df2715efbd226afac4c42b16b207d5d2"
   },
-  "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
-  "board_runtime_fps": "unverified",
+  "hardware_actions": "K230 Python upload and per-chunk readback; installed finite camera benchmark; no H743 flash/reset; no motor commands",
+  "board_runtime_fps": 65.3,
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
   "exposure_control": "K230 firmware ISP default; OpenMV cap not applied",
@@ -1095,7 +1099,9 @@
     "current_version_hardware_verified": false,
     "camera_runtime_unchanged": false,
     "raw_vehicle_logs_published": false,
-    "camera_recovery_tested_on_vehicle": false
+    "camera_recovery_tested_on_vehicle": false,
+    "camera_source_readback_verified": true,
+    "camera_pipeline_fps_verified": true
   },
   "uart3_header": {
     "version": "v20261108-k230-uart3-header-v12",
@@ -1390,5 +1396,24 @@
     "mcu_changes": false,
     "private_calibration": "preserved; excluded from checkpoint",
     "portable_compilation_only": "Compiler output not installed; device runs source"
+  },
+  "native60_v21": {
+    "production_install_verified": true,
+    "ram_frames": 1228,
+    "ram_duration_s": 20,
+    "ram_fps": 61.4,
+    "native_topology_device_fixtures": 500,
+    "native_backend_host_tests": 32,
+    "boundary_equivalence_tests": 3,
+    "source_portable_compile_files": 33,
+    "road_verified": false,
+    "calibration_geometry_changed": true,
+    "installed_frames": 1306,
+    "installed_duration_s": 20,
+    "installed_fps": 65.3,
+    "installed_valid_frames": 144,
+    "installed_full_uart_writes": 1306,
+    "installed_uart_errors": 0,
+    "h743_receive_verified": false
   }
 }

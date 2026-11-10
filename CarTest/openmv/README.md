@@ -13,3 +13,10 @@ UART1: GPIO9 TX / GPIO10 RX；ST7701: 640×480；检测320×120、网格80×60�
 350°后H743通知相机释放旧环岛，恢复普通路线观察。
 配置入口 `k230_settings.py`，完整说明见 `../docs/GYRO350_20261106.md`
 及 `../docs/K230_PORT_20261106.md`（安装包的说明放在上级Install目录）。
+
+
+## v21 native camera pipeline
+
+Installed camera benchmark: 1306 fresh frames / 20 seconds = 65.3 FPS; 1306 complete UART writes; zero UART errors. Only 144 frames passed route validity in the current view, so valid track observation rate and vehicle behavior still need verification. H743 was not flashed/reset and no motor commands were sent. LCD updates at 10 Hz. The 1280x720@90 sensor mode changes calibration geometry; retain and reject the previous private calibration until fresh width calibration is collected. Native Otsu tie resolution and step-3, phase-1 path row sampling differ from v20. Full 80x60 topology and boundary gates remain.
+
+Validation: project runner 527 tests, 5 existing skips; 32 adaptation tests; 3 boundary equivalence tests; 33 portable bytecode compilations; installed device topology self-test 500 randomized/nested cases, zero mismatches.

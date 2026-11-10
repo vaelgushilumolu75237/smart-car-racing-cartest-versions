@@ -1,11 +1,17 @@
 """Exact fixed-grid kernels using CanMV's native ulab array operations.
 
-No frame reuse, threshold changes, or topology checks are removed.
+Native kernels keep fresh frames and full topology verification. Native Otsu
+may resolve threshold ties differently from the reference histogram sweep.
 """
 try:
     import ulab.numpy as np
 except ImportError:
     import numpy as np  # Host equivalence tests only.
+try:
+    import cv_lite as _cv
+except ImportError:
+    _cv = None
+
 _FLOAT = getattr(np, "float", float)
 try:
     import image as _image
@@ -210,6 +216,12 @@ _BIT_HIGH = bytes(next((bit for bit in range(7,-1,-1) if value & (1<<bit)),0) fo
 
 
 def internal_component(guard, floor, band_end):
+    if _cv is not None:
+        try:
+            if _native_no_candidate(guard, floor, band_end):
+                return 0
+        except Exception:
+            pass  # Native failure always falls back to complete bitset verification.
     """Exact 8-connectivity, growing packed row bitsets in native ints."""
     width = guard.width
     if _image is not None and hasattr(_image,"BINARY"):
@@ -324,7 +336,13 @@ def extract_rows(detector):
     luma, edge = detector._current_luma, detector._current_edge
     known, road = detector._current_known, detector._current_road
     candidates, counts = detector._candidate_data, detector._counts
-    for layer in range(detector.row_count):
+    import k230_settings as settings
+    step = getattr(settings, 'PATH_ROW_STEP', 1) if _cv is not None else 1
+    phase = getattr(settings, 'PATH_ROW_PHASE', 0) if _cv is not None else 0
+    if step not in (1, 2, 3) or not 0 <= phase < step:
+        raise ValueError('invalid path row sampling')
+    counts[:] = bytes(len(counts))
+    for layer in range(phase, detector.row_count, step):
         y = height-1-layer
         row, limit = y*width, (y+1)*width
         at = row
@@ -381,3 +399,90 @@ def batch_otsu(builder):
   value=int(np.argmax(scores[b,:]))
   results.append((value,int(low[b,value]),int(high[b,value]),float(low_mean[b,value]),float(high_mean[b,value]),float(diff[b,value])))
  return results
+
+
+def native_thresholds(builder):
+ luma=builder.luma;rectangles=builder._rectangles;width=builder.width
+ blocks=builder._block_count;stats=builder._block_stats
+ pixels=np.frombuffer(luma,dtype=np.uint8).reshape((len(luma)//width,width))
+ results=[];binaries=[]
+ for b in range(blocks):
+  x0,y0,x1,y1=rectangles[b*4:b*4+4]
+  w,h=x1-x0,y1-y0;n=w*h
+  gray=pixels[y0:y1,x0:x1].copy()
+  rgb=np.empty((n,3),dtype=np.uint8)
+  flat=gray.reshape((n,))
+  rgb[:,:]=flat.reshape((n,1))
+  binary=_cv.rgb888_erode([h,w],rgb,1,1,0).reshape((h,w))
+  data=binary.tobytes();low_count=data.count(b'\x00');high_count=n-low_count
+  total=sum(gray.tobytes())
+  stats[b*4]=n;stats[b*4+1]=total;stats[b*4+2]=int(np.min(gray));stats[b*4+3]=int(np.max(gray))
+  if not low_count or not high_count:
+   results.append((0,0,0,0.0,0.0,0.0))
+  else:
+   dark=binary==0
+   low_total=int(np.sum(np.array(gray*dark,dtype=np.uint16))+0.5)
+   threshold=int(np.max(gray*dark))
+   low_mean=low_total/low_count;high_mean=(total-low_total)/high_count
+   results.append((threshold,low_count,high_count,low_mean,high_mean,high_mean-low_mean))
+  binaries.append(data)
+ builder._native_binaries=binaries
+ return results
+
+
+def native_masks(builder):
+ rectangles=builder._rectangles;width=builder.width;height=builder.height
+ blocks=builder._block_count
+ if not all(rectangles[b*4]==0 and rectangles[b*4+2]==width and
+            (b==0 or rectangles[b*4+1]>=rectangles[(b-1)*4+3]) for b in range(blocks)):
+  return False
+ road=builder.road_mask;edge=builder.edge_mask;known=builder.known_region
+ road_rows=builder.road_row_counts;edge_rows=builder.row_counts;totals=builder._pixel_totals
+ road[:]=bytes(width*height);edge[:]=bytes(width*height);known[:]=bytes(width*height)
+ road_rows[:]=bytes(height);edge_rows[:]=bytes(height);totals[0]=totals[1]=0
+ for b in range(blocks):
+  if not builder._trusted_values[b]:continue
+  y0,y1=rectangles[b*4+1],rectangles[b*4+3]
+  data=builder._native_binaries[b]
+  start,stop=y0*width,y1*width
+  road[start:stop]=data
+  bright=np.frombuffer(data,dtype=np.uint8).reshape((y1-y0,width))
+  edge[start:stop]=np.array(bright==0,dtype=np.uint8).tobytes()
+  known[start:stop]=b'\x01'*(stop-start)
+  for y in range(y0,y1):
+   n=data.count(b'\xff',(y-y0)*width,(y-y0+1)*width)
+   road_rows[y]=n;edge_rows[y]=width-n;totals[0]+=n;totals[1]+=width-n
+ return True
+
+
+def _native_no_candidate(guard,floor,band_end):
+ width=guard.width
+ pixels=np.frombuffer(guard._current_mask,dtype=np.uint8).reshape((guard.height,width))
+ pending=[(0,floor,width,band_end)]
+ calls=0
+ while pending:
+  x0,y0,x1,y1=pending.pop()
+  w,h=x1-x0,y1-y0
+  region=pixels[y0:y1,x0:x1].copy()
+  dark=_cv.grayscale_find_blobs([h,w],region,1,255,0,1)
+  calls+=1
+  for i in range(0,len(dark),4):
+   x,y,bw,bh=dark[i:i+4]
+   if (x>0 and y>0 and x+bw<w and y+bh<h and
+       guard.component_min_extent<=bw<=guard.component_max_extent and
+       guard.component_min_extent<=bh<=guard.component_max_extent and
+       bw*bh>=guard.component_min_area):return False
+  white=np.array(region==0,dtype=np.uint8)
+  graph=np.empty((h,w*2-1),dtype=np.uint8)
+  graph[:,::2]=white
+  graph[:,1::2]=np.bitwise_and(white[:,:-1],white[:,1:])
+  light=_cv.grayscale_find_blobs([h,w*2-1],graph,1,255,0,1)
+  calls+=1
+  for i in range(0,len(light),4):
+   x,y,bw,bh=light[i:i+4]
+   x//=2;bw=(bw+1)//2
+   if (x>0 and y>0 and x+bw<w and y+bh<h and
+       bw>=guard.component_min_extent+2 and bh>=guard.component_min_extent+2):
+    pending.append((x0+x,y0+y,x0+x+bw,y0+y+bh))
+  if calls>20 or len(pending)>10:return False
+ return True

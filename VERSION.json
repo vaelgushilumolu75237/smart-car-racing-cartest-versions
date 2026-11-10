@@ -1,16 +1,18 @@
 {
-  "version": "v20261109-k230-fps42-experimental-v20",
-  "status": "experimental-software-tested-fps60-target-pending",
+  "version": "v20261110-k230-native60-experimental-v21",
+  "status": "experimental-camera-65fps-route-validation-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 643,
-  "hardware_actions": "Existing SeekFree UI read; passive K230 USB read; candidate not uploaded; no H743 flash/reset or motor start",
+  "files": 645,
+  "hardware_actions": "K230 Python upload and per-chunk readback; installed finite camera benchmark; no H743 flash/reset; no motor commands",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
     "camera_runtime_unchanged": false,
     "raw_vehicle_logs_published": false,
-    "camera_recovery_tested_on_vehicle": false
+    "camera_recovery_tested_on_vehicle": false,
+    "camera_source_readback_verified": true,
+    "camera_pipeline_fps_verified": true
   },
   "private_calibration_included": false
 }

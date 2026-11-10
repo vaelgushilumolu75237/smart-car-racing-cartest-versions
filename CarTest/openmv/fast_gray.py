@@ -1413,7 +1413,10 @@ class FastGrayMasks:
 
     @_k230_identity
     def _calculate_thresholds(self):
-        if _IS_MICROPYTHON:
+        native = _K230_ACCEL is not None and _K230_ACCEL._cv is not None
+        if native:
+            self._k230_otsu_results = _K230_ACCEL.native_thresholds(self)
+        elif _IS_MICROPYTHON:
             _histogram_refresh(self)
         else:
             histogram_kernel = (_K230_ACCEL.histogram if _K230_ACCEL is not None
@@ -1423,7 +1426,7 @@ class FastGrayMasks:
                 self.width, self._block_count, self._nonzero_values,
                 self._nonzero_counts, self._block_stats)
 
-        if _K230_ACCEL is not None:
+        if _K230_ACCEL is not None and not native:
             self._k230_otsu_results = _K230_ACCEL.batch_otsu(self)
 
         trusted_count = 0
@@ -1527,6 +1530,9 @@ class FastGrayMasks:
         self._threshold_max = threshold_max
 
     def _write_masks(self):
+        if (_K230_ACCEL is not None and _K230_ACCEL._cv is not None and
+                _K230_ACCEL.native_masks(self)):
+            return
         if _IS_MICROPYTHON:
             if self._mask_local_counts_ready:
                 if self._mask_full_width_tiled_ready:
