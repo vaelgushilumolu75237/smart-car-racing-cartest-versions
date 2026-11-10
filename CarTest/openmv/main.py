@@ -5284,6 +5284,13 @@ def _create_wireless_camera_service(config_obj, sensor_obj,
         config_obj, sensor_obj, reverse_parser, fixture_mode).service
 
 
+def _needs_dense_single_edge_seed(tracker, control_fresh):
+    """Seed measured width rows once after RESET; never invent missing widths."""
+    return bool(control_fresh and
+                getattr(tracker, "route_mode", "cached_width") == "cached_width" and
+                getattr(tracker, "_cache_row_count", 0) == 0)
+
+
 def _single_edge_fallback_allowed(path_result):
     """Keep explicit ambiguous routes out of the cached single-edge path."""
     if not isinstance(path_result, dict):
@@ -7785,7 +7792,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 # bilateral rows. Never relax their >=20-row acceptance gate.
                 import k230_settings as _sampling_settings
                 _dense_width_rows = (not ring_calibration_passed or
-                    wireless_service.camera_calibration_controller.active)
+                    wireless_service.camera_calibration_controller.active or
+                    _needs_dense_single_edge_seed(single_edge_tracker, reverse_fresh))
                 path_detector.path_row_step = (1 if _dense_width_rows else
                     getattr(_sampling_settings, "PATH_ROW_STEP", 1))
                 path_detector.path_row_phase = (0 if _dense_width_rows else

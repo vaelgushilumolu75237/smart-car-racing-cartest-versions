@@ -58,7 +58,7 @@
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "3ea8a5bf0aa2f55bab946e57f469e0f36f7fc0defb2589e8dc246bb5ded9bd63",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "8714a890dd5dc28caa9e74208c8ecee6bef8f2ae5e58ba58b7c9ec4717f57ba3",
+    "main.py": "fdc5c4bb92b5ef588d275868cb92b552e1e9a3d9b5c2a487028c1ea86a6bc47b",
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "d7cb02f5de462b65d6689c5a964fba508897fa9767743640952313ac19157885",
     "ring_diagnostics.py": "9c0b6deedd4b892090947751871c3b40781225858ff076e9c582001527d4413f",
@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261110-k230-auto-width-v22",
+  "release_version": "v20261110-k230-single-edge-seed-v23",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
@@ -178,5 +178,13 @@
     "expected_sampling_seconds": "about 2; estimate only",
     "boot_to_ready_seconds": null,
     "hardware_end_to_end_verified": false
+  },
+  "single_edge_seed_fix": {
+    "dense_real_bilateral_rows_on_fresh_empty_cache": true,
+    "fast_sampling_after_successful_seed": true,
+    "left_right_sparse_regression_reproduced": true,
+    "host_tests": 41,
+    "camera_uploaded": false,
+    "road_verified": false
   }
 }

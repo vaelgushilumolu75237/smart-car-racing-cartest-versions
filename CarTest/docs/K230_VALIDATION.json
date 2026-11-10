@@ -1,6 +1,6 @@
 {
   "port": "CARTEST_K230_CAMERA_RECOVERY_20261108",
-  "status": "experimental-auto-calibration-installed-hardware-pending",
+  "status": "experimental-single-edge-seed-host-tested-deployment-pending",
   "camera_tests": {
     "run": 527,
     "failures": 0,
@@ -36,7 +36,7 @@
   },
   "hal_tests_passed": true,
   "hal_tests": {
-    "run": 37,
+    "run": 41,
     "failures": 0,
     "errors": 0
   },
@@ -301,7 +301,7 @@
     "DebugSteering": "118529f026a451de4e606c4102ce958e48a2ad51591e3484b2297e4e43e6ee2b",
     "DebugWirelessGyro350Speed140": "da04c362676376478ab82fa4e1e82c50df2715efbd226afac4c42b16b207d5d2"
   },
-  "hardware_actions": "K230 source patch and exact text readback; no H743 flash/reset; no motor commands",
+  "hardware_actions": "none for v23; existing SeekFree window history read only",
   "board_runtime_fps": 65.3,
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
@@ -1424,5 +1424,15 @@
     "end_to_end_auto_calibration": "pending H743 reconnection",
     "boot_to_ready_ms": null,
     "protection_bypassed": false
+  },
+  "single_edge_seed_v23": {
+    "status": "host-tested; camera upload and vehicle verification pending",
+    "reproduction": "same sparse current single edge with gaps: step-3 cache rejects support rows; dense measured cache succeeds, mirrored left/right",
+    "new_tests": 4,
+    "port_tests": 41,
+    "portable_modules": 33,
+    "sensor_mode_unchanged": "1280x720@90",
+    "h743_unchanged": true,
+    "published_vehicle_logs": false
   }
 }

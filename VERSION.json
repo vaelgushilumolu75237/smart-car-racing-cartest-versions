@@ -1,9 +1,9 @@
 {
-  "version": "v20261110-k230-auto-width-v22",
-  "status": "experimental-auto-calibration-installed-hardware-pending",
+  "version": "v20261110-k230-single-edge-seed-v23",
+  "status": "experimental-single-edge-seed-host-tested-deployment-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 646,
-  "hardware_actions": "K230 source patch and exact text readback; no H743 flash/reset; no motor commands",
+  "files": 647,
+  "hardware_actions": "none for v23; existing SeekFree window history read only",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
