@@ -111,6 +111,8 @@ def checkpoint(args):
     if (source / 'docs/SINGLE_EDGE_AUTHORITY_V26_CN.md').is_file():
         doc_files += ['SINGLE_EDGE_AUTHORITY_V26_CN.md',
                       'SINGLE_EDGE_AUTHORITY_V26_VALIDATION.json']
+    if (source / 'docs/TURN_SPEED_V27_CN.md').is_file():
+        doc_files += ['TURN_SPEED_V27_CN.md', 'TURN_SPEED_V27_VALIDATION.json']
     if manifest.get("wireless_required"):
         doc_files += ["WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_CONTRACT.md",
                       "WIRELESS_VENDOR_FILES.json", "WIRELESS_VALIDATION.json"]

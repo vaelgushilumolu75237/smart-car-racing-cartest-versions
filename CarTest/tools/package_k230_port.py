@@ -97,6 +97,9 @@ if __name__ == "__main__":
         for name in ('SINGLE_EDGE_AUTHORITY_V26_CN.md',
                      'SINGLE_EDGE_AUTHORITY_V26_VALIDATION.json'):
             shutil.copy2(ROOT/'docs'/name, install_root/name)
+    if (ROOT / 'docs/TURN_SPEED_V27_CN.md').is_file():
+        for name in ('TURN_SPEED_V27_CN.md', 'TURN_SPEED_V27_VALIDATION.json'):
+            shutil.copy2(ROOT/'docs'/name, install_root/name)
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)

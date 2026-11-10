@@ -247,35 +247,35 @@
     "DebugWirelessGyro350Speed140"
   ],
   "elf_sha256": {
-    "Debug": "4b69321ef8e32335e56cefe8b8a570131f75838e162e8323bb191ee135c4a3ae",
-    "DebugBench": "a2351e533d1d32af57897da73ef6a34a7d2cdf01f8325718ce0f824be4bcfc7c",
-    "DebugFastNoRing": "32353989bec3b91130ae357ef74a982a808cc710fbbdba4f0064d1ba10313c8f",
-    "DebugFollow": "447dd8f4ccc9231e31919167c15091bd725cd2595e47ffc95c9d72b41bfb4f2c",
-    "DebugFollowDiff10": "10029990c82a3279168f881332378566e0723cc8c4ec1f76ad2e0c55ccf602e9",
-    "DebugFollowDiff5": "298e669a8e6a621b29f557616843f8a61583a8d25d0ab9bed113c6f64083cc94",
-    "DebugFollowIncrementalPI": "63b974e8ca5c4ee030bd7ca074a52c7b6a7d3ade743d973a82213efd6a7abff4",
-    "DebugFollowIncrementalPIBaseline": "3fd0b912899c9959dfdb2685c0b27b61f906f5ea0aeca0ea09b82bf5b48c0f83",
-    "DebugFollowNoLog": "4e978bd0974f09d21956c7677fde0cc61e436d1f383522753adc3142eb43782d",
-    "DebugFollowSpeedPI": "bd20dffdba74ce3e130d0d6964458e17b7a762daeae627bcc49cba8571b70c80",
-    "DebugFollowTurn": "e09be8221f5aac4fd70d2b2dbe1c677cd59e33dac0214ea62adc76c5b9214776",
-    "DebugFollowTurn65": "9516aba39e3b79f27b0d0b98b587aa581b4ead138dd2bdee8d4b835e45a53abf",
-    "DebugGyro350Speed140": "8bc519c4896952c049c2a7b875152b0fbff064392152722dce8ce1b241a49115",
-    "DebugRingBase": "841e65d1cf159cfdd59d449c8390711721b332a590c55c685830db7b8bd38c5d",
-    "DebugRingFast": "e3dc4d828b186149b89783deba45864e7d526cea8101091dedec5d04c837178e",
-    "DebugRingFastSpeed120": "6b08c9bd2390f2a36af0c11b2bcc4e4952816220832fe6139eb792ccc36ca1af",
-    "DebugRingFastSpeed130": "308f57d8bfb9d3a8956f9bfca4f1300d7bbb3ce0dedc9c097db76ca269914d29",
-    "DebugRingFastSpeed140": "82faf65b07a625803bb4c0b8c7726b9adb37c3739c4245ab6609d0742cee3421",
-    "DebugSteering": "faffda865ab5fcd3aaaca430f0edc59c8644f4fe0629a5b37e3a9c4aa2582add",
-    "DebugWirelessGyro350Speed140": "8b69b0062da2a38c60a4ef1753c11b11f592ce64834cd5f988bd10285e81dc9c"
+    "Debug": "94892a65ed9bbc903c6ebe1b5de8bd472b5ac494a593c2da98ff0e8fcb8820cd",
+    "DebugBench": "e8727551c293199ff09a14e2fd74c3e6aabb2ba3ddb3c508385ac4553d9a29eb",
+    "DebugFastNoRing": "48cabe6a83386614a127ef1f9faff31c9f0fd149cbeeb535561e3d5f6d62a02a",
+    "DebugFollow": "e6c4844ee91719bcd3aa4a0fd7500c806895e45218820f7b3131094cd0a97e14",
+    "DebugFollowDiff10": "7a85439b97ff2133797a049ed61b147714f8f61470955d3b4fdb07d99802e369",
+    "DebugFollowDiff5": "7903aeedce8b274ca608167b296f70743765ccd57fc93b6f3f53f4dd88a002a8",
+    "DebugFollowIncrementalPI": "b3b1d3e3d2915832cd157da1abaf589a3f91a3af767a5631befa28d743fa5b71",
+    "DebugFollowIncrementalPIBaseline": "789a1f41182e44bafec8bef8146d4ce2f10c853eaac65f3bc60efa925db54e74",
+    "DebugFollowNoLog": "1c41da0d09ce08815e17a198c0d88d4f2fe83dade059e50716cbdf6622472716",
+    "DebugFollowSpeedPI": "a5d2473a3d3346c27a92b96d4b208c5a9b54c8580d537f048065b3091e380d77",
+    "DebugFollowTurn": "5ba6d58aeaca0b7b6704adb813b0a7609fd71fb7676f450744ea7bc3d3c001d3",
+    "DebugFollowTurn65": "45ffd7549e4492095e009ea16da5291d8f8ee5fc58d81390e593a1a9dba22672",
+    "DebugGyro350Speed140": "84eafdd108350d5b03ab1d21747555ef136fd12c6338872d23220dc534aea292",
+    "DebugRingBase": "b0ac22e2ab9d4bc1d5d33fbeab5f9cdc787d0b9356d0ae0bb48675295b71d852",
+    "DebugRingFast": "5e155ff5136ae9eabf3b354d3dc55e05b55c82f2869177da35cc4f304d785b6f",
+    "DebugRingFastSpeed120": "c8b8d92cc2c5d13ce5c1c17293026e5abd7dae30f16fb9811bdd741de4aca364",
+    "DebugRingFastSpeed130": "8a9b169ff480ba1b56023118328bd09fdcfa904926701815a33c1bdf7e0c98c5",
+    "DebugRingFastSpeed140": "bec53d1ba94968155c0dc1b6029321a7d9748681d98f06c7087aca1eb704faae",
+    "DebugSteering": "4a686bd4791c8996ee99b4c7af7224a68f1d6c809e5b3662639ff259b7d790a7",
+    "DebugWirelessGyro350Speed140": "624c6ef8e657529f7136d61af13b965e189427f3d711b95b1a3cd2cb16b27a2a"
   },
-  "hardware_actions": "authorized stationary camera RAM read-only diagnostics; no production camera installation, no H743 flash/reset, no motor start; SDK soft reboot observed after diagnostic exit",
-  "board_runtime_fps": "final runtime not benchmarked; hardware verification pending",
+  "hardware_actions": "none this release; unchanged V26 camera retained; no H743 flash/reset or motor start",
+  "board_runtime_fps": "Camera runtime unchanged; prior V24 RAM benchmark retained as historical evidence only; paired current H743 receive rate pending",
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
   "exposure_control": "K230 firmware ISP default; OpenMV cap not applied",
   "calibration": "new K230 format3 required; H750 private map never copied to installer",
   "mcu_source_sha256": {
-    "App/ackermann_control.c": "a68ff82a141fcbcabf3499f36d521d6000a8d514987f9e016974655f90e91ccd",
+    "App/ackermann_control.c": "9e981eb1de8737d75288853a8c69f3f94e37be2a7ae64765292182d3d558fe86",
     "App/ackermann_snapshot.c": "374056244d7269c18d8a8cefc24c92aa21fcd652b767ae4e635d12288ea2684a",
     "App/car_vision.c": "5de08dc2bbd51898194cd1b3e3fa49532a4cf1cac0eee83b281f3022bf66b7e5",
     "App/commissioning.c": "30561e9c077375171b1e2f606c7b18da37580d4930d3c2b2308b56f52aac7639",
@@ -500,7 +500,7 @@
     "Inc/camera_diag.h": "b666990fe0ef22afc0891dcd536387aa618a6913b9e656a252b87f77d2d08b77",
     "Inc/car_calibration.h": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
     "Inc/car_rx_fastpath.h": "7077e68a88870104cad6446c0924f063c0137324400a442947e7c6e0bdc843c2",
-    "Inc/car_track_profile.h": "8343579c381c5f9c8c6ac82fe40aa3df4d4c30b22176b81bef8b975b76f30c08",
+    "Inc/car_track_profile.h": "302dc6af2df6a2cf466387923de51055d5fa7227bba48130107cfb9563e3a48a",
     "Inc/car_vision.h": "260745c8428bb507c2ab81d3e6de616a4b199c3b1ff73a9c045e4f96f83e1a4b",
     "Inc/commissioning.h": "da56fa53a6cef09b996303c24fd3bebae154c0f08b1714529219c9d733a48587",
     "Inc/encoder_diag.h": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
@@ -1050,7 +1050,7 @@
         "Inc/camera_diag.h": "b666990fe0ef22afc0891dcd536387aa618a6913b9e656a252b87f77d2d08b77",
         "Inc/car_calibration.h": "a25354eac18b2b79755994b8eb436b8003ffe2ef7f513b7ab7168ab3beb8b3b5",
         "Inc/car_rx_fastpath.h": "7077e68a88870104cad6446c0924f063c0137324400a442947e7c6e0bdc843c2",
-        "Inc/car_track_profile.h": "8343579c381c5f9c8c6ac82fe40aa3df4d4c30b22176b81bef8b975b76f30c08",
+        "Inc/car_track_profile.h": "302dc6af2df6a2cf466387923de51055d5fa7227bba48130107cfb9563e3a48a",
         "Inc/car_vision.h": "260745c8428bb507c2ab81d3e6de616a4b199c3b1ff73a9c045e4f96f83e1a4b",
         "Inc/commissioning.h": "da56fa53a6cef09b996303c24fd3bebae154c0f08b1714529219c9d733a48587",
         "Inc/encoder_diag.h": "4a9c9a5a8b355b83e3353bc71cdcf37cb83bdf417ea09ad97e4ba8d9724aa3b1",
@@ -1152,7 +1152,7 @@
     }
   },
   "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks",
-  "mcu_build_evidence": "prior actual builds reused after source and ELF hash verification",
+  "mcu_build_evidence": "actual builds this run",
   "transport_diagnostics": {
     "passed": true,
     "scope": "read-only raw WHO_AM_I and USART1 transport evidence",
@@ -1175,14 +1175,13 @@
   "imu_gpio_spi_tests_passed": true,
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": false,
+    "camera_runtime_unchanged": true,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
     "radio_start_tested_on_vehicle": false,
-    "camera_readonly_ram_diagnostics": true,
-    "sdk_soft_reboot_after_diagnostic_exit": true
+    "camera_source_release": "v20261110-k230-single-edge-authority-v26"
   },
   "uart3_header": {
     "version": "v20261108-k230-uart3-header-v12",
@@ -1516,7 +1515,7 @@
     "h743_unchanged": true,
     "published_vehicle_logs": false
   },
-  "release_version": "v20261110-k230-single-edge-authority-v26",
+  "release_version": "v20261110-k230-turn-speed-v27",
   "uart_rx_v25": {
     "release_version": "v20261110-k230-uart-rx-v25",
     "status": "software-tested-awaiting-manual-h743-flash",
@@ -1573,5 +1572,6 @@
     "road_verified": false,
     "hardware_actions": "read-only SWD; no camera upload, H743 flash/reset or motor start",
     "camera_runtime_unchanged_verified": true
-  }
+  },
+  "camera_evidence_origin": "v20261110-k230-single-edge-authority-v26"
 }

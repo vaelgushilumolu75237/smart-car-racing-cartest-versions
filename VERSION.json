@@ -1,21 +1,20 @@
 {
-  "version": "v20261110-k230-single-edge-authority-v26",
+  "version": "v20261110-k230-turn-speed-v27",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 658,
-  "hardware_actions": "authorized stationary camera RAM read-only diagnostics; no production camera installation, no H743 flash/reset, no motor start; SDK soft reboot observed after diagnostic exit",
+  "files": 661,
+  "hardware_actions": "none this release; unchanged V26 camera retained; no H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": false,
+    "camera_runtime_unchanged": true,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
     "radio_start_tested_on_vehicle": false,
-    "camera_readonly_ram_diagnostics": true,
-    "sdk_soft_reboot_after_diagnostic_exit": true
+    "camera_source_release": "v20261110-k230-single-edge-authority-v26"
   },
   "private_calibration_included": false
 }
