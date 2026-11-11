@@ -1,20 +1,21 @@
 {
-  "version": "v20261111-k230-ring-entry-v29",
+  "version": "v20261111-k230-new-a-speed-v30",
   "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 667,
+  "files": 670,
   "hardware_actions": "none this release; no camera upload, H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": false,
+    "camera_runtime_unchanged": true,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
     "radio_start_tested_on_vehicle": false,
-    "mcu_source_release": "v20261110-k230-speed-v28"
+    "camera_source_release": "v20261111-k230-ring-entry-v29",
+    "camera_deployment_status": "V29 installation pending user confirmation"
   },
   "private_calibration_included": false
 }

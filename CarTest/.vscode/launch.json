@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Latest v28 | Straight -20%, turn -10% / camera V26 | Wireless C +40%",
+      "name": "Latest v30 | New A speed 5.6/4.4, gyro ring retained | Camera V29",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",

@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "variants": [
+    {
+      "wireless": 0,
+      "passed": true,
+      "summary": "NEW_A_SPEED_V30 wireless=0 straight=7840 turn=6160 ring=7392 passed\nRING_PI_V30 independent 7392 target accepted; original 7840 ceiling retained"
+    },
+    {
+      "wireless": 1,
+      "passed": true,
+      "summary": "NEW_A_SPEED_V30 wireless=1 straight=5600 turn=4400 ring=7392 passed\nRING_PI_V30 independent 7392 target accepted; original 7840 ceiling retained"
+    }
+  ],
+  "source_sha256": {
+    "App/ackermann_control.c": "b5b9c5d73c9b69f3df25ce72537008bbfc164d242df6881fd79ce32cf5820ff7",
+    "App/follow_incremental_pi.c": "33d84269516720c3a9b1d96a355a1545d82929b816cb3018927076f106aab0c9",
+    "Inc/car_track_profile.h": "2aab432d485660c84b5f52fd0a77d877d7ee1334d89ae2bf8b032b7720c48258",
+    "Inc/follow_speed_pi.h": "00c3e9d339e460906a08d32df555119e56ce362093352854b80cbf392016de76",
+    "Inc/follow_incremental_pi.h": "f90e96371e907646a3d570ef66da7f3efd493cd3924158948512335add8aa616",
+    "tests/host/test_new_a_speed_v30.c": "193d774deaacdffa319047f6af28787a13a78c879fc4321e2ab492591c901ec5"
+  },
+  "hardware_actions": "none",
+  "release_version": "v20261111-k230-new-a-speed-v30",
+  "straight_millirps": 5600,
+  "ordinary_turn_outer_millirps": 4400,
+  "gyro_ring_outer_millirps": 7392,
+  "original_profile_max_target_millirps": 7840,
+  "ordinary_targets_separate_from_PI_validation_ceiling": true,
+  "gyro_ring_retained": true,
+  "protocol_profile_id": 3,
+  "all_20_profiles_built": true,
+  "elf_sha256": {
+    "Debug": "95d5f74fceb6c0680840e32102e95dadbbb163d5a31c12f3a6f2ff7601b2afe0",
+    "DebugBench": "cbaf42d8d9709b3f81a3b894d8e72f20a82e9f40b2f9cfb6f726f873a26e121a",
+    "DebugFastNoRing": "dc749e1f5f9f52ffe07daf53808ed9187080f8762fbac06dee1d7f94790db9f4",
+    "DebugFollow": "e56237f8475fce26305d8025c68f2b4db0b5456f6707715f62254e32ead5e294",
+    "DebugFollowDiff10": "7cb931d13bee2e4e19a7c3b65976dd465a5dadf7e197dc3e688e625acd4c2b5d",
+    "DebugFollowDiff5": "2b548d4e0b15b1d60cc64c81d36f8bd70905a5dd73e9d0affcec7607dfdf4195",
+    "DebugFollowIncrementalPI": "00db4d2a5aa3d528b7b677fced620b0c61a3085c5804235b3282a4b8143ccfd5",
+    "DebugFollowIncrementalPIBaseline": "916b98ab9d1515c1519fe282e812eaf659061c36e8c465d58ab022627f27a23c",
+    "DebugFollowNoLog": "9eb3c9811cb60e74dfcb7f9f8750a6802223c98d4e0194f15f79d30be6b978e2",
+    "DebugFollowSpeedPI": "6879816dbba1950042eafe8006e68ca5f2a933f3f7002c03b2dae9b32302d9b5",
+    "DebugFollowTurn": "6c423a6eec87043a769ea7e5f67da410b4a1217ee7ddfa892f76714c093face1",
+    "DebugFollowTurn65": "67ec8afe047dbd16c783f16026fdc9cb241740540befdbee7ced6a1d55c80273",
+    "DebugGyro350Speed140": "7611e49206e1250266732cc941d4a934279e9060d32a69b34225c6434a99ec5d",
+    "DebugRingBase": "ca270771fe0c77a2ed4586411be478e87dbe1ac999f2a597cbebdb40d3271536",
+    "DebugRingFast": "fe73e09fb36690fc92220e91f6df446e4771323f4ce4cf84c03a68e98a2eb8ca",
+    "DebugRingFastSpeed120": "849b0eb1f077d79621e6408caa694616cffc652674c5088ddce19b359a8a3329",
+    "DebugRingFastSpeed130": "c5ba57cb5ead632e2fea2ea846616da432ec02a876c57b7079c0d0d076dab3e0",
+    "DebugRingFastSpeed140": "1590f5cd9a0b75cef8848cdfecadbe1d9625251413a2e5476fed8b5bcfb9732a",
+    "DebugSteering": "1bc14c2f04dd1c645a35e2a0c2ec14a785fa02d15fb1b56a6812c36b8dd621e1",
+    "DebugWirelessGyro350Speed140": "daa7eda450a4190ff3cce17ffe86803f6b92d8e43fe44fb0be409328736ef3ea"
+  },
+  "host_runner_exit": 0,
+  "wireless_integration_checks": 220,
+  "gyro_main_assertions": 24,
+  "paired_camera_source": "v20261111-k230-ring-entry-v29",
+  "camera_installation_pending": true,
+  "h743_flashed": false,
+  "road_behavior_verified": false
+}

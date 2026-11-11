@@ -16,6 +16,10 @@ extern "C" {
 enum {
     CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS =
         CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+    /* Preserve the existing profile ceiling for the independent gyro target.
+       Reducing the ordinary straight speed must not invalidate ring control. */
+    CAR_FOLLOW_INCREMENTAL_PI_MAX_TARGET_MILLIRPS =
+        CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS,
     CAR_FOLLOW_INCREMENTAL_PI_OUTPUT_CAP_PERMILLE = 1000u,
     CAR_FOLLOW_INCREMENTAL_PI_TRACKING_TIME_MS = 200u,
     CAR_FOLLOW_INCREMENTAL_PI_KP_Q16 = 13107u,
