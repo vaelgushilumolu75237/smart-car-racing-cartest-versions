@@ -112,6 +112,9 @@ if __name__ == "__main__":
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)
+    if (ROOT / 'docs/FPS65_V31_CN.md').is_file():
+        for name in ('FPS65_V31_CN.md', 'FPS65_V31_VALIDATION.json'):
+            shutil.copy2(ROOT / 'docs' / name, install_root / name)
     if seekfree_start:
         shutil.copy2(ROOT / "docs/SEEKFREE_START_V10_CN.md", install_root / "SEEKFREE_START_V10_CN.md")
     baseline = json.loads((OUT / "private-baseline/SOURCE_BEFORE.json").read_text(encoding="utf-8"))

@@ -108,8 +108,8 @@
         },
         {
           "file": "fast_boundary.py",
-          "source_sha256": "bac1cd4f8f4847188346f436660def8b0b0eabb094bd32ead62e41f67a4d3552",
-          "mpy_sha256": "a33c6f92df804b9c72555e9b57564db0cdca0cd6e9c114f2a5e7565cc44e18a3"
+          "source_sha256": "a6b3fc3d8b3212d7bc90f05e009218caf720c6745b1cf6ecee115bf8b273c5ad",
+          "mpy_sha256": "acf29e5fa40b1c51d6f23e8f53a261dd324604a3891b8821494e268cbc447fef"
         },
         {
           "file": "fast_gray.py",
@@ -128,8 +128,8 @@
         },
         {
           "file": "fast_single_edge.py",
-          "source_sha256": "686ec2b5c843b559acc49d99c548de20fcd02d801fef59a2ef447116b703c412",
-          "mpy_sha256": "f4d3c55db5f026af7e73ea12bb416417987213ffc7af0a17da75811dc2278dda"
+          "source_sha256": "98977e2333d90eb8a8eb682907562a04f5b862af9a489e79660793d76526077d",
+          "mpy_sha256": "fa06178dd01a38ad300dd24b02930fc3b0b5a610f66c41e13ae5ad5d138de66a"
         },
         {
           "file": "fast_topology.py",
@@ -148,8 +148,8 @@
         },
         {
           "file": "k230_accel.py",
-          "source_sha256": "9963bec9f6fd1ebb9120418ff17decd5bb5579ccf3e3ee08f160698cb7e95171",
-          "mpy_sha256": "bad74e9f05fc49df0bd3ca93ec2982ae382a8d5d734e0790f0d9529a7f4b5a3c"
+          "source_sha256": "e85aa5544c01f488abb2b4d7b8220881d89b416198896a2611cf622ca5751f3e",
+          "mpy_sha256": "eee6892e29dfc44acffca45588ee8d56ac70dbc76004b5ed5336b529f7eaf51d"
         },
         {
           "file": "k230_calibration.py",
@@ -178,8 +178,8 @@
         },
         {
           "file": "main.py",
-          "source_sha256": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
-          "mpy_sha256": "5b71f77d59dfea7f0e93a95e6ad9fe8d0d0caabcc9f56ac033155520c5343d7f"
+          "source_sha256": "725dea43b1720e3011708d6d04b7788b38748a22b2111dbd392a8f24f3424c15",
+          "mpy_sha256": "34314e0c782abc1e6008f2d66c6fe8a718f4267eb45b6986595df3871cf65047"
         },
         {
           "file": "probe_k230.py",
@@ -228,8 +228,8 @@
         },
         {
           "file": "track_elements.py",
-          "source_sha256": "4522bf6cbbe65d25a530ed14a5c907a9be4c82d0182364b775b63b100926dff6",
-          "mpy_sha256": "1f74d653d3231713d1acb45d6d90e450e007eaf2a485872feff217f0a8840987"
+          "source_sha256": "cc118fb25e140e992700cba97157aded20a35b59f47fc08df113a8f3607e61ba",
+          "mpy_sha256": "e7fd6b6b56041c6ab60fd8009b1fb5c019eb4d43bbad72a3a08815fb1e906fda"
         },
         {
           "file": "vision_protocol.py",
@@ -249,21 +249,21 @@
         "openmv/config.py": "30f94f6f2ee14b32022157d41f43fb018c39618bb7f2a3a26ade2c6ab2be2922",
         "openmv/contour_route.py": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
         "openmv/contour_trace.py": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
-        "openmv/fast_boundary.py": "bac1cd4f8f4847188346f436660def8b0b0eabb094bd32ead62e41f67a4d3552",
+        "openmv/fast_boundary.py": "a6b3fc3d8b3212d7bc90f05e009218caf720c6745b1cf6ecee115bf8b273c5ad",
         "openmv/fast_gray.py": "cd258f9d3d89809e0447e396205b5df04dbbce1fa4f6af4c94964cca046ddffc",
         "openmv/fast_path.py": "307350b0693369ec9be06c60b6f8364841e98a24b876f668c3210cc5b85d2a72",
         "openmv/fast_ring_slope.py": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
-        "openmv/fast_single_edge.py": "686ec2b5c843b559acc49d99c548de20fcd02d801fef59a2ef447116b703c412",
+        "openmv/fast_single_edge.py": "98977e2333d90eb8a8eb682907562a04f5b862af9a489e79660793d76526077d",
         "openmv/fast_topology.py": "6287aaacf09853e815f0b3013ab2226cd515343a0e65bdd8c4791d3f996b7ab7",
         "openmv/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
         "openmv/gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
-        "openmv/k230_accel.py": "9963bec9f6fd1ebb9120418ff17decd5bb5579ccf3e3ee08f160698cb7e95171",
+        "openmv/k230_accel.py": "e85aa5544c01f488abb2b4d7b8220881d89b416198896a2611cf622ca5751f3e",
         "openmv/k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
         "openmv/k230_hal.py": "a51f73521497eb19185cc343e18e230763ed6a1fc844aa9dda9148c43f00c71d",
         "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
         "openmv/k230_settings.py": "823b370dd1a675c57352de8cdb00dc0a31ebad793fd4240bf009e700f5459ecf",
         "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "openmv/main.py": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
+        "openmv/main.py": "725dea43b1720e3011708d6d04b7788b38748a22b2111dbd392a8f24f3424c15",
         "openmv/probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
         "openmv/reverse_control.py": "3ca9773da29e415ed1a6db80494b526fc75853d239830e4a027b5eeed3a67e17",
         "openmv/ring_diagnostics.py": "f1bd06b8a0553e93ffd15f760099c6a5f0baa42ac92e3e96d303ca96c629b5c0",
@@ -273,7 +273,7 @@
         "openmv/source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
         "openmv/surface_detector.py": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
         "openmv/thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
-        "openmv/track_elements.py": "4522bf6cbbe65d25a530ed14a5c907a9be4c82d0182364b775b63b100926dff6",
+        "openmv/track_elements.py": "cc118fb25e140e992700cba97157aded20a35b59f47fc08df113a8f3607e61ba",
         "openmv/vision_protocol.py": "150c684b73ccc0098afc9049d70362544bd0bb1f908308c39ce79b2b4c7bef02",
         "openmv/wireless_link.py": "6d6a741abfe13bef3d55d12857455a369ec8d57732a35456e079fa29d82b2e14",
         "tools/verify_wireless_camera.py": "bcbb937fdc2d532e67e7b662fa0726d28af2a3ff40d2ea8fd1504ed9c43896f7",
@@ -380,6 +380,7 @@
         "openmv/tests/test_v7_summary_queue.py": "39a58844653c0e12f974d69293aaa6cf40c4dc8cfc1ca0ec109fdbecc7bbd102",
         "tests/k230_port/test_accel.py": "05e133169716aa5b3220f2f0ce336917ae74ea8bd34ae443478771469364a124",
         "tests/k230_port/test_auto_width.py": "02c0fcd4fe0954ea5c5d11cfb4d67ce48550e4a848cb0d3ba2255d86b2ca410f",
+        "tests/k230_port/test_fps65_exact_kernels.py": "628e10994b6682c376e3752aafa44ba34d9e9b19ac6d92d49ebedbe697805b44",
         "tests/k230_port/test_hal.py": "90c843f43e80731564dc680ff10852cde0c196f4131a4c3d2ceb8be381cd445d",
         "tests/k230_port/test_multiplexed_bursts.py": "54c9917d6be8d620a186ebf09cae9d7a1da892bb664a1ebb167aa4e6692a0882",
         "tests/k230_port/test_native60.py": "353fddb1904f813ad0f5d5aad49b144411ef254df8d131f74cbb8c25a4760148",
@@ -399,7 +400,7 @@
       },
       "hal": {
         "passed": true,
-        "tests": 56,
+        "tests": 60,
         "command": [
           "-m",
           "unittest",
@@ -693,16 +694,14 @@
     "DebugSteering": "1bc14c2f04dd1c645a35e2a0c2ec14a785fa02d15fb1b56a6812c36b8dd621e1",
     "DebugWirelessGyro350Speed140": "daa7eda450a4190ff3cce17ffe86803f6b92d8e43fe44fb0be409328736ef3ea"
   },
-  "hardware_actions": "none this release; no camera upload, H743 flash/reset or motor start",
+  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": true,
+    "camera_runtime_unchanged": false,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
-    "radio_start_tested_on_vehicle": false,
-    "camera_source_release": "v20261111-k230-ring-entry-v29",
-    "camera_deployment_status": "V29 installation pending user confirmation"
+    "radio_start_tested_on_vehicle": false
   }
 }

@@ -1,0 +1,144 @@
+{
+  "release_version": "v20261111-k230-fps65-v31",
+  "actual_camera": true,
+  "actual_h743": false,
+  "deployed": false,
+  "measurement": "Fresh camera captures, full current vision processing and actual UART writes; simulated incoming H743 status; vehicle stopped",
+  "source_sha256": {
+    "adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
+    "boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
+    "calibrate_k230.py": "af8022d16466b79c152a72ea079b9003fcdf8017e867a25fbc2e76388b4121ef",
+    "config.py": "30f94f6f2ee14b32022157d41f43fb018c39618bb7f2a3a26ade2c6ab2be2922",
+    "contour_route.py": "15b2e31e4eb260c695e1f3c8fef4f7f07a451e7e4eb0f2f8c29f7383eb6cb407",
+    "contour_trace.py": "430484c877305c79ffdd7b40855969cb8682326b19f8d7478899cf20ce9e9837",
+    "fast_boundary.py": "a6b3fc3d8b3212d7bc90f05e009218caf720c6745b1cf6ecee115bf8b273c5ad",
+    "fast_gray.py": "cd258f9d3d89809e0447e396205b5df04dbbce1fa4f6af4c94964cca046ddffc",
+    "fast_path.py": "307350b0693369ec9be06c60b6f8364841e98a24b876f668c3210cc5b85d2a72",
+    "fast_ring_slope.py": "222d536b7bce3ab014fe588f69cca3157b6ddccdb19cecec187b93ad57972fad",
+    "fast_single_edge.py": "98977e2333d90eb8a8eb682907562a04f5b862af9a489e79660793d76526077d",
+    "fast_topology.py": "6287aaacf09853e815f0b3013ab2226cd515343a0e65bdd8c4791d3f996b7ab7",
+    "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
+    "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
+    "k230_accel.py": "e85aa5544c01f488abb2b4d7b8220881d89b416198896a2611cf622ca5751f3e",
+    "k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
+    "k230_hal.py": "a51f73521497eb19185cc343e18e230763ed6a1fc844aa9dda9148c43f00c71d",
+    "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
+    "k230_settings.py": "823b370dd1a675c57352de8cdb00dc0a31ebad793fd4240bf009e700f5459ecf",
+    "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
+    "main.py": "725dea43b1720e3011708d6d04b7788b38748a22b2111dbd392a8f24f3424c15",
+    "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
+    "reverse_control.py": "3ca9773da29e415ed1a6db80494b526fc75853d239830e4a027b5eeed3a67e17",
+    "ring_diagnostics.py": "f1bd06b8a0553e93ffd15f760099c6a5f0baa42ac92e3e96d303ca96c629b5c0",
+    "ring_width_calibration.py": "a36a7da88b18dd0a39c4215b089fa38c13cad0a290230442f8842b1ed761f109",
+    "road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
+    "run_cartest.py": "f633e2fc70d394c8cb07631f063ecf8209e571f953732f49b5d240b1b0ba72ad",
+    "source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
+    "surface_detector.py": "3639d6fce71b5ea5902864d094ff6ccd75e7dd07a31d0a2e1c6fa8995e7b00cf",
+    "thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
+    "track_elements.py": "cc118fb25e140e992700cba97157aded20a35b59f47fc08df113a8f3607e61ba",
+    "vision_protocol.py": "150c684b73ccc0098afc9049d70362544bd0bb1f908308c39ce79b2b4c7bef02",
+    "wireless_link.py": "6d6a741abfe13bef3d55d12857455a369ec8d57732a35456e079fa29d82b2e14"
+  },
+  "duration_s": 45,
+  "total_fresh_frames": 2915,
+  "startup_window_excluded_from_steady_fps": true,
+  "startup_note": "Initial dense real 64-frame automatic width calibration and parked validation; no fabricated map",
+  "calibration_ready_elapsed_ms": 1759,
+  "steady_windows": [
+    {
+      "index": 1,
+      "start_ms": 10000,
+      "end_ms": 20000,
+      "distinct_captures": 653,
+      "write_attempts": 653,
+      "full_uart_writes": 653,
+      "valid_frames": 653,
+      "valid_full_writes": 653,
+      "late_invalid_frames": 0,
+      "uart_write_errors": 0
+    },
+    {
+      "index": 2,
+      "start_ms": 20000,
+      "end_ms": 30000,
+      "distinct_captures": 651,
+      "write_attempts": 651,
+      "full_uart_writes": 651,
+      "valid_frames": 651,
+      "valid_full_writes": 651,
+      "late_invalid_frames": 0,
+      "uart_write_errors": 0
+    },
+    {
+      "index": 3,
+      "start_ms": 30000,
+      "end_ms": 40000,
+      "distinct_captures": 652,
+      "write_attempts": 652,
+      "full_uart_writes": 652,
+      "valid_frames": 652,
+      "valid_full_writes": 652,
+      "late_invalid_frames": 0,
+      "uart_write_errors": 0
+    }
+  ],
+  "steady_fps": [
+    65.3,
+    65.1,
+    65.2
+  ],
+  "steady_valid_transmitted_fps": [
+    65.3,
+    65.1,
+    65.2
+  ],
+  "steady_mean_fps": 65.2,
+  "uart_write_errors": 0,
+  "late_invalid_frames": 0,
+  "native_threshold_equivalence_cases": 160,
+  "threshold_reference": "Historical native threshold arithmetic, with independently owned output buffers in both implementations",
+  "host_differential_cases": {
+    "mask_buffers": 800,
+    "path_extract": 600,
+    "topology_proof_and_fallback": 1500,
+    "full_topology": 1200,
+    "connect_states": 1000,
+    "bilateral_cache": 1600,
+    "control_diag_bytes": 1600,
+    "steering_diag_bytes": 2000
+  },
+  "resolution": {
+    "isp": [
+      320,
+      240
+    ],
+    "crop": [
+      0,
+      60,
+      320,
+      120
+    ],
+    "processed_grid": [
+      80,
+      60
+    ],
+    "pooling": "Exact minimum over all 4x2 cells"
+  },
+  "retained": [
+    "LCD preview",
+    "wireless numerical and image diagnostics",
+    "single-edge width cache recovery",
+    "ring state machine and dense baseline acquisition",
+    "frame deadlines and all existing gates"
+  ],
+  "stage_performance_statistics_sample_interval_frames": 8,
+  "fresh_frame_and_valid_uart_counters_sample_interval_frames": 1,
+  "total_cycle_histogram_sample_interval_frames": 1,
+  "limitations": [
+    "RAM benchmark, no persistent installation",
+    "Paired H743 receive rate not measured",
+    "No vehicle road behavior validation",
+    "65 fps is measured here, not a bound for every scene or transient calibration/ring fallback"
+  ],
+  "raw_images_or_vehicle_logs_included": false
+}

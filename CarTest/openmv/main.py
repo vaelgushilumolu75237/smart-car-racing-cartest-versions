@@ -802,6 +802,25 @@ SINGLEEDGE_ROUTE_BUILD_IDS = (
     (("clipped_midpoint", CLIPPED_MIDPOINT_BUILD_ID),))
 
 
+from struct import pack_into
+
+def _packed_diag_i16(v):
+    if not isinstance(v,int) or isinstance(v,bool):return 0
+    return -32768 if v< -32768 else 32767 if v>32767 else v
+
+def _packed_diag_u32(v):
+    return v&0xffffffff if isinstance(v,int) and not isinstance(v,bool) else 0
+
+def _packed_diag_u16(v):
+    return v&0xffff if isinstance(v,int) and not isinstance(v,bool) else 0
+
+def _packed_diag_record(data,offset,sequence,flags,capture,send,position,preview,applied,sent,raw,filtered,reference,rows,source,generation):
+    if not isinstance(rows,int) or isinstance(rows,bool):rows=0
+    rows=max(0,min(255,rows))
+    if not isinstance(source,int) or isinstance(source,bool) or not 0<=source<=5:source=0
+    pack_into('<HBBII7hBBI',data,offset,sequence,flags,0,_packed_diag_u32(capture),_packed_diag_u32(send),_packed_diag_i16(position),_packed_diag_i16(preview),_packed_diag_i16(applied),_packed_diag_i16(sent),_packed_diag_i16(raw),_packed_diag_i16(filtered),_packed_diag_i16(reference),rows,source,_packed_diag_u32(generation))
+
+
 class _SteeringDiagBuffer:
     """Fixed-size pre/post-trigger RAM trace retained at the camera REPL."""
 
@@ -973,38 +992,13 @@ class _SteeringDiagBuffer:
                 raw_control, filtered_error, reference_error, row_count,
                 source_code, reverse_generation)
         else:
-            self._put_u16(data, offset, sequence)
-            data[offset + 2] = flags
-            data[offset + 3] = 0
-            self._put_u32(data, offset + 4, capture_ms)
-            self._put_u32(data, offset + 8, send_ms)
-            self._put_i16(data, offset + 12, position)
-            self._put_i16(data, offset + 14, preview_candidate)
-            self._put_i16(data, offset + 16, preview_applied)
-            self._put_i16(data, offset + 18, sent_error)
-            self._put_i16(data, offset + 20, raw_control)
-            self._put_i16(data, offset + 22, filtered_error)
-            self._put_i16(data, offset + 24, reference_error)
-            if not isinstance(row_count, int) or isinstance(row_count, bool):
-                row_count = 0
-            if row_count < 0:
-                row_count = 0
-            elif row_count > 255:
-                row_count = 255
-            data[offset + 26] = row_count
-            if not isinstance(source_code, int) or isinstance(source_code, bool):
-                source_code = 0
-            if source_code < 0 or source_code > 5:
-                source_code = 0
-            data[offset + 27] = source_code
-            self._put_u32(data, offset + 28, reverse_generation)
+            _packed_diag_record(data,offset,sequence,flags,capture_ms,send_ms,position,preview_candidate,preview_applied,sent_error,raw_control,filtered_error,reference_error,row_count,source_code,reverse_generation)
         self._write_extension(slot, candidate_diagnostic)
         self._write_control_extension(
             slot, control_diagnostic, sequence, capture_ms, send_ms,
             sent_error)
         curve_offset = slot * vision_protocol.FRAME_SIZE
-        for index in range(vision_protocol.FRAME_SIZE):
-            self.curve_trace_data[curve_offset + index] = frame[index]
+        self.curve_trace_data[curve_offset:curve_offset+vision_protocol.FRAME_SIZE] = frame[:vision_protocol.FRAME_SIZE]
 
         if self.triggered:
             self.count += 1
@@ -1051,7 +1045,24 @@ class _SteeringDiagBuffer:
                 value = 255
             data[offset + index] = value
 
-    def _write_control_extension(self, slot, diagnostic, sequence,
+    def _write_control_extension(self,slot,diagnostic,sequence,capture_ms,send_ms,sent_control):
+        offset=slot*self.CONTROL_EXTENSION_RECORD_SIZE;data=self.control_extension_data
+        if self.CONTROL_EXTENSION_RECORD_SIZE!=32:return self._write_control_extension_reference(slot,diagnostic,sequence,capture_ms,send_ms,sent_control)
+        if diagnostic is None:
+            flags=0;position=derivative=pd=preview=gain=applied=state=reset=0;dt=65535
+        else:
+            flags=(diagnostic.get('profile_code',0)&3)<<6
+            for key,bit in (('pd_enabled',1),('preview_enabled',2),('preview_confirmed',4),('preview_geometry_valid',8),('preview_same_sign',16),('duplicate',32)):
+                if diagnostic.get(key):flags|=bit
+            position=_packed_diag_i16(diagnostic.get('position_p',0));derivative=_packed_diag_i16(diagnostic.get('derivative_d',0));pd=_packed_diag_i16(diagnostic.get('pd_output',0));preview=_packed_diag_i16(diagnostic.get('preview_candidate',0));gain=_packed_diag_u16(diagnostic.get('preview_gain_milli',0));applied=_packed_diag_i16(diagnostic.get('preview_applied',0))
+            dt=diagnostic.get('capture_dt_ms',65535)
+            dt=65535 if not isinstance(dt,int) or isinstance(dt,bool) else max(0,min(65535,dt))
+            state=max(0,min(255,int(diagnostic.get('preview_state',0))));reset=max(0,min(255,int(diagnostic.get('reset_code',0))))
+        pack_into('<BBHII4hHhHBBhH',data,offset,self.CONTROL_EXTENSION_VERSION,flags,_packed_diag_u16(sequence),_packed_diag_u32(capture_ms),_packed_diag_u32(send_ms),position,derivative,pd,preview,gain,applied,dt,state,reset,_packed_diag_i16(sent_control),0)
+        crc=vision_protocol._crc16_ccitt_false_range(data,offset,offset+30)
+        pack_into('<H',data,offset+30,crc)
+
+    def _write_control_extension_reference(self, slot, diagnostic, sequence,
                                  capture_ms, send_ms, sent_control):
         """Store a sequence/time-bound PD/preview record with its own CRC."""
         record_size = self.CONTROL_EXTENSION_RECORD_SIZE
@@ -6649,7 +6660,7 @@ class _V7PerfWindow:
                 "attempted_by_loop=%d last_sequence=%d "
                 "heap_samples=%d heap_free_min=%s heap_alloc_max=%s "
                 "heap_free_last=%s heap_alloc_last=%s "
-                "p95_method=1ms_bin_upper_overflow_uses_max stage_stats=%s" % (
+                "stage_sample_interval=8 total_cycle_sample_interval=1 p95_method=1ms_bin_upper_overflow_uses_max stage_stats=%s" % (
                     run_id, window_index,
                     window_index * config.PERF_WINDOW_MS,
                     (window_index + 1) * config.PERF_WINDOW_MS,
@@ -6670,7 +6681,7 @@ class _V7PerfWindow:
              "uart_write_errors=%d attempted_by_loop=%d last_sequence=%d "
              "heap_samples=%d heap_free_min=%s heap_alloc_max=%s "
              "heap_free_last=%s heap_alloc_last=%s "
-             "p95_method=1ms_bin_upper_overflow_uses_max" % (
+             "stage_sample_interval=8 total_cycle_sample_interval=1 p95_method=1ms_bin_upper_overflow_uses_max" % (
                  run_id, window_index,
                  window_index * config.PERF_WINDOW_MS,
                  (window_index + 1) * config.PERF_WINDOW_MS,
@@ -9322,25 +9333,26 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             gc_us += time.ticks_diff(time.ticks_us(), gc_start_us)
             gc_low_memory_latched = gc_low_memory_now
 
-        perf.record("capture", capture_us)
-        perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
-        perf.record("path_topology", time.ticks_diff(path_end_us, path_start_us))
-        perf.record("contour", contour_us)
-        perf.record("boundary", time.ticks_diff(boundary_end_us, boundary_start_us))
-        perf.record("ring", ring_us)
-        perf.record("row_weight", time.ticks_diff(
-            row_weight_end_us, row_weight_start_us))
-        perf.record("reference_filter", time.ticks_diff(reference_end_us,
-                                                          reference_start_us))
-        perf.record("pack_uart", pack_uart_us)
-        perf.record("capture_to_send", capture_to_send_us)
-        perf.record("diag_trace", diag_trace_us)
-        perf.record("ring_diag", ring_diag_us)
-        perf.record("overlay", overlay_us)
-        perf.record("preview_flush", preview_flush_us)
-        perf.record("debug", debug_us)
-        perf.record("summary_log", summary_log_us)
-        perf.record("gc", gc_us)
+        if (frame_count - 1) % 8 == 0:
+            perf.record("capture", capture_us)
+            perf.record("masks", time.ticks_diff(masks_end_us, masks_start_us))
+            perf.record("path_topology", time.ticks_diff(path_end_us, path_start_us))
+            perf.record("contour", contour_us)
+            perf.record("boundary", time.ticks_diff(boundary_end_us, boundary_start_us))
+            perf.record("ring", ring_us)
+            perf.record("row_weight", time.ticks_diff(
+                row_weight_end_us, row_weight_start_us))
+            perf.record("reference_filter", time.ticks_diff(reference_end_us,
+                                                              reference_start_us))
+            perf.record("pack_uart", pack_uart_us)
+            perf.record("capture_to_send", capture_to_send_us)
+            perf.record("diag_trace", diag_trace_us)
+            perf.record("ring_diag", ring_diag_us)
+            perf.record("overlay", overlay_us)
+            perf.record("preview_flush", preview_flush_us)
+            perf.record("debug", debug_us)
+            perf.record("summary_log", summary_log_us)
+            perf.record("gc", gc_us)
         # The primary FIFO drains during existing overlay/debug/GC work.
         # Probe once here; never wait, replace a V3, or delay its completion.
         if (camera_diag_begin is not None and full_write and

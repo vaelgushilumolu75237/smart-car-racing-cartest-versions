@@ -331,8 +331,14 @@ def _label_dark_components_viper(self) -> int:
     return 0
 
 
-@_k230_identity
-def _clear_accepted_chain_viper(self) -> int:
+def _clear_accepted_chain_viper(self):
+    if int(self._accepted_chain_word_clear) != 0:
+        return _clear_accepted_chain_reference(self)
+    self._accepted_chain_valid[:int(self.height)] = bytes(int(self.height))
+    return 0
+
+
+def _clear_accepted_chain_reference(self) -> int:
     """Clear per-row identity flags with aligned words when safely available."""
     height = int(self.height)
     if int(self._accepted_chain_word_clear) != 0:
@@ -346,8 +352,144 @@ def _clear_accepted_chain_viper(self) -> int:
     return 0
 
 
-@_k230_identity
 def _observe_bilateral_viper(self) -> int:
+    """Cache only current rows with measured, validated left and right steps."""
+    if self.min_width < 3 or self.floor_y < 0:
+        return _observe_bilateral_reference(self)
+    rows = ptr32(self._observed_rows)
+    luma = ptr8(self._current_luma)
+    road = ptr8(self._current_road)
+    edge = ptr8(self._current_edge)
+    known = ptr8(self._current_known)
+    cache_valid = ptr8(self._cache_valid)
+    cache_width = ptr32(self._cache_width)
+    cache_left2 = ptr32(self._cache_left2)
+    cache_right2 = ptr32(self._cache_right2)
+    anchor_left2 = ptr32(self._anchor_left2)
+    anchor_right2 = ptr32(self._anchor_right2)
+    width = self.width
+    height = self.height
+    floor = self.floor_y
+    count = self._observed_count
+    stride = self._observed_stride
+    minimum_width = self.min_width
+    maximum_width = self.max_width
+    minimum_step_scaled = self.minimum_step_scaled
+    minimum_fraction_scaled = self.minimum_fraction_scaled
+    total = width * height
+    all_known = known.count(b'\x00', floor * width) == 0
+    accepted = 0
+    new_cache_rows = 0
+    for row_index in range(count):
+        base = row_index * stride
+        y = rows[base]
+        left = rows[base + 1]
+        right = rows[base + 2]
+        flags = rows[base + 3]
+        if y < floor or y >= height or left < 1 or (right < left) or (right >= width - 1) or (flags & 7 != 7):
+            continue
+        run_width = right - left + 1
+        if run_width < minimum_width or run_width > maximum_width:
+            continue
+        row = y * width
+        left_hit = row + left - 1
+        right_hit = row + right + 1
+        if left_hit < 0 or right_hit >= total or (not all_known and (known[left_hit] == 0 or known[right_hit] == 0)) or (edge[left_hit] == 0) or (edge[right_hit] == 0) or (road[left_hit] != 0) or (road[right_hit] != 0):
+            continue
+        left_sample0 = left_hit + 1
+        left_sample1 = left_sample0 + 1
+        left_sample2 = left_sample1 + 1
+        right_sample0 = right_hit - 1
+        right_sample1 = right_sample0 - 1
+        right_sample2 = right_sample1 - 1
+        if not all_known and (known[left_sample0] == 0 or known[left_sample1] == 0 or known[left_sample2] == 0 or (known[right_sample0] == 0) or (known[right_sample1] == 0) or (known[right_sample2] == 0)) or road[left_sample0] == 0 or road[left_sample1] == 0 or (road[left_sample2] == 0) or (road[right_sample0] == 0) or (road[right_sample1] == 0) or (road[right_sample2] == 0):
+            continue
+        left_value0 = luma[left_sample0]
+        left_value1 = luma[left_sample1]
+        left_value2 = luma[left_sample2]
+        if left_value0 > left_value1:
+            temp = left_value0
+            left_value0 = left_value1
+            left_value1 = temp
+        if left_value1 > left_value2:
+            temp = left_value1
+            left_value1 = left_value2
+            left_value2 = temp
+        if left_value0 > left_value1:
+            temp = left_value0
+            left_value0 = left_value1
+            left_value1 = temp
+        left_white2 = left_value1 * 2
+        left_step2 = left_white2 - luma[left_hit] * 2
+        if left_step2 * 4 < minimum_step_scaled * 2 or left_step2 * 1000000 < left_white2 * minimum_fraction_scaled:
+            continue
+        right_value0 = luma[right_sample0]
+        right_value1 = luma[right_sample1]
+        right_value2 = luma[right_sample2]
+        if right_value0 > right_value1:
+            temp = right_value0
+            right_value0 = right_value1
+            right_value1 = temp
+        if right_value1 > right_value2:
+            temp = right_value1
+            right_value1 = right_value2
+            right_value2 = temp
+        if right_value0 > right_value1:
+            temp = right_value0
+            right_value0 = right_value1
+            right_value1 = temp
+        right_white2 = right_value1 * 2
+        right_step2 = right_white2 - luma[right_hit] * 2
+        if right_step2 * 4 < minimum_step_scaled * 2 or right_step2 * 1000000 < right_white2 * minimum_fraction_scaled:
+            continue
+        left2 = left * 2 - 1
+        right2 = right * 2 + 1
+        if cache_valid[y] == 0:
+            new_cache_rows += 1
+            cache_width[y] = run_width
+            cache_left2[y] = left2
+            cache_right2[y] = right2
+            anchor_left2[y] = left2
+            anchor_right2[y] = right2
+            cache_valid[y] = 1
+        else:
+            if cache_width[y] == run_width and cache_left2[y] == left2 and (cache_right2[y] == right2) and (anchor_left2[y] == left2) and (anchor_right2[y] == right2):
+                accepted += 1
+                continue
+            delta = run_width - cache_width[y]
+            if delta > 4:
+                delta = 4
+            elif delta < -4:
+                delta = -4
+            if delta >= 0:
+                cache_width[y] = cache_width[y] + (delta + 1) // 2
+            else:
+                cache_width[y] = cache_width[y] - (-delta + 1) // 2
+            delta = left2 - cache_left2[y]
+            if delta > 8:
+                delta = 8
+            elif delta < -8:
+                delta = -8
+            if delta >= 0:
+                cache_left2[y] = cache_left2[y] + (delta + 1) // 2
+            else:
+                cache_left2[y] = cache_left2[y] - (-delta + 1) // 2
+            delta = right2 - cache_right2[y]
+            if delta > 8:
+                delta = 8
+            elif delta < -8:
+                delta = -8
+            if delta >= 0:
+                cache_right2[y] = cache_right2[y] + (delta + 1) // 2
+            else:
+                cache_right2[y] = cache_right2[y] - (-delta + 1) // 2
+            anchor_left2[y] = cache_left2[y]
+            anchor_right2[y] = cache_right2[y]
+        accepted += 1
+    return accepted << 6 | new_cache_rows
+
+
+def _observe_bilateral_reference(self) -> int:
     """Cache only current rows with measured, validated left and right steps."""
     rows = ptr32(self._observed_rows)
     luma = ptr8(self._current_luma)

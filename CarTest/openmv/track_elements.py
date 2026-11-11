@@ -341,16 +341,13 @@ def _compact_visible_outer_rows_viper(road_object, known_object, rows_object,
     return output
 
 
-@_k230_identity
-def _prepare_nearest_cache_viper(valid_object, width_object,
-                                 left_object, right_object, nearest_object,
-                                 near_start: int) -> int:
+def _prepare_nearest_cache_viper(valid_object, width_object, left_object, right_object, nearest_object, near_start: int) -> int:
     """Validate and index the 60-row measured cache in two fixed passes."""
-    valid = ptr8(valid_object)
-    widths = ptr32(width_object)
-    left2 = ptr32(left_object)
-    right2 = ptr32(right_object)
-    nearest = ptr32(nearest_object)
+    valid = valid_object
+    widths = width_object
+    left2 = left_object
+    right2 = right_object
+    nearest = nearest_object
     last = -1
     count = 0
     near_count = 0
@@ -360,8 +357,7 @@ def _prepare_nearest_cache_viper(valid_object, width_object,
         width = widths[y]
         left = left2[y]
         right = right2[y]
-        if (valid[y] != 0 and width >= 8 and width <= 70 and
-                left >= 0 and right > left and right <= 158):
+        if valid[y] != 0 and width >= 8 and (width <= 70) and (left >= 0) and (right > left) and (right <= 158):
             last = y
             count += 1
             if y >= near_start:
@@ -371,11 +367,7 @@ def _prepare_nearest_cache_viper(valid_object, width_object,
     last = -1
     y = 59
     while y >= 0:
-        width = widths[y]
-        left = left2[y]
-        right = right2[y]
-        if (valid[y] != 0 and width >= 8 and width <= 70 and
-                left >= 0 and right > left and right <= 158):
+        if nearest[y] == y:
             last = y
         lower = nearest[y]
         if last >= 0 and (lower < 0 or last - y < y - lower):

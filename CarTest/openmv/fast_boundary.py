@@ -1,3 +1,4 @@
+from struct import pack_into
 from k230_portable import identity as _k230_identity
 """Reusable Viper road-boundary evidence and selected-reference checks.
 
@@ -751,37 +752,20 @@ class FastBoundaryEvidence:
         self._target_available = 1
 
     def _stage_path_host(self):
-        """CPython equivalent of the no-dict Viper row staging kernel."""
-        rows = self._current_path_rows
-        for row_index in range(self._current_count):
-            record_base = row_index * _ROW_STRIDE
-            self._records[record_base] = 0
-            source_base = row_index * self._current_stride
-            y = int(rows[source_base])
-            left = int(rows[source_base + 1])
-            right = int(rows[source_base + 2])
-            flags = int(rows[source_base + 3])
-            if (flags & 7) != 7 or y < 0 or y >= self.height or \
-                    left < 0 or right < left or right >= self.width:
-                continue
-            row_offset = y * self.width
-            self._records[record_base + 1] = (
-                row_offset + left - 1 if left > 0 else -1)
-            self._records[record_base + 2] = row_offset + left
-            self._records[record_base + 3] = (
-                row_offset + left + 1 if left + 1 < self.width else -1)
-            self._records[record_base + 4] = (
-                row_offset + left + 2 if left + 2 < self.width else -1)
-            self._records[record_base + 5] = (
-                row_offset + right + 1 if right + 1 < self.width else -1)
-            self._records[record_base + 6] = row_offset + right
-            self._records[record_base + 7] = (
-                row_offset + right - 1 if right > 0 else -1)
-            self._records[record_base + 8] = (
-                row_offset + right - 2 if right > 1 else -1)
-            self._records[record_base + 9] = left + right
-            self._records[record_base + 10] = y * 2
-            self._records[record_base] = 1
+        rows=self._current_path_rows;records=self._records;width=self.width;height=self.height
+        stride=self._current_stride
+        for row in range(self._current_count):
+            rb=row*11;sb=row*stride
+            records[rb]=0
+            y=rows[sb];left=rows[sb+1];right=rows[sb+2];flags=rows[sb+3]
+            if (flags & 7)!=7 or y<0 or y>=height or left<0 or right<left or right>=width:continue
+            offset=y*width
+            pack_into('<11i',records,rb*4,1,
+                offset+left-1 if left>0 else -1,offset+left,
+                offset+left+1 if left+1<width else -1,offset+left+2 if left+2<width else -1,
+                offset+right+1 if right+1<width else -1,offset+right,
+                offset+right-1 if right>0 else -1,offset+right-2 if right>1 else -1,
+                left+right,y*2)
 
     def _host_measure_side(self, row, side, minimum_step_scaled,
                            minimum_fraction_scaled):
@@ -849,61 +833,48 @@ class FastBoundaryEvidence:
         return 1
 
     def _host_gate(self):
-        metrics = self._metrics
-        minimum_step_scaled = self._minimum_step_scaled
-        minimum_fraction_scaled = self._minimum_fraction_scaled
-        target_available = self._target_available
-        target_x = self._target_x_q
-        target_y = self._target_y_q
-        target_radius = self._target_radius_q
-        for index in range(8):
-            metrics[index] = 0
-        support_count = 0
-        for row in range(self._current_count):
-            output_base = row * _OUTPUT_STRIDE
-            record_base = row * _ROW_STRIDE
-            if self._records[record_base] == 0:
-                for field in range(_OUTPUT_STRIDE):
-                    self._row_output[output_base + field] = 0
-                continue
-            # Successful side measurements replace the numeric triplet below;
-            # clear only the flags on the ordinary observed-row path.
-            self._row_output[output_base + 2] = 0
-            self._row_output[output_base + 3] = 0
-            self._row_output[output_base + 6] = 0
-            self._row_output[output_base + 7] = 0
-            self._row_output[output_base + 8] = 0
-            left_ok = self._host_measure_side(
-                row, 0, minimum_step_scaled, minimum_fraction_scaled)
-            if self._row_output[output_base + 2] == 0:
-                self._row_output[output_base] = 0
-                self._row_output[output_base + 1] = 0
-            right_ok = self._host_measure_side(
-                row, 1, minimum_step_scaled, minimum_fraction_scaled)
-            if self._row_output[output_base + 6] == 0:
-                self._row_output[output_base + 4] = 0
-                self._row_output[output_base + 5] = 0
-            metrics[2] += left_ok
-            metrics[3] += right_ok
-            metrics[4] += self._row_output[output_base + 2]
-            metrics[5] += self._row_output[output_base + 6]
-            if left_ok and right_ok:
-                metrics[0] += 1
-                point_x = self._records[record_base + 9]
-                point_y = self._records[record_base + 10]
-                self._support_x[support_count] = point_x
-                self._support_y[support_count] = point_y
-                if target_available:
-                    dx = target_x - point_x
-                    dy = target_y - point_y
-                    if (abs(dx) <= target_radius and
-                            abs(dy) <= target_radius and
-                            dx * dx + dy * dy <= target_radius * target_radius):
-                        metrics[1] += 1
-                support_count += 1
-            self._row_output[output_base + 8] = int(
-                bool(left_ok and right_ok))
-        self._support_count = support_count
+        records=self._records;out=self._row_output;metrics=self._metrics
+        known=self._current_known;dark=self._current_dark;white=self._current_white;luma=self._current_luma
+        count=self._current_count;total=self.width*self.height
+        minimum_step=self._minimum_step_scaled*2;minimum_fraction=self._minimum_fraction_scaled
+        has_target=self._target_available;tx=self._target_x_q;ty=self._target_y_q;radius=self._target_radius_q
+        support_x=self._support_x;support_y=self._support_y
+        pairs=targets=left_ok_count=right_ok_count=0
+        for row in range(count):
+            rb=row*11
+            if not records[rb]:return _gate_viper(self)
+            lh=records[rb+1];rh=records[rb+5]
+            i0=records[rb+2];i1=records[rb+3];i2=records[rb+4]
+            j0=records[rb+6];j1=records[rb+7];j2=records[rb+8]
+            if not (0<=lh<total and 0<=rh<total and known[lh] and known[rh] and dark[lh] and dark[rh] and
+                    0<=i0<total and 0<=i1<total and 0<=i2<total and 0<=j0<total and 0<=j1<total and 0<=j2<total and
+                    known[i0] and known[i1] and known[i2] and known[j0] and known[j1] and known[j2] and
+                    white[i0] and white[i1] and white[i2] and white[j0] and white[j1] and white[j2]):
+                return _gate_viper(self)
+            a=luma[i0];b=luma[i1];c=luma[i2]
+            if a>b:a,b=b,a
+            if b>c:b=c
+            if a>b:b=a
+            lw=b*2;ls=lw-luma[lh]*2;ld=lw if lw>=2 else 2
+            a=luma[j0];b=luma[j1];c=luma[j2]
+            if a>b:a,b=b,a
+            if b>c:b=c
+            if a>b:b=a
+            rw=b*2;rs=rw-luma[rh]*2;rd=rw if rw>=2 else 2
+            lok=int(ls*1000>=minimum_step and ls*1000000>=ld*minimum_fraction)
+            rok=int(rs*1000>=minimum_step and rs*1000000>=rd*minimum_fraction)
+            pair=lok & rok
+            pack_into('<9i',out,row*36,ls,lw,1,lok,rs,rw,1,rok,pair)
+            left_ok_count+=lok;right_ok_count+=rok
+            if pair:
+                px=records[rb+9];py=records[rb+10]
+                support_x[pairs]=px;support_y[pairs]=py;pairs+=1
+                if has_target:
+                    dx=tx-px;dy=ty-py
+                    if -radius<=dx<=radius and -radius<=dy<=radius and dx*dx+dy*dy<=radius*radius:targets+=1
+        pack_into('<8i',metrics,0,pairs,targets,left_ok_count,right_ok_count,count,count,0,0)
+        self._support_count=pairs
+        return 0
 
     def _host_summary(self):
         summary = self._summary_values

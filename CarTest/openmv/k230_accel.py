@@ -170,7 +170,20 @@ def masks(luma, road, edge, known, rectangles, thresholds, trusted,
             totals[1] += dark
 
 
-def region_segments(guard, floor):
+def region_segments(guard,floor):
+    width,height=guard.width,guard.height;mask=guard._current_mask;known=guard._current_known
+    start=floor*width;size=(height-floor)*width
+    if known.count(b'\x00',start)!=0 or mask.count(b'\x00',start)+mask.count(b'\x01',start)!=size:return _region_segments_reference(guard,floor)
+    sums=np.sum(np.frombuffer(mask,dtype=np.uint8).reshape((height,width))[floor:,:],axis=1)
+    counts=np.array(sums,dtype=np.uint8).tobytes()
+    if counts!=bytes(guard._current_rows[floor:height]):return _region_segments_reference(guard,floor)
+    guard._trusted_rows[:]=bytes(floor)+b'\x01'*(height-floor)
+    guard._segment_starts[:]=bytes(height);guard._segment_ends[:]=bytes(height)
+    guard._segment_starts[0]=floor;guard._segment_ends[0]=height;guard._segment_count_buffer[0]=1
+    return 1
+
+
+def _region_segments_reference(guard, floor):
     width, height = guard.width, guard.height
     mask = guard._current_mask
     known = guard._current_known
@@ -278,7 +291,23 @@ def _white_exterior_runs(binary, width, floor, band_end):
     return True
 
 
-def internal_component(guard, floor, band_end):
+def internal_component(guard,floor,band_end):
+    # An inductive proof: every foreground cell below the top row has an
+    # 8-neighbour in the preceding row, or already touches a horizontal edge.
+    # Therefore every component reaches the band's exterior and none can be
+    # an eligible internal island. Otherwise run the unchanged full verifier.
+    width=guard.width
+    if 0<=floor<band_end<=guard.height and width>=3:
+        pixels=(np.frombuffer(guard._current_mask,dtype=np.uint8)!=0).reshape((guard.height,width))
+        prior=pixels[floor:band_end-1,:]
+        neighbours=np.bitwise_or(np.bitwise_or(prior[:,:-2],prior[:,1:-1]),prior[:,2:])
+        unsupported=np.bitwise_and(pixels[floor+1:band_end,1:-1],neighbours==0)
+        if int(np.sum(unsupported))==0:
+            return 0
+    return _internal_component_reference(guard,floor,band_end)
+
+
+def _internal_component_reference(guard, floor, band_end):
     # If every dark run touches a horizontal image edge, every dark pixel
     # already belongs to an exterior component. This proves absence of an
     # internal island using this frame alone; internal runs use full checking.
@@ -407,8 +436,9 @@ def extract_rows(detector):
     width, height = detector.width, detector.height
     road = np.frombuffer(detector._current_road, dtype=np.uint8)
     known = np.frombuffer(detector._current_known, dtype=np.uint8)
-    runs = np.bitwise_and(road != 0, known != 0).tobytes()
+    runs = ((road != 0).tobytes() if detector._current_known.count(b'\x00',detector.floor_y*width)==0 else np.bitwise_and(road != 0, known != 0).tobytes())
     luma, edge = detector._current_luma, detector._current_edge
+    luma_view = np.frombuffer(luma, dtype=np.uint8)
     known, road = detector._current_known, detector._current_road
     candidates, counts = detector._candidate_data, detector._counts
     import k230_settings as settings
@@ -457,7 +487,7 @@ def extract_rows(detector):
             candidates[offset] = start-row
             candidates[offset+1] = start+stop-1-row*2
             candidates[offset+2] = run_width
-            candidates[offset+3] = sum(luma[start:stop])*1000//run_width-(luma[left]+luma[right])*500
+            candidates[offset+3] = int(np.sum(luma_view[start:stop]))*1000//run_width-(luma[left]+luma[right])*500
             count += 1
         counts[layer] = count
     return 0
@@ -507,6 +537,9 @@ def connect_rows(self):
             states[second_base + 8] = -1
             states[second_base + 9] = 0
 
+            first_score = sentinel
+            second_score = sentinel
+            first_parent = -1
             distance_limit = max_gap + 1
             if distance_limit > layer:
                 distance_limit = layer
@@ -515,28 +548,32 @@ def connect_rows(self):
                 previous_count = counts[previous_layer]
                 if previous_count == 0:
                     continue
-                old_y = height - 1 - previous_layer
+                slope_limit = max_slope_milli * distance + link_tolerance_milli
+                width_limit = max_width_change * distance
+                max_edge_reward = local_reward + distance * 550 - (distance - 1) * 2000
                 for previous_slot in range(previous_count):
                     previous_node = previous_layer * max_per_row + previous_slot
+                    previous_first_base = previous_node * 20
+                    # Both predecessor states are ordered by score. Even the
+                    # best cannot beat this bound when all penalties are zero.
+                    if states[previous_first_base] + max_edge_reward <= second_score:
+                        continue
                     previous_center_twice = (
                         candidates[previous_node * 4 + 1])
                     previous_width = (candidates[previous_node * 4 + 2])
                     width_delta = run_width - previous_width
                     if width_delta < 0:
                         width_delta = -width_delta
-                    if width_delta > max_width_change * distance:
+                    if width_delta > width_limit:
                         continue
                     center_step_twice = center_twice - previous_center_twice
                     if center_step_twice < 0:
                         center_step_twice = -center_step_twice
                     actual_step_milli = center_step_twice * 500
-                    if actual_step_milli > (
-                            max_slope_milli * distance +
-                            link_tolerance_milli):
+                    if actual_step_milli > slope_limit:
                         continue
 
-                    edge_reward = (local_reward + distance * 550 -
-                        (width_delta * 1925 + 5) // 10 - (distance - 1) * 2000)
+                    edge_reward = max_edge_reward - (width_delta * 1925 + 5) // 10
                     step_slope_milli = (actual_step_milli + distance // 2) // distance
 
                     for previous_slot_state in range(2):
@@ -549,8 +586,7 @@ def connect_rows(self):
                         # omitted center penalty is nonnegative. Once two
                         # better paths exist, skip prediction and field reads.
                         upper_score = previous_score + edge_reward
-                        if (upper_score <= states[first_base] and
-                                upper_score <= states[second_base]):
+                        if (upper_score <= second_score):
                             continue
                         parent_state = (states[previous_base + 1])
                         if parent_state < -1 or parent_state >= state_capacity:
@@ -568,7 +604,9 @@ def connect_rows(self):
                             prediction_delta = (
                                 (previous_center_twice - prior_center_twice) *
                                 distance)
-                            if prediction_delta >= 0:
+                            if prediction_delta == 0:
+                                pass
+                            elif prediction_delta > 0:
                                 predicted_twice += prediction_delta // base_dy
                             else:
                                 predicted_twice -= (-prediction_delta) // base_dy
@@ -577,14 +615,15 @@ def connect_rows(self):
                         if center_error_twice < 0:
                             center_error_twice = -center_error_twice
                         center_error_milli = center_error_twice * 500
-                        if center_error_milli > (
-                                max_slope_milli * distance +
-                                link_tolerance_milli):
+                        if center_error_milli > slope_limit:
                             continue
 
                         center_penalty = (
                             center_error_milli * 550 + 500) // 1000
                         score = upper_score - center_penalty
+
+                        if score <= second_score:
+                            continue
 
                         reference_delta = layer_reference_delta
                         old_reference_delta = (states[previous_base + 5])
@@ -597,28 +636,29 @@ def connect_rows(self):
                         width_sum = (states[previous_base + 7]) + width_delta
                         path_count = (states[previous_base + 2]) + 1
                         bottom_y = (states[previous_base + 3])
-                        first_score = (states[first_base])
                         if score > first_score:
+                            second_score = first_score
+                            first_score = score
+                            first_parent = previous_state
                             states[second_base:second_base+10] = states[first_base:first_base+10]
                             _pack_into('<10i', states, first_base * 4,
                                 score, previous_state, path_count, bottom_y,
                                 reference_node, reference_delta, slope_sum,
                                 width_sum, -1, 0)
-                        elif (previous_state != (states[first_base + 1]) and
-                              score > (states[second_base])):
+                        elif previous_state != first_parent and score > second_score:
+                            second_score = score
                             _pack_into('<10i', states, second_base * 4,
                                 score, previous_state, path_count, bottom_y,
                                 reference_node, reference_delta, slope_sum,
                                 width_sum, -1, 0)
 
             reference_delta = layer_reference_delta
-            if local_reward > (states[first_base]):
+            if local_reward > first_score:
                 states[second_base:second_base+10] = states[first_base:first_base+10]
                 _pack_into('<10i', states, first_base * 4,
                     local_reward, -1, 1, current_y, node,
                     reference_delta, 0, 0, -1, 0)
-            elif ((states[first_base + 1]) != -1 and
-                  local_reward > (states[second_base])):
+            elif first_parent != -1 and local_reward > second_score:
                 _pack_into('<10i', states, second_base * 4,
                     local_reward, -1, 1, current_y, node,
                     reference_delta, 0, 0, -1, 0)
@@ -677,43 +717,67 @@ def batch_otsu(builder):
 
 
 def native_thresholds(builder):
- luma=builder.luma;rectangles=builder._rectangles;width=builder.width
- blocks=builder._block_count;stats=builder._block_stats
- pixels=np.frombuffer(luma,dtype=np.uint8).reshape((len(luma)//width,width))
- rgb=getattr(builder,'_native_rgb',None)
- if rgb is None:
-  rgb=np.empty((len(luma),3),dtype=np.uint8)
-  builder._native_rgb=rgb
- rgb[:,:]=pixels.reshape((len(luma),1))
- results=[];binaries=[]
- for b in range(blocks):
-  x0,y0,x1,y1=rectangles[b*4:b*4+4]
-  w,h=x1-x0,y1-y0;n=w*h
-  gray=pixels[y0:y1,x0:x1]
-  block_rgb=(rgb[y0*width:y1*width,:] if x0==0 and x1==width else
-             np.empty((n,3),dtype=np.uint8))
-  if x0!=0 or x1!=width:
-   block_rgb[:,:]=gray.copy().reshape((n,1))
-  binary=_cv.rgb888_erode([h,w],block_rgb,1,1,0).reshape((h,w))
-  data=binary.tobytes();low_count=data.count(b'\x00');high_count=n-low_count
-  total=int(np.sum(gray))
-  stats[b*4]=n;stats[b*4+1]=total;stats[b*4+2]=int(np.min(gray));stats[b*4+3]=int(np.max(gray))
-  if not low_count or not high_count:
-   results.append((0,0,0,0.0,0.0,0.0))
-  else:
-   dark=binary==0
-   # Multiplication is at most 255; ulab's reduction accumulates in float,
-   # exactly for this <=4800-cell plane. No intermediate uint16 copy is needed.
-   low_total=int(np.sum(gray*dark)+0.5)
-   threshold=int(np.max(gray*dark))
-   low_mean=low_total/low_count;high_mean=(total-low_total)/high_count
-   results.append((threshold,low_count,high_count,low_mean,high_mean,high_mean-low_mean))
-  binaries.append(data)
- builder._native_binaries=binaries
- return results
+    luma=builder.luma;rectangles=builder._rectangles;width=builder.width
+    blocks=builder._block_count;stats=builder._block_stats
+    pixels=np.frombuffer(luma,dtype=np.uint8).reshape((len(luma)//width,width))
+    column=pixels.reshape((len(luma),1))
+    rgb=np.concatenate((column,column,column),axis=1)
+    results=[];binaries=[]
+    for b in range(blocks):
+        x0,y0,x1,y1=rectangles[b*4:b*4+4]
+        w,h=x1-x0,y1-y0;n=w*h
+        gray=pixels[y0:y1,x0:x1]
+        block_rgb=(rgb[y0*width:y1*width,:] if x0==0 and x1==width else np.concatenate((gray.copy().reshape((n,1)),)*3,axis=1))
+        binary=_cv.rgb888_erode([h,w],block_rgb,1,1,0).reshape((h,w))
+        # CanMV ulab exposes an alias here; retain an owned immutable plane
+        # until mask construction, including across allocations/native calls.
+        data=bytes(binary.tobytes());low_count=data.count(b'\x00');high_count=n-low_count
+        total=int(np.sum(gray))
+        stats[b*4]=n;stats[b*4+1]=total;stats[b*4+2]=int(np.min(gray));stats[b*4+3]=int(np.max(gray))
+        if not low_count or not high_count:results.append((0,0,0,0.0,0.0,0.0))
+        else:
+            low_pixels=gray*(binary==0)
+            low_total=int(np.sum(low_pixels)+0.5);threshold=int(np.max(low_pixels))
+            low_mean=low_total/low_count;high_mean=(total-low_total)/high_count
+            results.append((threshold,low_count,high_count,low_mean,high_mean,high_mean-low_mean))
+        binaries.append(data)
+    builder._native_binaries=binaries
+    builder._signed_binary_planes=binaries
+    return results
 
 
 def native_masks(builder):
+    # The producer sets this only after cv_lite returned its binary planes.
+    if getattr(builder,'_signed_binary_planes',None) is not builder._native_binaries:
+        return _native_masks_reference(builder)
+    width=builder.width;height=builder.height;rect=builder._rectangles;blocks=builder._block_count
+    floor=rect[1];end=floor
+    for b in range(blocks):
+        at=b*4
+        if (not builder._trusted_values[b] or rect[at]!=0 or rect[at+2]!=width or rect[at+1]!=end):
+            return _native_masks_reference(builder)
+        end=rect[at+3]
+    if end!=height:return _native_masks_reference(builder)
+    key=(width,height,floor)
+    if getattr(builder,'_signed_geometry',None)!=key:
+        builder._signed_geometry=key
+        builder._signed_prefix=bytes(floor*width)
+        builder._signed_known=builder._signed_prefix+b'\x01'*((height-floor)*width)
+        builder._signed_row_width=bytes(floor)+bytes([width])*(height-floor)
+    road=builder.road_mask;known=builder.known_region;edge=builder.edge_mask
+    road[:]=builder._signed_prefix+b''.join(builder._native_binaries)
+    known[:]=builder._signed_known
+    pixels=np.frombuffer(road,dtype=np.int8)
+    trusted=np.frombuffer(known,dtype=np.int8)
+    edge[:]=(trusted+pixels).tobytes()
+    bright_counts=np.array(-np.sum(pixels.reshape((height,width)),axis=1),dtype=np.uint8)
+    builder.road_row_counts[:]=bright_counts.tobytes()
+    builder.row_counts[:]=(np.frombuffer(builder._signed_row_width,dtype=np.uint8)-bright_counts).tobytes()
+    bright_total=int(np.sum(bright_counts));builder._pixel_totals[0]=bright_total;builder._pixel_totals[1]=(height-floor)*width-bright_total
+    return True
+
+
+def _native_masks_reference(builder):
  rectangles=builder._rectangles;width=builder.width;height=builder.height
  blocks=builder._block_count
  if not all(rectangles[b*4]==0 and rectangles[b*4+2]==width and
