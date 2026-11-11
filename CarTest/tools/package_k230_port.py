@@ -103,6 +103,9 @@ if __name__ == "__main__":
     if (ROOT / 'docs/SPEED_V28_CN.md').is_file():
         for name in ('SPEED_V28_CN.md', 'SPEED_V28_VALIDATION.json'):
             shutil.copy2(ROOT/'docs'/name, install_root/name)
+    if (ROOT / 'docs/RING_BASELINE_V29_CN.md').is_file():
+        for name in ('RING_BASELINE_V29_CN.md', 'RING_BASELINE_V29_VALIDATION.json'):
+            shutil.copy2(ROOT/'docs'/name, install_root/name)
     if wireless:
         for name in ("WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_VALIDATION.json"):
             shutil.copy2(ROOT / "docs" / name, install_root / name)

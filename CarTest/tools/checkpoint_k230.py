@@ -115,6 +115,8 @@ def checkpoint(args):
         doc_files += ['TURN_SPEED_V27_CN.md', 'TURN_SPEED_V27_VALIDATION.json']
     if (source / 'docs/SPEED_V28_CN.md').is_file():
         doc_files += ['SPEED_V28_CN.md', 'SPEED_V28_VALIDATION.json']
+    if (source / 'docs/RING_BASELINE_V29_CN.md').is_file():
+        doc_files += ['RING_BASELINE_V29_CN.md', 'RING_BASELINE_V29_VALIDATION.json']
     if manifest.get("wireless_required"):
         doc_files += ["WIRELESS_20261107.md", "WIRELESS_PC_PROTOCOL.md", "WIRELESS_CONTRACT.md",
                       "WIRELESS_VENDOR_FILES.json", "WIRELESS_VALIDATION.json"]

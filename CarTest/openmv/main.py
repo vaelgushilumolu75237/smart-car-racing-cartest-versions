@@ -5305,6 +5305,20 @@ def _needs_dense_single_edge_seed(tracker, control_fresh):
                 getattr(tracker, "_cache_row_count", 0) == 0)
 
 
+def _needs_dense_ring_baseline(tracker, control_fresh, profile_id,
+                               session_active):
+    """Keep measured consecutive rows until the ring's baseline is frozen.
+
+    A width cache may be seeded after one frame, but the independent ring
+    observer requires three stable bilateral frames. Sampling the remaining
+    frames freezes a baseline with gaps and prevents its four-row dropout
+    evidence from ever becoming contiguous.
+    """
+    return bool(control_fresh and session_active and
+                profile_id in config.RING_ENABLED_PROFILE_IDS and
+                not getattr(tracker, "_baseline_ready", False))
+
+
 def _detect_sampled_road(detector, mask_info, dense, step, phase, frame_index=0):
     """Retry this same frame densely when sampled rows cannot form a route.
 
@@ -7848,7 +7862,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 import k230_settings as _sampling_settings
                 _dense_width_rows = (not ring_calibration_passed or
                     wireless_service.camera_calibration_controller.active or
-                    _needs_dense_single_edge_seed(single_edge_tracker, reverse_fresh))
+                    _needs_dense_single_edge_seed(single_edge_tracker, reverse_fresh) or
+                    _needs_dense_ring_baseline(
+                        element_tracker, reverse_fresh, reverse_parser.profile_id,
+                        reverse_parser.profile_session_active))
                 road_result = _detect_sampled_road(
                     path_detector, mask_info, _dense_width_rows,
                     getattr(_sampling_settings, "PATH_ROW_STEP", 1),

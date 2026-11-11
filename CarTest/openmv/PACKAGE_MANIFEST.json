@@ -58,7 +58,7 @@
     "k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
     "k230_settings.py": "823b370dd1a675c57352de8cdb00dc0a31ebad793fd4240bf009e700f5459ecf",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "3c90d5907acf1f7e4fd69902012ec62c28b8fc0243992a2ab2477aab7ac017ca",
+    "main.py": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
     "probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
     "reverse_control.py": "3ca9773da29e415ed1a6db80494b526fc75853d239830e4a027b5eeed3a67e17",
     "ring_diagnostics.py": "f1bd06b8a0553e93ffd15f760099c6a5f0baa42ac92e3e96d303ca96c629b5c0",
@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261110-k230-speed-v28",
+  "release_version": "v20261111-k230-ring-entry-v29",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",

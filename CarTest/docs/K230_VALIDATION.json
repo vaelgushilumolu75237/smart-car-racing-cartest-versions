@@ -160,8 +160,8 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "3c90d5907acf1f7e4fd69902012ec62c28b8fc0243992a2ab2477aab7ac017ca",
-      "mpy_sha256": "742b11457029302348506f350c0d953843740ea420aa2e8a7bebaaa5c1bf3203"
+      "source_sha256": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
+      "mpy_sha256": "5b71f77d59dfea7f0e93a95e6ad9fe8d0d0caabcc9f56ac033155520c5343d7f"
     },
     {
       "file": "probe_k230.py",
@@ -268,8 +268,8 @@
     "DebugSteering": "3ac627c268fdfcdac0b9476776511040b9ec0cb7f997f57f8091cc5ee1887d7a",
     "DebugWirelessGyro350Speed140": "d1195b47aa7badb4bb642f71c14294890a7f97845c523f4c4a82db8e260b7082"
   },
-  "hardware_actions": "none this release; unchanged V26 camera retained; no H743 flash/reset or motor start",
-  "board_runtime_fps": "Camera runtime unchanged; prior V24 RAM benchmark retained as historical evidence only; paired current H743 receive rate pending",
+  "hardware_actions": "none this release; no camera upload, H743 flash/reset or motor start",
+  "board_runtime_fps": "final runtime not benchmarked; hardware verification pending",
   "ide_new_frame_fps": "unverified",
   "road_acceptance": "unverified",
   "exposure_control": "K230 firmware ISP default; OpenMV cap not applied",
@@ -717,8 +717,8 @@
         },
         {
           "file": "main.py",
-          "source_sha256": "3c90d5907acf1f7e4fd69902012ec62c28b8fc0243992a2ab2477aab7ac017ca",
-          "mpy_sha256": "742b11457029302348506f350c0d953843740ea420aa2e8a7bebaaa5c1bf3203"
+          "source_sha256": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
+          "mpy_sha256": "5b71f77d59dfea7f0e93a95e6ad9fe8d0d0caabcc9f56ac033155520c5343d7f"
         },
         {
           "file": "probe_k230.py",
@@ -802,7 +802,7 @@
         "openmv/k230_portable.py": "f1a616152e7cf61a7324b5912e2e281217b76d44907d899a71e6f32e6248204f",
         "openmv/k230_settings.py": "823b370dd1a675c57352de8cdb00dc0a31ebad793fd4240bf009e700f5459ecf",
         "openmv/line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-        "openmv/main.py": "3c90d5907acf1f7e4fd69902012ec62c28b8fc0243992a2ab2477aab7ac017ca",
+        "openmv/main.py": "b8dcf48bb0286b002bd74da34d103391f4b5cdaf36f96e52b6736b617eec03e3",
         "openmv/probe_k230.py": "67af01c1d39c5e6249cfbf4a35079252264eb99d590dfa828a49854e3923b717",
         "openmv/reverse_control.py": "3ca9773da29e415ed1a6db80494b526fc75853d239830e4a027b5eeed3a67e17",
         "openmv/ring_diagnostics.py": "f1bd06b8a0553e93ffd15f760099c6a5f0baa42ac92e3e96d303ca96c629b5c0",
@@ -922,6 +922,7 @@
         "tests/k230_port/test_hal.py": "90c843f43e80731564dc680ff10852cde0c196f4131a4c3d2ceb8be381cd445d",
         "tests/k230_port/test_multiplexed_bursts.py": "54c9917d6be8d620a186ebf09cae9d7a1da892bb664a1ebb167aa4e6692a0882",
         "tests/k230_port/test_native60.py": "353fddb1904f813ad0f5d5aad49b144411ef254df8d131f74cbb8c25a4760148",
+        "tests/k230_port/test_ring_baseline_sampling.py": "aaf5005b80ad1578d9cbd31149ef753d8ddad0d94cc8877c62779da52106ab01",
         "tests/k230_port/test_single_edge_seed.py": "4674d1ed47b9eb0e6075a478510a82dcc24118428523488f487dfb0574d78b57",
         "tests/k230_port/test_uart_readiness.py": "afc1b24d8c8e16d968ba7607b83bdb85776491a5bf34e45a3c4098d22605688c",
         "tests/k230_gyro/test_gyro_link.py": "51e9e89e3db3dc8b10c60c188381167b70ce6307ba592de74bce025b259ac8d1",
@@ -937,7 +938,7 @@
       },
       "hal": {
         "passed": true,
-        "tests": 55,
+        "tests": 56,
         "command": [
           "-m",
           "unittest",
@@ -1152,7 +1153,7 @@
     }
   },
   "diagnostic_evidence": "reused prior passing evidence after unchanged source hash checks",
-  "mcu_build_evidence": "actual builds this run",
+  "mcu_build_evidence": "prior actual builds reused after source and ELF hash verification",
   "transport_diagnostics": {
     "passed": true,
     "scope": "read-only raw WHO_AM_I and USART1 transport evidence",
@@ -1175,13 +1176,13 @@
   "imu_gpio_spi_tests_passed": true,
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
-    "camera_runtime_unchanged": true,
+    "camera_runtime_unchanged": false,
     "production_camera_installed": false,
     "h743_camera_link_verified": false,
     "road_behavior_verified": false,
     "raw_vehicle_logs_published": false,
     "radio_start_tested_on_vehicle": false,
-    "camera_source_release": "v20261110-k230-single-edge-authority-v26"
+    "mcu_source_release": "v20261110-k230-speed-v28"
   },
   "uart3_header": {
     "version": "v20261108-k230-uart3-header-v12",
@@ -1515,7 +1516,7 @@
     "h743_unchanged": true,
     "published_vehicle_logs": false
   },
-  "release_version": "v20261110-k230-speed-v28",
+  "release_version": "v20261111-k230-ring-entry-v29",
   "uart_rx_v25": {
     "release_version": "v20261110-k230-uart-rx-v25",
     "status": "software-tested-awaiting-manual-h743-flash",
@@ -1572,6 +1573,5 @@
     "road_verified": false,
     "hardware_actions": "read-only SWD; no camera upload, H743 flash/reset or motor start",
     "camera_runtime_unchanged_verified": true
-  },
-  "camera_evidence_origin": "v20261110-k230-turn-speed-v27"
+  }
 }
