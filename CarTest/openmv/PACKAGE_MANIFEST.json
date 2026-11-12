@@ -32,7 +32,7 @@
   "sensor": "MT9V034",
   "image_width": 320,
   "image_height": 120,
-  "extension_version": "v20261112-openmv-timed150-75-ring-servo130",
+  "extension_version": "v20261112-openmv-timed150-startdiag",
   "entry_variant": "original_confirmed_ring_delay150",
   "entry_calibration_schema": "NONE_TIMED150",
   "entry_calibration_required": false,

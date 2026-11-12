@@ -430,6 +430,9 @@ void car_control_reverse_control_keep_started(car_control_t *control);
 void car_control_reverse_control_reset_phase_complete(car_control_t *control);
 
 /* Begin a new Follow session from one consumed physical PE7 start event. */
+/* Read-only mask of the same conditions used by manual start. */
+uint32_t car_control_manual_start_blockers(const car_control_t *control,
+    const car_config_t *config, const car_inputs_t *inputs);
 uint8_t car_control_begin_manual_follow_start(
     car_control_t *control,
     const car_config_t *config,

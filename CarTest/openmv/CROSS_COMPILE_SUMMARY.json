@@ -166,6 +166,6 @@
       "mpy_sha256": "66cc2c57972a094f821b343ba5fbdc69296239f7e4e09497532c6a7ee0058195"
     }
   ],
-  "evidence_directory": "deliverables\\OpenMV_Timed150_20261112/validation/mpy",
+  "evidence_directory": "deliverables\\OpenMV_Delay150_StartDiag_20261112/validation/mpy",
   "hardware_tested": false
 }

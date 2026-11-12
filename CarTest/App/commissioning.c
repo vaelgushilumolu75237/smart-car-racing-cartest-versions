@@ -823,24 +823,45 @@ void car_control_reverse_control_keep_started(car_control_t *control)
     }
 }
 
+uint32_t car_control_manual_start_blockers(const car_control_t *control,
+    const car_config_t *config, const car_inputs_t *inputs)
+{
+    uint32_t reasons = 0u;
+    if (!control || !config || !inputs || !config_is_valid(config)) return 1u;
+    if (!config->follow_mode_compiled) reasons |= 2u;
+    if (config->gyro_enabled &&
+        !car_control_follow_authority_ready(control, config, inputs->now_ms)) {
+        reasons |= 65536u;
+#if CARTEST_GYRO350_ENABLED
+        if (!control->imu_ready) reasons |= 4u;
+        if (control->imu_fault || (control->imu_ready &&
+            (uint32_t)(inputs->now_ms * 1000u - control->imu_sample_us) >= 50000u)) reasons |= 8u;
+        if (!control->gyro.active) {
+            if (control->latest_rx_protocol_version != VP_VERSION_V4) reasons |= 16u;
+            if (!control->gyro_ordinary) reasons |= 32u;
+            if (!control->latest_rx_valid) reasons |= 64u;
+            if (control->latest_rx_sequence != control->vision_sequence) reasons |= 128u;
+        }
+#endif
+        if (!car_control_vision_fresh(control, inputs->now_ms, config->vision_timeout_ms)) reasons |= 256u;
+    }
+    if (!inputs->manual_run_request) reasons |= 512u;
+    if (inputs->manual_stop_pending) reasons |= 1024u;
+    if (inputs->loop_gap_fault) reasons |= 2048u;
+    if (inputs->encoder_fault) reasons |= 4096u;
+    if (inputs->clock_or_timer_fault) reasons |= 8192u;
+    if (control->fault_latched || control->mode == CAR_MODE_FAULT_LATCHED ||
+        is_hard_fault(control->fault)) reasons |= 16384u;
+    if (control->isr_stop_request || is_hard_fault((car_fault_t)control->isr_stop_fault)) reasons |= 32768u;
+    return reasons;
+}
+
 uint8_t car_control_begin_manual_follow_start(
     car_control_t *control,
     const car_config_t *config,
     const car_inputs_t *inputs)
 {
-    if (control == 0 || config_is_valid(config) == 0u || inputs == 0 ||
-        config->follow_mode_compiled == 0u ||
-        (config->gyro_enabled && !car_control_follow_authority_ready(control, config, inputs->now_ms)) ||
-        inputs->manual_run_request == 0u ||
-        inputs->manual_stop_pending != 0u ||
-        inputs->loop_gap_fault != 0u ||
-        inputs->encoder_fault != 0u ||
-        inputs->clock_or_timer_fault != 0u ||
-        control->fault_latched != 0u ||
-        control->mode == CAR_MODE_FAULT_LATCHED ||
-        is_hard_fault(control->fault) != 0u ||
-        control->isr_stop_request != 0u ||
-        is_hard_fault((car_fault_t)control->isr_stop_fault) != 0u) {
+    if (car_control_manual_start_blockers(control, config, inputs) != 0u) {
         return 0u;
     }
 

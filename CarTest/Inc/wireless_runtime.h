@@ -10,6 +10,7 @@ extern "C" {
 #endif
 typedef struct {
     uint32_t now_ms;
+    uint32_t start_blockers;
     int32_t wheel_left_millirps, wheel_right_millirps;
     int32_t target_left_millirps, target_right_millirps;
     uint16_t servo_us, motor_left_permille, motor_right_permille;
@@ -30,6 +31,7 @@ void car_wireless_service(const car_wireless_snapshot_t *snapshot,
                           car_control_t *control, car_config_t *config);
 car_wireless_effect_t car_wireless_take_effect(void);
 void car_wireless_effect_result(car_wireless_effect_t effect, uint8_t success);
+void car_wireless_effect_result_detail(car_wireless_effect_t effect, uint8_t success, uint32_t detail);
 void car_wireless_camera_frame(const car_wireless_frame_t *frame, uint32_t now_ms);
 uint8_t car_wireless_radio_tx_byte(uint8_t *byte);
 uint8_t car_wireless_camera_tx_byte(uint8_t *byte, uint8_t start_allowed);

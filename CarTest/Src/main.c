@@ -4324,6 +4324,16 @@ static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
     snapshot.camera_uart_crc_errors=car_vision_rx.protocol_crc_error_count;
     snapshot.camera_uart_overflows=car_vision_rx.queue_overflow_count;
     snapshot.camera_uart_tx_bytes=car_camera_uart_tx_bytes;
+    {
+        car_inputs_t check=make_inputs(now,pe7_is_high(),loop_gap_fault);
+        check.manual_run_request=1u; /* hypothetical check; does not arm outputs */
+        snapshot.start_blockers=car_control_manual_start_blockers(&car_control_state,&app_config,&check);
+        if(!pe7_is_high() || !manual_run_button.startup_release_confirmed ||
+           manual_run_button.stop_pending || manual_run_button.start_pending)
+            snapshot.start_blockers |= 131072u;
+        if(car_wireless_capture_busy() || car_control_state.follow_session_active)
+            snapshot.start_blockers |= 262144u;
+    }
     car_wireless_service(&snapshot,&car_control_state,&app_config);
     action=car_wireless_take_effect();
     if(action==CAR_WIRELESS_EFFECT_STOP){
@@ -4334,18 +4344,20 @@ static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
         emergency_stop_hardware();reverse_manual_stop_holdoff=1;__set_PRIMASK(primask);
         apply_manual_stop_effects(effects);car_wireless_effect_result(action,1);
     }else if(action==CAR_WIRELESS_EFFECT_START){
-        uint8_t accepted=0;uint32_t primask=__get_PRIMASK();__disable_irq();
+        uint8_t accepted=0;uint32_t blocked=snapshot.start_blockers;
+        uint32_t primask=__get_PRIMASK();__disable_irq();
         if(!car_wireless_capture_busy() &&
            !manual_run_button.stop_pending && !manual_run_button.start_pending && pe7_is_high() &&
            manual_run_button.startup_release_confirmed && !car_control_state.follow_session_active){
             car_inputs_t current;
             manual_run_button.run_request=1;current=make_inputs(HAL_GetTick(),pe7_is_high(),loop_gap_fault);
+            blocked=car_control_manual_start_blockers(&car_control_state,&app_config,&current);
             accepted=car_control_begin_manual_follow_start(&car_control_state,&app_config,&current);
             if(accepted){reverse_manual_stop_holdoff=0;if(++follow_session_token==0)++follow_session_token;
                 reset_session_odometry();emergency_stop_hardware();}
             else car_manual_button_cancel_request(&manual_run_button);
         }
-        __set_PRIMASK(primask);car_wireless_effect_result(action,accepted);
+        __set_PRIMASK(primask);car_wireless_effect_result_detail(action,accepted,accepted?0u:blocked);
     }else if(action==CAR_WIRELESS_EFFECT_ENTRY_RESET){
         uint8_t allowed=!motor_outputs_active && !car_control_state.follow_session_active &&
             !manual_run_button.run_request && pe7_is_high() &&

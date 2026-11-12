@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-openmv-ring-delay150",
+  "version": "v20261112-delay150-startdiag",
   "status": "experimental-software-tested",
   "branch": "experimental/timed150-entry",
-  "files": 945,
+  "files": 946,
   "hardware_actions": "none"
 }

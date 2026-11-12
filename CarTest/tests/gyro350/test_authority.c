@@ -368,9 +368,45 @@ static void test_manual_stop_and_faults(void)
 }
 #endif
 
+static void test_manual_start_reason_preserves_gate(void)
+{
+#if CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2
+    authority_fixture_t f;
+    car_inputs_t in = {0};
+    uint32_t reason;
+    fixture_init(&f);
+    make_gyro_ready(&f);
+    seed_ordinary_route(&f);
+    in.now_ms=f.now_ms;in.manual_run_request=1u;
+    check(car_control_manual_start_blockers(&f.control,&f.config,&in)==0u,
+          "healthy ordinary V4 passes manual-start preflight");
+    in.encoder_fault=1u;
+    reason=car_control_manual_start_blockers(&f.control,&f.config,&in);
+    check((reason & 4096u)!=0u,"encoder failure has its own blocker");
+    check(!car_control_begin_manual_follow_start(&f.control,&f.config,&in),
+          "diagnostic refactor never bypasses encoder failure");
+    in.encoder_fault=0u;
+    f.control.imu_sample_us=(in.now_ms-50u)*1000u;
+    check((car_control_manual_start_blockers(&f.control,&f.config,&in)&8u)!=0u,
+          "stale IMU differs from absent route");
+    f.control.imu_sample_us=in.now_ms*1000u;
+    f.control.gyro_ordinary=0u;
+    check((car_control_manual_start_blockers(&f.control,&f.config,&in)&32u)!=0u,
+          "nonordinary route is reported and rejected");
+    f.control.gyro_ordinary=1u;
+    check(car_control_manual_start_blockers(&f.control,&f.config,&in)==0u,
+          "fresh ordinary route restores eligibility");
+    check(car_control_begin_manual_follow_start(&f.control,&f.config,&in),
+          "healthy start still begins output-disabled resynchronization");
+    check(!f.control.road_drive_allowed && f.control.rx_recovery_flush_required,
+          "successful start keeps original fresh-frame recovery boundary");
+#endif
+}
+
 int main(void)
 {
     test_profile_gate();
+    test_manual_start_reason_preserves_gate();
 #if CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2
     test_ring_authority_and_invalid_route();
     test_entry_servo_gain_is_ring_only();

@@ -282,6 +282,7 @@ static void command_frame(car_wireless_frame_t *f,uint32_t now) {
 }
 static void assistant_reject(uint8_t reason) {
     assistant_ticket=0;assistant_status=ASSISTANT_REJECTED;assistant_ack=reason;
+    assistant_camera_detail=0u;
 }
 static void assistant_simple_command(uint8_t opcode, uint8_t target, uint32_t now) {
     car_wireless_frame_t f={0};
@@ -328,6 +329,10 @@ static void assistant_line(uint32_t now) {
         effect=CAR_WIRELESS_EFFECT_STOP;effect_ack_valid=0;
         assistant_pending_effect=effect;assistant_status=ASSISTANT_PENDING;
         assistant_ack=WIRELESS_ACK_PENDING;return;
+    }
+    if (!strcmp(assistant_text,"STARTCHECK")) {
+        assistant_status=ASSISTANT_ACCEPTED;assistant_ack=WIRELESS_ACK_OK;
+        assistant_camera_detail=last_snapshot.start_blockers;return;
     }
     if (!strcmp(assistant_text,"READ")) {
         assistant_simple_command(WIRELESS_OP_GET,WIRELESS_TARGET_MCU,now);return;
@@ -544,6 +549,13 @@ uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_sto
     now-engine.test.started_ms<engine.test.deadline_ms-engine.test.started_ms;}
 car_wireless_effect_t car_wireless_take_effect(void){car_wireless_effect_t result=effect;effect=CAR_WIRELESS_EFFECT_NONE;return result;}
 void car_wireless_effect_result(car_wireless_effect_t e,uint8_t success){
+    car_wireless_effect_result_detail(e,success,0u);
+}
+void car_wireless_effect_result_detail(car_wireless_effect_t e,uint8_t success,uint32_t detail){
+    if(e==CAR_WIRELESS_EFFECT_START) {
+        assistant_camera_detail=detail;
+        if(effect_ack_valid) effect_ack.detail=detail;
+    }
     if (success && e==CAR_WIRELESS_EFFECT_START) scope_page=1u;
     if (success && e==CAR_WIRELESS_EFFECT_STOP) scope_page=5u;
     if (assistant_pending_effect==e && e!=CAR_WIRELESS_EFFECT_NONE) {

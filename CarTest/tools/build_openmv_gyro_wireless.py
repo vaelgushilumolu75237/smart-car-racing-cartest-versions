@@ -18,7 +18,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "openmv_gyro_wireless"
-EXTENSION_VERSION = "v20261112-openmv-timed150-75-ring-servo130"
+EXTENSION_VERSION = "v20261112-openmv-timed150-startdiag"
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),

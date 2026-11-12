@@ -368,8 +368,33 @@ static void test_assistant_visual_entry_calibration_forward(void)
     assert(scope[14] == 1.0f);
 }
 
+static void test_startcheck_is_read_only_and_failed_start_exposes_detail(void)
+{
+    float scope[16];
+    char start[32];
+    memset(&control,0,sizeof(control));memset(&config,0,sizeof(config));
+    memset(&snapshot,0,sizeof(snapshot));
+    config.motor_hardware_accepted=1u;
+    snapshot.button_released=snapshot.startup_released=1u;
+    snapshot.start_blockers=65536u|8u;
+    car_wireless_init(100u,0x12345678u);service(100u);
+    feed_text("STARTCHECK\n",110u);service(160u);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assert(next_scope(scope));
+    assert(scope[0]==3.0f && scope[1]==0.0f && scope[14]==65544.0f);
+    feed_text("ARM\n",170u);service(220u);assert(next_scope(scope));
+    snprintf(start,sizeof(start),"START %07u\n",(unsigned)scope[2]);
+    feed_text(start,230u);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_START);
+    car_wireless_effect_result_detail(CAR_WIRELESS_EFFECT_START,0u,65544u);
+    service(280u);assert(next_scope(scope));
+    assert(scope[0]==4.0f && scope[1]==15.0f && scope[14]==65544.0f);
+    assert(!control.road_drive_allowed);
+}
+
 int main(void)
 {
+    test_startcheck_is_read_only_and_failed_start_exposes_detail();
     test_assistant_camera_read_and_explicit_save();
     test_assistant_visual_entry_calibration_forward();
     test_runtime_link();
