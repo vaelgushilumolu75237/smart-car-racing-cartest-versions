@@ -37,6 +37,9 @@ except ImportError:
 
 import config
 import vision_protocol
+import encoder_entry_gate
+import visual_entry_gate
+import wireless_sideband
 
 try:
     import cartest_accel
@@ -1474,6 +1477,100 @@ def _ring_calibration_gate_blocked(profile_id, calibration_passed):
     """Keep ring calibration gating limited to the two ring profiles."""
     return bool(profile_id in config.RING_ENABLED_PROFILE_IDS and
                 not calibration_passed)
+
+
+def _encoder_entry_geometry_available(result, marker=None):
+    """Return whether a private parked observer supplied ring geometry."""
+    if (not isinstance(result, dict) or
+            not result.get("parked_only") or
+            result.get("control_eligible")):
+        return False
+    if marker == encoder_entry_gate.MARK_FIRST:
+        return bool(result.get("parked_entry_origin"))
+    for far_key, near_key in (
+            ("entry_transition_far_y", "entry_transition_near_y"),
+            ("cross_far_y", "cross_near_y")):
+        try:
+            far_y = int(result.get(far_key, -1))
+            near_y = int(result.get(near_key, -1))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= far_y < near_y <= 119:
+            return True
+    return False
+
+
+def _service_encoder_entry_request(sideband, collector, calibration, gate,
+                                   path, reverse_parser, now_ms,
+                                   parked_result=None, image=None,
+                                   visual_path=None, frame_id=0):
+    """Capture one parked pass and report each independently verified file."""
+    request = getattr(sideband, "encoder_entry_request", None)
+    if not isinstance(request, dict):
+        return
+    action, side, marker = (request.get("action"), request.get("side"),
+                            request.get("marker"))
+    status, detail = wireless_sideband.ACK_OK, 0
+    try:
+        if not (isinstance(action, int) and action in (0, 1, 2) and
+                isinstance(side, int) and side in (0, 1) and
+                isinstance(marker, int) and marker in (0, 1, 2)):
+            raise ValueError("invalid marker payload")
+        fresh = bool(reverse_parser.profile_is_fresh(now_ms, time.ticks_diff)
+                     and not reverse_parser.profile_session_active
+                     and reverse_parser.profile_id in (2, 3))
+        if not fresh:
+            sideband.encoder_entry_complete(now_ms, wireless_sideband.ACK_NOT_READY)
+            return
+        if action == encoder_entry_gate.ENTRY_CAL_RESET:
+            collector.reset()
+            gate.reset("CALIBRATION_RESET")
+        elif action == encoder_entry_gate.ENTRY_CAL_MARK:
+            position = getattr(reverse_parser, "mean_forward_wheel_millirev",
+                               encoder_entry_gate.UINT32_MAX)
+            accepted = collector.mark(
+                side, marker, parked_result, image=image,
+                require_snapshot=True, millirev=position, position_fresh=fresh,
+                metadata={"frame_id": frame_id,
+                          "profile_id": reverse_parser.profile_id,
+                          "session_token": reverse_parser.session_token,
+                          "mean_forward_wheel_millirev": position})
+            if not accepted:
+                status = wireless_sideband.ACK_NOT_READY
+            else:
+                detail = marker
+        elif action == encoder_entry_gate.ENTRY_CAL_COMMIT:
+            visual_path = visual_path or visual_entry_gate.DEFAULT_CALIBRATION_PATH
+            base = visual_entry_gate.VisualEntryCalibration.load(visual_path)
+            candidate = collector.build_calibration(
+                base=base, side=side, require_snapshots=True, require_encoder=True)
+            if candidate is None:
+                status = wireless_sideband.ACK_NOT_READY
+            else:
+                checked_encoder = None
+                try:
+                    checked_visual = candidate.save(visual_path)
+                    if checked_visual.ready:
+                        detail |= 1
+                except Exception:
+                    pass
+                try:
+                    candidate.save_encoder(path)
+                    checked_encoder = encoder_entry_gate.EncoderEntryCalibration.load(path)
+                    if checked_encoder.as_dict() == candidate.encoder_entry:
+                        detail |= 2
+                except Exception:
+                    pass
+                if detail == 3:
+                    gate.calibration = checked_encoder
+                    gate.reset("CALIBRATION_UPDATED")
+                    sideband.encoder_entry_generation = checked_encoder.generation
+                else:
+                    status = wireless_sideband.ACK_NOT_READY
+    except Exception:
+        status = wireless_sideband.ACK_NOT_READY
+    sideband.encoder_entry_complete(now_ms, status, detail,
+        getattr(sideband, "encoder_entry_generation", 0))
 
 
 _STEERING_DIAG = _make_steering_diag(
@@ -7016,6 +7113,17 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         reverse_control.DEFAULT_TIMEOUT_MS,
         config.PROFILE_STATE_TIMEOUT_MS)
     gyro_evidence = gyro_link.GyroLink()
+    encoder_entry_path = getattr(
+        config, "ENCODER_ENTRY_CALIBRATION_PATH",
+        encoder_entry_gate.DEFAULT_CALIBRATION_PATH)
+    encoder_entry_calibration = encoder_entry_gate.EncoderEntryCalibration.load(
+        encoder_entry_path)
+    encoder_entry_collector = visual_entry_gate.VisualEntryCalibrationCollector()
+    # Fixture input may replace the camera/UART, but it must not bypass the
+    # production encoder-distance admission contract.
+    encoder_entry_required = True
+    encoder_entry_runtime = encoder_entry_gate.EncoderEntryGate(
+        encoder_entry_calibration, required=encoder_entry_required)
     camera_sideband = wireless_sideband.WirelessSideband(
         reverse_parser, None if fixture_mode else
         wireless_sideband.ProfileStore("/cartest_openmv_pd.json"))
@@ -7147,6 +7255,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     calibration_for_tracker = (ring_calibration
                                if sensor_identity_valid else None)
     element_tracker = track_elements.TrackElementsTracker(
+        config, calibration_for_tracker,
+        require_calibration=config.RING_WIDTH_CALIBRATION_REQUIRED)
+    parked_entry_tracker = track_elements.TrackElementsTracker(
         config, calibration_for_tracker,
         require_calibration=config.RING_WIDTH_CALIBRATION_REQUIRED)
     observe_element_route_outcome = getattr(
@@ -7440,6 +7551,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             ring_stationary_status_frames = 0
             element_tracker.set_ring_calibration(
                 ring_calibration, config.RING_WIDTH_CALIBRATION_REQUIRED)
+            parked_entry_tracker.set_ring_calibration(
+                ring_calibration, config.RING_WIDTH_CALIBRATION_REQUIRED)
         ring_stop_reason = steering_diag_session.observe(
             reverse_parser, single_edge_tracker, config.BUILD_ID,
             reverse_fresh, capture_end_ms, time.ticks_diff)
@@ -7462,6 +7575,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 reverse_parser.last_event)
             single_edge_tracker.clear(reset_event)
             element_tracker.reset(reset_event)
+            encoder_entry_runtime.reset(reset_event)
             observation_filter.reset()
             reset_reason = (
                 reverse_parser.last_profile_event
@@ -7479,6 +7593,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         if capture_interrupted:
             single_edge_tracker.clear("CAPTURE_GAP")
             element_tracker.reset("CAPTURE_GAP")
+            encoder_entry_runtime.reset("CAPTURE_GAP")
             observation_filter.reset()
             position_pd.reset("CAPTURE_GAP")
             adaptive_preview.reset()
@@ -7504,6 +7619,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 if (reverse_fresh and reverse_parser.profile_session_active and
                         prior_ring.get("profile_id") in (2, 3) and
                         prior_ring.get("ring_confirmed") and
+                        prior_ring.get("entry_ready") and
                         prior_ring.get("state_id") in (
                             track_elements.STATE_INSIDE,
                             track_elements.STATE_EXIT_CONFIRM,
@@ -7631,6 +7747,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_observation_only = bool(
             reverse_fresh and reverse_parser.profile_session_active and
             mask_info is not None and prior_element.get("ring_confirmed") and
+            prior_element.get("entry_ready") and
             prior_element.get("state_id") in (
                 track_elements.STATE_INSIDE,
                 track_elements.STATE_EXIT_CONFIRM,
@@ -7740,6 +7857,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                            if profile_expired else reverse_parser.last_event)
             single_edge_tracker.clear(reset_event)
             element_tracker.reset(reset_event)
+            encoder_entry_runtime.reset(reset_event)
             observation_filter.reset()
             position_pd.reset(
                 "PROFILE_TIMEOUT" if profile_expired else "CONTROL_TIMEOUT")
@@ -7829,6 +7947,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 ring_calibration = auto_map
                 element_tracker.set_ring_calibration(
                     auto_map, config.RING_WIDTH_CALIBRATION_REQUIRED)
+                parked_entry_tracker.set_ring_calibration(
+                    auto_map, config.RING_WIDTH_CALIBRATION_REQUIRED)
                 ring_calibration_last_eligible = False
             calibration_rows_eligible = bool(
                 element_tracker.ring_calibration_ready and
@@ -7842,11 +7962,14 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             if calibration_rows_eligible:
                 element_tracker.observe_ring_calibration(
                     road_rows, road_count, road_stride)
+                parked_entry_tracker.observe_ring_calibration(
+                    road_rows, road_count, road_stride)
                 ring_calibration_last_eligible = True
                 if element_tracker.ring_calibration_check_ready:
                     ring_calibration_passed = True
             elif ring_calibration_last_eligible:
                 element_tracker.reset_ring_calibration_check("PARKED_GATE")
+                parked_entry_tracker.reset_ring_calibration_check("PARKED_GATE")
                 ring_calibration_last_eligible = False
         single_rows_fresh = bool(getattr(
             single_edge_tracker, "_frame_scan_done", False))
@@ -7856,6 +7979,34 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             # 350 degrees is owned by H743; release the old visual ring route
             # so fresh ordinary boundaries can restore normal following.
             element_tracker.reset("GYRO_RELEASE")
+            encoder_entry_runtime.reset("GYRO_RELEASE")
+        parked_entry_result = None
+        if (not profile_session_active and not gyro_release and
+                bool(image_size_valid and mask_info is not None)):
+            parked_entry_result = parked_entry_tracker.observe_parked(
+                profile_now_ms, profile_id,
+                reverse_parser.session_token if profile_id else 0,
+                bool(image_size_valid and mask_info is not None),
+                normal_cache_commit_allowed, road_rows, road_count, road_stride,
+                candidate_tracks, topology, single_rows_fresh,
+                element_input_row_status, element_input_row_edge2,
+                element_input_row_contrast, element_input_cache_valid,
+                element_input_cache_width, element_input_cache_left2,
+                element_input_cache_right2, mask_info,
+                profile_seq=(reverse_parser._profile_last_sequence
+                             if profile_id else 0),
+                mean_forward_wheel_millirev=(
+                    reverse_parser.mean_forward_wheel_millirev
+                    if profile_id else 0))
+        _service_encoder_entry_request(
+            camera_sideband, encoder_entry_collector,
+            encoder_entry_calibration, encoder_entry_runtime,
+            encoder_entry_path, reverse_parser, profile_now_ms,
+            parked_result=parked_entry_result, image=img,
+            visual_path=getattr(config, "RING_VISUAL_ENTRY_CALIBRATION_PATH",
+                visual_entry_gate.DEFAULT_CALIBRATION_PATH),
+            frame_id=preview_frame_id)
+        encoder_entry_calibration = encoder_entry_runtime.calibration
         ring_start_us = time.ticks_us()
         element_result = element_tracker.update(
             profile_now_ms, profile_id, profile_session_active and not gyro_release,
@@ -7875,6 +8026,87 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_detection_us = time.ticks_diff(time.ticks_us(), ring_start_us)
         ring_candidate = element_result
         ring_info = element_result
+        encoder_entry_position_fresh = False
+        try:
+            encoder_entry_position_fresh = bool(
+                reverse_parser.profile_is_fresh(
+                    profile_now_ms, time.ticks_diff))
+        except Exception:
+            encoder_entry_position_fresh = False
+        encoder_entry_state = encoder_entry_runtime.update(
+            element_result,
+            valid=bool(image_size_valid and mask_info is not None),
+            profile_id=profile_id,
+            session_token=(reverse_parser.session_token if profile_id else 0),
+            millirev=reverse_parser.mean_forward_wheel_millirev,
+            position_fresh=encoder_entry_position_fresh,
+            session_active=profile_session_active and not gyro_release)
+        element_result["entry_ready"] = bool(encoder_entry_state["ready"])
+        element_result["entry_evidence"] = bool(
+            encoder_entry_state["entry_evidence"])
+        element_result["entry_gate_state"] = encoder_entry_state["state"]
+        element_result["entry_gate_side"] = encoder_entry_state["side"]
+        element_result["entry_gate_calibration_ready"] = bool(
+            encoder_entry_state["calibration_ready"])
+        element_result["entry_gate_threshold_millirev"] = (
+            encoder_entry_state["threshold_millirev"])
+        element_result["entry_gate_progress_millirev"] = (
+            encoder_entry_state["progress_millirev"])
+        element_result["entry_gate_reason"] = encoder_entry_state["reason"]
+        element_result["entry_wait_route"] = "ORDINARY_ROAD"
+        # Before the encoder distance is admitted, keep the lower-opening
+        # candidate on the trusted opposite edge and its cached width.  This
+        # prevents the broad branch opening from steering the midpoint while
+        # preserving a real ordinary-road reference when available.
+        entry_wait_side = element_result.get("side", -1)
+        entry_waiting = bool(
+            element_result.get("candidate") and
+            not encoder_entry_state.get("ready") and
+            entry_wait_side in (track_elements.SIDE_LEFT,
+                                track_elements.SIDE_RIGHT) and
+            mask_info is not None)
+        if entry_waiting:
+            outer_side = 1 - int(entry_wait_side)
+            try:
+                outer_candidate = single_edge_tracker.detect(
+                    mask_info, True, topology, outer_side)
+            except Exception:
+                outer_candidate = None
+            width_flag = getattr(fast_single_edge,
+                                 "INFERENCE_USED_WIDTH_CACHE", 1)
+            if (isinstance(outer_candidate, dict) and
+                    outer_candidate.get("valid") and
+                    int(outer_candidate.get("inference_flags", 0)) & width_flag):
+                boundary = outer_candidate.get("boundary_source")
+                selection = {
+                    "valid": True,
+                    "quality": outer_candidate.get("quality", 0),
+                    "lateral_error": outer_candidate.get("lateral_error", 0),
+                    "reason": "RING_CANDIDATE_OUTER_EDGE_WAIT",
+                    "source": ("single_left" if boundary == "LEFT_ONLY"
+                               else "single_right"),
+                    "rejected_source": "road",
+                    "result": outer_candidate,
+                    "comparison": {},
+                    "boundary_source": boundary,
+                    "inferred": True,
+                    "inference_flags": outer_candidate.get(
+                        "inference_flags", 0),
+                    "single_edge_reason": "RING_CANDIDATE_OUTER_EDGE_WAIT",
+                }
+                reference = {
+                    "x": outer_candidate["reference_center_x"],
+                    "y": outer_candidate["reference_y"],
+                    "kind": outer_candidate["reference_provenance"],
+                }
+                boundary_reference = {
+                    "valid": True,
+                    "reason": "RING_CANDIDATE_OUTER_EDGE_WIDTH_CACHE",
+                    "source": boundary,
+                }
+                normal_cache_commit_allowed = False
+                element_result["entry_wait_route"] = \
+                    "OUTER_EDGE_WIDTH_CACHE"
         control_road_result = road_result
         # Keep the already validated ordinary route untouched until the ring
         # admission/recovery decision is complete. No row buffers are copied.
@@ -7894,7 +8126,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         element_result["route_admission_reason"] = "RING_NOT_ELIGIBLE"
         if element_result.get("exit_admission_reason") == "EXIT_GUIDANCE_UNTRUSTED":
             element_result["route_admission_reason"] = "EXIT_GUIDANCE_UNTRUSTED"
-        if ring_profile_enabled and element_result.get("control_eligible"):
+        if (ring_profile_enabled and element_result.get("control_eligible") and
+                element_result.get("entry_ready")):
             ring_count = _fill_ring_control_route(
                 element_result, element_tracker, single_edge_tracker,
                 normal_cache_commit_allowed, single_rows_fresh,
@@ -7954,7 +8187,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         ring_target_blocked = bool(
             ring_profile_enabled and
             element_result.get("ring_confirmed") and
-            ring_confirmed_state and not element_route_selected)
+            ring_confirmed_state and element_result.get("entry_ready") and
+            not element_route_selected)
         if ring_target_blocked:
             selection["rejected_source"] = selection.get("source", "NONE")
             selection["valid"] = False
@@ -8191,6 +8425,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             curve_phase = 0
             slowdown_request_permille = 0
         if (valid and element_route_selected and
+                element_result.get("entry_ready") and
                 control_source in ("ring_left", "ring_right")):
             # Preserve the r16 request in every ring phase during exit validation.
             curve_phase = vision_protocol.CURVE_PHASE_TURN

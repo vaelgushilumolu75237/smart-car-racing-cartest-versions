@@ -41,10 +41,12 @@ class GyroLinkTests(unittest.TestCase):
                                 _ticks_diff, ordinary_valid=ordinary)
 
     @staticmethod
-    def _inside(side=gyro_link.TRACK_SIDE_LEFT, transition=False):
+    def _inside(side=gyro_link.TRACK_SIDE_LEFT, transition=True,
+                evidence=True, ready=True):
         return {"state": "INSIDE", "state_id": 3,
                 "ring_confirmed": True, "side": side,
-                "entry_transition": transition}
+                "entry_transition": transition,
+                "entry_ready": ready, "entry_evidence": evidence}
 
     def test_profile_b_c_cap_and_fresh_keep_are_required(self):
         self.assertEqual(self._update(self._inside())["phase"], 1)
@@ -79,9 +81,30 @@ class GyroLinkTests(unittest.TestCase):
                                   "side": gyro_link.SIDE_NONE,
                                   "ordinary": False})
 
+    def test_old_inside_without_post_gate_evidence_does_not_arm(self):
+        result = self._update(self._inside(evidence=False))
+        self.assertEqual(result["phase"], 0)
+        result = self._update(self._inside(evidence=True), now_ms=4)
+        self.assertEqual(result["phase"], 1)
+
+    def test_missing_entry_ready_is_fail_closed(self):
+        info = {"state": "INSIDE", "state_id": 3,
+                "ring_confirmed": True, "side": gyro_link.TRACK_SIDE_LEFT,
+                "entry_transition": True, "entry_evidence": True}
+        self.assertEqual(self._update(info)["phase"], 0)
+
+    def test_revoked_gate_clears_an_already_armed_entry(self):
+        self.assertEqual(self._update(self._inside())["phase"], 1)
+        self.assertEqual(self._update(self._inside(ready=False), now_ms=4)["phase"], 0)
+
+    def test_encoder_certificate_starts_entry_without_visual_entrance_gate(self):
+        self.assertEqual(self._update(
+            self._inside(transition=False, evidence=True))["phase"], 1)
+
     def test_invalid_frame_breaks_consecutive_inside_confirmation(self):
         inside = self._inside()
         self._update(inside, now_ms=3)
+        inside = self._inside(transition=False)
         self._update(inside, now_ms=4)
         self._update(inside, valid=False, now_ms=5)
         for now in (6, 7):

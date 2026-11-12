@@ -32,6 +32,8 @@ OP_SET_PARAMS=4
 OP_SAVE=5
 OP_DEFAULT=6
 OP_CAMERA_CAL=10
+OP_ENTRY_CAL=11
+OP_ENCODER_ENTRY_CAL=OP_ENTRY_CAL
 OP_GET_PARAMS=14
 ACK_OK=0
 ACK_PENDING=1
@@ -49,6 +51,12 @@ ACK_BAD_PARAM=12
 ACK_NOT_READY=15
 PARAM_VISION_P=3
 PARAM_VISION_D=17
+ENTRY_CAL_RESET=0
+ENTRY_CAL_MARK=1
+ENTRY_CAL_COMMIT=2
+ENTRY_MARK_FIRST=0
+ENTRY_MARK_LOWER=1
+ENTRY_MARK_UPPER=2
 
 def _u16(data, offset):
     return (int(data[offset]) | (int(data[offset + 1]) << 8))
@@ -369,6 +377,9 @@ class WirelessSideband:
         self.calibration_requested = False
         self.calibration_sequence = None
         self.last_calibration_progress_ms = None
+        self.encoder_entry_request = None
+        self.encoder_entry_sequence = None
+        self.encoder_entry_generation = 0
         self.last_scaled_output = None
 
     def apply_control(self, info, limit):
@@ -434,6 +445,9 @@ class WirelessSideband:
             self.queue[:] = []
             self.calibration_requested = False
             self.calibration_sequence = None
+            self.encoder_entry_request = None
+            self.encoder_entry_sequence = None
+            self.encoder_entry_generation = 0
             self.vision_p, self.vision_d = (self.store.rows[self.key]
                                             if self.store else (1000, 1000))
             self.generation = self.store.generation if self.store else 0
@@ -467,7 +481,7 @@ class WirelessSideband:
         status = ACK_OK
         if len(p) < 4 or p[1] != TARGET_CAMERA or p[2] or p[3]:
             status = ACK_BAD_FRAME
-        elif op in (OP_SAVE, OP_DEFAULT, OP_CAMERA_CAL) and not self.parked(now):
+        elif op in (OP_SAVE, OP_DEFAULT, OP_CAMERA_CAL, OP_ENTRY_CAL) and not self.parked(now):
             status = ACK_NOT_PARKED
         elif op == OP_SET_PARAMS:
             if len(p) < 6 or p[4] not in (1, 2) or not 1 <= p[5] <= 2 or len(p) != 6 + p[5] * 5:
@@ -508,6 +522,22 @@ class WirelessSideband:
             else:
                 self.calibration_requested = True
                 self.calibration_sequence = seq
+                status = ACK_PENDING
+        elif op == OP_ENTRY_CAL:
+            # Payload: action, side, marker. RESET and COMMIT use zero marker;
+            # MARK captures the current reverse millirevolution position.
+            if len(p) != 7 or p[4] not in (ENTRY_CAL_RESET,
+                                           ENTRY_CAL_MARK,
+                                           ENTRY_CAL_COMMIT) or \
+                    p[5] not in (0, 1) or p[6] not in (0, 1, 2):
+                status = ACK_BAD_PARAM
+            elif self.encoder_entry_sequence is not None:
+                status = ACK_BUSY
+            else:
+                self.encoder_entry_request = {
+                    "action": p[4], "side": p[5], "marker": p[6],
+                    "sequence": seq}
+                self.encoder_entry_sequence = seq
                 status = ACK_PENDING
         elif op != OP_GET_PARAMS:
             status = ACK_UNSUPPORTED
@@ -559,6 +589,20 @@ class WirelessSideband:
         else:
             self._send(TYPE_EVENT, payload, now, priority=False)
 
+    def encoder_entry_complete(self, now, status, detail=0, generation=None):
+        """Complete one parked encoder entrance calibration command."""
+        if self.encoder_entry_sequence is None:
+            return
+        sequence = self.encoder_entry_sequence
+        if generation is None:
+            generation = self.encoder_entry_generation
+        payload = _pack_ack(status, OP_ENTRY_CAL, TARGET_CAMERA, sequence,
+                            detail, generation)
+        self.cached_ack = payload
+        self._send(TYPE_ACK, payload, now)
+        self.encoder_entry_sequence = None
+        self.encoder_entry_request = None
+
     def publish(self, now, frame_id, valid, quality, source, ring_info,
                 lateral, control, processing_ms, fps_x10, curve, slowdown):
         if not self._fresh(now) or (self.last_state_ms is not None and
@@ -581,6 +625,19 @@ class WirelessSideband:
         p[20] = self.reverse.profile_id
         p[21] = int(self.reverse.profile_session_active)
         _put_u32(p, 22, self.reverse.session_token)
+        # Encoder-entry gate diagnostics are additive to the established
+        # 26-byte STATE prefix.  The threshold is the selected side's
+        # committed first-to-upper distance; progress is current lease delta.
+        p[26] = int(bool(ring_info.get("entry_ready")))
+        p[27] = min(255, max(0, int(ring_info.get("entry_gate_state", 0))))
+        p[28] = min(2, max(0, int(ring_info.get("entry_gate_side", -1) + 1)))
+        p[29] = int(bool(ring_info.get("entry_gate_calibration_ready")))
+        _put_u16(p, 30, min(65535, max(0, int(
+            ring_info.get("entry_gate_threshold_millirev", 0)))))
+        _put_u16(p, 32, min(65535, max(0, int(
+            ring_info.get("entry_gate_progress_millirev", 0)))))
+        p[34] = int(bool(ring_info.get("entry_transition")))
+        p[35] = int(bool(ring_info.get("ring_confirmed")))
         self._send(TYPE_STATE, p, now, priority=False)
 
     def service_tx(self, uart, now):

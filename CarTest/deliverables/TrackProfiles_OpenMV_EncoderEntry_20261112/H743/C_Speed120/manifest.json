@@ -1,0 +1,19 @@
+{
+  "label": "C_Speed120",
+  "preset": "DebugRingFastSpeed120",
+  "profile_id": 3,
+  "speed_percent": 120,
+  "straight_target_millirps": 6720,
+  "curve_outer_target_millirps": 5280,
+  "ring_outer_base_target_millirps": 6336,
+  "ring_outer_target_millirps": 4752,
+  "exit_outer_target_millirps": 6336,
+  "entry_orbit_speed_percent": 75,
+  "entry_orbit_servo_gain_permille": 1300,
+  "entry_variant": "encoder_gate_pending_calibration",
+  "ring_rate_mdps": 102857,
+  "gyro_authority": true,
+  "elf_sha256": "3c4aedda4c22bc210b77c0afb2b46e59aa1d4c744f00f067e7b502d4ddf174a0",
+  "build_id": "7eb298a4df4f5e1958a7317a1481ebe0",
+  "hardware_acceptance": "pending_manual_tests"
+}

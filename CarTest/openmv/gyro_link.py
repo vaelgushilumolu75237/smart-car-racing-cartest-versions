@@ -48,6 +48,7 @@ class GyroLink:
         self._phase = PHASE_OFF
         self._side = TRACK_SIDE_NONE
         self._post_entry_frames = 0
+        self._entry_transition_seen = False
         self._identity_valid = False
         self._profile_id = 0
         self._session_active = False
@@ -111,6 +112,12 @@ class GyroLink:
     @staticmethod
     def _ring_observation(ring_info):
         if not isinstance(ring_info, dict):
+            return False, False, TRACK_SIDE_NONE
+        # The encoder-entry build publishes explicit admission and evidence
+        # bits. Both are required before gyro authority can start; a missing
+        # bit is treated as false so an older or stale bundle cannot arm ENTRY.
+        if (not bool(ring_info.get("entry_ready")) or
+                not bool(ring_info.get("entry_evidence"))):
             return False, False, TRACK_SIDE_NONE
         state_id = ring_info.get("state_id", -1)
         state = ring_info.get("state")
@@ -223,6 +230,15 @@ class GyroLink:
             self._clear_event()
             return self._sync_result(bool(valid and ordinary_valid))
 
+        # A distance gate revocation must clear a previously armed gyro phase
+        # before the next packet. The H743 can continue ordinary control only
+        # after this explicit admission bit is renewed; missing keys never
+        # inherit an older ring lease.
+        if (not isinstance(ring_info, dict) or
+                not bool(ring_info.get("entry_ready"))):
+            self._clear_event()
+            return self._sync_result(bool(valid and ordinary_valid))
+
         if not valid:
             if self._phase == PHASE_ENTRY:
                 self._post_entry_frames = 0
@@ -234,6 +250,7 @@ class GyroLink:
                 self._phase = PHASE_ENTRY
                 self._side = side
                 self._post_entry_frames = 0
+                self._entry_transition_seen = bool(entry_transition)
             elif self._phase == PHASE_ENTRY:
                 if side != self._side:
                     # A new confirmed direction cannot advance the old entry
@@ -241,12 +258,19 @@ class GyroLink:
                     self._phase = PHASE_ENTRY
                     self._side = side
                     self._post_entry_frames = 0
+                    self._entry_transition_seen = bool(entry_transition)
                 elif entry_transition:
+                    self._entry_transition_seen = True
                     self._post_entry_frames = 0
-                else:
+                elif self._entry_transition_seen:
                     self._post_entry_frames += 1
                     if self._post_entry_frames >= 3:
                         self._phase = PHASE_ORBIT
+                else:
+                    # Distance admission alone starts the local ENTRY phase;
+                    # only a fresh visual transition can begin the three-frame
+                    # post-transition confirmation window.
+                    self._post_entry_frames = 0
             # Once orbit is established, a transient opposite-side frame does
             # not revoke the gyro side; the H743 keeps its independent orbit.
             return self._sync_result(False)

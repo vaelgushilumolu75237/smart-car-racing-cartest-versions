@@ -24,6 +24,8 @@ sys.modules.setdefault("sensor", types.ModuleType("sensor"))
 import config
 import main
 import vision_protocol
+import encoder_entry_gate
+from entry_route_fixture import PreviouslyAdmittedEntrance, previously_admitted_tracker
 from test_ring_slope_host import (
     _genuine_ring_fixture, _ordinary_band_fixture, _ring_fixture)
 
@@ -274,6 +276,7 @@ class _ActiveRingElements:
             self.rows.extend((y, 25, 49, flags))
         self.result = {
             "state": "INSIDE", "reason": "TEST_RING_ACTIVE",
+            "state_id": 3,
             "ring_confirmed": True,
             "side": main.track_elements.SIDE_RIGHT,
             "control_eligible": True, "target_valid": True,
@@ -449,7 +452,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                                   path_type=_PathDetector,
                                   clock_step_us=100,
                                   fixture_sensor_id=None,
-                                  fixture_mode=False,
+                                  fixture_mode=True,
                                   single_edge_result=None,
                                   pair_diagnostic_record=None):
         main._load_fast_runtime()
@@ -480,7 +483,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                     return single_edge_result
                 return super().detect(*args, **kwargs)
 
-        with patch.object(main, "_configure_gray_sensor", return_value=1), \
+        with patch.object(encoder_entry_gate, "EncoderEntryGate", PreviouslyAdmittedEntrance), \
+                patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", fake_sensor), \
                 patch.object(main, "time", fake_time), \
                 patch.object(main.fast_gray, "FastGrayMasks", _GrayBuilder), \
@@ -490,7 +494,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 patch.object(main.fast_single_edge, "FastSingleEdgeTracker",
                              _RecordingSingleEdgeTracker), \
                 patch.object(main.track_elements, "TrackElementsTracker",
-                             element_type), \
+                             previously_admitted_tracker(element_type)), \
                 patch.object(main.pyb, "UART", return_value=fake_uart,
                              create=True), \
                 patch.object(main, "_validate_selected_fast_boundary",
@@ -915,7 +919,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                                        main.fast_single_edge.ROW_STRIDE])))
                 return info
 
-        with patch.object(main, "_configure_gray_sensor", return_value=1), \
+        with patch.object(encoder_entry_gate, "EncoderEntryGate", PreviouslyAdmittedEntrance), \
+                patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", _Sensor()), \
                 patch.object(main, "time", fake_time), \
                 patch.object(main.fast_gray, "FastGrayMasks", _GrayBuilder), \
@@ -925,7 +930,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 patch.object(main.fast_single_edge, "FastSingleEdgeTracker",
                              _RecordingSingleEdgeTracker), \
                 patch.object(main.track_elements, "TrackElementsTracker",
-                             _ActiveRingElements), \
+                             previously_admitted_tracker(_ActiveRingElements)), \
                 patch.object(main, "_FastRowWeightWorkspace",
                              _RecordingWeightWorkspace), \
                 patch.object(main.pyb, "UART", return_value=fake_uart,
@@ -938,7 +943,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 patch.object(config, "DEBUG_ENABLED", True), \
                 patch.object(config, "OVERLAY_ENABLED", False), \
                 contextlib.redirect_stdout(output):
-            main._main_fast(duration_s=1)
+            main._main_fast(duration_s=1, frame_source=_Sensor(),
+                            uart_sink=fake_uart)
         self.assertEqual(len(fake_uart.frames), 1)
         frame = fake_uart.frames[0]
         self.assertEqual(frame[2:4], b"\x04\x08")
@@ -946,8 +952,10 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(frame[6] & vision_protocol.FLAG_VALID,
                          vision_protocol.FLAG_VALID)
         self.assertEqual(frame[10] & 3, vision_protocol.CURVE_PHASE_TURN)
-        self.assertEqual((frame[10] >> 2) & 3, 1)  # ENTRY immediately
-        self.assertEqual((frame[10] >> 4) & 3, 2)  # RIGHT wire side
+        # The independent encoder entrance certificate starts ENTRY; the
+        # subsequent camera transition completion still owns ORBIT.
+        self.assertEqual((frame[10] >> 2) & 3, 1)
+        self.assertEqual((frame[10] >> 4) & 3, 2)
         self.assertEqual((frame[10] >> 6) & 1, 0)  # no ordinary authority
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
@@ -1067,7 +1075,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             _frame, log, _cache = self._run_profile_element_case(
                 _CapturingActiveElements, config.VEHICLE_PROFILE_B,
                 fixture_sensor_id=0x1324, fixture_mode=True)
-        self.assertEqual(captured_calibrations, [calibration])
+        self.assertEqual(captured_calibrations, [calibration, calibration])
         self.assertIn("sensor_id=0x1324", log)
 
         _frame, ordinary_fixture_log, _cache = \

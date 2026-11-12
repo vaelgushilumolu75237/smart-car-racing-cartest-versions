@@ -120,6 +120,9 @@ class CalibratedRingRouteTests(unittest.TestCase):
         controls=bytes(main.reverse_control.pack_frame(0,100))+bytes(main.reverse_control.pack_frame(1,101))+bytes(main.reverse_control.pack_profile_state(11,3,main.reverse_control.PROFILE_SESSION_ACTIVE,session_token=1))
         uart=runtime._UART(clock,stop_after=3,rx_data=controls)
         with contextlib.ExitStack() as stack:
+            from entry_route_fixture import PreviouslyAdmittedEntrance, previously_admitted_tracker
+            import encoder_entry_gate
+            stack.enter_context(patch.object(encoder_entry_gate, "EncoderEntryGate", PreviouslyAdmittedEntrance))
             for target,name,value in (
                 (main,"_configure_gray_sensor",lambda *_a,**_k:1),
                 (main,"sensor",runtime._Sensor()),(main,"time",clock),
@@ -127,13 +130,14 @@ class CalibratedRingRouteTests(unittest.TestCase):
                 (main.fast_path,"FastPathDetector",runtime._PathDetector),
                 (main.fast_boundary,"FastBoundaryEvidence",runtime._BoundaryValidator),
                 (main.fast_single_edge,"FastSingleEdgeTracker",runtime._SingleEdgeTracker),
-                (main.track_elements,"TrackElementsTracker",Feedback),
+                (main.track_elements,"TrackElementsTracker",previously_admitted_tracker(Feedback)),
                 (main.pyb,"UART",lambda *_a,**_k:uart),
                 (main,"_validate_selected_fast_boundary",lambda selection,_r,_v:(selection,{"x":50.0,"y":40.0,"kind":"ROAD"},{"valid":True,"reason":"TEST_VALID"})),
                 (config,"DEBUG_ENABLED",False),(config,"OVERLAY_ENABLED",False)):
                 stack.enter_context(patch.object(target,name,value,create=True))
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-            main._main_fast(duration_s=1)
+            main._main_fast(duration_s=1, frame_source=runtime._Sensor(),
+                            uart_sink=uart)
         self.assertEqual(len(uart.frames),3)
         self.assertEqual(instances[0].calls,[(False,True)]*3)
         valid=[bool(frame[6]&vision_protocol.FLAG_VALID) for frame in uart.frames]

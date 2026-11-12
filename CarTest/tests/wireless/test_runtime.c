@@ -196,12 +196,13 @@ static void test_runtime_link(void)
     assert(scope[0] == 65.3f);
     assert(scope[1] == 1.0f);
     assert(scope[2] == 2.0f);
-    assert(scope[3] == 3.0f);
-    assert(scope[4] == 5.0f);
-    assert(scope[5] == 1.0f);
-    assert(scope[7] == 1120.0f && scope[8] == 880.0f);
-    assert(scope[9] == (float)WIRELESS_ACK_OK);
-    assert(scope[10] == (float)WIRELESS_OP_SET_PARAMS);
+    assert(scope[3] == 9.0f);
+    assert(scope[4] == 0.0f);
+    assert(scope[5] == 0.0f);
+    assert(scope[7] == 0.0f && scope[8] == 0.0f);
+    assert(scope[13] == 3.0f);
+    assert(scope[14] == 5.0f);
+    assert(scope[15] == 7.0f);
 
     feed_text("ARM\n", 200u);
     service(201u);
@@ -224,7 +225,10 @@ static void test_runtime_link(void)
         feed_text(start, 251u);
         assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_START);
         car_wireless_effect_result(CAR_WIRELESS_EFFECT_START, 1u);
-        feed_text(start, 252u);
+        service(310u);
+        assert(next_scope(scope));
+        assert(scope[0] == 0.0f);
+        feed_text(start, 312u);
         assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE);
     }
     (void)next_radio_frame(&frame);
@@ -305,9 +309,69 @@ static void test_assistant_camera_read_and_explicit_save(void)
     assert(request.payload[1] == WIRELESS_TARGET_CAMERA);
 }
 
+static void test_assistant_visual_entry_calibration_forward(void)
+{
+    car_wireless_frame_t request, ack;
+    float scope[16];
+
+    memset(&control, 0, sizeof(control));
+    memset(&config, 0, sizeof(config));
+    memset(&snapshot, 0, sizeof(snapshot));
+    snapshot.button_released = snapshot.startup_released = 1u;
+    config.motor_hardware_accepted = 1u;
+    car_wireless_init(100u, 0x13572468u);
+    service(100u);
+    make_camera_ready(101u);
+    feed_text("ARM\n", 110u);
+
+    /* The marker protocol is deliberately parked/session gated and is
+       forwarded unchanged to the camera. */
+    feed_text("ECALRESET\n", 120u);
+    assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_ENTRY_RESET);
+    car_wireless_effect_result(CAR_WIRELESS_EFFECT_ENTRY_RESET, 1u);
+    assert(next_camera_frame(&request));
+    assert(request.type == CAR_WIRELESS_COMMAND);
+    assert(request.payload_len == 7u);
+    assert(request.payload[0] == WIRELESS_OP_VISUAL_ENTRY_CAL);
+    assert(request.payload[1] == WIRELESS_TARGET_CAMERA);
+    assert(request.payload[4] == 0u && request.payload[5] == 0u &&
+           request.payload[6] == 0u);
+
+    memset(&ack, 0, sizeof(ack));
+    ack.type = CAR_WIRELESS_ACK;
+    ack.session = camera_epoch;
+    ack.sequence = ++camera_sequence;
+    ack.payload_len = 16u;
+    ack.payload[0] = WIRELESS_ACK_OK;
+    ack.payload[1] = WIRELESS_OP_VISUAL_ENTRY_CAL;
+    ack.payload[2] = WIRELESS_TARGET_CAMERA;
+    put32(ack.payload + 4u, request.sequence);
+    car_wireless_camera_frame(&ack, 121u);
+    service(171u);
+    assert(next_scope(scope));
+    assert(scope[0] == 3.0f && scope[1] == (float)WIRELESS_ACK_OK);
+
+    feed_text("ECALMARK12\n", 180u);
+    assert(next_camera_frame(&request));
+    assert(request.payload_len == 7u);
+    assert(request.payload[0] == WIRELESS_OP_VISUAL_ENTRY_CAL);
+    assert(request.payload[4] == 1u && request.payload[5] == 1u &&
+           request.payload[6] == 2u);
+    ack.sequence = ++camera_sequence;
+    ack.payload[0] = WIRELESS_ACK_NOT_READY;
+    put32(ack.payload + 8u, 2u); /* encoder saved, visual failed */
+    put32(ack.payload + 4u, request.sequence);
+    car_wireless_camera_frame(&ack, 181u);
+    service(231u);
+    assert(next_scope(scope));
+    assert(scope[0] == 4.0f && scope[1] == (float)WIRELESS_ACK_NOT_READY);
+    assert(scope[14] == 2.0f);
+}
+
 int main(void)
 {
     test_assistant_camera_read_and_explicit_save();
+    test_assistant_visual_entry_calibration_forward();
     test_runtime_link();
     return 0;
 }

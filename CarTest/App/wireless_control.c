@@ -156,7 +156,14 @@ static wireless_ack_status_t camera_target_command(
         return is_parked_and_safe(control) ? WIRELESS_ACK_FORWARD
                                             : WIRELESS_ACK_NOT_PARKED;
     case WIRELESS_OP_CAPTURE:
-        return WIRELESS_ACK_UNSUPPORTED;
+        /* 0x0b remains unsupported for image capture.  For the camera target
+           it is also the visual-entry calibration extension: three bytes are
+           action, side and marker, and the camera performs the parked
+           hand-push operation. */
+        if (data_length != 3u || data[0] > 2u || data[1] > 1u || data[2] > 2u)
+            return WIRELESS_ACK_UNSUPPORTED;
+        return is_parked_and_safe(control) ? WIRELESS_ACK_FORWARD
+                                            : WIRELESS_ACK_NOT_PARKED;
     case WIRELESS_OP_START:
     case WIRELESS_OP_TEST_MOTOR:
     case WIRELESS_OP_TEST_SERVO:

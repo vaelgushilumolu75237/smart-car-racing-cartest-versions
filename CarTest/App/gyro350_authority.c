@@ -2,15 +2,22 @@
 #include "vision_protocol.h"
 
 #if CARTEST_GYRO350_ENABLED
-static uint16_t map_error(const car_config_t *config, int32_t error)
+static uint16_t map_error(const car_config_t *config, int32_t error,
+                          uint8_t entry_orbit)
 {
     int32_t endpoint, value;
+    uint32_t gain_permille = config->follow_kp_permille;
     if (error < -1000) error = -1000;
     if (error > 1000) error = 1000;
     endpoint = error < 0 ? config->follow_servo_left_us : config->follow_servo_right_us;
+    if (entry_orbit != 0u) {
+        gain_permille = (gain_permille *
+                         CAR_GYRO350_ENTRY_ORBIT_SERVO_GAIN_PERMILLE +
+                         500u) / 1000u;
+    }
     value = config->servo_center_us + (int32_t)(
         (int64_t)(endpoint - config->servo_center_us) * (error < 0 ? -error : error) *
-        config->follow_kp_permille / 1000000);
+        gain_permille / 1000000);
     if (value < config->servo_min_us) value = config->servo_min_us;
     if (value > config->servo_max_us) value = config->servo_max_us;
     return (uint16_t)value;
@@ -52,8 +59,11 @@ void car_control_update_gyro(car_control_t *control, const car_config_t *config,
     input.applied_servo_us = control->applied_servo_output_active &&
         control->applied_servo_frame_ready ? control->applied_servo_pulse_us : 0u;
     car_gyro_ring_step(&control->gyro, &input);
-    control->gyro_servo_us = control->gyro.servo_target_us ? control->gyro.servo_target_us :
-        map_error(config, control->gyro.control_error_norm);
+    control->gyro_servo_us = control->gyro.servo_target_us ?
+        control->gyro.servo_target_us : map_error(
+            config, control->gyro.control_error_norm,
+            control->gyro.phase == CAR_GYRO_RING_ENTRY ||
+            control->gyro.phase == CAR_GYRO_RING_ORBIT);
     if (control->gyro.fault) {
         car_control_note_fault(control, input.imu_fault ? CAR_FAULT_IMU : CAR_FAULT_GYRO_RING);
     }

@@ -1101,6 +1101,19 @@ class TrackElementsTracker:
             "mean_forward_wheel_millirev": None,
             "millirev_delta": None,
             "millirev_guard_enabled": False,
+            # Parked visual-entry calibration consumes the ring-specific
+            # certificate below.  These ordinary baseline fields remain
+            # diagnostic and must never be used as the encoder origin.
+            "stable_observation": False,
+            "baseline_ready": False,
+            "first_stable": False,
+            "stable_far_y": -1,
+            "stable_near_y": -1,
+            "ring_stable_observation": False,
+            "ring_first_stable": False,
+            "ring_stable_far_y": -1,
+            "ring_stable_near_y": -1,
+            "parked_ring_confirmed": False,
             "ring_calibration_ready": False,
             "ring_calibration_reason": "NO_CALIBRATION",
             "ring_calibration_check_ready": False,
@@ -1154,6 +1167,7 @@ class TrackElementsTracker:
         self._event_dropped = 0
         self._stable_count = 0
         self._baseline_ready = False
+        self._stable_frame_observation = False
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
@@ -1535,6 +1549,7 @@ class TrackElementsTracker:
         self._last_odom_valid = False
         self._stable_count = 0
         self._baseline_ready = False
+        self._stable_frame_observation = False
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
@@ -1681,6 +1696,7 @@ class TrackElementsTracker:
         self._update_side_support()
         self._update_stable_baseline(
             self._current_road, cache_ok, topology)
+        self._set_stable_observation(cache_ok, topology)
 
         if (self._current_road and single_rows_fresh and
                 self._state in (STATE_INSIDE, STATE_EXIT_CONFIRM,
@@ -1808,6 +1824,106 @@ class TrackElementsTracker:
         self._publish()
         return self._result
 
+    @micropython.native
+    def observe_parked(self, now_ms, profile_id, session_token,
+                       frame_fresh, road_accepted, road_rows, road_count,
+                       road_stride, road_candidate_tracks, topology,
+                       single_rows_fresh, row_status, row_edge2, row_contrast,
+                       cache_valid, cache_width, cache_left2, cache_right2,
+                       mask_info, profile_seq=0,
+                       mean_forward_wheel_millirev=None):
+        """Observe parked hand-push geometry without opening a control session.
+
+        This path shares the current validated boundary inputs with the ring
+        observer, but never calls the session admission path and never exposes
+        a route as control-eligible.  Its result is private calibration
+        evidence for the camera marker collector.
+        """
+        self._frame_index = (self._frame_index + 1) & 0x7fffffff
+        self._clear_frame_output()
+        topo = topology if isinstance(topology, dict) else {}
+        self._result["outer_topology_complete"] = bool(topo.get("complete"))
+        self._result["outer_topology_reason"] = topo.get("reason", "MISSING")
+        self._result["outer_topology_ambiguous"] = bool(topo.get("ambiguous"))
+        self._result["outer_topology_branch"] = bool(
+            topo.get("branch") or topo.get("branch_evidence"))
+        self._result["outer_topology_multiple_exits"] = bool(
+            topo.get("multiple_exits"))
+        self._last_now_ms = int(now_ms)
+        self._current_topology_clear = False
+
+        profile_value = profile_id if _is_int(profile_id) else 0
+        token_value = session_token if _is_int(session_token) else 0
+        changed = (self._identity_set and
+                   (profile_value != self._profile_id or
+                    token_value != self._session_token))
+        if changed:
+            self.reset("PARKED_IDENTITY_CHANGE")
+            self._frame_index = 1
+            self._last_now_ms = int(now_ms)
+        self._profile_id = profile_value
+        self._session_active = False
+        self._session_token = token_value
+        self._identity_set = True
+        self._result["profile_id"] = self._profile_id
+        self._result["profile_seq"] = profile_seq if _is_int(profile_seq) else 0
+        self._result["session_token"] = token_value
+        self._update_odom(mean_forward_wheel_millirev)
+
+        if not frame_fresh:
+            self._reject(REJECT_FRAME_INVALID)
+            self._reason = "FRAME_INVALID"
+            self._publish()
+            self._result["parked_only"] = True
+            self._result["parked_observation"] = False
+            self._result["control_eligible"] = False
+            return self._result
+
+        cache_ok = self._prepare_cache(
+            cache_valid, cache_width, cache_left2, cache_right2)
+        if road_accepted:
+            road_ok = self._load_road_rows(
+                road_rows, road_count, road_stride, road_candidate_tracks)
+        elif single_rows_fresh:
+            road_ok = self._load_single_rows(
+                row_status, row_edge2, row_contrast)
+        else:
+            self._clear_current_rows()
+            road_ok = False
+        self._current_road = bool(road_accepted and road_ok)
+        self._current_valid = bool(road_ok)
+        self._current_topology_clear = self._topology_clear(topo)
+        self._update_side_support()
+        self._update_stable_baseline(self._current_road, cache_ok, topo)
+        self._set_stable_observation(cache_ok, topo)
+
+        if self._profile_id in (2, 3):
+            if self._state == STATE_OBSERVE:
+                self._observe_for_entry(now_ms, topo, cache_ok)
+            elif self._state == STATE_ENTRY_CONFIRM:
+                self._confirm_entry_drop(now_ms, topo)
+            elif self._state == STATE_ENTER:
+                self._observe_entry_arc(now_ms, topo)
+
+        self._update_cross(
+            now_ms, self._current_road, road_ok, road_candidate_tracks,
+            road_rows, road_count, road_stride, topo, cache_ok, mask_info)
+
+        if (self._state == STATE_INSIDE and isinstance(mask_info, dict) and
+                self._side in (SIDE_LEFT, SIDE_RIGHT)):
+            self._build_candidate_target_rows(mask_info, topo, self._side)
+        self._publish()
+        self._result["parked_only"] = True
+        self._result["parked_observation"] = bool(
+            self._result.get("entry_transition") or
+            self._result.get("cross_candidate"))
+        self._result["parked_ring_confirmed"] = bool(
+            self._result.get("ring_stable_observation"))
+        self._result["control_eligible"] = False
+        self._result["candidate"] = False
+        self._result["ring_confirmed"] = False
+        return self._result
+
     def _clear_current_rows(self):
         _clear_rows_viper(self._current_status, self._current_edge2,
                           self._current_contrast, self._row_seen)
@@ -1865,6 +1981,7 @@ class TrackElementsTracker:
 
     def _clear_frame_output(self):
         self._ordinary_snapshot_active = False
+        self._stable_frame_observation = False
         self._result["outer_tracking"] = False
         result = self._result
         previous_target_count = int(result["target_count"])
@@ -1936,6 +2053,16 @@ class TrackElementsTracker:
         result["cross_open_segments"] = 0
         result["cross_candidate_tracks"] = 0
         result["reject_reason"] = "NONE"
+        result["stable_observation"] = False
+        result["baseline_ready"] = False
+        result["first_stable"] = False
+        result["stable_far_y"] = -1
+        result["stable_near_y"] = -1
+        result["ring_stable_observation"] = False
+        result["ring_first_stable"] = False
+        result["ring_stable_far_y"] = -1
+        result["ring_stable_near_y"] = -1
+        result["parked_ring_confirmed"] = False
         if previous_target_count > 0:
             target_limit = previous_target_count * TARGET_ROW_STRIDE
             if target_limit > len(self._target_rows):
@@ -1982,6 +2109,7 @@ class TrackElementsTracker:
         self._state_start_ms = int(now_ms)
         self._stable_count = 0
         self._baseline_ready = False
+        self._stable_frame_observation = False
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
@@ -2105,6 +2233,49 @@ class TrackElementsTracker:
                 self._near_right_run >= self.min_near_contiguous and
                 not self._near_left_ambiguous and
                 not self._near_right_ambiguous)
+
+    def _stable_geometry(self):
+        """Return the observed bilateral row window for a stable frame."""
+        first_y = -1
+        last_y = -1
+        for y in range(self.floor_y, self.height):
+            if (self._current_status[y] == 1 and
+                    self._current_status[self.height + y] == 1):
+                if first_y < 0:
+                    first_y = y
+                last_y = y
+        return first_y, last_y
+
+    def _ring_stable_geometry(self):
+        """Return the confirmed INSIDE target row window for calibration."""
+        if (self._state != STATE_INSIDE or not self._ring_cache_frozen or
+                not self._result.get("target_valid")):
+            return -1, -1
+        try:
+            count = int(self._result.get("target_count", 0))
+            if count < self.min_target_rows:
+                return -1, -1
+            first_y = int(self._target_rows[0])
+            last_y = int(self._target_rows[(count - 1) * TARGET_ROW_STRIDE])
+        except (TypeError, ValueError, IndexError):
+            return -1, -1
+        if not (self.floor_y <= first_y < self.reference_y < last_y < self.height):
+            return -1, -1
+        return first_y, last_y
+
+    def _set_stable_observation(self, cache_ok, topology):
+        """Publish whether this frame matches the runtime baseline seed."""
+        current_near = (
+            self._near_left_rows >= self.min_near_support and
+            self._near_right_rows >= self.min_near_support and
+            self._near_left_run >= self.min_near_contiguous and
+            self._near_right_run >= self.min_near_contiguous and
+            self._near_left_ambiguous == 0 and
+            self._near_right_ambiguous == 0)
+        self._stable_frame_observation = bool(
+            self._profile_id in (2, 3) and self._state == STATE_OBSERVE and
+            self._current_road and cache_ok and
+            self._topology_clear(topology) and current_near)
 
     def _update_stable_baseline(self, road_ok, cache_ok, topology):
         if self._state == STATE_REACQUIRE and self._ring_cache_frozen:
@@ -3545,6 +3716,7 @@ class TrackElementsTracker:
         self._state_start_ms = int(now_ms)
         self._stable_count = 0
         self._baseline_ready = False
+        self._stable_frame_observation = False
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
@@ -3592,6 +3764,9 @@ class TrackElementsTracker:
         self._state_start_ms = int(now_ms)
         self._stable_count = 0
         self._baseline_ready = False
+        self._stable_frame_observation = False
+        self._entry_certificate_far_y = -1
+        self._entry_certificate_near_y = -1
         self._baseline_left2 = 0
         self._baseline_right2 = 0
         self._baseline_y = -1
@@ -4795,6 +4970,24 @@ class TrackElementsTracker:
         result["event_dropped"] = self._event_dropped
         result["frame_index"] = self._frame_index
         result["state_frames"] = self._state_frames
+        stable_far_y, stable_near_y = self._stable_geometry()
+        result["stable_observation"] = bool(self._stable_frame_observation)
+        result["baseline_ready"] = bool(self._baseline_ready)
+        result["first_stable"] = bool(
+            self._stable_frame_observation and self._baseline_ready and
+            self._state == STATE_OBSERVE)
+        result["stable_far_y"] = stable_far_y
+        result["stable_near_y"] = stable_near_y
+        entry_far_y, entry_near_y = self._ring_stable_geometry()
+        ring_stable = bool(
+            self._state == STATE_INSIDE and self._side in (SIDE_LEFT, SIDE_RIGHT)
+            and entry_far_y >= self.floor_y and entry_near_y > self.reference_y)
+        result["ring_stable_observation"] = ring_stable
+        result["ring_first_stable"] = ring_stable
+        result["ring_stable_far_y"] = (
+            entry_far_y if ring_stable else -1)
+        result["ring_stable_near_y"] = (
+            entry_near_y if ring_stable else -1)
         elapsed = _ticks_diff(int(self._last_now_ms),
                               int(self._state_start_ms))
         if elapsed < 0:

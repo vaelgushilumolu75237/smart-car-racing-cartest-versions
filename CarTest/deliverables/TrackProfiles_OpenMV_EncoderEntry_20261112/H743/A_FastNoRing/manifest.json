@@ -1,0 +1,19 @@
+{
+  "label": "A_FastNoRing",
+  "preset": "DebugFastNoRing",
+  "profile_id": 1,
+  "speed_percent": 100,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_outer_base_target_millirps": 0,
+  "ring_outer_target_millirps": 0,
+  "exit_outer_target_millirps": 0,
+  "entry_orbit_speed_percent": 75,
+  "entry_orbit_servo_gain_permille": 1300,
+  "entry_variant": "encoder_gate_pending_calibration",
+  "ring_rate_mdps": 0,
+  "gyro_authority": false,
+  "elf_sha256": "cd32b313741cb37498aa5b9a7969f71339a7c159e1f1f6e17f206a1718cb4804",
+  "build_id": "c74da3f4ac698996520723a53c6132ff",
+  "hardware_acceptance": "pending_manual_tests"
+}

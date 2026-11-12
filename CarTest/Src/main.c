@@ -586,6 +586,17 @@ static int64_t odometry_last_right_raw_counts;
 static uint8_t odometry_have_baseline;
 static uint32_t odometry_valid_sample_count;
 static uint32_t odometry_rejected_sample_count;
+/* Parked hand-push counter used by the encoder-entry calibration.  It is
+   independent of the running-session odometry and never drives outputs. */
+static int64_t parked_last_left_raw_counts;
+static int64_t parked_last_right_raw_counts;
+static uint64_t parked_left_millirev;
+static uint64_t parked_right_millirev;
+static uint32_t parked_mean_forward_millirev;
+static uint64_t parked_left_fractional_remainder;
+static uint64_t parked_right_fractional_remainder;
+static uint8_t parked_odometry_have_baseline;
+static uint8_t odometry_invalid_latched;
 static uint32_t reverse_control_seen_generation;
 static uint32_t reverse_control_seen_rx_fault_generation;
 static uint8_t reverse_control_ready;
@@ -2035,6 +2046,13 @@ static void reset_session_odometry(void)
     odometry_have_baseline = 0u;
     odometry_valid_sample_count = 0u;
     odometry_rejected_sample_count = 0u;
+    parked_left_millirev = 0u;
+    parked_right_millirev = 0u;
+    parked_left_fractional_remainder = 0u;
+    parked_right_fractional_remainder = 0u;
+    parked_odometry_have_baseline = 0u;
+    parked_mean_forward_millirev = 0u;
+    odometry_invalid_latched = 0u;
 }
 
 static uint8_t normalize_forward_encoder_delta(
@@ -2077,19 +2095,71 @@ static void update_session_odometry(void)
     uint64_t right_fractional_remainder =
         odometry_right_fractional_remainder;
 
+    if (odometry_invalid_latched != 0u) return;
+
     if (car_control_state.follow_session_active == 0u) {
-        odometry_have_baseline = 0u;
-        return;
-    }
-    if (speed_observer_result.valid == 0u) {
+        /* While parked, count only forward hand-push motion for the
+           calibration display.  Negative/backward motion is rejected by
+           normalize_forward_encoder_delta and therefore cannot reduce the
+           measured entrance distance. */
+        const int64_t parked_left = left_counts;
+        const int64_t parked_right = right_counts;
+        uint64_t parked_left_delta;
+        uint64_t parked_right_delta;
+        uint64_t left_millirev;
+        uint64_t right_millirev;
+        if (parked_odometry_have_baseline == 0u) {
+            parked_last_left_raw_counts = parked_left;
+            parked_last_right_raw_counts = parked_right;
+            parked_odometry_have_baseline = 1u;
+            odometry_have_baseline = 0u;
+            return;
+        }
+        if (normalize_forward_encoder_delta(
+                parked_left, parked_last_left_raw_counts,
+                app_config.follow_left_encoder_sign, &parked_left_delta) == 0u ||
+            normalize_forward_encoder_delta(
+                parked_right, parked_last_right_raw_counts,
+                app_config.follow_right_encoder_sign, &parked_right_delta) == 0u ||
+            car_encoder_counts_to_millirev(
+                parked_left_delta, app_config.follow_left_encoder_counts_per_rev,
+                &parked_left_fractional_remainder, &left_millirev) == 0u ||
+            car_encoder_counts_to_millirev(
+                parked_right_delta, app_config.follow_right_encoder_counts_per_rev,
+                &parked_right_fractional_remainder, &right_millirev) == 0u ||
+            left_millirev > UINT64_MAX - parked_left_millirev ||
+            right_millirev > UINT64_MAX - parked_right_millirev) {
+            parked_odometry_have_baseline = 0u;
+            odometry_invalid_latched = 1u;
+            parked_mean_forward_millirev = UINT32_MAX;
+            return;
+        }
+        parked_last_left_raw_counts = parked_left;
+        parked_last_right_raw_counts = parked_right;
+        parked_left_millirev += left_millirev;
+        parked_right_millirev += right_millirev;
+        {
+            uint64_t mean = parked_left_millirev / 2u +
+                parked_right_millirev / 2u +
+                ((parked_left_millirev & 1u) +
+                 (parked_right_millirev & 1u)) / 2u;
+            parked_mean_forward_millirev =
+                mean > UINT32_MAX ? UINT32_MAX : (uint32_t)mean;
+        }
         odometry_have_baseline = 0u;
         return;
     }
     if (speed_observer_result.status == CAR_SPEED_OBSERVER_STATUS_WAITING) {
         return;
     }
+    if (speed_observer_result.valid == 0u) {
+        odometry_have_baseline = 0u;
+        odometry_invalid_latched = 1u;
+        return;
+    }
     if (speed_observer_result.status != CAR_SPEED_OBSERVER_STATUS_SAMPLE) {
         odometry_have_baseline = 0u;
+        odometry_invalid_latched = 1u;
         return;
     }
     if (odometry_have_baseline == 0u) {
@@ -2114,6 +2184,7 @@ static void update_session_odometry(void)
         right_millirev > UINT64_MAX - session_right_millirev) {
         odometry_have_baseline = 0u;
         ++odometry_rejected_sample_count;
+        odometry_invalid_latched = 1u;
         return;
     }
 
@@ -3405,8 +3476,11 @@ static void service_reverse_control(uint32_t now_ms)
     car_reverse_control_set_profile_state(
         &reverse_control_tx, (uint8_t)CARTEST_TRACK_PROFILE,
         car_control_state.follow_session_active, follow_session_token,
-        session_mean_forward_millirev > UINT32_MAX
-            ? UINT32_MAX : (uint32_t)session_mean_forward_millirev);
+        odometry_invalid_latched ? UINT32_MAX :
+        (car_control_state.follow_session_active
+            ? (session_mean_forward_millirev >= UINT32_MAX
+                ? UINT32_MAX : (uint32_t)session_mean_forward_millirev)
+            : parked_mean_forward_millirev));
 
 #if CARTEST_GYRO350_ENABLED
     reverse_control_tx.gyro_release = car_control_state.gyro.active &&
@@ -4274,6 +4348,15 @@ static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
             else car_manual_button_cancel_request(&manual_run_button);
         }
         __set_PRIMASK(primask);car_wireless_effect_result(action,accepted);
+    }else if(action==CAR_WIRELESS_EFFECT_ENTRY_RESET){
+        uint8_t allowed=!motor_outputs_active && !car_control_state.follow_session_active &&
+            !manual_run_button.run_request && pe7_is_high() &&
+            !car_control_state.fault_latched;
+        if(allowed){
+            reset_session_odometry();
+            reverse_control_tx.profile_next_due_ms=now;
+        }
+        car_wireless_effect_result(action,allowed);
     }else if(action==CAR_WIRELESS_EFFECT_IMU_CAL){
         uint8_t allowed=!motor_outputs_active && !car_control_state.follow_session_active &&
             pe7_is_high() && !car_control_state.fault_latched;

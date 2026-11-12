@@ -92,8 +92,11 @@ class WirelessTests(unittest.TestCase):
         self.assertEqual(self.link.cached_ack[0], w.ACK_OK)
 
     def test_images_and_motor_commands_are_unsupported(self):
-        for sequence, op in enumerate((7, 8, 11), 2):
+        for sequence, op in enumerate((7, 8), 2):
             self.assertEqual(self.command(op, sequence), w.ACK_UNSUPPORTED)
+
+    def test_entry_calibration_requires_complete_marker_payload(self):
+        self.assertEqual(self.command(11), w.ACK_BAD_PARAM)
 
     def test_outer_payload_cannot_forge_reverse_keep(self):
         reset = r.pack_frame(r.COMMAND_RESET, 10)

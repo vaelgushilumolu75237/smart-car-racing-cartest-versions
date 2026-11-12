@@ -1,0 +1,19 @@
+{
+  "label": "C_RingFast",
+  "preset": "DebugRingFast",
+  "profile_id": 3,
+  "speed_percent": 100,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_outer_base_target_millirps": 5280,
+  "ring_outer_target_millirps": 3960,
+  "exit_outer_target_millirps": 5280,
+  "entry_orbit_speed_percent": 75,
+  "entry_orbit_servo_gain_permille": 1300,
+  "entry_variant": "encoder_gate_pending_calibration",
+  "ring_rate_mdps": 85714,
+  "gyro_authority": true,
+  "elf_sha256": "e3b313e0ff3e0399d2ae96926e0e226f5602bf6e03aebd9aaca971ce48c99f4c",
+  "build_id": "3c9eec38023dc1beefe8e8d221508b6b",
+  "hardware_acceptance": "pending_manual_tests"
+}

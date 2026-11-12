@@ -56,6 +56,9 @@ SAVECAM
 DEFAULT
 IMUCAL
 CALWIDTH
+ECALRESET
+ECALMARK00 ... ECALMARK12
+ECALCOMMIT0 / ECALCOMMIT1
 ```
 
 `SAVE` and `DEFAULT` require the vehicle to be parked, PE7 released, startup
@@ -72,13 +75,28 @@ Text commands require a newline; `ARM` opens a session for the query/save comman
 without starting the vehicle. Any intervening query uses its own sequence number,
 so the single-use `START` ticket remains usable until its 30-second expiry.
 
-The assistant page 4 carries the latest camera state: FPS, valid flag, ring
-phase, selected profile and active flag, processing time, accepted vision P/D,
-latest camera ACK status/opcode/detail, source, side, lateral error, and PD
-control value. These values are copied from camera STATE/CONFIG/ACK frames;
-receive counters are not used as substitutes.
+The assistant page 4 carries current entrance diagnostics: FPS, valid flag,
+ring state, entry ready, gate state, calibration ready, distance progress,
+transition flag, distance threshold, side, reserved value, side again,
+ring confirmed, curve phase, profile, and processing time. These values come
+from camera STATE frames; receive counters are not used as substitutes.
 
 ## Safety and transport rules
+
+The current encoder entrance version uses the parked `ECALRESET`,
+`ECALMARK00`/`01`/`02` (left) or `ECALMARK10`/`11`/`12` (right), and
+`ECALCOMMIT0`/`1` commands after ARM. A single hand-push records local images,
+geometry and mean forward wheel millirevolutions for both independent calibration
+files. It does not install the visual entrance gate as a runtime requirement.
+No distance is supplied through parameter 18. FIRST and the runtime distance
+origin must use the same stable confirmed-roundabout observation.
+
+COMMIT ACK detail is a bitmask: bit 0 visual file verified, bit 1 encoder file
+verified. Page 5 channel 15 reports this detail; value 3 confirms both files.
+Partial saves must report a non-success ACK. Page 4 channels 7 and 9 contain
+current/target mean wheel millirevolutions; channel 10 is gate side (0 unknown,
+1 left, 2 right). The complete channel map is documented in
+`docs/RingEntry_TwoVersions_20261112.md`.
 
 Only bounded live controls can be changed while moving. Ring progress, timing,
 servo limits, encoder configuration, and calibration remain parking-only. A
