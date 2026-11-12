@@ -138,8 +138,9 @@ class GyroLink:
         # frame also carries a fresh transition geometry.  A stale INSIDE
         # frame must not be able to arm ENTRY merely by echoing a prior gate
         # result.
-        entry_evidence = bool(confirmed and entry_transition and
-                              ring_info.get("entry_evidence"))
+        entry_evidence = bool(confirmed and ring_info.get("entry_evidence") and
+                              (entry_transition or
+                               ring_info.get("timed_entry_admission")))
         return bool(confirmed and inside and side_valid), entry_transition, side, entry_evidence
 
     @staticmethod
@@ -260,7 +261,7 @@ class GyroLink:
                 self._phase = PHASE_ENTRY
                 self._side = side
                 self._post_entry_frames = 0
-                self._entry_transition_seen = True
+                self._entry_transition_seen = bool(entry_transition)
                 self._entry_transition_ended = False
             elif self._phase == PHASE_ENTRY:
                 if side != self._side:

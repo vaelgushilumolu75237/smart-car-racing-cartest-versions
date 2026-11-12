@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-openmv-visual-fifo-busy-fix",
+  "version": "v20261112-openmv-ring-delay150",
   "status": "experimental-software-tested",
-  "branch": "experimental/visual-entry",
-  "files": 943,
+  "branch": "experimental/timed150-entry",
+  "files": 945,
   "hardware_actions": "none"
 }

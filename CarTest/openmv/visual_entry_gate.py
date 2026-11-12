@@ -1006,3 +1006,61 @@ __all__ = ("API_VERSION", "FORMAT_VERSION", "DEFAULT_CALIBRATION_PATH",
            "SIDE_LEFT", "SIDE_RIGHT",
            "STATE_WAIT", "STATE_READY", "STATE_ACTIVE", "STATE_REJECTED",
            "VisualEntryCalibration", "VisualEntryGate")
+
+
+class TimedEntryGate(VisualEntryGate):
+    """Admit the original confirmed ring after 150 ms of ordinary following."""
+    def __init__(self, calibration=None):
+        super().__init__(calibration, required=False)
+        self.delay_ms = 150
+        self._timed_start = None
+        self._timed_side = -1
+        self._timed_blocked = False
+
+    def reset(self, reason="RESET"):
+        super().reset(reason)
+        self._timed_start = None
+        self._timed_side = -1
+        self._timed_blocked = False
+
+    def update(self, ring_info, valid=True, profile_id=0, session_token=0,
+               now_ms=None, ticks_diff=None, session_active=True):
+        identity = (int(profile_id), int(session_token), bool(session_active))
+        changed = self._identity is not None and self._identity != identity
+        if changed:
+            self.reset("IDENTITY_CHANGED")
+        self._identity = identity
+        info = ring_info if isinstance(ring_info, dict) else {}
+        side = info.get("side", -1)
+        confirmed = self._inside(info) and side in VALID_SIDES
+        cleared = not info.get("candidate") and not info.get("ring_confirmed")
+        if not session_active or profile_id not in (2, 3) or not session_token:
+            self.reset("SESSION_INACTIVE")
+        elif changed or not valid or now_ms is None:
+            self.reset("FRAME_INVALID" if not valid else "IDENTITY_CHANGED")
+            self._timed_blocked = True
+        elif cleared:
+            self.reset("RING_OBSERVATION_RESET")
+        elif self._timed_side in VALID_SIDES and side != self._timed_side:
+            self.reset("ENTRY_SIDE_CHANGED")
+            self._timed_blocked = True
+        elif not self._timed_blocked:
+            if self._timed_start is None and confirmed:
+                self._timed_start = now_ms
+                self._timed_side = side
+                self.side = side
+                self.state = STATE_READY
+                self.reason = "TIMED_ENTRY_WAIT"
+            if self._timed_start is not None:
+                elapsed = self._elapsed_ms(now_ms, self._timed_start, ticks_diff)
+                if confirmed and elapsed >= self.delay_ms:
+                    self.state = STATE_ACTIVE
+                    self.reason = "TIMED_ENTRY_ACCEPTED"
+        ready = self.state == STATE_ACTIVE
+        self._result.update(ready=ready, active=ready, state=self.state,
+                            side=self.side, match_frames=0,
+                            entry_evidence=ready, timed_admission=ready,
+                            candidate_elapsed_ms=self._elapsed_ms(
+                                now_ms, self._timed_start, ticks_diff),
+                            calibration_ready=True, reason=self.reason)
+        return self._result

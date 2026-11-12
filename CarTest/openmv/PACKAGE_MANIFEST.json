@@ -32,10 +32,10 @@
   "sensor": "MT9V034",
   "image_width": 320,
   "image_height": 120,
-  "extension_version": "v20261112-openmv-visual-entry-gate-75-ring-servo130",
-  "entry_variant": "visual_gate_pending_calibration",
-  "entry_calibration_schema": "VISUAL_ENTRY_V1",
-  "entry_calibration_required": true,
+  "extension_version": "v20261112-openmv-timed150-75-ring-servo130",
+  "entry_variant": "original_confirmed_ring_delay150",
+  "entry_calibration_schema": "NONE_TIMED150",
+  "entry_calibration_required": false,
   "ring_entry_orbit_speed_percent": 75,
   "ring_entry_orbit_servo_gain_permille": 1300,
   "forward_wire": "V4/16-byte",
@@ -119,9 +119,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "09687f38ee382715d5bc03405de52606b8e8d87ddbeb16d8bace3f1a4aabc8b3",
+      "source_sha256": "0dd1eee17caec042de761b4a86a770d750f6e1f0394a1dbe15fdf082c7bbfc7c",
       "exit_code": 0,
-      "mpy_sha256": "e65542f86bdaa6d36b712a2ae99a75222a0a548b64f5682d90013ced1d06c6d6"
+      "mpy_sha256": "648b8bd2007dc7ec186c451c06b7db00be8e4356f6f1995eb318efb61de3f335"
     },
     {
       "file": "reverse_control.py",
@@ -185,9 +185,9 @@
     },
     {
       "file": "gyro_link.py",
-      "source_sha256": "a2326c7297256cc1258ff1d7b11099f638f7126c2429a232cd379cc81b8a8de8",
+      "source_sha256": "527706890b7ca5e6f16d7624c404324b1aa75edfa1886cd8dbacaa43fd51171b",
       "exit_code": 0,
-      "mpy_sha256": "f72fafe4388c1c66f49d7430a1fc03a923adbe917b3018373e5272b982d52d47"
+      "mpy_sha256": "51fa2ecd329b23b491310bde017b26958f467e867b3c37e8ee63352ae06eb6b0"
     },
     {
       "file": "entry_calibration_common.py",
@@ -197,9 +197,9 @@
     },
     {
       "file": "visual_entry_gate.py",
-      "source_sha256": "e557420d29c2885201af3ee31ee6fe116511f8d4a7ad15bb94bb7e106016d821",
+      "source_sha256": "de4e52e7cc02c9cf88513b4a83d1f49e745615186bb4debaaa3153fe1ffa7eae",
       "exit_code": 0,
-      "mpy_sha256": "2967a80ad712285c34e5e4360fb676b3042f33cb786d7d7991317d8805a6df92"
+      "mpy_sha256": "4aae4b44ec20a75af3ef1f6ef10395edc921dc373f4340accb3ebc31e751da97"
     },
     {
       "file": "wireless_sideband.py",
@@ -221,7 +221,7 @@
     "fast_topology.py": "9b2582100915112e01ae809ec51c8efb41a5f923b1aac9936157867acbd5c655",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "09687f38ee382715d5bc03405de52606b8e8d87ddbeb16d8bace3f1a4aabc8b3",
+    "main.py": "0dd1eee17caec042de761b4a86a770d750f6e1f0394a1dbe15fdf082c7bbfc7c",
     "reverse_control.py": "66a9e6b860222bf19d7be92dfd847de048f647e3735544ccecb2e20b9e2d79e5",
     "road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
     "source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
@@ -232,9 +232,9 @@
     "ring_width_calibration.py": "1cd968f8a2ab92aaff57e7e119cf4f73a9f43d9e2ef0f7105a9f18a40937cf08",
     "ring_diagnostics.py": "081179080acdc046cb4f9cb2702ed4b7e7480edeafff3df31d2a81936ff48e94",
     "fast_ring_slope.py": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-    "gyro_link.py": "a2326c7297256cc1258ff1d7b11099f638f7126c2429a232cd379cc81b8a8de8",
+    "gyro_link.py": "527706890b7ca5e6f16d7624c404324b1aa75edfa1886cd8dbacaa43fd51171b",
     "entry_calibration_common.py": "6abead6b41eea8c9d7d0e40c7671c2afd514cd2fe625591723f76cf94a48b779",
-    "visual_entry_gate.py": "e557420d29c2885201af3ee31ee6fe116511f8d4a7ad15bb94bb7e106016d821",
+    "visual_entry_gate.py": "de4e52e7cc02c9cf88513b4a83d1f49e745615186bb4debaaa3153fe1ffa7eae",
     "wireless_sideband.py": "9b3abb4c1479f1cbaabb7fdaae2fe686de4735d7e0863a022c50ffe60d782bf2"
   }
 }

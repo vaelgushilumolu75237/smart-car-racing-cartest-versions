@@ -18,7 +18,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "openmv_gyro_wireless"
-EXTENSION_VERSION = "v20261112-openmv-visual-entry-gate-75-ring-servo130"
+EXTENSION_VERSION = "v20261112-openmv-timed150-75-ring-servo130"
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),
@@ -55,7 +55,7 @@ def expected_profile(row):
                 exit_outer_target_millirps=orbit,
                 entry_orbit_speed_percent=75,
                 entry_orbit_servo_gain_permille=1300,
-                entry_variant="visual_gate_pending_calibration",
+                entry_variant="original_confirmed_ring_delay150",
                 ring_rate_mdps=yaw, gyro_authority=profile != 1)
 
 
@@ -163,9 +163,9 @@ def build(source, output, compiler, validation, readme):
         profiles.append(meta)
     write_json(camera / "PACKAGE_MANIFEST.json", dict(
                extension_version=EXTENSION_VERSION,
-               entry_variant="visual_gate_pending_calibration",
-               entry_calibration_schema="VISUAL_ENTRY_V1",
-               entry_calibration_required=True,
+               entry_variant="original_confirmed_ring_delay150",
+               entry_calibration_schema="NONE_TIMED150",
+               entry_calibration_required=False,
                ring_entry_orbit_speed_percent=75,
                ring_entry_orbit_servo_gain_permille=1300,
                runtime_files=list(runtime_names()), compilation=compilation,
@@ -174,8 +174,8 @@ def build(source, output, compiler, validation, readme):
                camera_firmware_policy="retain_current_vendor_firmware", image_transfer=False))
     write_json(output / "profiles.json", dict(
                delivery_kind=KIND, variant=EXTENSION_VERSION,
-               entry_variant="visual_gate_pending_calibration",
-               calibration_status="pending_manual_hand_push",
+               entry_variant="original_confirmed_ring_delay150",
+               calibration_status="entry_calibration_not_required",
                profiles=profiles, hardware_tested=False))
     shutil.copy2(validation, output / "validation/software-validation.json")
     shutil.copy2(readme, output / "README.md")

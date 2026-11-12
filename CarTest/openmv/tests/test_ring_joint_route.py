@@ -122,7 +122,7 @@ class CalibratedRingRouteTests(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             from entry_route_fixture import PreviouslyAdmittedEntrance, previously_admitted_tracker
             import visual_entry_gate
-            stack.enter_context(patch.object(visual_entry_gate, "VisualEntryGate", PreviouslyAdmittedEntrance))
+            stack.enter_context(patch.object(visual_entry_gate, "TimedEntryGate", PreviouslyAdmittedEntrance))
             for target,name,value in (
                 (main,"_configure_gray_sensor",lambda *_a,**_k:1),
                 (main,"sensor",runtime._Sensor()),(main,"time",clock),

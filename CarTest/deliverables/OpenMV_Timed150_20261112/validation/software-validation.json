@@ -1,0 +1,12 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "camera_regression": "581 tests passed; 4 existing skipped",
+  "tests_log": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\visual\\timed150-tests.log",
+  "gyro350_host": "pass",
+  "wireless_runtime_host": "pass",
+  "h743_changed": false,
+  "h743_build_evidence": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\validation\\visual\\final-software-validation.json",
+  "entry_delay_ms": 150,
+  "entry_calibration_required": false
+}

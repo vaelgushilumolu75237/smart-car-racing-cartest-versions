@@ -7034,10 +7034,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             raise TypeError("_test_visual_entry_gate must provide update()")
         visual_entry = _test_visual_entry_gate
     else:
-        visual_entry = visual_entry_gate.VisualEntryGate(
-            visual_entry_calibration,
-            required=getattr(config, "RING_VISUAL_ENTRY_CALIBRATION_REQUIRED",
-                             True))
+        visual_entry = visual_entry_gate.TimedEntryGate(
+            visual_entry_calibration)
     visual_entry_collector = visual_entry_gate.VisualEntryCalibrationCollector()
     camera_sideband = wireless_sideband.WirelessSideband(
         reverse_parser, None if fixture_mode else
@@ -7927,10 +7925,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             mean_forward_wheel_millirev=(
                 reverse_parser.mean_forward_wheel_millirev
                 if profile_id else 0))
-        # Ring recognition and ring control are separate.  A parked hand-push
-        # calibration must identify the physical upper entrance; until its
-        # far/near transition geometry is matched, preserve the ordinary road
-        # route and keep the gyro evidence explicitly off.
+        # Keep ordinary following for 150 ms after the original tracker
+        # confirms a ring. No parked entrance calibration is required.
         visual_entry_status = visual_entry.update(
             element_result,
             valid=bool(image_size_valid and mask_info is not None),
@@ -7938,10 +7934,13 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             session_token=reverse_parser.session_token if profile_id else 0,
             now_ms=profile_now_ms,
             ticks_diff=time.ticks_diff,
-            session_active=profile_session_active and not gyro_release)
+            session_active=(profile_session_active and not gyro_release and
+                            reverse_fresh))
         element_result["entry_ready"] = bool(visual_entry_status["ready"])
         element_result["entry_evidence"] = bool(
             visual_entry_status["entry_evidence"])
+        element_result["timed_entry_admission"] = bool(
+            visual_entry_status.get("timed_admission", False))
         element_result["entry_gate_state"] = visual_entry_status["state"]
         element_result["entry_gate_reason"] = visual_entry_status["reason"]
         element_result["entry_gate_side"] = visual_entry_status["side"]

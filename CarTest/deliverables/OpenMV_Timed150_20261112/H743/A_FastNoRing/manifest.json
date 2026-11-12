@@ -10,7 +10,7 @@
   "exit_outer_target_millirps": 0,
   "entry_orbit_speed_percent": 75,
   "entry_orbit_servo_gain_permille": 1300,
-  "entry_variant": "visual_gate_pending_calibration",
+  "entry_variant": "original_confirmed_ring_delay150",
   "ring_rate_mdps": 0,
   "gyro_authority": false,
   "elf_sha256": "a837829724f891b1ffe9cb2925e591fd8d8b87911e74a386edf1a5bd8e9456e5",
