@@ -1,0 +1,23 @@
+﻿{
+    "schema_version":  1,
+    "generated_utc":  "2026-10-22T20:11:30.0363343Z",
+    "package_id":  "H743_Ackermann60_20261022",
+    "artifacts":  [
+                      {
+                          "delivery_path":  "C_Coordinated/CarTest.elf",
+                          "export_elf":  true,
+                          "preset":  "DebugFollowIncrementalPI",
+                          "coordination_enabled":  true,
+                          "bytes":  2041352,
+                          "sha256":  "6370200c9b843cb1ecb5983b1eb886910a77eb145dff9f51cd119074bbd36c70"
+                      },
+                      {
+                          "delivery_path":  "C_Baseline/CarTest.elf",
+                          "export_elf":  true,
+                          "preset":  "DebugFollowIncrementalPIBaseline",
+                          "coordination_enabled":  false,
+                          "bytes":  2039224,
+                          "sha256":  "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655"
+                      }
+                  ]
+}

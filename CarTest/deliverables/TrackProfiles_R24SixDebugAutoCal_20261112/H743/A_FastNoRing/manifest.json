@@ -1,0 +1,19 @@
+{
+  "label": "A_FastNoRing",
+  "preset": "DebugFastNoRing",
+  "profile_id": 1,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_enabled": false,
+  "ring_outer_target_millirps": null,
+  "build_id": "fb002251f9663c73a6c0e5222fcc0ba6",
+  "elf_sha256": "da5224b20886a94f4c249b2397e42e24ea75729de11cbbb0f8ca410427774b7a",
+  "runtime_log_record_size": 64,
+  "runtime_log_header_size": 64,
+  "vehicle_acceptance": "pending_manual_road_tests",
+  "vision_hold_ms": 2000,
+  "vision_hold_ramp_ms": 200,
+  "steady_inside_target_millirps": null,
+  "steady_inside_slowdown_request": 1000,
+  "speed_percent": 100
+}

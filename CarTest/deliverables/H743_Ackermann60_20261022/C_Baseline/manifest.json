@@ -1,0 +1,14 @@
+﻿{
+    "schema_version":  1,
+    "generated_utc":  "2026-10-22T20:11:30.0363343Z",
+    "package_id":  "H743_Ackermann60_20261022",
+    "profile":  "C_Baseline",
+    "preset":  "DebugFollowIncrementalPIBaseline",
+    "coordination_enabled":  false,
+    "servo_slew_step_us":  120,
+    "elf":  "CarTest.elf",
+    "bytes":  2039224,
+    "sha256":  "3729bd00e6015f06a106d3c0a54352e5f3dbd0f17a6d129a252bee59912b7655",
+    "build_log":  "../build-logs/DebugFollowIncrementalPIBaseline.log",
+    "source_backup":  "deliverables/CarTest_PreAckermann60_20261021_20261021_213316_Restore.zip"
+}

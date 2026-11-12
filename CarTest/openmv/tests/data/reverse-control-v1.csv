@@ -1,0 +1,5 @@
+case,sequence,command,frame_hex
+reset_seq0,0,RESET,a65a01000000f147
+keep_seq1,1,KEEP,a65a01010100f043
+keep_wrap_before,65535,KEEP,a65a0101ffffce6d
+keep_wrap_after,0,KEEP,a65a01010000c170
