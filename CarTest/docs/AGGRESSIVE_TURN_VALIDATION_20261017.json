@@ -1,0 +1,287 @@
+{
+  "version": "v20261017-aggressive-turn",
+  "build_id": "AGGRESSIVE_TURN_20261016",
+  "delivery_date": "2026-10-17",
+  "reviewed_by": "primary agent; Luna implementation/build execution",
+  "source_freeze_verified": true,
+  "runtime_files": 20,
+  "unchanged_runtime_files": 17,
+  "changed_runtime_sources": [
+    "openmv/config.py",
+    "openmv/fast_single_edge.py",
+    "openmv/main.py"
+  ],
+  "camera_active_tests": 164,
+  "camera_active_suites": 16,
+  "camera_active_failures": 0,
+  "camera_frozen_regressions": [
+    {
+      "suite": "active_v7",
+      "exit_code": 0,
+      "tests": 79,
+      "skipped": 1,
+      "runtime_config": "AGGRESSIVE_TURN_20261016",
+      "log": "frozen-tests/active-v7.log"
+    },
+    {
+      "suite": "baseline_legacy_v7",
+      "exit_code": 0,
+      "tests": 79,
+      "skipped": 1,
+      "runtime_config": "STEERING_HOLD3S_20261016",
+      "log": "frozen-tests/baseline-v7-legacy-source.log"
+    }
+  ],
+  "camera_mpy_cross": {
+    "count": 20,
+    "all_exit_codes_zero": true,
+    "compiler_version": "MicroPython v1.25.0 on 2025-04-19; mpy-cross emitting mpy v6.3",
+    "flags": [
+      "-march=armv7emsp"
+    ]
+  },
+  "h743_full_host": {
+    "status": "PASS",
+    "runner": "tests/host/run_tests.ps1",
+    "exit_code": 0,
+    "cases": 68,
+    "assertions": 7048,
+    "failures": 0,
+    "protocol_vectors": 10,
+    "servo_apply_positive_control": {
+      "cases": 16,
+      "failures": 0,
+      "note": "The earlier baseline negative control intentionally fails 26 checks; the production-source positive control passes."
+    },
+    "speed_baseline_tool_tests": {
+      "count": 7,
+      "result": "PASS"
+    },
+    "runtime_log_flags_result": "PASS",
+    "runtime_log_snapshot_result": "PASS",
+    "follow_start_resync_result": "PASS",
+    "follow_speed_pi_assertions": 27,
+    "follow_speed_pi_failures": 0,
+    "follow_output_path": {
+      "result": "PASS",
+      "variants": [
+        {
+          "name": "hardware-accepted-diff0",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 32,
+          "checks": 270,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-accepted-diff0-run.log"
+        },
+        {
+          "name": "hardware-accepted-diff50",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 32,
+          "checks": 270,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-accepted-diff50-run.log"
+        },
+        {
+          "name": "hardware-accepted-diff100",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 32,
+          "checks": 270,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-accepted-diff100-run.log"
+        },
+        {
+          "name": "hardware-accepted-diff200",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 32,
+          "checks": 270,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-accepted-diff200-run.log"
+        },
+        {
+          "name": "hardware-locked-diff0",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 2,
+          "checks": 12,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-locked-diff0-run.log"
+        },
+        {
+          "name": "hardware-accepted-diff200-speed-pi",
+          "compile_exit": 0,
+          "run_exit": 0,
+          "cases": 32,
+          "checks": 284,
+          "failures": 0,
+          "run_log": "test-data\\aggressive-turn-20261016\\h743-validation\\host-output-path\\hardware-accepted-diff200-speed-pi-run.log"
+        }
+      ]
+    },
+    "target_matched_fixture": {
+      "path": "test-data\\aggressive-turn-20261016\\h743-validation\\host-fixtures\\DebugFollowTurn-target-matched-v2-20261017-complete2.bin",
+      "bytes": 256,
+      "records": 3,
+      "build_id": "f9a2fe5ba76e1db49d7e0ba394403f0b",
+      "sha256": "36c54946de1c3b4772b6b08c896d87b30d321ba982bb969467f1d2aec6e0395f"
+    },
+    "log": "test-data\\aggressive-turn-20261016\\h743-validation\\full-host-msvc-20261017-complete2.log",
+    "log_sha256": "61e44d15aac48edeaecad3ca5f15c3d13e1a52bc68b5f0a8ddd7c71ebe5ad201"
+  },
+  "h743_builds": [
+    {
+      "preset": "Debug",
+      "path": "build/Debug/CarTest.elf",
+      "sha256": "1de98c50f170c5ca8727ddc2e7d048a1aeb2b2603c8383d791b7fe1e2357e1f2",
+      "bytes": 1931616,
+      "build_id": "fb755ad26240623a5a81d55f69423705",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugSteering",
+      "path": "build/DebugSteering/CarTest.elf",
+      "sha256": "1772c460bbdde0cb7956d6ca795f1d1d1370819f79f2e89686d63ca662c1b42d",
+      "bytes": 1931636,
+      "build_id": "8c78e5a9a7d02689821b9381d882d0f2",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugBench",
+      "path": "build/DebugBench/CarTest.elf",
+      "sha256": "4f6ec2edddfce048aa5b16db8d8b5aff188749014b52f4c0ce721071f015c866",
+      "bytes": 1932168,
+      "build_id": "8d11bd49214f60a08964e739b7bf2460",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollow",
+      "path": "build/DebugFollow/CarTest.elf",
+      "sha256": "1eb5c9487e77456d6a2c39d02a3bb101e73cb27a895f6389b698f8d76d523578",
+      "bytes": 1936360,
+      "build_id": "0fde23358f4dffca5ebb8eb30d4a4350",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollowNoLog",
+      "path": "build/DebugFollowNoLog/CarTest.elf",
+      "sha256": "367a538d9a7a85fcad007daad7e22d0158844b78e36e598665da1a71fb1205a5",
+      "bytes": 1928896,
+      "build_id": "26b1247beb9aad8407af21147ffe927c",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollowDiff5",
+      "path": "build/DebugFollowDiff5/CarTest.elf",
+      "sha256": "be5644978268ede1b77ffb0e4af025a2acbd82275dcaaf6667a3c88114556553",
+      "bytes": 1936380,
+      "build_id": "cbc284890846fe0abe7a83b0689c4e42",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollowDiff10",
+      "path": "build/DebugFollowDiff10/CarTest.elf",
+      "sha256": "b15916652bd26691ebb655c5f5f44387fcccac68bb7228ee7fb11ceb9777b96a",
+      "bytes": 1936384,
+      "build_id": "ffd6dfeb943deb0d543cd32f8b159e42",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollowTurn",
+      "path": "build/DebugFollowTurn/CarTest.elf",
+      "sha256": "713905b76f67c45035b986368508a2ae4eb3f2bdfef90eb16b51c2660a27c188",
+      "bytes": 1936756,
+      "build_id": "f9a2fe5ba76e1db49d7e0ba394403f0b",
+      "configure_exit": 0,
+      "build_exit": 0
+    },
+    {
+      "preset": "DebugFollowSpeedPI",
+      "path": "build/DebugFollowSpeedPI/CarTest.elf",
+      "sha256": "08806921b7a69cc42ed20a61ecbdaa02d706143a7e994c7f29261653772df4a2",
+      "bytes": 1943756,
+      "build_id": "5b24ada2981d5aeb18019b6b2f987ae5",
+      "configure_exit": 0,
+      "build_exit": 0
+    }
+  ],
+  "tools_validation": {
+    "python_compile": {
+      "command": "python -m py_compile tools\\runtime_log_export.py tools\\run_status_reader.py tools\\analyze_steering_chain.py",
+      "exit_code": 0,
+      "log": "python-pycompile.log"
+    },
+    "python_contract_suite": {
+      "command": "python -m unittest tests.test_runtime_log_export.RuntimeLogVersionContractTests tests.test_run_status_reader tests.test_analyze_steering_chain -v",
+      "exit_code": 0,
+      "tests_run": 17,
+      "skipped": 0,
+      "log": "python-contracts-17.log"
+    },
+    "python_target_matched_v2_suite": {
+      "command": "$env:RUNTIME_LOG_TEST_ELF=build\\DebugFollowTurn\\CarTest.elf; $env:RUNTIME_LOG_TEST_BUFFER=test-data\\aggressive-turn-20261016\\h743-validation\\host-fixtures\\DebugFollowTurn-target-matched-v2-20261017-complete2.bin; python tests\\test_runtime_log_export.py -v",
+      "exit_code": 0,
+      "tests_run": 18,
+      "skipped": 0,
+      "log": "python-v2-env-18.log",
+      "fixture": "test-data/aggressive-turn-20261016/h743-validation/host-fixtures/DebugFollowTurn-target-matched-v2-20261017-complete2.bin"
+    },
+    "powershell_status_mock": {
+      "command": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests\\test_read_run_status.ps1 -Elf test-data\\failure3-20261015\\baseline\\build\\DebugFollowTurn\\CarTest.elf -HeaderFixture test-data\\run-status-20261014\\fixtures\\current-run-header-idle.bin -ScalarFixture test-data\\run-status-20261014\\fixtures\\synthetic-scalar-region.bin -OutputRoot test-data\\aggressive-turn-20261016\\tools-validation\\z",
+      "exit_code": 0,
+      "cases": 5,
+      "pass_log": "ps-status-suite.log",
+      "evidence_root": "z"
+    },
+    "powershell_export_mock": {
+      "command": "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tests\\test_export_run_log.ps1 -Elf test-data\\failure3-20261015\\baseline\\build\\DebugFollowTurn\\CarTest.elf -Fixture logs\\runs\\20261015-234044-791-13908\\runtime-log.bin -OutputRoot test-data\\aggressive-turn-20261016\\tools-validation\\y",
+      "exit_code": 0,
+      "cases": 6,
+      "pass_log": "ps-export-suite.log",
+      "evidence_root": "y"
+    }
+  },
+  "v1_real_record_regression": {
+    "old_count": 249,
+    "new_count": 249,
+    "common_columns": 51,
+    "difference_count": 0,
+    "differences": []
+  },
+  "hardware_validation": {
+    "current_old_firmware_build_id": "9f5f7aa48d3d0433e3ab4a992e15115e",
+    "new_firmware_flashed": false,
+    "new_camera_uploaded": false,
+    "motors_started_by_agent": false,
+    "idle_header_and_status_read_verified": true,
+    "wrong_elf_blocked_before_ram_verified": true,
+    "connection_intermittenly_failed_and_recovered_after_user_replug": true,
+    "nonempty_board_csv_export_verified": false,
+    "vehicle_cornering_verified": false
+  },
+  "key_review_points": [
+    "Last accepted error determines the held servo target; actual side duties stay fixed.",
+    "Exact-deadline third frame closes permission and restarts PWM/ramp gates.",
+    "Single-edge segments publish selected rows only; frame skips interrupt side-switch streaks.",
+    "Internal dark stripes cannot impersonate inward-moving boundary across a white gap.",
+    "Flash descriptor is compared before RAM reads; IDLE does not manufacture CSV.",
+    "PowerShell boolean child arguments and generic-list serialization tested in real subprocesses.",
+    "Collection of ELF descriptors is read-only; final native ELF hashes match build evidence."
+  ],
+  "limits": [
+    "Host tests and cross-compilation do not establish real OpenMV runtime or vehicle steering.",
+    "One board-equivalence test is skipped per frozen V7 run.",
+    "Compiler v1.25.0 is older than the reported board runtime.",
+    "Connection hardware root cause remains undetermined.",
+    "3000ms hold cannot anticipate an unseen opposite bend."
+  ]
+}

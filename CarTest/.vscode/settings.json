@@ -1,0 +1,16 @@
+{
+    "cmake.cmakePath": "cube-cmake",
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": false,
+    "cmake.preferredGenerators": [
+        "Ninja"
+    ],
+    "stm32cube-ide-clangd.path": "cube",
+    "stm32cube-ide-clangd.arguments": [
+        "starm-clangd",
+        "--query-driver=C:/Users/*/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/*/bin/arm-none-eabi-gcc*,C:/Users/*/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/*/bin/arm-none-eabi-g++*"
+    ],
+    "cmake.configureArgs": [
+        "-DCMAKE_COMMAND=cube-cmake"
+    ]
+}

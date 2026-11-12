@@ -1,0 +1,63 @@
+{
+  "artifact": "H743 uphill C",
+  "profile": "DebugFollowIncrementalPI",
+  "provenance": "Snapshot copied from the final ordinary all-profile build; SHA matches the corresponding build ELF.",
+  "source": "build/DebugFollowIncrementalPI/CarTest.elf",
+  "file": "CarTest.elf",
+  "size_bytes": 1983176,
+  "sha256": "3c7da3c26054764bec0949753212272d37857c015d5f351d13b4a0b085755d4f",
+  "build_id": "64dbbdc95b2f280d3a80eca085c1ced9",
+  "configuration": {
+    "turn_profile": true,
+    "left_right_diff_permille": 150,
+    "inner_diff_permille": 150,
+    "base_speed_permille": 500,
+    "servo_slew_step_us": 120,
+    "motor_ramp_step_permille": 40,
+    "motor_ramp_interval_ms": 10,
+    "startup_ramp_step_permille": 10,
+    "vision_hold_ms": 2000,
+    "vision_hold_decel_ramp_ms": 200,
+    "normal_speed_cap_permille": 700,
+    "hard_speed_cap_permille": 700,
+    "runtime_log_enabled": true,
+    "speed_pi_enabled": true,
+    "incremental_pi_enabled": true
+  },
+  "effective_compile_defines": {
+    "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+    "CARTEST_FOLLOW_INNER_DIFF_PERMILLE": "150",
+    "CARTEST_VISION_HOLD_MS": "2000",
+    "CARTEST_VISION_HOLD_RAMP_MS": "200",
+    "CARTEST_FOLLOW_SPEED_PI_ENABLED": "1",
+    "CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED": "1"
+  },
+  "runtime_log": {
+    "descriptor_sha256": "8ee1f3d42bbdaa2ff77ff01f1d8f71cdfc4a422afba044e4e3b7e71e317aaacc",
+    "descriptor_address": "0x08010558",
+    "storage_address": "0x24001320",
+    "storage_size": 393280
+  },
+  "linker_sections": {
+    ".runtime_diag": {
+      "type": "NOBITS",
+      "address": 603984480,
+      "size": 64,
+      "alignment": 32
+    },
+    ".speed_pi_diag": {
+      "type": "NOBITS",
+      "address": 603984544,
+      "size": 128,
+      "alignment": 32
+    },
+    ".runtime_log": {
+      "type": "NOBITS",
+      "address": 603984672,
+      "size": 393280,
+      "alignment": 32
+    }
+  },
+  "export_elf": "deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf",
+  "hardware_validation": "No hardware validation was performed during packaging."
+}
