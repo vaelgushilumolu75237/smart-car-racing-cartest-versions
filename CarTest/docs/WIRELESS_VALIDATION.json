@@ -143,8 +143,8 @@
         },
         {
           "file": "gyro_link.py",
-          "source_sha256": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
-          "mpy_sha256": "1d33b6c4dea26138f7a5a976ab48fcff8275dfcccaaa6e5c15e37485bf96c0fc"
+          "source_sha256": "c1069b6da81e8b61c51e932e6d23ba2749179081b9744d05ea7bd727107f6337",
+          "mpy_sha256": "5bd27e86991f674a78e581ef03e5f06db7bc991ceb8109c49a9c5e42f8656b64"
         },
         {
           "file": "k230_accel.py",
@@ -256,7 +256,7 @@
         "openmv/fast_single_edge.py": "98977e2333d90eb8a8eb682907562a04f5b862af9a489e79660793d76526077d",
         "openmv/fast_topology.py": "6287aaacf09853e815f0b3013ab2226cd515343a0e65bdd8c4791d3f996b7ab7",
         "openmv/grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-        "openmv/gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
+        "openmv/gyro_link.py": "c1069b6da81e8b61c51e932e6d23ba2749179081b9744d05ea7bd727107f6337",
         "openmv/k230_accel.py": "e85aa5544c01f488abb2b4d7b8220881d89b416198896a2611cf622ca5751f3e",
         "openmv/k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
         "openmv/k230_hal.py": "a51f73521497eb19185cc343e18e230763ed6a1fc844aa9dda9148c43f00c71d",
@@ -387,7 +387,7 @@
         "tests/k230_port/test_ring_baseline_sampling.py": "aaf5005b80ad1578d9cbd31149ef753d8ddad0d94cc8877c62779da52106ab01",
         "tests/k230_port/test_single_edge_seed.py": "4674d1ed47b9eb0e6075a478510a82dcc24118428523488f487dfb0574d78b57",
         "tests/k230_port/test_uart_readiness.py": "afc1b24d8c8e16d968ba7607b83bdb85776491a5bf34e45a3c4098d22605688c",
-        "tests/k230_gyro/test_gyro_link.py": "51e9e89e3db3dc8b10c60c188381167b70ce6307ba592de74bce025b259ac8d1",
+        "tests/k230_gyro/test_gyro_link.py": "658f12044b395aa3825f0c3594c3c0f91c2e2eed33fba724801f9a13e01bd552",
         "tests/wireless_camera/test_multiplex_burst.py": "4a967580e519fb7f3311aaf349b9ab4fafb544b4dfb1d353dc4a216471e90fc1",
         "tests/wireless_camera/test_wireless_camera.py": "b419529ca853bf68786e7cd086c3e18d2413eb3c8fb8216cb80fc310d672ac54",
         "tests/wireless_camera/test_wireless_camera_actions.py": "cbf3e308c05125f3ec64a4c7224ef76a386d5f39bb3cf61b07a3db04ae0e2358"
@@ -414,7 +414,7 @@
       },
       "gyro_camera": {
         "passed": true,
-        "tests": 15,
+        "tests": 18,
         "command": [
           "-m",
           "unittest",
@@ -694,7 +694,7 @@
     "DebugSteering": "1bc14c2f04dd1c645a35e2a0c2ec14a785fa02d15fb1b56a6812c36b8dd621e1",
     "DebugWirelessGyro350Speed140": "daa7eda450a4190ff3cce17ffe86803f6b92d8e43fe44fb0be409328736ef3ea"
   },
-  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
+  "hardware_actions": "none for V32; offline regression and bytecode compilation only; no camera install, H743 flash/reset or motor start",
   "hardware_diagnostics": {
     "current_version_hardware_verified": false,
     "camera_runtime_unchanged": false,

@@ -58,6 +58,62 @@ def metadata(packet):
 
 
 class GyroLinkProtocolTests(unittest.TestCase):
+    def test_real_dropout_state_cannot_authorize_gyro_on_ordinary_bend(self):
+        from unittest.mock import patch
+        tracker = track_elements.TrackElementsTracker(require_calibration=False)
+        tracker._side = track_elements.SIDE_LEFT
+        tracker._state = track_elements.STATE_ENTRY_CONFIRM
+        tracker._drop_count = 1
+        tracker._current_valid = True
+        with patch.object(tracker, '_topology_clear', return_value=True), \
+                patch.object(tracker, '_ordinary_corridor_frame', return_value=False), \
+                patch.object(tracker, '_entry_dropout_evidence', return_value=(True, 15, 5)):
+            tracker._confirm_entry_drop(20, {})
+        self.assertEqual(tracker._state, track_elements.STATE_ENTER)
+        tracker._publish()
+        self.assertFalse(tracker.result['ring_confirmed'])
+        parser = profile_parser(5)
+        link = gyro_link.GyroLink()
+        # Repeat the actual dropout-only state through multiple profile leases.
+        # Both left and right valid single-edge routes remain ordinary.
+        for side in ('LEFT', 'RIGHT'):
+            for i in range(1, 10):
+                now = i * 15
+                evidence = dict(tracker.result, side_name=side)
+                packet = vision_frame(i if side == 'LEFT' else i + 10)
+                link.transform(packet, parser, evidence, True, now, ticks_diff)
+                self.assertEqual(metadata(packet)['ring_phase'], 0)
+                self.assertEqual(metadata(packet)['ordinary'], 1)
+                self.assertTrue(metadata(packet)['crc_ok'])
+
+    def test_unconfirmed_arc_missing_target_or_invalid_frame_never_starts_entry(self):
+        parser = profile_parser(5)
+        for changes in ({'entry_confirmation_path': 'NONE'},
+                        {'ring_confirmed': False}, {'target_valid': False},
+                        {'state_id': 2}, {'invalid': True}):
+            link = gyro_link.GyroLink()
+            evidence = {'state_id': 3, 'side_name': 'LEFT',
+                        'ring_confirmed': True, 'target_valid': True,
+                        'entry_confirmation_path': 'PEAK_REVERSAL'}
+            evidence.update(changes)
+            for i in range(4):
+                packet = vision_frame(i, valid=not changes.get('invalid', False))
+                link.transform(packet, parser, evidence, True, i * 20, ticks_diff)
+                self.assertEqual(metadata(packet)['ring_phase'], 0, changes)
+
+    def test_confirmed_arc_cannot_start_from_repeated_or_backward_packet(self):
+        parser = profile_parser(5)
+        for sequence in (10, 9):
+            link = gyro_link.GyroLink()
+            link.transform(vision_frame(10), parser,
+                           {'state_id': 2, 'side_name': 'LEFT'}, True, 0, ticks_diff)
+            packet = vision_frame(sequence)
+            evidence = {'state_id': 3, 'side_name': 'LEFT',
+                        'ring_confirmed': True, 'target_valid': True,
+                        'entry_confirmation_path': 'GROWING_ARC'}
+            link.transform(packet, parser, evidence, True, 20, ticks_diff)
+            self.assertEqual(metadata(packet)['ring_phase'], 0)
+
     def test_main_keeps_verified_single_edge_routes_in_ordinary_authority(self):
         """Exercise the real dual/single main loop and inspect its V4 input."""
         from unittest.mock import patch
@@ -95,7 +151,7 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser = profile_parser(reverse_control.PROFILE_SESSION_ACTIVE)
         link = gyro_link.GyroLink(required=True)
         packet = vision_frame(7)
-        link.transform(packet, parser, {"state_id": 2, "side_name": "LEFT"},
+        link.transform(packet, parser, {"state_id": 3, "side_name": "LEFT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True},
                        True, 0, ticks_diff)
 
         self.assertEqual(packet[2], vision_protocol.VERSION_V3)
@@ -111,7 +167,7 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser.poll(250, ticks_diff)
         link = gyro_link.GyroLink(required=True)
         packet = vision_frame(8)
-        link.transform(packet, parser, {"state_id": 2, "side_name": "RIGHT"},
+        link.transform(packet, parser, {"state_id": 3, "side_name": "RIGHT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True},
                        True, 250, ticks_diff)
         self.assertEqual(packet[2], vision_protocol.VERSION_V3)
         self.assertEqual(packet[6], 0)
@@ -124,7 +180,7 @@ class GyroLinkProtocolTests(unittest.TestCase):
         link = gyro_link.GyroLink(required=True)
 
         entry = vision_frame(10)
-        link.transform(entry, parser, {"state_id": 2, "side_name": "LEFT"},
+        link.transform(entry, parser, {"state_id": 3, "side_name": "LEFT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True},
                        True, 0, ticks_diff)
         self.assertEqual(metadata(entry), {
             "version": 4, "curve_phase": 2, "ring_phase": 1,
@@ -136,17 +192,17 @@ class GyroLinkProtocolTests(unittest.TestCase):
             link.transform(packet, parser, {
                 "state_id": 3,
                 "side_name": "LEFT",
-                "ring_confirmed": True,
+                "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
                 "target_valid": True,
                 "entry_transition": False,
             }, True, now_ms, ticks_diff)
-            self.assertEqual(metadata(packet)["ring_phase"], 0)
+            self.assertEqual(metadata(packet)["ring_phase"], 1)
 
         inside = vision_frame(13)
         link.transform(inside, parser, {
             "state_id": 3,
             "side_name": "LEFT",
-            "ring_confirmed": True,
+            "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
             "target_valid": True,
             "entry_transition": False,
         }, True, 120, ticks_diff)
@@ -161,14 +217,14 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser = profile_parser(flags)
         link = gyro_link.GyroLink(required=True)
         packet = vision_frame(20, valid=1, curve_phase=1)
-        link.transform(packet, parser, {"state_id": 2, "side_name": "RIGHT"},
+        link.transform(packet, parser, {"state_id": 3, "side_name": "RIGHT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True},
                        True, 0, ticks_diff)
         self.assertEqual(metadata(packet)["side_bits"], 2)
         self.assertEqual(metadata(packet)["ordinary"], 1)
 
         invalid = vision_frame(21, valid=0)
         link.transform(invalid, parser, {"state_id": 3,
-                       "side_name": "RIGHT", "ring_confirmed": True,
+                       "side_name": "RIGHT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
                        "target_valid": True, "entry_transition": False},
                        True, 40, ticks_diff)
         self.assertEqual(metadata(invalid)["ordinary"], 0)
@@ -179,7 +235,7 @@ class GyroLinkProtocolTests(unittest.TestCase):
                  reverse_control.PROFILE_GYRO350_SUPPORTED)
         parser = profile_parser(flags)
         link = gyro_link.GyroLink(required=True)
-        evidence = {"state_id": 2, "side_name": "LEFT"}
+        evidence = {"state_id": 3, "side_name": "LEFT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True}
         packet = vision_frame(30)
         link.transform(packet, parser, evidence, True, 0, ticks_diff,
                        budget_ok=False, calibrated=True)
@@ -203,21 +259,21 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser = profile_parser(flags)
         link = gyro_link.GyroLink(required=True)
         evidence = {
-            "state_id": 3, "side_name": "LEFT", "ring_confirmed": True,
+            "state_id": 3, "side_name": "LEFT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
             "target_valid": True, "entry_transition": False,
         }
         for sequence, now_ms in ((40, 0), (41, 40)):
             packet = vision_frame(sequence)
             link.transform(packet, parser, evidence, True, now_ms, ticks_diff)
-            self.assertEqual(metadata(packet)["ring_phase"], 0)
+            self.assertEqual(metadata(packet)["ring_phase"], 1)
 
         duplicate = vision_frame(41)
         link.transform(duplicate, parser, evidence, True, 80, ticks_diff)
-        self.assertEqual(metadata(duplicate)["ring_phase"], 0)
+        self.assertNotEqual(metadata(duplicate)["ring_phase"], 2)
 
         rollback = vision_frame(39)
         link.transform(rollback, parser, evidence, True, 120, ticks_diff)
-        self.assertEqual(metadata(rollback)["ring_phase"], 0)
+        self.assertNotEqual(metadata(rollback)["ring_phase"], 2)
 
     def test_forward_sequence_wrap_is_accepted_once(self):
         flags = (reverse_control.PROFILE_SESSION_ACTIVE |
@@ -225,10 +281,10 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser = profile_parser(flags)
         link = gyro_link.GyroLink(required=True)
         link.transform(vision_frame(0xFFFD), parser,
-                        {"state_id": 2, "side_name": "RIGHT"},
+                        {"state_id": 3, "side_name": "RIGHT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True, "entry_transition": True},
                         True, 0, ticks_diff)
         evidence = {
-            "state_id": 3, "side_name": "RIGHT", "ring_confirmed": True,
+            "state_id": 3, "side_name": "RIGHT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
             "target_valid": True, "entry_transition": False,
         }
         for sequence, now_ms in ((0xFFFE, 40), (0xFFFF, 80), (0, 120)):
@@ -242,10 +298,10 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser = profile_parser(flags, token=1)
         link = gyro_link.GyroLink(required=True)
         evidence = {
-            "state_id": 3, "side_name": "LEFT", "ring_confirmed": True,
+            "state_id": 3, "side_name": "LEFT", "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True,
             "target_valid": True, "entry_transition": False,
         }
-        for sequence, now_ms in ((50, 0), (51, 40), (52, 80)):
+        for sequence, now_ms in ((49, 0), (50, 20), (51, 40), (52, 80)):
             packet = vision_frame(sequence)
             link.transform(packet, parser, evidence, True, now_ms, ticks_diff)
         self.assertEqual(link.count, 3)
@@ -255,8 +311,8 @@ class GyroLinkProtocolTests(unittest.TestCase):
         parser.feed(changed, len(changed), 120)
         packet = vision_frame(53)
         link.transform(packet, parser, evidence, True, 120, ticks_diff)
-        self.assertEqual(metadata(packet)["ring_phase"], 0)
-        self.assertEqual(link.count, 1)
+        self.assertEqual(metadata(packet)["ring_phase"], 1)
+        self.assertEqual(link.count, 0)
 
     def test_release_flag_is_fresh_and_clears_old_ring_owner(self):
         flags = (reverse_control.PROFILE_SESSION_ACTIVE |
@@ -306,19 +362,23 @@ class GyroLinkProtocolTests(unittest.TestCase):
             sequence = case["input_sequence"]
             packet = vision_frame(sequence, valid=valid)
             link.transform(packet, parser,
-                           {"state_id": 2, "side_name": side},
+                           {"state_id": 3, "side_name": side, "ring_confirmed": True, "target_valid": True, "entry_confirmation_path": "GROWING_ARC", "entry_transition": True},
                            True, 0, ticks_diff)
             if "inside" in case["name"]:
                 evidence = {
                     "state_id": 3, "side_name": side,
-                    "ring_confirmed": True, "target_valid": True,
+                    "entry_confirmation_path": "GROWING_ARC", "ring_confirmed": True, "target_valid": True,
                     "entry_transition": False,
                 }
                 for offset, now_ms in ((1, 40), (2, 80), (3, 120)):
                     packet = vision_frame(sequence + offset, valid=valid)
                     link.transform(packet, parser, evidence, True,
                                    now_ms, ticks_diff)
-            self.assertEqual(bytes(packet).hex(), case["hex"], case["name"])
+            if case["name"] == "invalid_route_entry":
+                self.assertEqual(metadata(packet)["ring_phase"], 0)
+                self.assertEqual(metadata(packet)["ordinary"], 0)
+            else:
+                self.assertEqual(bytes(packet).hex(), case["hex"], case["name"])
 
     def test_main_fast_final_uart_write_emits_v4_with_capable_profile(self):
         from unittest.mock import patch

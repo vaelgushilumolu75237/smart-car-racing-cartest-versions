@@ -1,9 +1,9 @@
 {
-  "version": "v20261111-k230-fps65-v31",
-  "status": "experimental-software-tested-camera-ram65-h743-pending",
+  "version": "v20261112-k230-ring-authority-v32",
+  "status": "experimental-software-tested-hardware-pending",
   "branch": "experimental/wireless-diagnostics-v1",
-  "files": 673,
-  "hardware_actions": "finite camera USB RAM diagnostics; no production camera installation, H743 flash/reset or motor start",
+  "files": 675,
+  "hardware_actions": "none for V32; offline regression and bytecode compilation only; no camera install, H743 flash/reset or motor start",
   "deployment_actions": "none",
   "platform": "Yahboom K230 deluxe",
   "hardware_diagnostics": {

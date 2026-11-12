@@ -117,6 +117,9 @@ if __name__ == "__main__":
             shutil.copy2(ROOT / 'docs' / name, install_root / name)
     if seekfree_start:
         shutil.copy2(ROOT / "docs/SEEKFREE_START_V10_CN.md", install_root / "SEEKFREE_START_V10_CN.md")
+    if (ROOT / 'docs/RING_AUTHORITY_V32_CN.md').is_file():
+        for name in ('RING_AUTHORITY_V32_CN.md', 'RING_AUTHORITY_V32_VALIDATION.json'):
+            shutil.copy2(ROOT / 'docs' / name, install_root / name)
     baseline = json.loads((OUT / "private-baseline/SOURCE_BEFORE.json").read_text(encoding="utf-8"))
     source = Path(baseline["source"])
     changed = [name for name, expected in baseline["files"].items() if digest(source / name) != expected]

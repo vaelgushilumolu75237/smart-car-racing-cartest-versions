@@ -51,7 +51,7 @@
     "fast_single_edge.py": "98977e2333d90eb8a8eb682907562a04f5b862af9a489e79660793d76526077d",
     "fast_topology.py": "6287aaacf09853e815f0b3013ab2226cd515343a0e65bdd8c4791d3f996b7ab7",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
-    "gyro_link.py": "b92aba14289c9b0a0ea444ff6b0b15b7d2892ab514a57171c397e462f6f0e453",
+    "gyro_link.py": "c1069b6da81e8b61c51e932e6d23ba2749179081b9744d05ea7bd727107f6337",
     "k230_accel.py": "e85aa5544c01f488abb2b4d7b8220881d89b416198896a2611cf622ca5751f3e",
     "k230_calibration.py": "adfdbc34820629368f3636a8f76b5ecf2b3ba0a1428e6116f48073cb5847cf88",
     "k230_hal.py": "a51f73521497eb19185cc343e18e230763ed6a1fc844aa9dda9148c43f00c71d",
@@ -79,7 +79,7 @@
   "wire_protocol": 4,
   "gyro350_required": true,
   "wireless_required": true,
-  "release_version": "v20261111-k230-fps65-v31",
+  "release_version": "v20261112-k230-ring-authority-v32",
   "wireless_aux_gpio": {
     "rts": "PA4",
     "cmd": "PA5",
