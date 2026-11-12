@@ -7035,7 +7035,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             raise TypeError("_test_visual_entry_gate must provide update()")
         visual_entry = _test_visual_entry_gate
     else:
-        visual_entry = visual_entry_gate.TimedEntryGate(
+        visual_entry = visual_entry_gate.OriginalTriggerGate(
             visual_entry_calibration)
     visual_entry_collector = visual_entry_gate.VisualEntryCalibrationCollector()
     camera_sideband = wireless_sideband.WirelessSideband(
@@ -7926,8 +7926,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             mean_forward_wheel_millirev=(
                 reverse_parser.mean_forward_wheel_millirev
                 if profile_id else 0))
-        # Keep ordinary following for 150 ms after the original tracker
-        # confirms a ring. No parked entrance calibration is required.
+        # Original tracker confirmation immediately arms MCU straight300.
+        # No camera delay or parked entrance calibration is required.
         visual_entry_status = visual_entry.update(
             element_result,
             valid=bool(image_size_valid and mask_info is not None),
@@ -7942,6 +7942,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             visual_entry_status["entry_evidence"])
         element_result["timed_entry_admission"] = bool(
             visual_entry_status.get("timed_admission", False))
+        element_result["original_trigger_300"] = bool(
+            visual_entry_status.get("original_trigger_300", False))
         element_result["entry_gate_state"] = visual_entry_status["state"]
         element_result["entry_gate_reason"] = visual_entry_status["reason"]
         element_result["entry_gate_side"] = visual_entry_status["side"]

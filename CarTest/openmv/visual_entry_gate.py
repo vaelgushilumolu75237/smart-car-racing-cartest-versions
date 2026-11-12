@@ -1064,3 +1064,26 @@ class TimedEntryGate(VisualEntryGate):
                                 now_ms, self._timed_start, ticks_diff),
                             calibration_ready=True, reason=self.reason)
         return self._result
+
+
+class OriginalTriggerGate(TimedEntryGate):
+    """Original confirmed INSIDE starts MCU-owned straight approach immediately."""
+    def update(self, ring_info, valid=True, profile_id=0, session_token=0,
+               now_ms=None, ticks_diff=None, session_active=True):
+        identity=(int(profile_id),int(session_token),bool(session_active))
+        if self._identity is not None and identity != self._identity:
+            self.reset("IDENTITY_CHANGED")
+        self._identity=identity
+        info=ring_info if isinstance(ring_info,dict) else {}
+        if not session_active or profile_id not in (2,3) or not session_token:
+            self.reset("SESSION_INACTIVE")
+        elif self.state != STATE_ACTIVE and valid and self._inside(info) and info.get("side") in VALID_SIDES:
+            self.state=STATE_ACTIVE
+            self.side=info["side"]
+            self.reason="ORIGINAL_TRIGGER_MCU_STRAIGHT300"
+        ready=self.state == STATE_ACTIVE
+        self._result.update(ready=ready,active=ready,state=self.state,side=self.side,
+                            match_frames=0,entry_evidence=ready,timed_admission=ready,
+                            calibration_ready=True,reason=self.reason,
+                            original_trigger_300=ready)
+        return self._result

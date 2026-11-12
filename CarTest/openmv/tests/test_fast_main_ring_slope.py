@@ -483,7 +483,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                     return single_edge_result
                 return super().detect(*args, **kwargs)
 
-        with patch.object(visual_entry_gate, "TimedEntryGate", PreviouslyAdmittedEntrance), \
+        with patch.object(visual_entry_gate, "OriginalTriggerGate", PreviouslyAdmittedEntrance), \
                 patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", fake_sensor), \
                 patch.object(main, "time", fake_time), \
@@ -919,7 +919,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                                        main.fast_single_edge.ROW_STRIDE])))
                 return info
 
-        with patch.object(visual_entry_gate, "TimedEntryGate", PreviouslyAdmittedEntrance), \
+        with patch.object(visual_entry_gate, "OriginalTriggerGate", PreviouslyAdmittedEntrance), \
                 patch.object(main, "_configure_gray_sensor", return_value=1), \
                 patch.object(main, "sensor", _Sensor()), \
                 patch.object(main, "time", fake_time), \

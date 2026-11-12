@@ -126,6 +126,8 @@ static void start_ring(authority_fixture_t *fixture)
     seed_ordinary_route(fixture);
     send_frame(fixture, 1u, VP_VERSION_V4, 1u, -1, 0u,
                fixture->now_ms + 10u);
+    fixture->control.gyro.state_started_ms -= CAR_GYRO_RING_APPROACH_MS;
+    car_control_update_gyro(&fixture->control,&fixture->config,fixture->now_ms);
 }
 
 static void test_ring_authority_and_invalid_route(void)
@@ -321,6 +323,7 @@ static void test_invalid_image_cannot_advance_ring_phase(void)
                fixture.now_ms + 10u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "invalid orbit event cannot reset yaw origin");
+    fixture.control.gyro.state_started_ms -= CAR_GYRO_RING_APPROACH_MS;
     send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
                fixture.now_ms + 10u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ORBIT,
@@ -403,8 +406,33 @@ static void test_manual_start_reason_preserves_gate(void)
 #endif
 }
 
+
+static void test_production_approach(void)
+{
+#if CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2
+    for (int side=-1;side<=1;side+=2) {
+        authority_fixture_t f;
+        fixture_init(&f);make_gyro_ready(&f);seed_ordinary_route(&f);
+        send_frame(&f,1u,VP_VERSION_V4,1u,(int8_t)side,0u,f.now_ms+10u);
+        uint32_t started=f.now_ms;
+        for (uint32_t elapsed=0;elapsed<300u;++elapsed) {
+            send_frame(&f,1u,VP_VERSION_V4,elapsed%2u?1u:2u,(int8_t)side,0u,started+elapsed);
+            check(f.control.gyro.phase==CAR_GYRO_RING_ENTRY,"early orbit cannot skip straight300");
+            check(f.control.gyro_servo_us==f.config.servo_center_us,"straight300 centers servo throughout");
+            check(f.control.gyro.outer_target_millirps==CAR_GYRO_RING_ENTRY_ORBIT_OUTER_TARGET_MILLIRPS,"approach preserves current ring speed");
+        }
+        send_frame(&f,1u,VP_VERSION_V4,1u,(int8_t)side,0u,started+300u);
+        check(f.control.gyro.state_started_ms==started,"repeated entry never restarts timer");
+        check(f.control.gyro_servo_us!=f.config.servo_center_us,"steering begins at300 without second recognition");
+        send_frame(&f,1u,VP_VERSION_V4,2u,(int8_t)side,0u,started+301u);
+        check(f.control.gyro.phase==CAR_GYRO_RING_ORBIT,"postapproach orbit accepted");
+    }
+#endif
+}
+
 int main(void)
 {
+    test_production_approach();
     test_profile_gate();
     test_manual_start_reason_preserves_gate();
 #if CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2

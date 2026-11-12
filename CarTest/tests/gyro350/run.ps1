@@ -27,7 +27,7 @@ try {
             $variantName = $profile.Name + '-' + $sign.Name
             $variantExe = Join-Path $env:TEMP ("gyro350-pure-c-tests-" + $variantName + ".exe")
             $compileArgs = @(
-                'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I', 'Inc'
+                'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I', 'Inc', '-DCAR_GYRO_RING_APPROACH_MS=0u'
             )
             $compileArgs += $profile.Defines
             if ($null -ne $sign.Define) {

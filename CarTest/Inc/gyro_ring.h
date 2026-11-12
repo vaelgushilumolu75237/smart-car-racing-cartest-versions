@@ -2,6 +2,9 @@
 #define CARTEST_GYRO_RING_H
 
 #include <stdint.h>
+#ifndef CAR_GYRO_RING_APPROACH_MS
+#define CAR_GYRO_RING_APPROACH_MS 300u
+#endif
 #include "gyro350_config.h"
 
 #ifdef __cplusplus

@@ -1,0 +1,20 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "camera_tests": 590,
+  "camera_skips": 4,
+  "gyro_pure_variants": 12,
+  "authority_profiles": 3,
+  "wireless_runtime": "passed",
+  "builds": [
+    "DebugRingFast",
+    "DebugFastNoRing",
+    "DebugRingBase",
+    "DebugRingFastSpeed120",
+    "DebugRingFastSpeed130",
+    "DebugRingFastSpeed140"
+  ],
+  "approach_ms": 300,
+  "ring_speed_percent": 75,
+  "ring_servo_gain_permille": 1300
+}

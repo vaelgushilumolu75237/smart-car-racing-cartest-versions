@@ -1,0 +1,19 @@
+{
+  "label": "B_RingBase",
+  "preset": "DebugRingBase",
+  "profile_id": 2,
+  "speed_percent": 100,
+  "straight_target_millirps": 4800,
+  "curve_outer_target_millirps": 4000,
+  "ring_outer_base_target_millirps": 4000,
+  "ring_outer_target_millirps": 3000,
+  "exit_outer_target_millirps": 4000,
+  "entry_orbit_speed_percent": 75,
+  "entry_orbit_servo_gain_permille": 1300,
+  "entry_variant": "original_confirmed_ring_straight300",
+  "ring_rate_mdps": 64935,
+  "gyro_authority": true,
+  "elf_sha256": "9bc3a83fa70dfe4aa8ce68ae9ae7e6df7a688e1381cb99beb24bdb75e0385641",
+  "build_id": "7cda9962c61e43be781cd6c9801bd393",
+  "hardware_acceptance": "pending_manual_tests"
+}

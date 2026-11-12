@@ -48,6 +48,7 @@ class GyroLink:
         self._phase = PHASE_OFF
         self._side = TRACK_SIDE_NONE
         self._post_entry_frames = 0
+        self._approach_started_ms = None
         self._entry_transition_seen = False
         self._entry_transition_ended = False
         self._identity_valid = False
@@ -65,6 +66,7 @@ class GyroLink:
         self._phase = PHASE_OFF
         self._side = TRACK_SIDE_NONE
         self._post_entry_frames = 0
+        self._approach_started_ms = None
         self._entry_transition_seen = False
         self._entry_transition_ended = False
 
@@ -259,11 +261,17 @@ class GyroLink:
                 if not entry_evidence:
                     return self._sync_result(bool(valid and ordinary_valid))
                 self._phase = PHASE_ENTRY
+                self._approach_started_ms = (now_ms if ring_info.get("original_trigger_300") else None)
                 self._side = side
                 self._post_entry_frames = 0
-                self._entry_transition_seen = bool(entry_transition)
+                self._entry_transition_seen = bool(entry_transition and self._approach_started_ms is None)
                 self._entry_transition_ended = False
             elif self._phase == PHASE_ENTRY:
+                if (self._approach_started_ms is not None and
+                        ticks_diff(now_ms, self._approach_started_ms) < 300):
+                    self._post_entry_frames = 0
+                    self._entry_transition_seen = False
+                    return self._sync_result(False)
                 if side != self._side:
                     # A new confirmed direction cannot advance the old entry
                     # lease. Start a fresh phase-1 observation instead.

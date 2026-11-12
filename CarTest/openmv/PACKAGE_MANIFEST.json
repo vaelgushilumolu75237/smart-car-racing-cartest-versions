@@ -1,4 +1,10 @@
 {
+  "extension_version": "v20261112-original-trigger-straight300",
+  "entry_variant": "original_confirmed_ring_straight300",
+  "entry_calibration_schema": "NONE_MCU_STRAIGHT300",
+  "entry_calibration_required": false,
+  "ring_entry_orbit_speed_percent": 75,
+  "ring_entry_orbit_servo_gain_permille": 1300,
   "runtime_files": [
     "adaptive_detector.py",
     "boundary_evidence.py",
@@ -28,22 +34,6 @@
     "visual_entry_gate.py",
     "wireless_sideband.py"
   ],
-  "shared_profile_selection": true,
-  "sensor": "MT9V034",
-  "image_width": 320,
-  "image_height": 120,
-  "extension_version": "v20261112-delay150-widthgate-fix",
-  "entry_variant": "original_confirmed_ring_delay150",
-  "entry_calibration_schema": "NONE_TIMED150",
-  "entry_calibration_required": false,
-  "ring_entry_orbit_speed_percent": 75,
-  "ring_entry_orbit_servo_gain_permille": 1300,
-  "forward_wire": "V4/16-byte",
-  "image_transfer": false,
-  "camera_firmware_policy": "retain_current_vendor_firmware",
-  "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
-  "compiler_target": "armv7emsp",
-  "compiler_version": "MicroPython v1.28.0 on 2026-08-11; mpy-cross emitting mpy v6.3",
   "compilation": [
     {
       "file": "adaptive_detector.py",
@@ -119,9 +109,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "76a03b808ff9d13f7ef9c80ec72f9b5e0c964966e53ffc448662bc7dceda6968",
+      "source_sha256": "5acd5f7f77160ddfae54331ecdcf4ec0f70dad9fdd095a57ef1e0b05769ee3dd",
       "exit_code": 0,
-      "mpy_sha256": "dde6048f8526a8e1a08067a69c73e20fede3d6869c7714822bf1a01b89f33498"
+      "mpy_sha256": "e98e1b8bc80223c4669d5a03e46316166581bda1156229ca4f9bab9e8f09e64f"
     },
     {
       "file": "reverse_control.py",
@@ -185,9 +175,9 @@
     },
     {
       "file": "gyro_link.py",
-      "source_sha256": "527706890b7ca5e6f16d7624c404324b1aa75edfa1886cd8dbacaa43fd51171b",
+      "source_sha256": "f74e0cc2e3b2d005f423140c874be4d1181f6f62135e5eb7774603777e911ba4",
       "exit_code": 0,
-      "mpy_sha256": "51fa2ecd329b23b491310bde017b26958f467e867b3c37e8ee63352ae06eb6b0"
+      "mpy_sha256": "e042e38e7cef6afffb0b39089a058d04723c7bfd4ed168c49b456f6b4e853f00"
     },
     {
       "file": "entry_calibration_common.py",
@@ -197,9 +187,9 @@
     },
     {
       "file": "visual_entry_gate.py",
-      "source_sha256": "de4e52e7cc02c9cf88513b4a83d1f49e745615186bb4debaaa3153fe1ffa7eae",
+      "source_sha256": "24764ad0cf5a2dc5360e4b43664db7dd7c14001083b1131f977775a306e81d15",
       "exit_code": 0,
-      "mpy_sha256": "4aae4b44ec20a75af3ef1f6ef10395edc921dc373f4340accb3ebc31e751da97"
+      "mpy_sha256": "59c622c8edee5cbc436671be9baa943459cfe857d42c1e6026c1b4e543d95376"
     },
     {
       "file": "wireless_sideband.py",
@@ -208,6 +198,15 @@
       "mpy_sha256": "66cc2c57972a094f821b343ba5fbdc69296239f7e4e09497532c6a7ee0058195"
     }
   ],
+  "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",
+  "compiler_target": "armv7emsp",
+  "sensor": "MT9V034",
+  "image_width": 320,
+  "image_height": 120,
+  "forward_wire": "V4/16-byte",
+  "shared_profile_selection": true,
+  "camera_firmware_policy": "retain_current_vendor_firmware",
+  "image_transfer": false,
   "runtime_file_hashes": {
     "adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
     "boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
@@ -221,7 +220,7 @@
     "fast_topology.py": "9b2582100915112e01ae809ec51c8efb41a5f923b1aac9936157867acbd5c655",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "76a03b808ff9d13f7ef9c80ec72f9b5e0c964966e53ffc448662bc7dceda6968",
+    "main.py": "5acd5f7f77160ddfae54331ecdcf4ec0f70dad9fdd095a57ef1e0b05769ee3dd",
     "reverse_control.py": "66a9e6b860222bf19d7be92dfd847de048f647e3735544ccecb2e20b9e2d79e5",
     "road_detector.py": "3318b0d564660c5d822af37c99256155f1594d8c9d24ff9cd45f056a6bb5efbf",
     "source_selector.py": "47a0cfead51e90252bb1f61314faf44c062fa474e16e16d25ca22c13d75d759f",
@@ -232,9 +231,9 @@
     "ring_width_calibration.py": "1cd968f8a2ab92aaff57e7e119cf4f73a9f43d9e2ef0f7105a9f18a40937cf08",
     "ring_diagnostics.py": "081179080acdc046cb4f9cb2702ed4b7e7480edeafff3df31d2a81936ff48e94",
     "fast_ring_slope.py": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
-    "gyro_link.py": "527706890b7ca5e6f16d7624c404324b1aa75edfa1886cd8dbacaa43fd51171b",
+    "gyro_link.py": "f74e0cc2e3b2d005f423140c874be4d1181f6f62135e5eb7774603777e911ba4",
     "entry_calibration_common.py": "6abead6b41eea8c9d7d0e40c7671c2afd514cd2fe625591723f76cf94a48b779",
-    "visual_entry_gate.py": "de4e52e7cc02c9cf88513b4a83d1f49e745615186bb4debaaa3153fe1ffa7eae",
+    "visual_entry_gate.py": "24764ad0cf5a2dc5360e4b43664db7dd7c14001083b1131f977775a306e81d15",
     "wireless_sideband.py": "9b3abb4c1479f1cbaabb7fdaae2fe686de4735d7e0863a022c50ffe60d782bf2"
   }
 }

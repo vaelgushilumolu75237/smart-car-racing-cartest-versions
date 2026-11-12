@@ -309,6 +309,13 @@ static void apply_state_outputs(car_gyro_ring_t *ring,
 
     switch (ring->state) {
     case CAR_GYRO_RING_ENTRY:
+        if (elapsed_ms < CAR_GYRO_RING_APPROACH_MS) {
+            ring->servo_target_us = CAR_GYRO_RING_CENTER_SERVO_US;
+            ring->control_error_norm = 0;
+            ring->outer_target_millirps = CAR_GYRO_RING_ENTRY_ORBIT_OUTER_TARGET_MILLIRPS;
+            clear_integrator(ring);
+            break;
+        }
         ring->servo_target_us = 0u;
         ring->outer_target_millirps =
             CAR_GYRO_RING_ENTRY_ORBIT_OUTER_TARGET_MILLIRPS;
@@ -432,7 +439,8 @@ void car_gyro_ring_step(car_gyro_ring_t *ring,
             latch_fault(ring, CAR_GYRO_RING_FAULT_TIMEOUT, input->now_ms);
             return;
         }
-        if (new_sequence != 0u && input->camera_fresh != 0u &&
+        if ((uint32_t)(input->now_ms - ring->state_started_ms) >= CAR_GYRO_RING_APPROACH_MS &&
+            new_sequence != 0u && input->camera_fresh != 0u &&
             input->camera_phase == 2u &&
             input->camera_side == ring->entry_side) {
             ring->yaw_origin_mdeg = input->yaw_mdeg;

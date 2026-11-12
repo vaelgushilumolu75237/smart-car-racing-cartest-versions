@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-delay150-widthgate-fix",
+  "version": "v20261112-original-trigger-straight300",
   "status": "experimental-software-tested",
-  "branch": "experimental/timed150-entry",
-  "files": 947,
+  "branch": "experimental/original-trigger300",
+  "files": 948,
   "hardware_actions": "none"
 }
