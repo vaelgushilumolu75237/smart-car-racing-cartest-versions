@@ -47,9 +47,9 @@
     },
     {
       "file": "config.py",
-      "source_sha256": "f82100a68a5eee654882872d20461822e72587e3bd8ae4b15431199647cce846",
+      "source_sha256": "88244ec55b71cbb482f708389a443dfed2d35075e537749a27c534c9844b0762",
       "exit_code": 0,
-      "mpy_sha256": "aff410e0b3500303b9a08fc9ce57b8e91cc234e67b0ddde4a8c5bb8d6469bae4"
+      "mpy_sha256": "c46afba246c194c442dc3744c9f332939fe6eab0b7e085e55dd61f6d0ebebda0"
     },
     {
       "file": "contour_route.py",
@@ -107,9 +107,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "96635419794139b2b4c068735b89303df8e2f7444e33c309b77adfc3f922a298",
+      "source_sha256": "8d833547420df593717e94ba4d1c801b8e0f51bb99b1d5dbd5c183de5b74f8dc",
       "exit_code": 0,
-      "mpy_sha256": "98d86f40dc3a8055147c68a584a57f4cbccf60ef6c811e42b660e1ab4b5c165b"
+      "mpy_sha256": "b59fd5f45fac625fdd371231f5579440088824ae1ed656d9d394146a6ac0d8f7"
     },
     {
       "file": "reverse_control.py",
@@ -173,7 +173,7 @@
     }
   ],
   "mpy_output_policy": "validation_only_upload_python_sources",
-  "version": "v20261112-openmv-r24-auto-calibration",
+  "version": "v20261112-openmv-r24-six-debug-autocal",
   "candidate_only": true,
   "hardware_validation": false,
   "board_fps_verified": false,

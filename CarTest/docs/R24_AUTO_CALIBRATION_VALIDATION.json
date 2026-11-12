@@ -1,8 +1,8 @@
 {
-  "version": "v20261112-openmv-r24-auto-calibration",
-  "tests": 537,
+  "version": "v20261112-openmv-r24-six-debug-autocal",
+  "tests": 538,
   "skipped": 4,
-  "new_auto_tests": 8,
+  "new_auto_tests": 9,
   "compiled_modules": 23,
   "actual_camera_test": false,
   "h743_changed": false,
@@ -10,7 +10,7 @@
   "source_sha256": {
     "adaptive_detector.py": "56542e5dd768a6f97fbdfd25bfe3b50985b362ad7c5466e0602162ca5f4226c7",
     "boundary_evidence.py": "cfbbedb044eedc4b86b674017ea5d22e43c43db6007484156e3beb6c3161bc70",
-    "config.py": "f82100a68a5eee654882872d20461822e72587e3bd8ae4b15431199647cce846",
+    "config.py": "88244ec55b71cbb482f708389a443dfed2d35075e537749a27c534c9844b0762",
     "contour_route.py": "61ebd51e0f722bb4b227b6ed24913700a7a92a4f67869bfa6e3ba32d2f1c9a24",
     "contour_trace.py": "5d677acd3203a9c945dccb4f194f20b45f0be78e53a92657fe4701f62d2842a3",
     "fast_boundary.py": "0dc92340247b4c18489cd1d6b082afa92671d6084ae2b99878c26f5ddd75cf65",
@@ -21,7 +21,7 @@
     "fast_topology.py": "9b2582100915112e01ae809ec51c8efb41a5f923b1aac9936157867acbd5c655",
     "grayscale_adapter.py": "e108654be97f092e80d7a1d0b224c990725c994ca04d1d49f63f5b332e977000",
     "line_detector.py": "3db4b177023c64f40c2b57bf3bdd07d0fcd43a152eec8f1cfaa055fe03c17eff",
-    "main.py": "96635419794139b2b4c068735b89303df8e2f7444e33c309b77adfc3f922a298",
+    "main.py": "8d833547420df593717e94ba4d1c801b8e0f51bb99b1d5dbd5c183de5b74f8dc",
     "reverse_control.py": "a8ced2ee5c67ef5d0b4394b57372b5d12dbda9b40b5081207d49d25368efd1d1",
     "ring_diagnostics.py": "081179080acdc046cb4f9cb2702ed4b7e7480edeafff3df31d2a81936ff48e94",
     "ring_width_calibration.py": "1cd968f8a2ab92aaff57e7e119cf4f73a9f43d9e2ef0f7105a9f18a40937cf08",
@@ -31,5 +31,6 @@
     "thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
     "track_elements.py": "4e47ecde68cb3b19a2c3076a755305ffe985593a426250f499b6aa7477bd9c70",
     "vision_protocol.py": "30a5269ae9f5af96b66dacbc76798c0dc299031ba34ee56ec8487bc795a50fc1"
-  }
+  },
+  "debug_profiles": 6
 }

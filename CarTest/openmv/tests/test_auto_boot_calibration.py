@@ -8,6 +8,15 @@ from ring_width_calibration import AutoBootCalibration, RingWidthCalibration
 
 
 class AutoBootTests(unittest.TestCase):
+    def test_all_retained_profiles_collect_without_enabling_ring_for_a(self):
+        import config
+        self.assertEqual(config.AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS, (1, 2, 3))
+        self.assertNotIn(config.VEHICLE_PROFILE_A, config.RING_ENABLED_PROFILE_IDS)
+        for profile in config.AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS:
+            self.controller = AutoBootCalibration(RingWidthCalibration(), self.path)
+            loaded = self.feed(identity=(profile, 0, 0))
+            self.assertTrue(loaded.ready)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

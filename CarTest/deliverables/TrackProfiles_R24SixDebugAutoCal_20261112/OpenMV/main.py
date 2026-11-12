@@ -7771,7 +7771,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             profile_token = reverse_parser.session_token
             wheel_position = reverse_parser.mean_forward_wheel_millirev
             parked_profile = bool(
-                profile_id in config.RING_ENABLED_PROFILE_IDS and
+                profile_id in getattr(config,
+                    "AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS",
+                    config.RING_ENABLED_PROFILE_IDS) and
                 not reverse_parser.profile_session_active)
             if parked_profile and profile_sequence is not None:
                 if profile_sequence != ring_stationary_last_profile_sequence:

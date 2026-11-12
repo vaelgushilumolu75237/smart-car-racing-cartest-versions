@@ -962,6 +962,7 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "USB_PREVIEW_OVERLAY_MODE", "USB_PREVIEW_QUALITY",
             "USB_PREVIEW_BUILD_ID", "PREVIEW_FPS_MARKER_ENABLED",
             "AUTO_BOOT_WIDTH_CALIBRATION",
+            "AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS",
         }
         changed_assignments = {
             "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",
