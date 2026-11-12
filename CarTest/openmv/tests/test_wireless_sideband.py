@@ -41,6 +41,54 @@ class WirelessTests(unittest.TestCase):
                                  now if timestamp is None else timestamp, p), now)
         return self.link.cached_ack[0] if self.link.cached_ack else None
 
+    def test_fifo_busy_after_primary_eventually_sends_reply(self):
+        class UART:
+            def __init__(self):
+                self.polls = 0
+                self.sent = []
+            def fifo_txdone(self):
+                self.polls += 1
+                return self.polls >= 4
+            def write(self, packet):
+                self.sent.append(bytes(packet))
+                return len(packet)
+        uart = UART()
+        clock = iter(range(0, 10000, 100))
+        original = getattr(w.time, "ticks_us", None)
+        w.time.ticks_us = lambda: next(clock)
+        try:
+            self.hello(sequence=2, now=110)
+            self.link.service_tx(uart, 110)
+            self.assertEqual(w.decode_frame(uart.sent[0])["type"], w.TYPE_HELLO_REPLY)
+            self.assertEqual(self.command(14, sequence=3, now=120), w.ACK_OK)
+            self.link.service_tx(uart, 120)
+            self.assertEqual(w.decode_frame(uart.sent[-1])["type"], w.TYPE_ACK)
+        finally:
+            if original is None:
+                del w.time.ticks_us
+            else:
+                w.time.ticks_us = original
+
+    def test_stuck_fifo_wait_is_bounded_and_preserves_reply(self):
+        class UART:
+            def fifo_txdone(self):
+                return False
+            def write(self, packet):
+                raise AssertionError("busy FIFO must not write")
+        clock = iter(range(0, 10000, 100))
+        original = getattr(w.time, "ticks_us", None)
+        w.time.ticks_us = lambda: next(clock)
+        try:
+            self.hello(sequence=2, now=110)
+            queued = list(self.link.queue)
+            self.link.service_tx(UART(), 110)
+            self.assertEqual(self.link.queue, queued)
+        finally:
+            if original is None:
+                del w.time.ticks_us
+            else:
+                w.time.ticks_us = original
+
     def test_wire_crc_and_roundtrip(self):
         packet = w.encode_frame(3, 99, 123, 100, b"example")
         self.assertEqual(w._u32(packet, len(packet)-4), zlib.crc32(packet[:-4]))

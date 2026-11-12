@@ -1,8 +1,0 @@
-{
-  "all_required_checks_passed": true,
-  "hardware_tested": false,
-  "camera_regression_log": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\visual\\camera_fifo_fix_tests.log",
-  "change": "Packets over 16 bytes use ordinary UART.write; short vision retains FIFO",
-  "h743": "unchanged; previously built paired ELFs",
-  "baseline_validation": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\validation\\visual\\final-software-validation.json"
-}

@@ -193,9 +193,9 @@
     },
     {
       "file": "wireless_sideband.py",
-      "source_sha256": "a23c5d26149304eea7a5642e90bf826f2a3c5509d289b6cbaf95e270e0f92854",
+      "source_sha256": "9b3abb4c1479f1cbaabb7fdaae2fe686de4735d7e0863a022c50ffe60d782bf2",
       "exit_code": 0,
-      "mpy_sha256": "aaa46ed96bf0778223678bd875ad5724bfc0bc7fe72ca64fbc6bdc747a05da20"
+      "mpy_sha256": "66cc2c57972a094f821b343ba5fbdc69296239f7e4e09497532c6a7ee0058195"
     }
   ],
   "compiler_sha256": "4a4f707c5733c4875f2586a0fd1f646c664090b4c4d39c345d9820d9189da27a",

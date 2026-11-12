@@ -1,0 +1,8 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "camera_test_log": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\validation\\visual\\fifo-busy-tests.log",
+  "h743_changed": false,
+  "baseline_build_evidence": "D:\\Codex\\T2\\RingEntry_TwoVersions_20261112\\validation\\visual\\final-software-validation.json",
+  "live_read_only_evidence": "validation/live_flash.bin and live_ram*.bin kept private"
+}

@@ -660,7 +660,17 @@ class WirelessSideband:
             return
         done = getattr(uart, "fifo_txdone", None)
         if callable(done) and done() is False:
-            return
+            # The primary 16-byte FIFO frame has just been queued. Skipping
+            # here every iteration starves HELLO/ACK/STATE on fast loops.
+            # At 115200 8N1 its wire time is 1389 us. Bound the wait to 2 ms;
+            # a stuck transmitter leaves the packet queued for a later try.
+            ticks_us = getattr(time, "ticks_us", None)
+            if not callable(ticks_us):
+                return
+            started = ticks_us()
+            while done() is False:
+                if _ticks_diff(ticks_us(), started) >= 2000:
+                    return
         packet = self.queue.pop(0)
         try:
             if uart.write(packet) != len(packet):
