@@ -6635,7 +6635,11 @@ class _VisionUARTWriter:
             self.mode = self.SYNCHRONOUS_FALLBACK
 
     def write(self, data):
-        if self.mode == self.FIFO_QUEUED:
+        # API 1 only accepts 1..16 bytes. Wireless HELLO/ACK/STATE frames
+        # are longer; send each as one ordinary UART write after service_tx
+        # has checked FIFO completion. Never split an outer frame across
+        # camera iterations, where a primary vision frame could interleave.
+        if self.mode == self.FIFO_QUEUED and 1 <= len(data) <= 16:
             return self._fifo_write(data)
         return self._uart.write(data)
 

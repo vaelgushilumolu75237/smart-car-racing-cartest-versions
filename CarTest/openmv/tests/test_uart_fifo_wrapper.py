@@ -164,6 +164,39 @@ class UARTFIFOWrapperTests(unittest.TestCase):
                      str(CANDIDATE_MAIN), "exec"), namespace)
         cls.writer_type = namespace["_VisionUARTWriter"]
 
+
+    def test_real_sideband_replies_use_uart_write_beyond_fifo_limit(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("reply_sideband", CANDIDATE_MAIN.parent / "wireless_sideband.py")
+        sideband = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sideband)
+        class StrictUART(_FakeUART):
+            def write_fifo(self, data):
+                if not 1 <= len(data) <= 16:
+                    raise ValueError("write_fifo expects 1..16 bytes")
+                self.fifo_calls.append(bytes(data))
+                return len(data)
+            def write(self, data):
+                self.sync_calls.append(bytes(data))
+                return len(data)
+        raw = StrictUART()
+        writer = self.writer_type(raw)
+        link = sideband.WirelessSideband(None)
+        link.session = 123
+        link.last_hello = 100
+        for kind, payload in ((sideband.TYPE_HELLO_REPLY, bytes(8)),
+                              (sideband.TYPE_ACK, bytes(16)),
+                              (sideband.TYPE_STATE, bytes(36))):
+            link._send(kind, payload, 100)
+            expected = bytes(link.queue[0])
+            link.service_tx(writer, 100)
+            self.assertEqual(raw.sync_calls[-1], expected)
+            self.assertEqual(link.tx_errors, 0)
+            self.assertEqual(link.queue, [])
+        self.assertEqual(raw.fifo_calls, [])
+        self.assertEqual(writer.write(bytes(16)), 16)
+        self.assertEqual(len(raw.fifo_calls), 1)
+
     def test_capability_requires_integer_v1_marker_and_both_callables(self):
         candidates = (
             (_FakeUART(instance_api=0), "SYNCHRONOUS_FALLBACK"),
