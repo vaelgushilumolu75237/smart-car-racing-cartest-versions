@@ -1,4 +1,4 @@
-"""V7 fast grayscale detector and UART V3 publisher."""
+"""OpenMV r24 detector with V4 gyro evidence and numeric wireless sideband."""
 
 import pyb
 import sensor
@@ -4981,7 +4981,7 @@ def _fill_ring_control_route(element_result, element_tracker, edge_tracker,
 
 @micropython.native
 def _service_reverse_control(uart, parser, input_buffer, drain_state,
-                             now_ms, ticks_diff):
+                             now_ms, ticks_diff, sideband=None):
     """Poll and read one bounded reverse-control chunk without allocations.
 
     On a heartbeat timeout or receive overflow, queued bytes are discarded in
@@ -5000,7 +5000,7 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
         if (isinstance(available, bool) or not isinstance(available, int) or
                 available < 0):
             raise OSError("invalid UART.any result")
-        if available > reverse_control.MAX_FEED_BYTES:
+        if available > (512 if sideband is not None else reverse_control.MAX_FEED_BYTES):
             parser.invalidate("RX_OVERFLOW")
             drain_state[0] = 1
 
@@ -5026,7 +5026,10 @@ def _service_reverse_control(uart, parser, input_buffer, drain_state,
         if (isinstance(received, bool) or not isinstance(received, int) or
                 received < 0 or received > requested):
             raise OSError("invalid UART.readinto result")
-        parser.feed(input_buffer, received, now_ms)
+        if sideband is None:
+            parser.feed(input_buffer, received, now_ms)
+        else:
+            sideband.feed_multiplexed(input_buffer, received, now_ms, parser)
     except Exception:
         parser.invalidate("RX_ERROR")
         drain_state[0] = 1
@@ -6938,6 +6941,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     the physical camera and H743 UART while exercising the production path.
     """
     global _RING_DIAGNOSTICS, _RING_DIAG_SESSION
+    import gyro_link
+    import wireless_sideband
     _validate_fast_config()
     fixture_mode = frame_source is not None or uart_sink is not None
     if fixture_sensor_id is not None:
@@ -7010,6 +7015,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     reverse_parser = reverse_control.ReverseControlParser(
         reverse_control.DEFAULT_TIMEOUT_MS,
         config.PROFILE_STATE_TIMEOUT_MS)
+    gyro_evidence = gyro_link.GyroLink()
+    camera_sideband = wireless_sideband.WirelessSideband(
+        reverse_parser, None if fixture_mode else
+        wireless_sideband.ProfileStore("/cartest_openmv_pd.json"))
     steering_diag_session = _SteeringDiagSession(_STEERING_DIAG)
     sensor_get_exposure = (None if fixture_mode else
                            getattr(sensor, "get_exposure_us", None))
@@ -7086,7 +7095,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
               getattr(fast_topology, "NATIVE_ACCEL_BACKEND", "unavailable"),
               1 if _NATIVE_ACCELERATION_ENABLED else 0,
               1 if native_preview_api else 0))
-    print("TRACK_BUILD=%s forward=V3/16 reverse=V1/8+V2/20 "
+    print("TRACK_BUILD=%s forward=V4/16 reverse=V1/8+V2/20 "
           "profile=awaiting_state ring=profile_gated_experimental "
           "cross=experimental" % config.TRACK_PACKAGE_BUILD_ID)
 
@@ -7119,7 +7128,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             bits=config.UART_BITS, parity=None,
             stop=config.UART_STOP_BITS,
             timeout=config.UART_TIMEOUT_MS,
-            timeout_char=config.UART_CHAR_TIMEOUT_MS)
+            timeout_char=config.UART_CHAR_TIMEOUT_MS, read_buf_len=512)
         uart = _VisionUARTWriter(hardware_uart)
         uart_tx_mode = uart.mode
     print("UART_TX_MODE=%s" % uart_tx_mode)
@@ -7153,6 +7162,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
     ring_stationary_last_profile_token = None
     ring_stationary_last_wheel_position = None
     ring_calibration_last_eligible = False
+    auto_width_calibration = ring_width_calibration.AutoBootCalibration(
+        ring_calibration, config.RING_WIDTH_CALIBRATION_PATH,
+        enabled=(sensor_identity_valid and
+                 getattr(config, "AUTO_BOOT_WIDTH_CALIBRATION", False)))
     _RING_DIAGNOSTICS = (
         ring_diagnostics.RingDiagnostics()
         if config.RING_DIAGNOSTICS_ENABLED else None)
@@ -7416,7 +7429,17 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
 
         reverse_fresh = _service_reverse_control(
             uart, reverse_parser, reverse_input_buffer, reverse_drain_state,
-            capture_end_ms, time.ticks_diff)
+            capture_end_ms, time.ticks_diff, camera_sideband)
+        if camera_sideband.calibration_requested:
+            camera_sideband.calibration_requested = False
+            ring_calibration = ring_width_calibration.RingWidthCalibration()
+            auto_width_calibration = ring_width_calibration.AutoBootCalibration(
+                ring_calibration, config.RING_WIDTH_CALIBRATION_PATH,
+                enabled=sensor_identity_valid)
+            ring_calibration_passed = False
+            ring_stationary_status_frames = 0
+            element_tracker.set_ring_calibration(
+                ring_calibration, config.RING_WIDTH_CALIBRATION_REQUIRED)
         ring_stop_reason = steering_diag_session.observe(
             reverse_parser, single_edge_tracker, config.BUILD_ID,
             reverse_fresh, capture_end_ms, time.ticks_diff)
@@ -7767,7 +7790,9 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             profile_token = reverse_parser.session_token
             wheel_position = reverse_parser.mean_forward_wheel_millirev
             parked_profile = bool(
-                profile_id in config.RING_ENABLED_PROFILE_IDS and
+                profile_id in getattr(config,
+                    "AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS",
+                    config.RING_ENABLED_PROFILE_IDS) and
                 not reverse_parser.profile_session_active)
             if parked_profile and profile_sequence is not None:
                 if profile_sequence != ring_stationary_last_profile_sequence:
@@ -7787,6 +7812,24 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 ring_stationary_last_profile_id = None
                 ring_stationary_last_profile_token = None
                 ring_stationary_last_wheel_position = None
+            auto_rows_eligible = bool(
+                sensor_identity_valid and reverse_fresh and
+                ring_stationary_status_frames >= 3 and parked_profile and
+                not capture_interrupted and normal_cache_commit_allowed and
+                road_rows is not None and road_count > 0 and road_stride == 4 and
+                road_result.get("valid") and topology.get("reason") == "OK" and
+                topology.get("complete") and not topology.get("ambiguous") and
+                not topology.get("island_evidence") and
+                not topology.get("branch_evidence"))
+            auto_map = auto_width_calibration.step(
+                profile_now_ms, time.ticks_diff, auto_rows_eligible,
+                (profile_id, profile_token, wheel_position),
+                road_rows, road_count, road_stride)
+            if auto_map is not None:
+                ring_calibration = auto_map
+                element_tracker.set_ring_calibration(
+                    auto_map, config.RING_WIDTH_CALIBRATION_REQUIRED)
+                ring_calibration_last_eligible = False
             calibration_rows_eligible = bool(
                 element_tracker.ring_calibration_ready and
                 ring_stationary_status_frames >= 3 and parked_profile and
@@ -7807,9 +7850,15 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 ring_calibration_last_eligible = False
         single_rows_fresh = bool(getattr(
             single_edge_tracker, "_frame_scan_done", False))
+        gyro_release = reverse_parser.gyro_release_requested(
+            profile_now_ms, time.ticks_diff)
+        if gyro_release:
+            # 350 degrees is owned by H743; release the old visual ring route
+            # so fresh ordinary boundaries can restore normal following.
+            element_tracker.reset("GYRO_RELEASE")
         ring_start_us = time.ticks_us()
         element_result = element_tracker.update(
-            profile_now_ms, profile_id, profile_session_active,
+            profile_now_ms, profile_id, profile_session_active and not gyro_release,
             reverse_parser.session_token if profile_id else 0,
             bool(image_size_valid and mask_info is not None),
             normal_cache_commit_allowed, road_rows, road_count, road_stride,
@@ -7838,7 +7887,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             boundary_reference.get("valid") and not capture_interrupted)
         element_route_selected = False
         ring_profile_enabled = bool(
-            profile_session_active and
+            profile_session_active and not gyro_release and
             reverse_parser.ring_profile_enabled(
                 profile_now_ms, time.ticks_diff))
 
@@ -8118,6 +8167,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             control_source, control_boundary_source,
             control_reference_kind, control_reference_y,
             control_profile, time.ticks_diff)
+        camera_sideband.apply_control(control_info, config.STEERING_OUTPUT_LIMIT)
         preview_candidate = weight_info.get("preview_candidate", 0)
         preview_geometry_valid = bool(weight_info.get("preview_valid"))
         preview_eligible_source = control_source in (
@@ -8293,13 +8343,19 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             weight_info["steering_error"] = 0
             reverse_fresh = bool(reverse_parser.single_enabled)
         try:
-            vision_protocol.pack_into_v3(
+            gyro_state = gyro_evidence.update(
+                reverse_parser, element_result, valid, profile_check_ms,
+                time.ticks_diff, ordinary_valid=bool(
+                    valid and control_source in ("road", "single_left", "single_right") and
+                    not element_route_selected and not element_result.get("ring_confirmed")))
+            vision_protocol.pack_into_v4(
                 packet, sequence, 1 if valid else 0,
                 quality if valid else 0,
                 final_control if valid else 0,
                 0, curve_phase if valid else 0,
                 slowdown_request_permille if valid else 0,
-                profile_ack)
+                profile_ack, gyro_state["phase"], gyro_state["side"],
+                gyro_state["ordinary"])
             packet_ready_us = time.ticks_us()
             packet_ready_age_us = time.ticks_diff(
                 packet_ready_us, cycle_start_us)
@@ -8354,10 +8410,10 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 weight_info["pd_error"] = 0
                 weight_info["steering_error"] = 0
                 weight_info["heading_contribution"] = 0
-                vision_protocol.pack_into_v3(
+                vision_protocol.pack_into_v4(
                     packet, sequence, 0, 0, 0, 0, 0, 0, profile_ack)
             if len(packet) < vision_protocol.FRAME_SIZE:
-                raise ValueError("vision_protocol returned a short V3 frame")
+                raise ValueError("vision_protocol returned a short V4 frame")
             write_attempts = 1
             written = uart.write(packet)
             if written == len(packet):
@@ -8976,6 +9032,28 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                     camera_diagnostics.last_sideband_elapsed_us = time.ticks_diff(
                         time.ticks_us(), diag_start_us)
                 camera_diagnostics._record_error()
+
+        if full_write:
+            try:
+                sideband_now = time.ticks_ms()
+                camera_sideband.publish(
+                    sideband_now, sequence_sent, bool(packet[6] & 1),
+                    quality if valid else 0, control_source, element_result,
+                    filtered_error if valid else 0, final_control if valid else 0,
+                    max(0, time.ticks_diff(time.ticks_us(), cycle_start_us) // 1000),
+                    int(capture_fps_value * 10), curve_phase if valid else 0,
+                    slowdown_request_permille if valid else 0)
+                if camera_sideband.calibration_sequence is not None:
+                    collector = auto_width_calibration.collector or ring_calibration
+                    camera_sideband.calibration_progress(
+                        sideband_now, getattr(collector, "accepted_frames", 0),
+                        getattr(collector, "attempted_frames", 0),
+                        bool(ring_calibration_passed),
+                        bool(ring_calibration_passed or (auto_width_calibration.done and
+                             auto_width_calibration.reason != "CALIBRATION_READY")))
+                camera_sideband.service_tx(uart, sideband_now)
+            except Exception:
+                camera_sideband.tx_errors += 1
 
         # Defer total_cycle until the next iteration's start so its duration
         # includes all stage recording and loop overhead. The final iteration

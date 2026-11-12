@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 #include "car_track_profile.h"
+#include "gyro350_config.h"
+#if CARTEST_GYRO350_ENABLED
+#include "gyro_ring.h"
+#endif
 
 #ifndef CARTEST_VISION_HOLD_MS
 #define CARTEST_VISION_HOLD_MS 3000u
@@ -63,7 +67,9 @@ typedef enum {
     CAR_FAULT_CLOCK,
     CAR_FAULT_TIMER,
     CAR_FAULT_CONFIG,
-    CAR_FAULT_WATCHDOG_INIT
+    CAR_FAULT_WATCHDOG_INIT,
+    CAR_FAULT_IMU,
+    CAR_FAULT_GYRO_RING
 } car_fault_t;
 
 typedef enum {
@@ -124,6 +130,7 @@ typedef struct {
     uint16_t follow_ramp_step_permille;
     /* 0 keeps legacy V2 operation; 1..3 require a fresh matching V3 ack. */
     uint8_t required_camera_profile_ack;
+    uint8_t gyro_enabled;
 } car_config_t;
 
 /* Shared production profile configuration used by target main and host tests. */
@@ -275,6 +282,16 @@ typedef struct {
     uint16_t reverse_transport_last_sequence;
     uint32_t reverse_transport_last_arrival_ms;
     uint8_t reverse_transport_have_sequence;
+#if CARTEST_GYRO350_ENABLED
+    car_gyro_ring_t gyro;
+    uint8_t imu_ready, imu_fault, gyro_camera_phase, gyro_ordinary;
+    int8_t gyro_camera_side;
+    uint32_t imu_sample_us;
+    int32_t imu_z_mdps;
+    int64_t imu_yaw_mdeg;
+    uint16_t gyro_servo_us;
+    uint8_t gyro_last_phase;
+#endif
 } car_control_t;
 
 typedef enum {
@@ -291,6 +308,12 @@ void car_control_init(car_control_t *control,
                       uint32_t now_ms,
                       uint8_t pe7_raw_high,
                       uint8_t watchdog_reset_detected);
+
+uint8_t car_control_follow_authority_ready(const car_control_t *control,
+    const car_config_t *config, uint32_t now_ms);
+#if CARTEST_GYRO350_ENABLED
+void car_control_update_gyro(car_control_t *control, const car_config_t *config, uint32_t now_ms);
+#endif
 
 /* P0.7 asymmetric image-error mapping, clamped to the measured servo span. */
 uint16_t car_debug_steering_target_us(int16_t error_norm);
@@ -377,6 +400,20 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
     uint32_t arrival_ms,
     uint32_t now_ms,
     uint8_t pe7_raw_high);
+void car_control_on_vision_frame_at_with_ring(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high, uint8_t ring_phase, int8_t ring_side, uint8_t ordinary_route);
 
 /* True for legacy profiles, or a fresh matching V3 ack after latest RESET. */
 uint8_t car_control_camera_profile_ack_ready(

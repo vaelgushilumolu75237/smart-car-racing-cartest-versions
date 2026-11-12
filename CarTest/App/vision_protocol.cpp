@@ -45,8 +45,8 @@ void write_crc(uint8_t bytes[VP_FRAME_SIZE]) {
 uint8_t pack_version(const vp_frame* frame, uint8_t version,
                      uint8_t out[VP_FRAME_SIZE]) {
     if (frame == 0 || out == 0 ||
-        !valid_fields(frame, version == VP_VERSION_V3 ? 1u : 0u) ||
-        (version != VP_VERSION_V2 && version != VP_VERSION_V3))
+        !valid_fields(frame, version >= VP_VERSION_V3 ? 1u : 0u) ||
+        (version != VP_VERSION_V2 && version != VP_VERSION_V3 && version != VP_VERSION_V4))
         return 0u;
 
     out[0] = VP_SYNC_BYTE_0;
@@ -61,8 +61,16 @@ uint8_t pack_version(const vp_frame* frame, uint8_t version,
     const uint16_t raw_error = static_cast<uint16_t>(frame->lateral_error);
     out[8] = static_cast<uint8_t>(raw_error & 0xFFu);
     out[9] = static_cast<uint8_t>(raw_error >> 8);
-    out[10] = frame->curve_phase;
-    out[11] = version == VP_VERSION_V3 ? frame->profile_ack : 0u;
+    if (version == VP_VERSION_V4 &&
+        (frame->ring_phase > 2u || frame->ordinary_route > 1u ||
+         (frame->ring_phase == 0u && frame->ring_side != 0) ||
+         (frame->ring_phase != 0u && frame->ring_side != -1 && frame->ring_side != 1) ||
+         (frame->ordinary_route && !(frame->flags & VP_FLAG_VALID)))) return 0u;
+    out[10] = version == VP_VERSION_V4
+        ? static_cast<uint8_t>(frame->curve_phase | (frame->ring_phase << 2) |
+          ((frame->ring_side < 0 ? 1u : frame->ring_side > 0 ? 2u : 0u) << 4) |
+          (frame->ordinary_route << 6)) : frame->curve_phase;
+    out[11] = version >= VP_VERSION_V3 ? frame->profile_ack : 0u;
     out[12] = static_cast<uint8_t>(
         frame->slowdown_request_permille & 0xFFu);
     out[13] = static_cast<uint8_t>(
@@ -131,16 +139,20 @@ uint8_t vp_pack_v3(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]) {
     return pack_version(frame, VP_VERSION_V3, out);
 }
 
+uint8_t vp_pack_v4(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]) {
+    return pack_version(frame, VP_VERSION_V4, out);
+}
+
 vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame) {
     if (in == 0 || frame == 0) return VP_STATUS_BAD_ARGUMENT;
     if (in[0] != VP_SYNC_BYTE_0 || in[1] != VP_SYNC_BYTE_1)
         return VP_STATUS_BAD_HEADER;
-    if (in[2] != VP_VERSION_V2 && in[2] != VP_VERSION_V3 &&
+    if (in[2] != VP_VERSION_V2 && in[2] != VP_VERSION_V3 && in[2] != VP_VERSION_V4 &&
         in[2] != VP_VERSION_D1)
         return VP_STATUS_VERSION_MISMATCH;
     if (in[3] != VP_PAYLOAD_LENGTH ||
         (in[2] == VP_VERSION_V2 && in[11] != 0u) ||
-        (in[2] == VP_VERSION_V3 && in[11] > VP_PROFILE_ACK_MAX))
+        (in[2] >= VP_VERSION_V3 && in[2] != VP_VERSION_D1 && in[11] > VP_PROFILE_ACK_MAX))
         return VP_STATUS_BAD_HEADER;
 
     const uint16_t expected_crc = vp_crc16_ccitt_false(in + 2, 12u);
@@ -162,11 +174,22 @@ vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame) {
     candidate.confidence = in[7];
     candidate.lateral_error = decode_i16(in[8], in[9]);
     candidate.curve_phase = in[10];
-    candidate.profile_ack = in[2] == VP_VERSION_V3
+    if (in[2] == VP_VERSION_V4) {
+        const uint8_t side = (in[10] >> 4) & 3u;
+        candidate.curve_phase = in[10] & 3u;
+        candidate.ring_phase = (in[10] >> 2) & 3u;
+        candidate.ring_side = side == 1u ? -1 : side == 2u ? 1 : 0;
+        candidate.ordinary_route = (in[10] >> 6) & 1u;
+        if ((in[10] & 0x80u) || side == 3u || candidate.ring_phase > 2u ||
+            (candidate.ring_phase == 0u) != (side == 0u) ||
+            (candidate.ordinary_route && !(candidate.flags & VP_FLAG_VALID)))
+            return VP_STATUS_BAD_FIELDS;
+    }
+    candidate.profile_ack = in[2] >= VP_VERSION_V3
                                 ? in[11] : VP_PROFILE_ACK_UNKNOWN;
     candidate.slowdown_request_permille = static_cast<uint16_t>(in[12]) |
         (static_cast<uint16_t>(in[13]) << 8);
-    if (!valid_fields(&candidate, in[2] == VP_VERSION_V3 ? 1u : 0u))
+    if (!valid_fields(&candidate, in[2] >= VP_VERSION_V3 ? 1u : 0u))
         return VP_STATUS_BAD_FIELDS;
 
     *frame = candidate;
@@ -216,6 +239,7 @@ uint8_t vp_parser_feed(vp_parser* parser, uint8_t byte, vp_frame* out) {
     if (parser->length == 3u &&
         parser->buffer[2] != VP_VERSION_V2 &&
         parser->buffer[2] != VP_VERSION_V3 &&
+        parser->buffer[2] != VP_VERSION_V4 &&
         parser->buffer[2] != VP_VERSION_D1) {
         reject_candidate(parser, VP_STATUS_VERSION_MISMATCH,
                          parser->buffer[2]);

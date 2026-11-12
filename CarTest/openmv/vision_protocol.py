@@ -5,6 +5,7 @@ SYNC_BYTE_0 = 0xA5
 SYNC_BYTE_1 = 0x5A
 VERSION = 2
 VERSION_V3 = 3
+VERSION_V4 = 4
 VERSION_DIAGNOSTIC = 0xD1
 PAYLOAD_LENGTH = 8
 FLAG_VALID = 0x01
@@ -185,6 +186,25 @@ def pack_into_v3(out, sequence, valid, confidence, lateral_error,
     return _pack_into_version(
         out, sequence, valid, confidence, lateral_error, slope_hint,
         curve_phase, slowdown_request_permille, VERSION_V3, profile_ack)
+
+
+def pack_into_v4(out, sequence, valid, confidence, lateral_error,
+                 slope_hint=0, curve_phase=0, slowdown_request_permille=0,
+                 profile_ack=0, ring_phase=0, ring_side=0, ordinary_route=0):
+    """V4 retains V3 fields and packs gyro evidence in the unused byte-10 bits."""
+    if (ring_phase not in (0, 1, 2) or ring_side not in (-1, 0, 1) or
+            (ring_phase == 0) != (ring_side == 0) or
+            ordinary_route not in (0, 1) or (ordinary_route and not valid)):
+        raise ValueError("invalid gyro evidence")
+    pack_into_v3(out, sequence, valid, confidence, lateral_error,
+                 slope_hint, curve_phase, slowdown_request_permille, profile_ack)
+    out[2] = VERSION_V4
+    side_code = 1 if ring_side < 0 else 2 if ring_side > 0 else 0
+    out[10] = curve_phase | (ring_phase << 2) | (side_code << 4) | (ordinary_route << 6)
+    crc = _crc16_ccitt_false_range(out, 2, 14)
+    out[14] = crc & 255
+    out[15] = (crc >> 8) & 255
+    return out
 
 
 @micropython.native

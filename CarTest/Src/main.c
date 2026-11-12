@@ -1,3 +1,11 @@
+#include "gyro350_config.h"
+#if CARTEST_WIRELESS_ENABLED
+#include "wireless_runtime.h"
+#endif
+#if CARTEST_GYRO350_ENABLED
+#include "icm42688.h"
+#include "icm42688_stm32.h"
+#endif
 #include "car_vision.h"
 #include "car_calibration.h"
 #include "commissioning.h"
@@ -181,6 +189,10 @@
 #define APP_SERVO_GPIO_PIN GPIO_PIN_8
 #define APP_SWITCH_GPIO_PIN GPIO_PIN_7
 #define APP_MOTOR_CHANNEL_MASK (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E)
+#if CARTEST_WIRELESS_ENABLED
+#define APP_WIRELESS_RTS_GPIO_PIN GPIO_PIN_4
+#define APP_WIRELESS_CMD_GPIO_PIN GPIO_PIN_5
+#endif
 
 #if CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED
 #define APP_FOLLOW_PI_ARMED (follow_incremental_pi_state.armed)
@@ -404,6 +416,7 @@ volatile uint32_t car_follow_right_target_permille;
 volatile uint32_t car_follow_left_command_permille;
 volatile uint32_t car_follow_right_command_permille;
 volatile uint32_t car_uart_rx_bytes;
+volatile uint32_t car_camera_uart_tx_bytes;
 volatile uint32_t car_uart_error_count;
 volatile uint32_t car_uart_parity_error_count;
 volatile uint32_t car_uart_framing_error_count;
@@ -643,7 +656,7 @@ static motor_applied_channels_t motor_applied_channels_snapshot(void);
 static void publish_motor_channel_debug_snapshot(void);
 static void publish_debug_snapshot(const car_inputs_t *inputs);
 static void protected_uart_error_note(uint32_t status);
-static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
+static CAR_RX_INLINE void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms);
 static uint16_t vision_rx_snapshot(uint32_t *now_ms);
 static uint8_t pe7_is_high(void);
 static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
@@ -680,13 +693,13 @@ static uint32_t uart_error_icr_mask(uint32_t status)
     return clear_flags;
 }
 
-static uint32_t uart_service_read_status(void *context)
+static CAR_RX_INLINE uint32_t uart_service_read_status(void *context)
 {
     (void)context;
     return USART1->ISR;
 }
 
-static uint8_t uart_service_read_data(void *context)
+static CAR_RX_INLINE uint8_t uart_service_read_data(void *context)
 {
     (void)context;
     return (uint8_t)(USART1->RDR & 0xFFu);
@@ -707,7 +720,7 @@ static void uart_service_on_error(void *context, uint32_t status)
     uart_service_stop_receive();
 }
 
-static uint8_t uart_service_on_byte(void *context, uint8_t byte)
+static CAR_RX_INLINE uint8_t uart_service_on_byte(void *context, uint8_t byte)
 {
     (void)context;
     protected_uart_byte_note(byte, HAL_GetTick());
@@ -785,13 +798,13 @@ static void protected_uart_error_note(uint32_t status)
     __set_PRIMASK(primask);
 }
 
-static void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms)
+static CAR_RX_INLINE void protected_uart_byte_note(uint8_t byte, uint32_t arrival_ms)
 {
     uint32_t primask = __get_PRIMASK();
     uint8_t overflow_before;
     __disable_irq();
     overflow_before = car_vision_rx.overflow_fault;
-    car_vision_rx_isr_byte(&car_vision_rx, byte, arrival_ms);
+    car_vision_rx_isr_byte_inline(&car_vision_rx, byte, arrival_ms);
     if (overflow_before == 0u && car_vision_rx.overflow_fault != 0u) {
         car_control_note_fast_stop_isr(&car_control_state,
                                        CAR_FAULT_RX_OVERFLOW);
@@ -855,6 +868,20 @@ static void early_motor_pins_low(void)
     GPIOB->PUPDR &= ~b_mask;
     __DSB();
 }
+
+#if CARTEST_WIRELESS_ENABLED
+static void wireless_control_pins_init(void)
+{
+    GPIO_InitTypeDef gpio = {0};
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    gpio.Pin = APP_WIRELESS_RTS_GPIO_PIN | APP_WIRELESS_CMD_GPIO_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &gpio);
+}
+#endif
 
 static void set_motor_gpio_channels_af(uint32_t channels)
 {
@@ -1689,7 +1716,8 @@ static HAL_StatusTypeDef usart1_init(void)
                                  (USART_CR1_UE | USART_CR1_TE | USART_CR1_RE |
                                   USART_CR1_FIFOEN | USART_CR1_RXNEIE_RXFNEIE) &&
                                  (USART1->CR3 & USART_CR3_OVRDIS) == 0u &&
-                                 USART1->BRR == 556u)
+                                 USART1->BRR ==
+                                    (pclk + APP_USART_BAUDRATE / 2u) / APP_USART_BAUDRATE)
                                     ? HAL_OK : HAL_ERROR);
     if (status != HAL_OK) {
         return status;
@@ -1813,6 +1841,63 @@ static void debounce_update(uint32_t now_ms, uint8_t raw_high)
     }
 }
 
+#if CARTEST_GYRO350_ENABLED
+static car_imu_t imu_device;
+static uint8_t imu_opened;
+static uint32_t imu_last_motion_ms;
+static uint32_t imu_last_left_raw;
+static uint16_t imu_last_right_raw;
+static uint8_t gyro_hold_seen;
+static uint16_t gyro_hold_left, gyro_hold_right;
+static uint32_t gyro_hold_generation, gyro_hold_started_ms;
+volatile uint32_t car_imu_ready, car_imu_fault, car_imu_sample_count;
+volatile int32_t car_imu_z_mdps, car_imu_bias_raw_q16;
+volatile int64_t car_imu_yaw_mdeg, car_gyro_progress_mdeg;
+volatile uint32_t car_gyro_phase, car_gyro_fault, car_gyro_search_elapsed_ms;
+volatile int32_t car_gyro_control_error;
+
+static void service_imu(uint32_t now_ms)
+{
+    uint32_t left = TIM2->CNT;
+    uint16_t right = (uint16_t)TIM8->CNT;
+    if (!imu_opened) {
+        car_imu_bus_t bus = {0};
+        if (!car_imu_spi2_open(&bus)) {
+            car_control_state.imu_fault = 1u;
+            car_imu_fault = CAR_IMU_FAULT_BUS;
+            return;
+        }
+        car_imu_init(&imu_device, &bus, now_ms * 1000u);
+        imu_opened = 1u;
+        imu_last_motion_ms = now_ms;
+    }
+    if (left != imu_last_left_raw || right != imu_last_right_raw)
+        imu_last_motion_ms = now_ms;
+    imu_last_left_raw = left; imu_last_right_raw = right;
+    car_imu_poll(&imu_device, now_ms * 1000u,
+        !motor_outputs_active && !car_control_state.follow_session_active &&
+        (uint32_t)(now_ms - imu_last_motion_ms) >= 100u);
+    car_control_state.imu_ready = imu_device.ready && imu_device.calibrated;
+    car_control_state.imu_fault = imu_device.fault;
+    car_control_state.imu_sample_us = imu_device.sample_us;
+    car_control_state.imu_z_mdps = imu_device.gyro_z_mdps;
+    car_control_state.imu_yaw_mdeg = imu_device.yaw_mdeg;
+    car_imu_ready = car_control_state.imu_ready;
+    car_imu_fault = imu_device.fault;
+    car_imu_sample_count = imu_device.sample_count;
+    car_imu_z_mdps = imu_device.gyro_z_mdps;
+    car_imu_bias_raw_q16 = imu_device.bias_z_raw_q16;
+    car_imu_yaw_mdeg = imu_device.yaw_mdeg;
+    car_gyro_phase = car_control_state.gyro.phase;
+    car_gyro_fault = car_control_state.gyro.fault;
+    car_gyro_progress_mdeg = car_control_state.gyro.progress_mdeg;
+    car_gyro_control_error = car_control_state.gyro.control_error_norm;
+    car_gyro_search_elapsed_ms = car_control_state.gyro.search_elapsed_ms;
+    if (app_config.gyro_enabled && imu_device.fault && car_control_state.follow_session_active)
+        car_control_note_fault(&car_control_state, CAR_FAULT_IMU);
+}
+#endif
+
 static car_inputs_t make_inputs(uint32_t now_ms, uint8_t raw_high, uint8_t loop_gap_fault)
 {
     car_inputs_t inputs = {0};
@@ -1873,6 +1958,9 @@ static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
     __set_PRIMASK(primask);
 
     if (event == CAR_MANUAL_BUTTON_EVENT_STOP) {
+#if CARTEST_WIRELESS_ENABLED
+        car_wireless_local_stop(now_ms);
+#endif
         /* Motors stop immediately; the existing servo path finishes its
            queued pulse before disabling PA8. Main consumes the full state. */
         emergency_stop_hardware();
@@ -2319,8 +2407,12 @@ static uint8_t motor_output_guard(
             return 0u;
         }
         if (car_control_state.mode == CAR_MODE_FOLLOW_RUNNING) {
+#if CARTEST_GYRO350_ENABLED
+            return car_control_follow_authority_ready(&car_control_state, &app_config, now_ms);
+#else
             return car_control_vision_fresh(&car_control_state, now_ms,
                                              app_config.vision_timeout_ms);
+#endif
         }
         if (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
             car_control_state.vision_hold_active != 0u &&
@@ -2554,9 +2646,22 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
                     servo_safety.fault_latched != 0u ||
                     servo_stop_pending != 0u;
 
-    if (car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
-        car_control_state.vision_hold_active != 0u &&
-        car_control_state.manual_run_request != 0u && fault_or_stop == 0u) {
+#if CARTEST_GYRO350_ENABLED
+    const uint8_t gyro_search_hold = car_control_state.gyro.active && car_control_state.gyro.hold_ramp;
+    if (gyro_search_hold && !gyro_hold_seen) {
+        gyro_hold_seen = 1u;
+        gyro_hold_left = applied_motor_follow_left_permille;
+        gyro_hold_right = applied_motor_follow_right_permille;
+        gyro_hold_started_ms = now_ms - car_control_state.gyro.search_elapsed_ms;
+        ++gyro_hold_generation;
+    } else if (!gyro_search_hold) gyro_hold_seen = 0u;
+#endif
+    if (((car_control_state.mode == CAR_MODE_FOLLOW_VISION_HOLD &&
+          car_control_state.vision_hold_active != 0u)
+#if CARTEST_GYRO350_ENABLED
+         || gyro_search_hold
+#endif
+        ) && car_control_state.manual_run_request != 0u && fault_or_stop == 0u) {
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
         if (follow_output_state.startup_qualified != 0u &&
             (speed_observer_result.status >=
@@ -2577,12 +2682,20 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         }
 #endif
         follow_output_state.slope_assist_active = 0u;
-        car_follow_output_hold_at(
+        car_follow_output_hold_at_ramp(
             &follow_output_state, now_ms,
+#if CARTEST_GYRO350_ENABLED
+            gyro_search_hold ? gyro_hold_started_ms : car_control_state.vision_hold_started_ms,
+            gyro_search_hold ? (0x80000000u | gyro_hold_generation) : car_control_state.vision_hold_entries,
+            gyro_search_hold ? gyro_hold_left : car_control_state.vision_hold_motor_left_permille,
+            gyro_search_hold ? gyro_hold_right : car_control_state.vision_hold_motor_right_permille,
+            gyro_search_hold ? 300u : CAR_FOLLOW_VISION_HOLD_RAMP_MS);
+#else
             car_control_state.vision_hold_started_ms,
             car_control_state.vision_hold_entries,
             car_control_state.vision_hold_motor_left_permille,
-            car_control_state.vision_hold_motor_right_permille);
+            car_control_state.vision_hold_motor_right_permille, CAR_FOLLOW_VISION_HOLD_RAMP_MS);
+#endif
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
         {
             const car_follow_speed_pi_input_t pi_input = {
@@ -2658,6 +2771,21 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         car_follow_incremental_pi_reset(&follow_incremental_pi_state);
         return;
     }
+#if CARTEST_GYRO350_ENABLED
+    if (car_control_state.gyro.active) {
+        uint16_t outer = car_control_state.gyro.outer_target_millirps;
+        int32_t inner = (int32_t)(((uint32_t)outer * ackermann_control_output.ratio_q15 + 16384u) / 32768u);
+        ackermann_control_output.fastest_target_millirps = outer;
+        ackermann_control_output.left_target_millirps = ackermann_control_output.model_angle_cdeg < 0 ? inner : outer;
+        ackermann_control_output.right_target_millirps = ackermann_control_output.model_angle_cdeg > 0 ? inner : outer;
+    }
+#endif
+#if CARTEST_WIRELESS_ENABLED
+    ackermann_control_output.left_target_millirps = (int32_t)((int64_t)ackermann_control_output.left_target_millirps * car_wireless_settings()->wheel_scale_permille / 1000);
+    ackermann_control_output.right_target_millirps = (int32_t)((int64_t)ackermann_control_output.right_target_millirps * car_wireless_settings()->wheel_scale_permille / 1000);
+    ackermann_control_output.fastest_target_millirps = (int32_t)((int64_t)ackermann_control_output.fastest_target_millirps * car_wireless_settings()->wheel_scale_permille / 1000);
+#endif
+
     }
 #endif
 
@@ -3280,6 +3408,11 @@ static void service_reverse_control(uint32_t now_ms)
         session_mean_forward_millirev > UINT32_MAX
             ? UINT32_MAX : (uint32_t)session_mean_forward_millirev);
 
+#if CARTEST_GYRO350_ENABLED
+    reverse_control_tx.gyro_release = car_control_state.gyro.active &&
+        car_control_state.gyro.phase >= CAR_GYRO_RING_CENTER;
+#endif
+
     if (car_control_state.reverse_control_reset_generation !=
         reverse_control_seen_generation) {
         reverse_control_seen_generation =
@@ -3326,18 +3459,39 @@ static void service_reverse_control(uint32_t now_ms)
          (manual_run_button.run_request != 0u &&
           soft_session_fault != 0u)));
 
-    /* With FIFOEN, TXE_TXFNF means "FIFO has space" rather than the old
-       single-byte DR-empty condition. Preserve the prior bounded pacing by
-       enqueueing at most one protocol byte per main-loop service call. */
-    if ((USART1->ISR & USART_ISR_TXE_TXFNF) != 0u &&
-        car_reverse_control_next_byte_paired(
-            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
-        USART1->TDR = byte;
-        if (reverse_control_tx.keep_active != 0u &&
-            reverse_keep_notified == 0u) {
-            reverse_keep_notified = 1u;
-            car_control_reverse_control_keep_started(&car_control_state);
+    /* With FIFOEN, TXE_TXFNF means "FIFO has space". One byte per main
+       loop starves profile/HELLO frames when eight loop periods exceed the
+       50ms V1 interval. Fill a bounded burst, checking space for each byte.
+       Never preempt an in-progress V1, profile or wireless frame. */
+#if CARTEST_WIRELESS_ENABLED
+    uint8_t tx_budget = 16u;
+#else
+    uint8_t tx_budget = 1u;
+#endif
+    while (tx_budget-- != 0u &&
+           (USART1->ISR & USART_ISR_TXE_TXFNF) != 0u) {
+#if CARTEST_WIRELESS_ENABLED
+        if (car_wireless_camera_tx_byte(&byte,0u)) {
+            USART1->TDR=byte; ++car_camera_uart_tx_bytes; continue;
         }
+#endif
+        if (car_reverse_control_next_byte_paired(
+            &reverse_control_tx, now_ms, keep_permitted, &byte) != 0u) {
+            USART1->TDR = byte;
+            ++car_camera_uart_tx_bytes;
+            if (reverse_control_tx.keep_active != 0u &&
+                reverse_keep_notified == 0u) {
+                reverse_keep_notified = 1u;
+                car_control_reverse_control_keep_started(&car_control_state);
+            }
+            continue;
+        }
+#if CARTEST_WIRELESS_ENABLED
+        if (car_wireless_camera_tx_byte(&byte,1u)) {
+            USART1->TDR=byte; ++car_camera_uart_tx_bytes; continue;
+        }
+#endif
+        break;
     }
 
     car_reverse_control_sequence = reverse_control_tx.sequence;
@@ -4051,6 +4205,99 @@ static HAL_StatusTypeDef speed_pi_trace_sram_enable(void)
     return (enabled & RCC_AHB2ENR_D2SRAM1EN) != 0u ? HAL_OK : HAL_ERROR;
 }
 
+#if CARTEST_WIRELESS_ENABLED
+static uint32_t wireless_last_cpr_left, wireless_last_cpr_right;
+static int8_t wireless_last_sign_left, wireless_last_sign_right;
+
+static HAL_StatusTypeDef wireless_uart2_init(void)
+{
+    GPIO_InitTypeDef gpio={0};uint32_t clock;
+    __HAL_RCC_GPIOA_CLK_ENABLE();__HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_D2SRAM2_CLK_ENABLE();
+    RCC->D2CCIP2R &= ~RCC_D2CCIP2R_USART28SEL;
+    gpio.Pin=GPIO_PIN_2|GPIO_PIN_3;gpio.Mode=GPIO_MODE_AF_PP;
+    gpio.Pull=GPIO_PULLUP;gpio.Speed=GPIO_SPEED_FREQ_LOW;gpio.Alternate=GPIO_AF7_USART2;
+    HAL_GPIO_Init(GPIOA,&gpio);clock=HAL_RCC_GetPCLK1Freq();
+    if(!clock || clock/115200u<16u)return HAL_ERROR;
+    USART2->CR1=0;USART2->CR2=0;USART2->CR3=0;USART2->PRESC=0;
+    USART2->BRR=(clock+57600u)/115200u;
+    USART2->ICR=USART_ICR_PECF|USART_ICR_FECF|USART_ICR_NECF|USART_ICR_ORECF;
+    USART2->CR1=USART_CR1_FIFOEN|USART_CR1_TE|USART_CR1_RE|USART_CR1_RXNEIE_RXFNEIE|USART_CR1_UE;
+    NVIC_SetPriority(USART2_IRQn,2u);NVIC_EnableIRQ(USART2_IRQn);
+    return HAL_OK;
+}
+
+
+
+
+
+static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
+{
+    car_wireless_snapshot_t snapshot={0};car_wireless_effect_t action;uint8_t byte;unsigned limit=8;
+    snapshot.now_ms=now;snapshot.wheel_left_millirps=speed_observer_result.left_millirps;
+    snapshot.wheel_right_millirps=speed_observer_result.right_millirps;
+    snapshot.target_left_millirps=ackermann_control_output.left_target_millirps;
+    snapshot.target_right_millirps=ackermann_control_output.right_target_millirps;
+    snapshot.servo_us=applied_servo_pulse_us;snapshot.motor_left_permille=applied_motor_follow_left_permille;
+    snapshot.motor_right_permille=applied_motor_follow_right_permille;snapshot.outputs_active=motor_outputs_active;
+    snapshot.button_released=pe7_is_high();snapshot.startup_released=manual_run_button.startup_release_confirmed;
+    snapshot.servo_fault=servo_safety.fault_latched;
+    snapshot.calibration_busy=app_config.gyro_enabled && !car_control_state.imu_ready && !car_control_state.imu_fault;
+    snapshot.imu_who_am_i=imu_device.who_am_i;
+    snapshot.imu_who_am_i_valid=imu_device.who_am_i_valid;
+    snapshot.imu_who_am_i_reads=imu_device.who_am_i_reads;
+    snapshot.imu_sample_count=imu_device.sample_count;
+    snapshot.camera_uart_rx_bytes=car_vision_rx.rx_byte_count;
+    snapshot.camera_uart_errors=car_vision_rx.uart_error_count;
+    snapshot.camera_uart_crc_errors=car_vision_rx.protocol_crc_error_count;
+    snapshot.camera_uart_overflows=car_vision_rx.queue_overflow_count;
+    snapshot.camera_uart_tx_bytes=car_camera_uart_tx_bytes;
+    car_wireless_service(&snapshot,&car_control_state,&app_config);
+    action=car_wireless_take_effect();
+    if(action==CAR_WIRELESS_EFFECT_STOP){
+        car_inputs_t current=make_inputs(now,pe7_is_high(),loop_gap_fault);uint32_t effects;
+        uint32_t primask=__get_PRIMASK();__disable_irq();
+        car_manual_button_cancel_request(&manual_run_button);
+        effects=car_control_command(&car_control_state,&app_config,&current,CAR_CMD_NORMAL_STOP,0,0,0);
+        emergency_stop_hardware();reverse_manual_stop_holdoff=1;__set_PRIMASK(primask);
+        apply_manual_stop_effects(effects);car_wireless_effect_result(action,1);
+    }else if(action==CAR_WIRELESS_EFFECT_START){
+        uint8_t accepted=0;uint32_t primask=__get_PRIMASK();__disable_irq();
+        if(!car_wireless_capture_busy() &&
+           !manual_run_button.stop_pending && !manual_run_button.start_pending && pe7_is_high() &&
+           manual_run_button.startup_release_confirmed && !car_control_state.follow_session_active){
+            car_inputs_t current;
+            manual_run_button.run_request=1;current=make_inputs(HAL_GetTick(),pe7_is_high(),loop_gap_fault);
+            accepted=car_control_begin_manual_follow_start(&car_control_state,&app_config,&current);
+            if(accepted){reverse_manual_stop_holdoff=0;if(++follow_session_token==0)++follow_session_token;
+                reset_session_odometry();emergency_stop_hardware();}
+            else car_manual_button_cancel_request(&manual_run_button);
+        }
+        __set_PRIMASK(primask);car_wireless_effect_result(action,accepted);
+    }else if(action==CAR_WIRELESS_EFFECT_IMU_CAL){
+        uint8_t allowed=!motor_outputs_active && !car_control_state.follow_session_active &&
+            pe7_is_high() && !car_control_state.fault_latched;
+        if(allowed){car_imu_bus_t bus={0};emergency_stop_hardware();
+            if(car_imu_spi2_open(&bus)){car_imu_init(&imu_device,&bus,HAL_GetTick()*1000u);imu_opened=1;
+                car_control_state.imu_ready=0;car_control_state.imu_fault=imu_device.fault;}
+            else allowed=0;
+        }car_wireless_effect_result(action,allowed);
+    }
+    if(wireless_last_cpr_left!=app_config.follow_left_encoder_counts_per_rev ||
+       wireless_last_cpr_right!=app_config.follow_right_encoder_counts_per_rev ||
+       wireless_last_sign_left!=app_config.follow_left_encoder_sign ||
+       wireless_last_sign_right!=app_config.follow_right_encoder_sign){
+        car_speed_observer_init(&speed_observer,now,car_encoder_diag.left_raw_delta_sum,
+            car_encoder_diag.right_raw_delta_sum,app_config.follow_left_encoder_counts_per_rev,
+            app_config.follow_left_encoder_sign,app_config.follow_right_encoder_counts_per_rev,app_config.follow_right_encoder_sign);
+        wireless_last_cpr_left=app_config.follow_left_encoder_counts_per_rev;
+        wireless_last_cpr_right=app_config.follow_right_encoder_counts_per_rev;
+        wireless_last_sign_left=app_config.follow_left_encoder_sign;wireless_last_sign_right=app_config.follow_right_encoder_sign;
+    }
+    while(limit-- && (USART2->ISR&USART_ISR_TXE_TXFNF) && car_wireless_radio_tx_byte(&byte))USART2->TDR=byte;
+}
+#endif
+
 int main(void)
 {
     uint8_t watchdog_reset;
@@ -4097,6 +4344,9 @@ int main(void)
 
     init_stage_begin(CAR_INIT_STAGE_RESET_SAFE);
     early_motor_pins_low();
+#if CARTEST_WIRELESS_ENABLED
+    wireless_control_pins_init();
+#endif
     car_init_rcc_rsr_reset_snapshot = RCC->RSR;
     watchdog_reset = (car_init_rcc_rsr_reset_snapshot & RCC_RSR_IWDG1RSTF) != 0u
                          ? 1u : 0u;
@@ -4153,6 +4403,10 @@ int main(void)
     if (init_status != HAL_OK) {
         init_failure(CAR_FAULT_UART, CAR_INIT_ERROR_USART1_VERIFY, init_status);
     }
+#if CARTEST_WIRELESS_ENABLED
+    if(wireless_uart2_init()!=HAL_OK) init_failure(CAR_FAULT_UART,CAR_INIT_ERROR_USART1_VERIFY,HAL_ERROR);
+    car_wireless_init(HAL_GetTick(),HAL_GetUIDw0()^HAL_GetUIDw1()^SysTick->VAL^DWT->CYCCNT);
+#endif
     car_reverse_control_init(&reverse_control_tx, HAL_GetTick());
     reverse_control_ready = 1u;
     reverse_control_seen_generation =
@@ -4268,6 +4522,10 @@ int main(void)
                 observer_motion_expected, &speed_observer_result);
         }
         update_session_odometry();
+#if CARTEST_GYRO350_ENABLED
+        service_imu(HAL_GetTick());
+        now_ms = HAL_GetTick();
+#endif
 
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
         consume_fast_stop_latch();
@@ -4334,6 +4592,9 @@ int main(void)
             car_control_state.fault_latched == 0u) {
             car_servo_safety_acknowledge(&servo_safety);
         }
+#if CARTEST_WIRELESS_ENABLED
+        service_wireless_target(HAL_GetTick(),loop_gap_fault);
+#endif
         if (follow_start_event != 0u &&
             app_config.follow_mode_compiled != 0u) {
             uint8_t manual_start_accepted = 0u;
@@ -4403,7 +4664,22 @@ int main(void)
     }
 }
 
-void USART1_IRQHandler(void)
+#if CARTEST_WIRELESS_ENABLED
+void USART2_IRQHandler(void)
+{
+    unsigned budget=16u;
+    while(budget--){uint32_t status=USART2->ISR;
+        if(status&(USART_ISR_PE|USART_ISR_FE|USART_ISR_NE|USART_ISR_ORE)){
+            USART2->ICR=USART_ICR_PECF|USART_ICR_FECF|USART_ICR_NECF|USART_ICR_ORECF;
+            car_wireless_uart_error_isr();
+        }
+        if(!(status&USART_ISR_RXNE_RXFNE))break;
+        car_wireless_uart_rx_isr((uint8_t)USART2->RDR,HAL_GetTick());
+    }
+}
+#endif
+
+CAR_RX_IRQ_OPTIMIZE void USART1_IRQHandler(void)
 {
     static const car_uart_rx_service_io_t service = {
         .context = 0,
@@ -4417,7 +4693,7 @@ void USART1_IRQHandler(void)
         .on_abort = uart_service_on_abort
     };
     const car_uart_rx_service_result_t result =
-        car_uart_rx_service_drain(&service);
+        car_uart_rx_service_drain_inline(&service);
     if (result.bytes_drained > car_uart_rx_irq_max_batch) {
         car_uart_rx_irq_max_batch = result.bytes_drained;
     }

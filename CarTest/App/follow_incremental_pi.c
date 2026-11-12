@@ -3,6 +3,17 @@
 
 #include <string.h>
 
+#if defined(CARTEST_WIRELESS_ENABLED) && CARTEST_WIRELESS_ENABLED
+#include "wireless_runtime.h"
+#define SPEED_KP_Q16 ((int64_t)CAR_FOLLOW_INCREMENTAL_PI_KP_Q16 * \
+                     car_wireless_settings()->speed_p_gain_permille / 1000)
+#define SPEED_KI_Q16 ((int64_t)CAR_FOLLOW_INCREMENTAL_PI_KI_Q16 * \
+                     car_wireless_settings()->speed_i_gain_permille / 1000)
+#else
+#define SPEED_KP_Q16 ((int64_t)CAR_FOLLOW_INCREMENTAL_PI_KP_Q16)
+#define SPEED_KI_Q16 ((int64_t)CAR_FOLLOW_INCREMENTAL_PI_KI_Q16)
+#endif
+
 #define Q16_ONE INT64_C(65536)
 
 static int64_t clamp_i64(int64_t value, int64_t low, int64_t high)
@@ -135,9 +146,9 @@ static uint16_t update_axis(car_follow_incremental_pi_axis_t *axis,
         ((int64_t)nominal_permille -
          axis->previous_feedforward_permille) * Q16_ONE;
     const int64_t proportional_q16 =
-        (int64_t)CAR_FOLLOW_INCREMENTAL_PI_KP_Q16 * error_delta;
+        SPEED_KP_Q16 * error_delta;
     const int64_t integral_delta_q16 =
-        ((int64_t)CAR_FOLLOW_INCREMENTAL_PI_KI_Q16 * error * elapsed_ms) /
+        (SPEED_KI_Q16 * error * elapsed_ms) /
         1000;
     const int64_t tracking_q16 =
         ((int64_t)((int32_t)applied_permille -

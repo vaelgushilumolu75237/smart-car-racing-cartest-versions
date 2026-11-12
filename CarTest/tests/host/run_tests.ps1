@@ -127,7 +127,9 @@ if (-not [string]::IsNullOrWhiteSpace($env:CARTEST_RUNTIME_LOG_FIXTURE_PATH)) {
     }
     if ($runtimeLogBuildPreset -notin @(
         "DebugFollow", "DebugFollowTurn", "DebugFollowTurn65",
-        "DebugFollowIncrementalPI")) {
+        "DebugFollowIncrementalPI", "DebugFastNoRing", "DebugRingBase",
+        "DebugRingFast", "DebugRingFastSpeed120", "DebugRingFastSpeed130",
+        "DebugRingFastSpeed140")) {
         throw "CARTEST_RUNTIME_LOG_BUILD_PRESET must name a supported Follow profile."
     }
     $generatedDirectory = Join-Path $projectRoot "build\$runtimeLogBuildPreset\generated"
@@ -183,7 +185,7 @@ $batchLines = @(
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[11])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile isolated FollowTurn slope-assist helper as C11 ===",
-    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_hold_at=car_follow_output_turn_hold_at /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
+    "cl /nologo /std:c11 /W4 /TC /c $includeArgument /DCARTEST_FOLLOW_TURN_PROFILE_COMPILED=1 /DCARTEST_FOLLOW_NORMAL_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_HARD_LIMIT_PERMILLE=1000 /DCARTEST_FOLLOW_NORMAL_RAMP_STEP_PERMILLE=40 /Dcar_follow_output_reset=car_follow_output_turn_reset /Dcar_follow_output_hold=car_follow_output_turn_hold /Dcar_follow_output_hold_at=car_follow_output_turn_hold_at /Dcar_follow_output_hold_at_ramp=car_follow_output_turn_hold_at_ramp /Dcar_follow_output_update=car_follow_output_turn_update /Dcar_follow_output_update_with_slope_assist=car_follow_output_turn_update_with_slope_assist /Dcar_follow_output_slope_assist_request=car_follow_output_turn_slope_assist_request /Fo`"$($objectFiles[12])`" `"$(Join-Path $projectRoot 'App\follow_output.c')`"",
     "if errorlevel 1 exit /b %errorlevel%",
     "echo === Compile read-only run block reason classifier as C11 ===",
     "cl /nologo /std:c11 /W4 /TC /c $includeArgument /Fo`"$($objectFiles[9])`" `"$(Join-Path $projectRoot 'App\run_block_reason.c')`"",

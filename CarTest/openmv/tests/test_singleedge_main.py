@@ -223,7 +223,7 @@ def _dual_path_result(left=24, right=48, quality=1):
 def _decode_observation(frame):
     frame = bytes(frame)
     if (len(frame) != 16 or frame[:2] != b"\xA5\x5A" or
-            frame[2] not in (2, 3) or frame[3] != 8):
+            frame[2] not in (2, 3, 4) or frame[3] != 8):
         raise AssertionError("invalid observation frame")
     expected = main.vision_protocol.crc16_ccitt_false(frame[2:14])
     actual = frame[14] | frame[15] << 8
@@ -236,7 +236,7 @@ def _decode_observation(frame):
         "valid": frame[6] & 1,
         "quality": frame[7],
         "error": raw,
-        "profile_ack": frame[11] if frame[2] == 3 else 0,
+        "profile_ack": frame[11] if frame[2] in (3, 4) else 0,
         "version": frame[2],
     }
 
@@ -515,7 +515,7 @@ class SingleEdgeMainTests(unittest.TestCase):
         self.assertEqual(len(uart.frames), 10)
         self.assertEqual(camera.flush_calls, 10)
         decoded = [_decode_observation(frame) for frame in uart.frames]
-        self.assertTrue(all(frame[2] == vision_protocol.VERSION_V3
+        self.assertTrue(all(frame[2] == vision_protocol.VERSION_V4
                             for frame in uart.frames))
         self.assertEqual([item["profile_ack"] for item in decoded],
                          [reverse_control.PROFILE_A] * len(decoded))

@@ -96,6 +96,13 @@ def public_delivery_files(source, relative_directory):
     if (relative.is_absolute() or ".." in relative.parts or
             not directory.is_relative_to(source / "deliverables")):
         raise ValueError("Track delivery must be a local deliverables subdirectory")
+    metadata = json.loads((directory / "profiles.json").read_text(encoding="utf-8"))
+    if metadata.get("delivery_kind") == "openmv_gyro_wireless":
+        try:
+            from .build_openmv_gyro_wireless import public_delivery_files as gyro_files
+        except ImportError:
+            from build_openmv_gyro_wireless import public_delivery_files as gyro_files
+        return gyro_files(source, relative_directory)
     verify_manifest(directory)
     camera_manifest = json.loads((directory / "OpenMV/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     if camera_manifest.get("runtime_files") != list(RUNTIME_NAMES):

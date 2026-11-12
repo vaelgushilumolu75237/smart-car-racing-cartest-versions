@@ -161,7 +161,9 @@
       "cacheVariables": {
         "CARTEST_TRACK_PROFILE": "1",
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
-        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400"
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
       }
     },
     {
@@ -172,7 +174,9 @@
       "cacheVariables": {
         "CARTEST_TRACK_PROFILE": "2",
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "4800",
-        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000"
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
       }
     },
     {
@@ -185,7 +189,9 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_VISION_HOLD_MS": "3000",
-        "CARTEST_VISION_HOLD_RAMP_MS": "300"
+        "CARTEST_VISION_HOLD_RAMP_MS": "300",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
       }
     },
     {
@@ -216,51 +222,63 @@
   "buildPresets": [
     {
       "name": "Debug",
-      "configurePreset": "Debug"
+      "configurePreset": "Debug",
+      "hidden": true
     },
     {
       "name": "DebugSteering",
-      "configurePreset": "DebugSteering"
+      "configurePreset": "DebugSteering",
+      "hidden": true
     },
     {
       "name": "DebugBench",
-      "configurePreset": "DebugBench"
+      "configurePreset": "DebugBench",
+      "hidden": true
     },
     {
       "name": "DebugFollow",
-      "configurePreset": "DebugFollow"
+      "configurePreset": "DebugFollow",
+      "hidden": true
     },
     {
       "name": "DebugFollowNoLog",
-      "configurePreset": "DebugFollowNoLog"
+      "configurePreset": "DebugFollowNoLog",
+      "hidden": true
     },
     {
       "name": "DebugFollowDiff5",
-      "configurePreset": "DebugFollowDiff5"
+      "configurePreset": "DebugFollowDiff5",
+      "hidden": true
     },
     {
       "name": "DebugFollowDiff10",
-      "configurePreset": "DebugFollowDiff10"
+      "configurePreset": "DebugFollowDiff10",
+      "hidden": true
     },
     {
       "name": "DebugFollowTurn",
-      "configurePreset": "DebugFollowTurn"
+      "configurePreset": "DebugFollowTurn",
+      "hidden": true
     },
     {
       "name": "DebugFollowSpeedPI",
-      "configurePreset": "DebugFollowSpeedPI"
+      "configurePreset": "DebugFollowSpeedPI",
+      "hidden": true
     },
     {
       "name": "DebugFollowTurn65",
-      "configurePreset": "DebugFollowTurn65"
+      "configurePreset": "DebugFollowTurn65",
+      "hidden": true
     },
     {
       "name": "DebugFollowIncrementalPI",
-      "configurePreset": "DebugFollowIncrementalPI"
+      "configurePreset": "DebugFollowIncrementalPI",
+      "hidden": true
     },
     {
       "name": "DebugFollowIncrementalPIBaseline",
-      "configurePreset": "DebugFollowIncrementalPIBaseline"
+      "configurePreset": "DebugFollowIncrementalPIBaseline",
+      "hidden": true
     },
     {
       "name": "DebugFastNoRing",

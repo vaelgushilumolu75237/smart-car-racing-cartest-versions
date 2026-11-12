@@ -1,4 +1,8 @@
 #include "car_vision.h"
+#include "gyro350_config.h"
+#if CARTEST_WIRELESS_ENABLED
+#include "wireless_runtime.h"
+#endif
 
 #include <string.h>
 
@@ -429,7 +433,7 @@ static uint8_t queue_starts_control_header(const car_vision_rx_t *rx,
                      second == VP_SYNC_BYTE_1 &&
                      queued_byte_at(rx, head_snapshot, 2u, &version) != 0u &&
                      (version == VP_VERSION_V2 ||
-                      version == VP_VERSION_V3));
+                      version == VP_VERSION_V3 || version == VP_VERSION_V4));
 }
 
 static uint8_t queue_has_complete_valid_control_frame(
@@ -450,7 +454,7 @@ static uint8_t queue_has_complete_valid_control_frame(
     }
     return (uint8_t)(vp_unpack_ex(bytes, &frame) == VP_STATUS_FRAME &&
                      (frame.version == VP_VERSION_V2 ||
-                      frame.version == VP_VERSION_V3));
+                      frame.version == VP_VERSION_V3 || frame.version == VP_VERSION_V4));
 }
 
 static uint8_t queue_has_incomplete_sync_prefix(
@@ -545,25 +549,7 @@ void car_vision_rx_isr_byte(car_vision_rx_t *rx,
                             uint8_t byte,
                             uint32_t arrival_ms)
 {
-    uint16_t head;
-    uint16_t next;
-    if (rx == 0) {
-        return;
-    }
-    ++rx->rx_byte_count;
-    head = rx->head;
-    publish_barrier();
-    next = (uint16_t)((head + 1u) & CAR_VISION_RX_RING_MASK);
-    if (next == rx->tail) {
-        ++rx->queue_overflow_count;
-        rx->overflow_fault = 1u;
-        ++rx->isr_fault_generation;
-        return;
-    }
-    rx->ring[head].byte = byte;
-    rx->ring[head].arrival_ms = arrival_ms;
-    publish_barrier();
-    rx->head = next;
+    car_vision_rx_isr_byte_inline(rx, byte, arrival_ms);
 }
 
 void car_vision_rx_isr_error(car_vision_rx_t *rx)
@@ -600,6 +586,41 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
     }
 
     while (rx->tail != head_snapshot) {
+#if CARTEST_WIRELESS_ENABLED
+        if (rx->parser.length == 0u && rx->diagnostic_discard_remaining == 0u) {
+            uint16_t available=queued_bytes_available(rx,head_snapshot);
+            uint8_t first=0,second=0;
+            (void)queued_byte_at(rx,head_snapshot,0,&first);
+            if (first==CAR_WIRELESS_MAGIC0) {
+                uint32_t started=rx->ring[rx->tail].arrival_ms;
+                if(available<2u && now_ms-started<=25u) break;
+                (void)queued_byte_at(rx,head_snapshot,1,&second);
+                if(second==CAR_WIRELESS_MAGIC1) {
+                    uint8_t bytes[CAR_WIRELESS_MAX_FRAME];uint16_t count=0,i;
+                    if(available<6u && now_ms-started<=25u) break;
+                    if(available>=6u) {
+                        uint8_t lo=0,hi=0;
+                        (void)queued_byte_at(rx,head_snapshot,4,&lo);
+                        (void)queued_byte_at(rx,head_snapshot,5,&hi);
+                        count=(uint16_t)(lo|((uint16_t)hi<<8));
+                        if(count<=CAR_WIRELESS_MAX_PAYLOAD) count+=24u; else count=0;
+                    }
+                    if(count && available<count && now_ms-started<=25u) break;
+                    if(count && available>=count) {
+                        car_wireless_frame_t extra;
+                        for(i=0;i<count;++i)(void)queued_byte_at(rx,head_snapshot,i,&bytes[i]);
+                        rx->tail=(uint16_t)((rx->tail+count)&CAR_VISION_RX_RING_MASK);
+                        if(now_ms-started<100u && car_wireless_decode(bytes,count,&extra))
+                            car_wireless_camera_frame(&extra,now_ms);
+                        continue;
+                    }
+                    /* A truncated diagnostic cannot gain route authority. */
+                    rx->tail=(uint16_t)((rx->tail+2u)&CAR_VISION_RX_RING_MASK);
+                    continue;
+                }
+            }
+        }
+#endif
         dispatch_new_rx_faults(rx, control);
         if (control->rx_recovery_flush_required != 0u) {
             return;
@@ -814,11 +835,12 @@ void car_vision_rx_poll(car_vision_rx_t *rx,
                 car_receive_diag_note_frame(
                     frame.sequence, (frame.flags & VP_FLAG_VALID) != 0u,
                     arrival_ms);
-                car_control_on_vision_frame_at_with_flags_curve_and_profile(
+                car_control_on_vision_frame_at_with_ring(
                     control, config, frame.sequence, frame.flags,
                     frame.confidence, frame.lateral_error, frame.curve_phase,
                     frame.slowdown_request_permille, frame.version,
-                    frame.profile_ack, arrival_ms, now_ms, pe7_raw_high);
+                    frame.profile_ack, arrival_ms, now_ms, pe7_raw_high,
+                    frame.ring_phase, frame.ring_side, frame.ordinary_route);
             }
             dispatch_new_rx_faults(rx, control);
         } else if ((parser_status = vp_parser_last_status(&rx->parser)) !=

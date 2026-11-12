@@ -105,12 +105,17 @@ void car_config_init_application(car_config_t *config,
         .follow_kp_permille = CARTEST_STEERING_GAIN_PERMILLE,
         .follow_max_duty_permille = CAR_FOLLOW_NORMAL_LIMIT_PM,
         .follow_ramp_step_permille = CAR_FOLLOW_RAMP_STEP_PM,
-        .required_camera_profile_ack = CARTEST_TRACK_PROFILE
+        .required_camera_profile_ack = CARTEST_TRACK_PROFILE,
+        .gyro_enabled = CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2
     };
 }
 
 static uint8_t config_is_valid(const car_config_t *config)
 {
+#if CARTEST_GYRO350_ENABLED
+    if (config != 0 && config->gyro_enabled &&
+        config->servo_center_us != CAR_GYRO_RING_CENTER_SERVO_US) return 0u;
+#endif
     int32_t left_delta;
     int32_t right_delta;
 
@@ -211,6 +216,8 @@ static uint8_t is_hard_fault(car_fault_t fault)
     case CAR_FAULT_CLOCK:
     case CAR_FAULT_TIMER:
     case CAR_FAULT_CONFIG:
+    case CAR_FAULT_IMU:
+    case CAR_FAULT_GYRO_RING:
     case CAR_FAULT_WATCHDOG_INIT:
         return 1u;
     default:
@@ -295,7 +302,9 @@ uint8_t car_control_camera_profile_ack_ready(
     }
     if (control->profile_ack_seen_after_reset == 0u ||
         control->latest_rx_have_frame == 0u ||
-        control->latest_rx_protocol_version != VP_VERSION_V3 ||
+        (config->gyro_enabled ? control->latest_rx_protocol_version != VP_VERSION_V4 :
+         (control->latest_rx_protocol_version != VP_VERSION_V3 &&
+          control->latest_rx_protocol_version != VP_VERSION_V4)) ||
         control->latest_rx_profile_ack !=
             config->required_camera_profile_ack) {
         return 0u;
@@ -337,6 +346,9 @@ uint16_t car_control_follow_servo_output_target_us(
     if (control == 0) {
         return 0u;
     }
+#if CARTEST_GYRO350_ENABLED
+    if (control->gyro.active && !control->gyro.fault) return control->gyro_servo_us;
+#endif
     if (control->mode == CAR_MODE_FOLLOW_VISION_HOLD &&
         control->vision_hold_active != 0u) {
         return control->vision_hold_servo_pulse_us;
@@ -632,6 +644,9 @@ void car_control_init(car_control_t *control,
     control->startup_frame_gate_pending =
         control->debug_steering_mode_compiled != 0u ? 0u : 1u;
     control->switch_was_high = pe7_raw_high != 0u ? 1u : 0u;
+#if CARTEST_GYRO350_ENABLED
+    car_gyro_ring_init(&control->gyro);
+#endif
     control->vision_last_valid_ms = now_ms;
     control->startup_release_ms = now_ms;
     control->reverse_control_reset_generation = 1u;
@@ -815,6 +830,7 @@ uint8_t car_control_begin_manual_follow_start(
 {
     if (control == 0 || config_is_valid(config) == 0u || inputs == 0 ||
         config->follow_mode_compiled == 0u ||
+        (config->gyro_enabled && !car_control_follow_authority_ready(control, config, inputs->now_ms)) ||
         inputs->manual_run_request == 0u ||
         inputs->manual_stop_pending != 0u ||
         inputs->loop_gap_fault != 0u ||
@@ -885,6 +901,26 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
     uint32_t now_ms,
     uint8_t pe7_raw_high)
 {
+    car_control_on_vision_frame_at_with_ring(control, config, sequence, flags,
+        confidence, error_norm, curve_phase, slowdown_request_permille,
+        protocol_version, profile_ack, arrival_ms, now_ms, pe7_raw_high, 0u, 0, 0u);
+}
+
+void car_control_on_vision_frame_at_with_ring(
+    car_control_t *control,
+    const car_config_t *config,
+    uint16_t sequence,
+    uint8_t flags,
+    uint8_t confidence,
+    int16_t error_norm,
+    uint8_t curve_phase,
+    uint16_t slowdown_request_permille,
+    uint8_t protocol_version,
+    uint8_t profile_ack,
+    uint32_t arrival_ms,
+    uint32_t now_ms,
+    uint8_t pe7_raw_high, uint8_t ring_phase, int8_t ring_side, uint8_t ordinary_route)
+{
     uint16_t delta;
     uint32_t interval;
     uint32_t queue_age;
@@ -907,9 +943,9 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
     control->latest_rx_arrival_ms = arrival_ms;
     control->latest_rx_protocol_version = protocol_version;
     control->latest_rx_profile_ack =
-        protocol_version == VP_VERSION_V3
+        (protocol_version == VP_VERSION_V3 || protocol_version == VP_VERSION_V4)
             ? profile_ack : VP_PROFILE_ACK_UNKNOWN;
-    if (protocol_version == VP_VERSION_V3) {
+    if ((protocol_version == VP_VERSION_V3 || protocol_version == VP_VERSION_V4)) {
         control->latest_rx_profile_ack_arrival_ms = arrival_ms;
     }
     control->latest_rx_have_frame = 1u;
@@ -922,7 +958,7 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
     }
 
     if (config->required_camera_profile_ack != VP_PROFILE_ACK_UNKNOWN) {
-        if (protocol_version == VP_VERSION_V3 &&
+        if ((protocol_version == VP_VERSION_V3 || protocol_version == VP_VERSION_V4) &&
             profile_ack == config->required_camera_profile_ack) {
             control->profile_ack_seen_after_reset = 1u;
         }
@@ -970,6 +1006,15 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
     control->vision_have_frame_sequence = 1u;
     control->vision_last_frame_sequence = sequence;
     control->vision_last_frame_alive_ms = arrival_ms;
+#if CARTEST_GYRO350_ENABLED
+    control->gyro_camera_phase = protocol_version == VP_VERSION_V4 ? ring_phase : 0u;
+    control->gyro_camera_side = protocol_version == VP_VERSION_V4 ? ring_side : 0;
+    control->gyro_ordinary = protocol_version == VP_VERSION_V4 ? ordinary_route : 0u;
+    car_control_update_gyro(control, config, now_ms);
+#else
+    (void)ring_phase; (void)ring_side; (void)ordinary_route;
+#endif
+
 
     if (control->reverse_reset_transport_gate_open != 0u) {
         if (control->reverse_transport_have_sequence != 0u) {
@@ -1005,6 +1050,13 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
         control->vision_valid = 0u;
         control->vision_slope_hint = 0u;
         control->vision_timeout = 0u;
+#if CARTEST_GYRO350_ENABLED
+        if (config->gyro_enabled && control->gyro.active) {
+            /* Fresh invalid-route frames remain invalid. Independent IMU
+               authority, not a fake visual observation, owns the ring. */
+            return;
+        }
+#endif
         if (control->recovery_active != 0u ||
             control->mode == CAR_MODE_RECOVERY_WAIT ||
             control->mode == CAR_MODE_WAIT_NEW_FRAME) {
@@ -1787,6 +1839,20 @@ void car_control_tick(car_control_t *control,
         car_control_note_fault(control, CAR_FAULT_VISION_TIMEOUT);
     }
 
+#if CARTEST_GYRO350_ENABLED
+    car_control_update_gyro(control, config, inputs->now_ms);
+    if (config->gyro_enabled && control->gyro.active &&
+        control->fault == CAR_FAULT_NONE) {
+        finish_vision_hold(control, CAR_VISION_HOLD_EXIT_NONE);
+        control->mode = CAR_MODE_FOLLOW_RUNNING;
+        if (control->gyro.outer_target_millirps == 0u) {
+            control->road_drive_allowed = 0u;
+            control->follow_output_duty_permille = 0u;
+            return;
+        }
+    }
+#endif
+
     if (control->mode == CAR_MODE_RECOVERY_WAIT &&
         control->recovery_active == 0u) {
         control->mode = CAR_MODE_WAIT_START_EDGE;
@@ -1810,6 +1876,7 @@ void car_control_tick(car_control_t *control,
             control->bench_target_reached_ms = 0u;
             control->bench_target_hold_active = 0u;
         } else if (config->follow_mode_compiled != 0u &&
+                   (config->gyro_enabled == 0u || car_control_follow_authority_ready(control, config, inputs->now_ms)) &&
                    config->follow_calibration_ready != 0u &&
                    config->motor_hardware_accepted != 0u &&
                    control->manual_run_request != 0u &&
@@ -1838,8 +1905,7 @@ void car_control_tick(car_control_t *control,
                 CAR_RECOVERY_REQUIRED_FRAMES ||
             control->follow_session_active == 0u ||
             control->fault_latched != 0u ||
-            car_control_vision_fresh(control, inputs->now_ms,
-                                     config->vision_timeout_ms) == 0u) {
+            car_control_follow_authority_ready(control, config, inputs->now_ms) == 0u) {
             car_control_note_fault(control, CAR_FAULT_VISION_TIMEOUT);
         } else {
             elapsed = (uint32_t)(inputs->now_ms -
@@ -1918,3 +1984,31 @@ void car_control_tick(car_control_t *control,
         control->road_drive_allowed = 0u;
     }
 }
+
+uint8_t car_control_follow_authority_ready(const car_control_t *control,
+    const car_config_t *config, uint32_t now_ms)
+{
+    if (!control || !config) return 0u;
+#if CARTEST_GYRO350_ENABLED
+    if (config->gyro_enabled) {
+        if (!control->imu_ready || control->imu_fault ||
+            (uint32_t)(now_ms * 1000u - control->imu_sample_us) >= 50000u)
+            return 0u;
+        if (control->gyro.active) {
+            return !control->gyro.fault && control->gyro.outer_target_millirps &&
+                control->follow_session_active && control->manual_run_request &&
+                control->vision_have_frame_sequence &&
+                (uint32_t)(now_ms - control->vision_last_frame_alive_ms) < config->vision_timeout_ms &&
+                car_control_camera_profile_ack_ready(control, config, now_ms);
+        }
+        /* Outside an authorized gyro manoeuvre only the current ordinary
+           road may drive. An orphan INSIDE/ring-route packet after a reset
+           must not silently restore the old vision-controlled ring policy. */
+        if (control->latest_rx_protocol_version != VP_VERSION_V4 ||
+            !control->gyro_ordinary || !control->latest_rx_valid ||
+            control->latest_rx_sequence != control->vision_sequence) return 0u;
+    }
+#endif
+    return car_control_vision_fresh(control, now_ms, config->vision_timeout_ms);
+}
+

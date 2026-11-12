@@ -100,6 +100,8 @@ FAULT_NAMES = {
     13: "timer",
     14: "config",
     15: "watchdog_init",
+    16: "imu",
+    17: "gyro_ring",
 }
 STOP_REASON_NAMES = {
     1: "manual_stop",

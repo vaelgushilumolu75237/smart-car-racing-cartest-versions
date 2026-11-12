@@ -509,3 +509,9 @@ LEGACY_DETECTOR_PARAMS = {
     "image_height": IMAGE_HEIGHT,
     "white_corridor_dark_min_px": 3,
 }
+
+# Missing/invalid map: collect only while parked on a clear bilateral straight.
+AUTO_BOOT_WIDTH_CALIBRATION = True
+
+# All retained H743 profiles may collect while parked, including no-ring A.
+AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS = (VEHICLE_PROFILE_A, VEHICLE_PROFILE_B, VEHICLE_PROFILE_C)

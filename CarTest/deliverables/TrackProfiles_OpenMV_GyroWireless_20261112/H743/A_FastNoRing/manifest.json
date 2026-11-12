@@ -1,0 +1,14 @@
+{
+  "label": "A_FastNoRing",
+  "preset": "DebugFastNoRing",
+  "profile_id": 1,
+  "speed_percent": 100,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_outer_target_millirps": 0,
+  "ring_rate_mdps": 0,
+  "gyro_authority": false,
+  "elf_sha256": "075f856a79be320715c6f89762c2b0e7d4fa203be8ace36de4f8a39a7f983629",
+  "build_id": "1548e73a3ce49e52c4b68ac4f82ccde2",
+  "hardware_acceptance": "pending_manual_tests"
+}

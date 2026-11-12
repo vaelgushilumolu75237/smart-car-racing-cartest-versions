@@ -81,6 +81,68 @@ def _crc_payload(data):
     return ("ring-width-v2|" + "|".join(parts)).encode("ascii")
 
 
+class AutoBootCalibration:
+    """Collect a missing map only from fresh parked, bilateral observations.
+
+    The caller supplies topology, sensor, boundary and odometry gates. An
+    interrupted gate or changed profile identity discards partial samples.
+    Existing valid maps are never overwritten automatically.
+    """
+
+    def __init__(self, calibration, path, enabled=True, timeout_ms=60000):
+        self.path = path
+        self.enabled = bool(enabled and not getattr(calibration, "ready", False))
+        self.timeout_ms = timeout_ms
+        self.started_ms = None
+        self.identity = None
+        self.collector = None
+        self.done = False
+        self.reason = "WAIT_PARKED" if self.enabled else "NOT_REQUIRED"
+
+    def step(self, now_ms, ticks_diff, eligible, identity, rows, count, stride):
+        if not self.enabled or self.done:
+            return None
+        if (self.started_ms is not None and
+                ticks_diff(now_ms, self.started_ms) >= self.timeout_ms):
+            self.done = True
+            self.collector = None
+            self.reason = "TIMEOUT"
+            print("AUTO_WIDTH_CALIBRATION TIMEOUT")
+            return None
+        if not eligible:
+            self.collector = None
+            self.identity = None
+            self.reason = "WAIT_PARKED_VALID_STRAIGHT"
+            return None
+        if self.started_ms is None:
+            self.started_ms = now_ms
+            print("AUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000")
+        if self.collector is None or self.identity != identity:
+            self.collector = RingWidthCalibration()
+            self.identity = identity
+        self.collector.accept_rows(rows, count, stride)
+        self.reason = self.collector.reason
+        if not self.collector.collection_complete:
+            return None
+        try:
+            self.collector.save(self.path)
+            loaded = RingWidthCalibration.load(self.path)
+            if not loaded.ready:
+                raise ValueError("calibration readback: " + loaded.reason)
+        except Exception as exc:
+            self.done = True
+            self.collector = None
+            self.reason = "SAVE_FAILED"
+            print("AUTO_WIDTH_CALIBRATION SAVE_FAILED %s" % str(exc))
+            return None
+        self.done = True
+        self.collector = None
+        self.reason = "CALIBRATION_READY"
+        print("AUTO_WIDTH_CALIBRATION READY elapsed_ms=%d" %
+              ticks_diff(now_ms, self.started_ms))
+        return loaded
+
+
 class RingWidthCalibration:
     """Collect, validate, persist, and expose one calibrated width row-map."""
 

@@ -13,6 +13,7 @@ extern "C" {
 #define VP_VERSION 2u
 #define VP_VERSION_V2 2u
 #define VP_VERSION_V3 3u
+#define VP_VERSION_V4 4u
 #define VP_VERSION_V1 1u
 #define VP_VERSION_D1 0xD1u
 #define VP_PAYLOAD_LENGTH 8u
@@ -56,6 +57,10 @@ typedef struct {
     uint8_t profile_ack;
     /* Diagnostic-only D1 payload; never interpreted as a control observation. */
     uint8_t diagnostic_payload[VP_PAYLOAD_LENGTH];
+    /* V4: independent camera evidence, never fabricated route validity. */
+    uint8_t ring_phase; /* 0 ordinary, 1 entry evidence, 2 inside confirmed */
+    int8_t ring_side;   /* -1 left, +1 right, 0 none */
+    uint8_t ordinary_route;
 } vp_frame;
 
 /* The parser owns this fixed-size storage; it performs no allocation. */
@@ -73,7 +78,8 @@ uint16_t vp_crc16_ccitt_false(const uint8_t* data, uint8_t length);
 uint8_t vp_pack(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]);
 /* V3 keeps every V2 field offset; byte 11 carries profile_ack. */
 uint8_t vp_pack_v3(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]);
-/* Unpack accepts V2 and V3; V2 reports profile_ack=UNKNOWN. */
+uint8_t vp_pack_v4(const vp_frame* frame, uint8_t out[VP_FRAME_SIZE]);
+/* Unpack accepts V2/V3/V4 and D1 diagnostics; V2 has profile_ack=UNKNOWN. */
 vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame);
 uint8_t vp_unpack(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame);
 

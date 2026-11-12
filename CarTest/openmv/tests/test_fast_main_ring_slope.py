@@ -274,6 +274,7 @@ class _ActiveRingElements:
             self.rows.extend((y, 25, 49, flags))
         self.result = {
             "state": "INSIDE", "reason": "TEST_RING_ACTIVE",
+            "ring_confirmed": True,
             "side": main.track_elements.SIDE_RIGHT,
             "control_eligible": True, "target_valid": True,
             "target_rows": self.rows, "target_count": len(self.rows) // 4,
@@ -785,7 +786,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
 
             def write(self, frame):
                 self.frames.append(bytes(frame))
-                if frame[2] == vision_protocol.VERSION_V3:
+                if frame[2] == vision_protocol.VERSION_V4:
                     fake_time.us += 500
                     self.primary_completion_us = fake_time.us
                 elif frame[2] == vision_protocol.VERSION_DIAGNOSTIC:
@@ -843,7 +844,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                 duration_s=1, frame_source=_Sensor(), uart_sink=fake_uart)
 
         self.assertEqual([frame[2] for frame in fake_uart.frames],
-                         [vision_protocol.VERSION_V3,
+                         [vision_protocol.VERSION_V4,
                           vision_protocol.VERSION_DIAGNOSTIC])
         self.assertIsNotNone(fake_uart.primary_completion_us)
         self.assertLess(captured_perf["capture_to_send"], 200000)
@@ -869,7 +870,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertIn("ring_route=profile_gated_experimental", log)
         for frame in frames:
             self.assertEqual(len(frame), 16)
-            self.assertEqual(frame[2:4], b"\x03\x08")
+            self.assertEqual(frame[2:4], b"\x04\x08")
             self.assertEqual(frame[11], 0)
             self.assertEqual(vision_protocol.crc16_ccitt_false(frame[2:14]),
                              int.from_bytes(frame[14:16], "little"))
@@ -884,7 +885,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             bytes(main.reverse_control.pack_frame(1, 101)) +
             bytes(main.reverse_control.pack_profile_state(
                 11, main.reverse_control.PROFILE_B,
-                main.reverse_control.PROFILE_SESSION_ACTIVE,
+                main.reverse_control.PROFILE_SESSION_ACTIVE |
+                main.reverse_control.PROFILE_GYRO_SUPPORTED,
                 session_token=1)))
         fake_uart = _UART(fake_time, rx_data=profile_bytes)
         output = io.StringIO()
@@ -939,16 +941,19 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             main._main_fast(duration_s=1)
         self.assertEqual(len(fake_uart.frames), 1)
         frame = fake_uart.frames[0]
-        self.assertEqual(frame[2:4], b"\x03\x08")
+        self.assertEqual(frame[2:4], b"\x04\x08")
         self.assertEqual(frame[11], main.reverse_control.PROFILE_B)
         self.assertEqual(frame[6] & vision_protocol.FLAG_VALID,
                          vision_protocol.FLAG_VALID)
-        self.assertEqual(frame[10], vision_protocol.CURVE_PHASE_TURN)
+        self.assertEqual(frame[10] & 3, vision_protocol.CURVE_PHASE_TURN)
+        self.assertEqual((frame[10] >> 2) & 3, 1)  # ENTRY immediately
+        self.assertEqual((frame[10] >> 4) & 3, 2)  # RIGHT wire side
+        self.assertEqual((frame[10] >> 6) & 1, 0)  # no ordinary authority
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 1000)
         self.assertIn("source=ring_right", output.getvalue())
         self.assertIn(
-            "TRACK_BUILD=TRACK_RING_EXIT_V26_R23_20261101 "
-            "forward=V3/16 reverse=V1/8+V2/20 profile=awaiting_state "
+            "TRACK_BUILD=TRACK_RING_EXIT_V26_R24_20261101 "
+            "forward=V4/16 reverse=V1/8+V2/20 profile=awaiting_state "
             "ring=profile_gated_experimental cross=experimental",
             output.getvalue())
         self.assertEqual(cache_commits, [])
@@ -987,7 +992,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                     # trusted error without refreshing the loss deadline.
                     self.assertEqual(frame[6] & vision_protocol.FLAG_VALID, 0)
                     self.assertEqual(frame[8:10], b"\x00\x00")
-                    self.assertEqual(frame[10], vision_protocol.CURVE_PHASE_STRAIGHT)
+                    self.assertEqual(frame[10] & 3, vision_protocol.CURVE_PHASE_STRAIGHT)
                     self.assertEqual(int.from_bytes(frame[12:14], "little"), 0)
                     self.assertIn("RING_TARGET_UNSUPPORTED", log)
                     self.assertEqual(cache_commits, [])
@@ -1009,7 +1014,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertEqual(frame[11], main.reverse_control.PROFILE_A)
         self.assertEqual(frame[6] & vision_protocol.FLAG_VALID,
                          vision_protocol.FLAG_VALID)
-        self.assertEqual(frame[10], vision_protocol.CURVE_PHASE_STRAIGHT)
+        self.assertEqual(frame[10] & 3, vision_protocol.CURVE_PHASE_STRAIGHT)
         self.assertEqual(int.from_bytes(frame[12:14], "little"), 0)
         self.assertIn("source=road b=CROSS_STRAIGHT", log)
         self.assertIn("b=CROSS_STRAIGHT", log)

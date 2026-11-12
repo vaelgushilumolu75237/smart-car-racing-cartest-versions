@@ -27,8 +27,11 @@ PROFILE_B = 2
 PROFILE_C = 3
 PROFILE_SESSION_ACTIVE = 0x01
 PROFILE_DIAGNOSTICS_SUPPORTED = 0x02
+PROFILE_GYRO_SUPPORTED = 0x04
+PROFILE_GYRO_RELEASE = 0x08
 PROFILE_FLAGS_MASK = (PROFILE_SESSION_ACTIVE |
-                      PROFILE_DIAGNOSTICS_SUPPORTED)
+                      PROFILE_DIAGNOSTICS_SUPPORTED | PROFILE_GYRO_SUPPORTED |
+                      PROFILE_GYRO_RELEASE)
 PROFILE_REVISION = 1
 
 
@@ -287,6 +290,15 @@ class ReverseControlParser:
                     self.profile_session_active and
                     self.profile_id in (PROFILE_B, PROFILE_C) and
                     self.session_token != 0)
+
+    def gyro_profile_enabled(self, now_ms, ticks_diff):
+        return bool(self.ring_profile_enabled(now_ms, ticks_diff) and
+                    self.single_enabled and
+                    (self.profile_flags & PROFILE_GYRO_SUPPORTED))
+
+    def gyro_release_requested(self, now_ms, ticks_diff):
+        return bool(self.gyro_profile_enabled(now_ms, ticks_diff) and
+                    (self.profile_flags & PROFILE_GYRO_RELEASE))
 
     def _accept_control_frame(self, now_ms):
         frame = self._frame

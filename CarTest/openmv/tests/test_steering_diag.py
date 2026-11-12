@@ -534,7 +534,7 @@ class SteeringDiagBufferTests(unittest.TestCase):
         control_index = [0]
 
         def service_control(_uart, parser, _buffer, _drain, now_ms,
-                            _ticks_diff):
+                            _ticks_diff, _sideband=None):
             index = control_index[0]
             control_index[0] += 1
             payload = (control_frames[index]
@@ -961,6 +961,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "SURFACE_PIXEL_SCALE_Y", "USB_PREVIEW_ENABLED",
             "USB_PREVIEW_OVERLAY_MODE", "USB_PREVIEW_QUALITY",
             "USB_PREVIEW_BUILD_ID", "PREVIEW_FPS_MARKER_ENABLED",
+            "AUTO_BOOT_WIDTH_CALIBRATION",
+            "AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS",
         }
         changed_assignments = {
             "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",

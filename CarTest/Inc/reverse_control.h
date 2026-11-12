@@ -36,6 +36,7 @@ typedef struct {
     uint8_t profile_frame_offset;
     uint8_t profile_frame_active;
     uint8_t profile_state_enabled;
+    uint8_t gyro_release;
     uint16_t profile_sequence;
     uint8_t profile_id;
     uint8_t profile_flags;

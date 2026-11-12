@@ -146,6 +146,16 @@ int main()
               output.command_right_permille == 333u,
           "200 ms deceleration reaches both held targets at 200 ms");
 
+    car_follow_output_hold_at_ramp(&output, 1000u, 1000u, 2u, 600u, 500u, 300u);
+    car_follow_output_hold_at_ramp(&output, 1200u, 1000u, 2u, 0u, 0u, 300u);
+    check(output.command_left_permille == 467u &&
+              output.command_right_permille == 389u,
+          "gyro search retains its own 300 ms ramp in the 200 ms profile");
+    car_follow_output_hold_at_ramp(&output, 1300u, 1000u, 2u, 0u, 0u, 300u);
+    check(output.command_left_permille == 400u &&
+              output.command_right_permille == 333u,
+          "gyro search reaches the held targets at 300 ms");
+
     std::printf("VISION_HOLD_PROFILE_SUMMARY failures=%u hold_ms=%u ramp_ms=%u\n",
                 g_failures, CARTEST_VISION_HOLD_MS,
                 CAR_FOLLOW_VISION_HOLD_RAMP_MS);

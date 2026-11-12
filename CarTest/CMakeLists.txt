@@ -25,6 +25,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/flags.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/components.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 
+option(CARTEST_ENABLE_GYRO350 "Enable ICM42688 gyro ring and diagnostics" OFF)
+option(CARTEST_ENABLE_WIRELESS "Enable SeekFree UART2 telemetry and commands" OFF)
 option(CARTEST_ENABLE_BENCH "Compile the isolated overhead single-motor diagnostic path" OFF)
 option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_TURN "Compile the enhanced Follow turn-response profile" OFF)
@@ -151,6 +153,9 @@ if(NOT CARTEST_ENABLE_FOLLOW AND NOT CARTEST_FOLLOW_DIFF_PERMILLE STREQUAL "0")
   message(FATAL_ERROR "A nonzero Follow differential is legal only in a Follow profile.")
 endif()
 
+if(CARTEST_ENABLE_WIRELESS AND NOT CARTEST_ENABLE_GYRO350)
+  message(FATAL_ERROR "Wireless diagnostics require the IMU driver build option.")
+endif()
 set(_cartest_profile_count 0)
 foreach(_profile_option CARTEST_ENABLE_BENCH CARTEST_ENABLE_FOLLOW CARTEST_ENABLE_STEERING)
   if(${_profile_option})
@@ -194,6 +199,7 @@ set(_cartest_build_id_material
   "follow_turn_profile=${CARTEST_ENABLE_FOLLOW_TURN}\n"
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
   "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
+  "gyro350=${CARTEST_ENABLE_GYRO350};wireless=${CARTEST_ENABLE_WIRELESS}\n"
   "speed_percent=${CARTEST_SPEED_PERCENT};track_profile=${CARTEST_TRACK_PROFILE};ackermann_fastest_straight_millirps=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS};ackermann_slowest_request_millirps=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}\n"
   "ackermann_coordination_profile=${_cartest_enable_ackermann_coordination}\n"
   "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=1000;tracking_ms=200\n"
@@ -247,6 +253,10 @@ configure_file(
 # Add sources to executable/library
 target_sources(${PROJECT_NAME} PRIVATE
   # User defined sources
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/icm42688.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/icm42688_stm32.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/gyro_ring.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/gyro350_authority.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/commissioning.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/follow_output.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/manual_run_button.c"
@@ -289,6 +299,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+  CARTEST_GYRO350_ENABLED=$<BOOL:${CARTEST_ENABLE_GYRO350}>
+  CARTEST_WIRELESS_ENABLED=$<BOOL:${CARTEST_ENABLE_WIRELESS}>
   USE_HAL_DRIVER
   STM32H743xx
   CARTEST_BENCH_MODE_COMPILED=$<BOOL:${CARTEST_ENABLE_BENCH}>
@@ -345,3 +357,11 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
   # Add additional linker libraries here
 )
+
+if(CARTEST_ENABLE_WIRELESS)
+  target_sources(${PROJECT_NAME} PRIVATE
+    App/wireless_protocol.c App/wireless_control.c App/wireless_settings.c
+    App/wireless_flash_stm32.c App/wireless_runtime.c
+    Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c
+    Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c)
+endif()

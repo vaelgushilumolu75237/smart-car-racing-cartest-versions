@@ -113,6 +113,15 @@ void car_follow_output_hold_at(car_follow_output_state_t *state,
                                uint16_t left_applied_permille,
                                uint16_t right_applied_permille);
 
+/* Gyro exit has an independent 300 ms ramp, including profile B. */
+void car_follow_output_hold_at_ramp(car_follow_output_state_t *state,
+                               uint32_t now_ms,
+                               uint32_t hold_started_ms,
+                               uint32_t hold_entry_generation,
+                               uint16_t left_applied_permille,
+                               uint16_t right_applied_permille,
+                               uint32_t ramp_ms);
+
 /* Convenience form for isolated callers whose hold starts at now_ms. */
 void car_follow_output_hold(car_follow_output_state_t *state,
                             uint32_t now_ms,

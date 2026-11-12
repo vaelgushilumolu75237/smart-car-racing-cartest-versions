@@ -262,7 +262,7 @@ class ReverseControlTests(unittest.TestCase):
         self.assertTrue(parser.single_enabled)
 
         bad_flags = bytearray(reverse_control.pack_profile_state(
-            11, reverse_control.PROFILE_C, 0x04))
+            11, reverse_control.PROFILE_C, 0x10))
         parser.feed(bad_flags, len(bad_flags), 5)
         self.assertEqual(parser.last_profile_event, "BAD_PROFILE_FLAGS")
         self.assertTrue(parser.single_enabled)

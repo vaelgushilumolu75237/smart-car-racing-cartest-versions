@@ -598,8 +598,12 @@ def configured_follow_servo_slew_step_us(build_preset: str | None = None) -> int
     selected_preset = build_preset or os.environ.get(
         "CARTEST_RUNTIME_LOG_BUILD_PRESET", "DebugFollow"
     )
-    if selected_preset not in ("DebugFollow", "DebugFollowTurn"):
-        raise SystemExit("build preset must be DebugFollow or DebugFollowTurn")
+    if selected_preset not in (
+        "DebugFollow", "DebugFollowTurn", "DebugFastNoRing", "DebugRingBase",
+        "DebugRingFast", "DebugRingFastSpeed120", "DebugRingFastSpeed130",
+        "DebugRingFastSpeed140",
+    ):
+        raise SystemExit("build preset must name a supported Follow profile")
     build_ninja = PROJECT_ROOT / "build" / selected_preset / "build.ninja"
     if not build_ninja.is_file():
         raise SystemExit("Build the selected preset before running this test: " + str(build_ninja))

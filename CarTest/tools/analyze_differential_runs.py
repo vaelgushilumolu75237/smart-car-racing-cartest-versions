@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - supports import-by-file test runners
 
 
 PROFILE_DIFF_PERMILLE = {"none": 0, "medium": 50, "strong": 100}
-HARD_FAULT_CODES = {1, 2, 11, 12, 13, 14, 15}
+HARD_FAULT_CODES = {1, 2, 11, 12, 13, 14, 15, 16, 17}
 COMM_FAULT_CODES = {3, 4, 5, 6, 7}
 FAULT_NAMES = {
     0: "NONE",
@@ -47,6 +47,8 @@ FAULT_NAMES = {
     13: "TIMER",
     14: "CONFIG",
     15: "WATCHDOG_INIT",
+    16: "IMU",
+    17: "GYRO_RING",
 }
 MODE_FAULT_LATCHED = 8
 MODE_FOLLOW_RUNNING = 10

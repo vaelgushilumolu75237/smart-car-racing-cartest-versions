@@ -283,6 +283,8 @@ try {
     foreach ($trackPreset in $trackProfileIds.Keys) {
         $expectedProfileFlags[$trackPreset] = $expectedProfileFlags['DebugFollowIncrementalPI'].Clone()
         $expectedProfileFlags[$trackPreset]['CARTEST_TRACK_PROFILE'] = $trackProfileIds[$trackPreset]
+        $expectedProfileFlags[$trackPreset]['CARTEST_ENABLE_GYRO350'] = 'ON'
+        $expectedProfileFlags[$trackPreset]['CARTEST_ENABLE_WIRELESS'] = 'ON'
         $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4800' } else { '5600' }
         $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } else { '4400' }
     }

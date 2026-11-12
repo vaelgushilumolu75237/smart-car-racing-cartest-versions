@@ -1,4 +1,5 @@
 #include "reverse_control.h"
+#include "gyro350_config.h"
 
 #define REVERSE_SYNC0 0xA6u
 #define REVERSE_SYNC1 0x5Au
@@ -128,6 +129,9 @@ static void car_reverse_profile_state_encode_production(
         return;
     }
     frame[7] |= CAR_REVERSE_PROFILE_CAP_CAMERA_DIAGNOSTICS;
+#if CARTEST_GYRO350_ENABLED
+    frame[7] |= CAR_GYRO350_REVERSE_CAP;
+#endif
     crc = car_reverse_control_crc16(frame, 18u);
     frame[18] = (uint8_t)(crc & 0xFFu);
     frame[19] = (uint8_t)(crc >> 8u);
@@ -287,6 +291,15 @@ uint8_t car_reverse_control_next_byte_paired(
             tx->profile_session_token,
             tx->profile_mean_forward_wheel_millirev,
             tx->profile_frame);
+#if CARTEST_GYRO350_ENABLED
+        if (tx->gyro_release) {
+            uint16_t crc;
+            tx->profile_frame[7] |= CAR_GYRO350_REVERSE_RELEASE;
+            crc = car_reverse_control_crc16(tx->profile_frame, 18u);
+            tx->profile_frame[18] = (uint8_t)crc;
+            tx->profile_frame[19] = (uint8_t)(crc >> 8u);
+        }
+#endif
         ++tx->profile_sequence;
         tx->profile_frame_offset = 0u;
         tx->profile_frame_active = 1u;
