@@ -18,6 +18,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "openmv_gyro_wireless"
+EXTENSION_VERSION = "v20261112-openmv-visual-entry-gate-75-ring-servo130"
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),
@@ -30,7 +31,9 @@ PROFILES = (
 
 
 def runtime_names():
-    return tuple(LEGACY_RUNTIME) + ("gyro_link.py", "wireless_sideband.py")
+    return tuple(LEGACY_RUNTIME) + (
+        "gyro_link.py", "entry_calibration_common.py", "visual_entry_gate.py",
+        "wireless_sideband.py")
 
 
 def read_cache(source, preset):
@@ -44,10 +47,16 @@ def read_cache(source, preset):
 
 def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
+    ring_target = ((orbit * 75) + 50) // 100 if orbit else 0
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
-                ring_outer_target_millirps=orbit, ring_rate_mdps=yaw,
-                gyro_authority=profile != 1)
+                ring_outer_base_target_millirps=orbit,
+                ring_outer_target_millirps=ring_target,
+                exit_outer_target_millirps=orbit,
+                entry_orbit_speed_percent=75,
+                entry_orbit_servo_gain_permille=1300,
+                entry_variant="visual_gate_pending_calibration",
+                ring_rate_mdps=yaw, gyro_authority=profile != 1)
 
 
 def verify_cache(source, row):
@@ -152,11 +161,22 @@ def build(source, output, compiler, validation, readme):
         shutil.copy2(elf, target / "CarTest.elf")
         write_json(target / "manifest.json", meta)
         profiles.append(meta)
-    write_json(camera / "PACKAGE_MANIFEST.json", dict(runtime_files=list(runtime_names()), compilation=compilation,
+    write_json(camera / "PACKAGE_MANIFEST.json", dict(
+               extension_version=EXTENSION_VERSION,
+               entry_variant="visual_gate_pending_calibration",
+               entry_calibration_schema="VISUAL_ENTRY_V1",
+               entry_calibration_required=True,
+               ring_entry_orbit_speed_percent=75,
+               ring_entry_orbit_servo_gain_permille=1300,
+               runtime_files=list(runtime_names()), compilation=compilation,
                compiler_sha256=sha256(compiler), compiler_target="armv7emsp", sensor="MT9V034",
                image_width=320, image_height=120, forward_wire="V4/16-byte", shared_profile_selection=True,
                camera_firmware_policy="retain_current_vendor_firmware", image_transfer=False))
-    write_json(output / "profiles.json", dict(delivery_kind=KIND, profiles=profiles, hardware_tested=False))
+    write_json(output / "profiles.json", dict(
+               delivery_kind=KIND, variant=EXTENSION_VERSION,
+               entry_variant="visual_gate_pending_calibration",
+               calibration_status="pending_manual_hand_push",
+               profiles=profiles, hardware_tested=False))
     shutil.copy2(validation, output / "validation/software-validation.json")
     shutil.copy2(readme, output / "README.md")
     shutil.copy2(source / "tests/wireless/PROTOCOL.md", output / "WIRELESS_PROTOCOL.md")

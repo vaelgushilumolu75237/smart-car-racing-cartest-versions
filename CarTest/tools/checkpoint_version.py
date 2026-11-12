@@ -30,9 +30,15 @@ PUBLIC_COPY_EXCLUDED_SUBTREES = {
     # is kept out of public source checkpoints. Other directories named
     # "experiments" remain eligible for normal source copying.
     "tools": ("experiments",),
+    "openmv": ("ring_entry_marks", "ring_visual_entry_marks", "ring_encoder_entry_marks"),
+}
+PRIVATE_RUNTIME_BASENAMES = {
+    "ring_width_calibration.json", "ring_visual_entry_calibration.json",
+    "ring_encoder_entry_calibration.json", "cartest_openmv_pd.json",
 }
 SKIP_SUFFIXES = {".pyc", ".obj", ".o", ".exe", ".dll", ".png", ".jpg",
-                 ".jpeg", ".mp4", ".avi", ".bin", ".log"}
+                 ".jpeg", ".mp4", ".avi", ".bin", ".log", ".pdb", ".ilk",
+                 ".pgm", ".bmp", ".raw"}
 # Only these synthetic/source fixtures are public; never copy the vehicle-data
 # tree wholesale. They are required by the shipped host regression commands.
 PUBLIC_TEST_FIXTURES = (
@@ -534,6 +540,9 @@ def copy_tree(source: Path, destination: Path, *, excluded_subtrees=()):
                for subtree in excluded):
             continue
         if any(part in SKIP_DIRS for part in relative.parts):
+            continue
+        if any(item.name == name or item.name.startswith(name + ".")
+               for name in PRIVATE_RUNTIME_BASENAMES):
             continue
         if item.is_symlink():
             raise RuntimeError(f"Symlink is not allowed in a public source checkpoint: {relative}")

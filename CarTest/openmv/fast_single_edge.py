@@ -2037,7 +2037,7 @@ class FastSingleEdgeTracker:
 
     @micropython.native
     def _detect_current(self, mask_info, control_fresh,
-                        topology_evidence=None):
+                        topology_evidence=None, preferred_side=None):
         """Return a single-edge result only inside a fresh RESET/KEEP session."""
         self._invalidate_result("NOT_RUN")
         if not control_fresh:
@@ -2111,21 +2111,29 @@ class FastSingleEdgeTracker:
         left_valid = self._evaluate_side(0)
         right_valid = self._evaluate_side(1)
         if left_valid and right_valid:
-            selected_side = self._resolve_same_lane_pair()
+            if preferred_side in (0, 1) and not self._side_ambiguous[
+                    preferred_side]:
+                # A pending ring candidate may widen one side of the visible
+                # road. Prefer the opposite, outer boundary only when it has
+                # a complete cached-width chain; this keeps the lower opening
+                # on the ordinary road route instead of turning into it.
+                selected_side = int(preferred_side)
+            else:
+                selected_side = self._resolve_same_lane_pair()
         elif left_valid:
             self._pair_diagnostic[_PAIR_DIAG_REASON] = \
                 _PAIR_REASON_SINGLE_LEFT
             self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = 0
             self._pair_diagnostic[_PAIR_DIAG_LEFT_SUPPORT] = int(
                 self._side_count[0])
-            selected_side = 0
+            selected_side = 0 if preferred_side in (None, 0) else -1
         elif right_valid:
             self._pair_diagnostic[_PAIR_DIAG_REASON] = \
                 _PAIR_REASON_SINGLE_RIGHT
             self._pair_diagnostic[_PAIR_DIAG_SELECTED_SIDE] = 1
             self._pair_diagnostic[_PAIR_DIAG_RIGHT_SUPPORT] = int(
                 self._side_count[1])
-            selected_side = 1
+            selected_side = 1 if preferred_side in (None, 1) else -1
         else:
             selected_side = -1
 
@@ -2190,14 +2198,15 @@ class FastSingleEdgeTracker:
         finally:
             self._ring_observation_mode = 0
 
-    def detect(self, mask_info, control_fresh, topology_evidence=None):
+    def detect(self, mask_info, control_fresh, topology_evidence=None,
+               preferred_side=None):
         """Run one detector call and retain a fixed-size per-frame snapshot."""
         if not self._frame_open:
             self.begin_frame()
         self._frame_scan_done = False
         try:
             return self._detect_current(
-                mask_info, control_fresh, topology_evidence)
+                mask_info, control_fresh, topology_evidence, preferred_side)
         finally:
             self._capture_frame_snapshot(True)
             self._frame_open = False

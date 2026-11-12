@@ -34,6 +34,15 @@ and `reserved:u16=0`. ACK payloads are 16 bytes:
 | 8 | 4 | detail |
 | 12 | 4 | settings generation |
 
+For `target=1`, opcode `0x0b` is the visual-entry calibration extension (the
+legacy image-capture operation remains unsupported). Its payload is seven
+bytes: `0x0b, 1, 0, 0, action, side, marker`. `action=0` resets the parked
+collector, `action=1` records the current transition geometry, and `action=2`
+commits that side's three-marker record. Marker numbers are `0=FIRST_STABLE`,
+`1=LOWER_OPENING`, and `2=UPPER_ENTRANCE`; side is `0=left` or `1=right`.
+Every action is session/parked/fault gated and the camera's final ACK is
+forwarded without fabricating success.
+
 The H743-to-camera HELLO payload is 8 bytes: `epoch:u32`, `parked:u8`,
 `profile_key:u8`, and two reserved bytes. The six profile keys are A no-ring,
 B ring base, C 100%, C +20%, C +30%, and C +40%. The camera replies with
@@ -56,6 +65,9 @@ SAVECAM
 DEFAULT
 IMUCAL
 CALWIDTH
+VCALRESET
+VCALMARK00 ... VCALMARK12
+VCALCOMMIT0 / VCALCOMMIT1
 ```
 
 `SAVE` and `DEFAULT` require the vehicle to be parked, PE7 released, startup
@@ -72,11 +84,43 @@ Text commands require a newline; `ARM` opens a session for the query/save comman
 without starting the vehicle. Any intervening query uses its own sequence number,
 so the single-use `START` ticket remains usable until its 30-second expiry.
 
-The assistant page 4 carries the latest camera state: FPS, valid flag, ring
-phase, selected profile and active flag, processing time, accepted vision P/D,
-latest camera ACK status/opcode/detail, source, side, lateral error, and PD
-control value. These values are copied from camera STATE/CONFIG/ACK frames;
-receive counters are not used as substitutes.
+The `VCAL*` commands require an `ARM` session and the vehicle to remain parked.
+Use `VCALRESET`, then hand-push one side while issuing `VCALMARK00` (first
+stable view), `VCALMARK01` (lower opening), and `VCALMARK02` (upper physical
+entrance); use `1` as the first digit for the right side. Commit with
+`VCALCOMMIT0` or `VCALCOMMIT1` only after all three markers have been accepted.
+The software rejects missing/indistinguishable geometry and CRC-protects the
+resulting `VISUAL_ENTRY_V1` record. No calibration file is included in the
+software package, so the visual variant remains `pending_manual_hand_push`.
+
+One parked three-marker pass records local grayscale images, measured geometry,
+and mean forward wheel millirevolutions. It exports independent
+`ring_visual_entry_calibration.json` and `ring_encoder_entry_calibration.json`
+files. Marker images stay under the relative `ring_entry_marks/` directory and
+are excluded from public checkpoints. The FIRST marker and runtime distance
+origin use the same stable confirmed-roundabout observation, not an ordinary
+straight-road baseline. No image is sent over the wireless link.
+
+On page 5, channel 15 exposes the actual camera ACK detail. For COMMIT, bit 0
+means the visual file was saved and verified; bit 1 means the independent encoder
+file was saved and verified. Value 3 confirms both. Partial results retain a
+non-success status and cannot be interpreted as both files having committed.
+Each version runs only its own entrance gate after calibration.
+
+The assistant page 4 is the live visual-entry page: FPS, valid flag, ring
+state, entry-ready flag, gate state, calibration-ready flag, consecutive
+matches, transition flag, far/near transition rows, reason code, gate side,
+ring-confirmed flag, curve phase, selected profile, and processing time. These
+values are copied from camera STATE/CONFIG/ACK frames; receive counters are
+not used as substitutes. A successful START selects page 1 automatically for
+wheel, servo, IMU, and ring telemetry; STOP returns to page 5 for the command
+ticket and safety gates.
+
+Camera STATE payload bytes 26--35 additionally carry visual-entry diagnostics:
+ready, gate state, calibration-ready, consecutive matches, transition flag,
+ring-confirmed, far/near transition rows (`255` means unavailable), reason
+code, and gate side (`0` unknown, `1` left, `2` right). Complete-tool mode
+forwards these STATE bytes unchanged; older readers may ignore them.
 
 ## Safety and transport rules
 

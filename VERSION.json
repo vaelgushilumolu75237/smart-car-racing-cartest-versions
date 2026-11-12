@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-openmv-r24-gyro350-seekfree",
-  "status": "experimental-software-tested-hardware-pending",
-  "branch": "experimental/pi-trial",
-  "files": 924,
+  "version": "v20261112-openmv-visual-entry-75speed-130steer",
+  "status": "experimental-software-tested-calibration-pending",
+  "branch": "experimental/visual-entry",
+  "files": 941,
   "hardware_actions": "none"
 }

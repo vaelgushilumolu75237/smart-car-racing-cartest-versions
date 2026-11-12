@@ -49,6 +49,8 @@ static volatile uint8_t assistant_rx_fault;
 static uint32_t assistant_text_started_ms, assistant_ticket, assistant_issued_ms;
 static uint32_t assistant_issue_count, assistant_session, assistant_previous_ticket;
 static uint32_t assistant_command_sequence;
+static uint32_t assistant_camera_request;
+static uint32_t assistant_camera_detail;
 static uint8_t assistant_status, assistant_ack;
 static car_wireless_effect_t assistant_pending_effect;
 enum { ASSISTANT_IDLE=0, ASSISTANT_ARMED=1, ASSISTANT_PENDING=2,
@@ -69,7 +71,12 @@ static uint16_t camera_state_processing_ms, camera_state_fps_x10,
 static int16_t camera_state_lateral_error, camera_state_control;
 static uint8_t camera_state_valid, camera_state_source, camera_state_ring_state,
     camera_state_side, camera_state_curve_phase, camera_state_profile,
-    camera_state_profile_active;
+    camera_state_profile_active, camera_state_entry_ready,
+    camera_state_entry_state, camera_state_entry_calibration_ready,
+    camera_state_entry_match_frames, camera_state_entry_transition,
+    camera_state_ring_confirmed, camera_state_entry_reason,
+    camera_state_entry_gate_side;
+static uint8_t camera_state_entry_far_y, camera_state_entry_near_y;
 static uint8_t camera_last_ack_status, camera_last_ack_opcode;
 static uint32_t camera_last_ack_detail;
 volatile uint32_t car_wireless_rx_overflow, car_wireless_uart_errors;
@@ -87,6 +94,14 @@ static uint8_t push(queue_t *q, unsigned limit, const uint8_t *p, size_t n) {
     if (!n || n>CAR_WIRELESS_MAX_FRAME || q->count>=limit) return 0;
     slot=&q->packet[q->head];memcpy(slot->data,p,n);slot->size=(uint16_t)n;slot->pos=0;
     q->head=(q->head+1u)%limit;++q->count;return 1;
+}
+static uint8_t visual_entry_command(const car_wireless_frame_t *f) {
+    return f != NULL && f->payload_len == 7u &&
+           f->payload[0] == WIRELESS_OP_VISUAL_ENTRY_CAL &&
+           f->payload[1] == WIRELESS_TARGET_CAMERA &&
+           f->payload[2] == 0u && f->payload[3] == 0u &&
+           f->payload[4] <= 2u && f->payload[5] <= 1u &&
+           f->payload[6] <= 2u;
 }
 static uint8_t pop(queue_t *q, unsigned limit, packet_t *p) {
     if (!q->count) return 0;
@@ -109,6 +124,13 @@ static void emit_ack(wireless_control_ack_t *ack,uint32_t now) {
     if (!send_frame(&ack_queue,HI_N,&f)) ++car_wireless_tx_dropped;
 }
 static void cache_final(wireless_control_ack_t *ack,uint32_t now) {
+    if (assistant_camera_request && ack->request_seq==assistant_camera_request) {
+        assistant_camera_detail=ack->detail;
+        assistant_ack=ack->status;
+        assistant_status=ack->status==WIRELESS_ACK_PENDING ? ASSISTANT_PENDING :
+            (ack->status==WIRELESS_ACK_OK ? ASSISTANT_ACCEPTED : ASSISTANT_REJECTED);
+        if (ack->status!=WIRELESS_ACK_PENDING) assistant_camera_request=0u;
+    }
     if (engine.last_command_seq==ack->request_seq) engine.cached_ack=*ack;
     emit_ack(ack,now);
 }
@@ -121,7 +143,9 @@ static uint8_t forward_camera(car_wireless_frame_t *f,uint32_t pc_seq,uint8_t op
     f->timestamp_ms=now;f->payload[1]=WIRELESS_TARGET_CAMERA;
     if (!send_frame(&camera_queue,CAM_N,f)) return 0;
     pending[i]=(forwarding_t){pc_seq,f->sequence,
-        now+(opcode==WIRELESS_OP_CAMERA_CAL?65000u:2000u),opcode,1,0,0};
+        now+((opcode==WIRELESS_OP_CAMERA_CAL ||
+              opcode==WIRELESS_OP_VISUAL_ENTRY_CAL)?65000u:2000u),
+        opcode,1,0,0};
     if (pc_seq==0 && opcode==WIRELESS_OP_SET_PARAMS) {
         pending[i].vision_p=engine.settings.vision_gain_permille;
         pending[i].vision_d=engine.settings.vision_d_gain_permille;
@@ -224,11 +248,16 @@ static void command_frame(car_wireless_frame_t *f,uint32_t now) {
     if (status==WIRELESS_ACK_FORWARD ||
         (status==WIRELESS_ACK_PENDING && ack.opcode==WIRELESS_OP_CAMERA_CAL)) {
         (void)wireless_control_take_camera_cal(&engine);
-        if (ack.opcode==WIRELESS_OP_CAPTURE) {
+        if (ack.opcode==WIRELESS_OP_CAPTURE && !visual_entry_command(f)) {
             /* Image transport is deliberately not part of this OpenMV port. */
             ack.status=WIRELESS_ACK_UNSUPPORTED;
+        } else if (visual_entry_command(f) && f->payload[4]==0u &&
+                   effect!=CAR_WIRELESS_EFFECT_NONE) {
+            ack.status=WIRELESS_ACK_BUSY;
         } else if (forward_camera(f,ack.request_seq,ack.opcode,now)) {
             ack.status=WIRELESS_ACK_PENDING;
+            if (visual_entry_command(f) && f->payload[4]==0u)
+                effect=CAR_WIRELESS_EFFECT_ENTRY_RESET;
         } else ack.status=WIRELESS_ACK_NOT_READY;
         cache_final(&ack,now);return;
     }
@@ -264,6 +293,27 @@ static void assistant_simple_command(uint8_t opcode, uint8_t target, uint32_t no
     f.sequence=++assistant_command_sequence;
     if (f.sequence==0u) f.sequence=++assistant_command_sequence;
     f.timestamp_ms=now;
+    assistant_camera_request=f.sequence;
+    command_frame(&f,now);
+    assistant_ack=engine.cached_ack.status;
+    assistant_status=(assistant_ack==WIRELESS_ACK_OK ||
+                      assistant_ack==WIRELESS_ACK_PENDING) ?
+                     ASSISTANT_PENDING : ASSISTANT_REJECTED;
+}
+static void assistant_visual_entry_command(uint8_t action, uint8_t side,
+                                           uint8_t marker, uint32_t now) {
+    car_wireless_frame_t f={0};
+    if (!engine.session_ready || engine.session != assistant_session) {
+        assistant_reject(WIRELESS_ACK_BAD_SESSION);return;
+    }
+    f.type=CAR_WIRELESS_COMMAND;f.payload_len=7u;
+    f.payload[0]=WIRELESS_OP_VISUAL_ENTRY_CAL;
+    f.payload[1]=WIRELESS_TARGET_CAMERA;
+    f.payload[4]=action;f.payload[5]=side;f.payload[6]=marker;
+    f.session=assistant_session;f.sequence=++assistant_command_sequence;
+    if (f.sequence==0u) f.sequence=++assistant_command_sequence;
+    f.timestamp_ms=now;
+    assistant_camera_request=f.sequence;
     command_frame(&f,now);
     assistant_ack=engine.cached_ack.status;
     assistant_status=(assistant_ack==WIRELESS_ACK_OK ||
@@ -300,6 +350,21 @@ static void assistant_line(uint32_t now) {
     }
     if (!strcmp(assistant_text,"IMUCAL")) {
         assistant_simple_command(WIRELESS_OP_IMU_CAL,WIRELESS_TARGET_MCU,now);return;
+    }
+    if (!strcmp(assistant_text,"VCALRESET")) {
+        assistant_visual_entry_command(0u,0u,0u,now);return;
+    }
+    if (assistant_text_count==10u && !memcmp(assistant_text,"VCALMARK",8u) &&
+        assistant_text[8]>='0' && assistant_text[8]<='1' &&
+        assistant_text[9]>='0' && assistant_text[9]<='2') {
+        assistant_visual_entry_command(1u,
+            (uint8_t)(assistant_text[8]-'0'),
+            (uint8_t)(assistant_text[9]-'0'),now);return;
+    }
+    if (assistant_text_count==11u && !memcmp(assistant_text,"VCALCOMMIT",10u) &&
+        assistant_text[10]>='0' && assistant_text[10]<='1') {
+        assistant_visual_entry_command(2u,
+            (uint8_t)(assistant_text[10]-'0'),0u,now);return;
     }
     if (!strcmp(assistant_text,"ARM")) {
         const wireless_control_runtime_t *r=&engine.runtime;
@@ -364,7 +429,7 @@ static uint8_t assistant_text_byte(uint8_t b,uint32_t now) {
     }
     if (!assistant_text_count && !assistant_text_drop) {
         if (radio_parser.length || seekfree_count ||
-            (b!='A' && b!='S' && b!='R' && b!='D' && b!='I')) return 0u;
+            (b!='A' && b!='S' && b!='R' && b!='D' && b!='I' && b!='V')) return 0u;
         assistant_text_started_ms=now;
     }
     if (b=='\r' || b=='\n') {
@@ -420,7 +485,7 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     assistant_text_count=assistant_text_drop=assistant_rx_fault=0;
     assistant_ticket=assistant_issue_count=assistant_previous_ticket=assistant_session=0;
     assistant_command_sequence=1u;
-    assistant_status=ASSISTANT_IDLE;assistant_ack=WIRELESS_ACK_OK;
+    assistant_status=ASSISTANT_IDLE;assistant_ack=WIRELESS_ACK_OK;assistant_camera_request=0u;assistant_camera_detail=0u;
     assistant_pending_effect=CAR_WIRELESS_EFFECT_NONE;
     camera_state_processing_ms=camera_state_fps_x10=0u;
     camera_state_vision_p=camera_state_vision_d=0u;
@@ -428,6 +493,11 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     camera_state_valid=camera_state_source=camera_state_ring_state=0u;
     camera_state_side=camera_state_curve_phase=camera_state_profile=0u;
     camera_state_profile_active=0u;
+    camera_state_entry_ready=camera_state_entry_state=0u;
+    camera_state_entry_calibration_ready=camera_state_entry_match_frames=0u;
+    camera_state_entry_transition=camera_state_ring_confirmed=0u;
+    camera_state_entry_reason=camera_state_entry_gate_side=0u;
+    camera_state_entry_far_y=camera_state_entry_near_y=255u;
     camera_last_ack_status=WIRELESS_ACK_NOT_READY;camera_last_ack_opcode=0u;
     camera_last_ack_detail=0u;
     profile_key=wireless_settings_build_profile_key();
@@ -444,6 +514,7 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     camera_tx_seq=0;serial=0;session_counter=0;camera_ready=0;camera_have_seq=0;
     scope_page=0;effect=CAR_WIRELESS_EFFECT_NONE;effect_ack_valid=0;local_stop_latched=0;
     synced_vision_p=synced_vision_d=0;last_vision_generation=UINT32_MAX;
+    vision_sync_attempt_ms=0u;
     last_state_ms=last_diag_ms=now;camera_last_hello_ms=now-200u;initialized=1;
 }
 void car_wireless_uart_rx_isr(uint8_t b,uint32_t now) {
@@ -460,7 +531,9 @@ void car_wireless_local_stop(uint32_t now){(void)now;local_stop_latched=1;}
 const wireless_settings_t *car_wireless_settings(void){return &engine.settings;}
 wireless_control_test_t car_wireless_test(void){return engine.test;}
 uint8_t car_wireless_capture_busy(void){
-    for(unsigned i=0;i<4;i++)if(pending[i].active && pending[i].opcode==WIRELESS_OP_CAMERA_CAL)return 1;
+    for(unsigned i=0;i<4;i++)if(pending[i].active &&
+        (pending[i].opcode==WIRELESS_OP_CAMERA_CAL ||
+         pending[i].opcode==WIRELESS_OP_VISUAL_ENTRY_CAL))return 1;
     return wireless_flash_busy(&flash_writer);
 }
 uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_stop_latched &&
@@ -471,6 +544,8 @@ uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_sto
     now-engine.test.started_ms<engine.test.deadline_ms-engine.test.started_ms;}
 car_wireless_effect_t car_wireless_take_effect(void){car_wireless_effect_t result=effect;effect=CAR_WIRELESS_EFFECT_NONE;return result;}
 void car_wireless_effect_result(car_wireless_effect_t e,uint8_t success){
+    if (success && e==CAR_WIRELESS_EFFECT_START) scope_page=1u;
+    if (success && e==CAR_WIRELESS_EFFECT_STOP) scope_page=5u;
     if (assistant_pending_effect==e && e!=CAR_WIRELESS_EFFECT_NONE) {
         assistant_pending_effect=CAR_WIRELESS_EFFECT_NONE;
         assistant_status=success ? (e==CAR_WIRELESS_EFFECT_STOP?ASSISTANT_STOPPED:ASSISTANT_ACCEPTED) : ASSISTANT_REJECTED;
@@ -508,6 +583,15 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
     v[24]=camera_ready?s->now_ms-camera_last_ms:UINT32_MAX;v[25]=camera_count;v[26]=engine.settings_generation;
     v[27]=car_wireless_rx_overflow;v[28]=car_wireless_tx_dropped;v[29]=car_wireless_camera_dropped;
     v[30]=scope_page;v[31]=s->now_ms;
+    /* The visual-entry bytes are forwarded verbatim in complete-tool camera
+       STATE frames.  Keep the cached fields live even when the legacy
+       16-channel assistant page is selected. */
+    (void)camera_state_entry_ready;(void)camera_state_entry_state;
+    (void)camera_state_entry_calibration_ready;
+    (void)camera_state_entry_match_frames;(void)camera_state_entry_transition;
+    (void)camera_state_ring_confirmed;(void)camera_state_entry_reason;
+    (void)camera_state_entry_gate_side;(void)camera_state_entry_far_y;
+    (void)camera_state_entry_near_y;
     if(engine.tool_mode==WIRELESS_TOOL_MODE_ASSISTANT){
         if(type!=CAR_WIRELESS_STATE)return;
         if(scope_page==3u) {
@@ -537,7 +621,7 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
             scope[8]=(float)vehicle->imu_ready;scope[9]=(float)vehicle->imu_fault;
             scope[10]=(float)vehicle->fault;scope[11]=(float)vehicle->fault_latched;
             scope[12]=(float)s->button_released;scope[13]=(float)engine.runtime.motor_hardware_accepted;
-            scope[14]=5.0f;scope[15]=(float)s->outputs_active;
+            scope[14]=(float)assistant_camera_detail;scope[15]=(float)s->outputs_active;
         } else if(scope_page==4u) {
             /* Page 4 is the live camera diagnostic page used by the
                SeekFree assistant. Values come from the latest accepted STATE;
@@ -545,19 +629,19 @@ static void telemetry(const car_wireless_snapshot_t *s,uint8_t type) {
             scope[0]=(float)camera_state_fps_x10 / 10.0f;
             scope[1]=(float)camera_state_valid;
             scope[2]=(float)camera_state_ring_state;
-            scope[3]=(float)camera_state_curve_phase;
-            scope[4]=(float)camera_state_profile;
-            scope[5]=(float)camera_state_profile_active;
-            scope[6]=(float)camera_state_processing_ms;
-            scope[7]=(float)camera_state_vision_p;
-            scope[8]=(float)camera_state_vision_d;
-            scope[9]=(float)camera_last_ack_status;
-            scope[10]=(float)camera_last_ack_opcode;
-            scope[11]=(float)camera_last_ack_detail;
-            scope[12]=(float)camera_state_source;
-            scope[13]=(float)camera_state_side;
-            scope[14]=(float)camera_state_lateral_error;
-            scope[15]=(float)camera_state_control;
+            scope[3]=(float)camera_state_entry_ready;
+            scope[4]=(float)camera_state_entry_state;
+            scope[5]=(float)camera_state_entry_calibration_ready;
+            scope[6]=(float)camera_state_entry_match_frames;
+            scope[7]=(float)camera_state_entry_transition;
+            scope[8]=(float)camera_state_entry_far_y;
+            scope[9]=(float)camera_state_entry_near_y;
+            scope[10]=(float)camera_state_entry_reason;
+            scope[11]=(float)camera_state_entry_gate_side;
+            scope[12]=(float)camera_state_ring_confirmed;
+            scope[13]=(float)camera_state_curve_phase;
+            scope[14]=(float)camera_state_profile;
+            scope[15]=(float)camera_state_processing_ms;
         } else {
             for(i=0;i<16;++i)scope[i]=(float)(int32_t)v[(scope_page*8u+i)%32u];
         }
@@ -608,6 +692,18 @@ void car_wireless_camera_frame(const car_wireless_frame_t *f,uint32_t now) {
         camera_state_curve_phase=f->payload[17];
         camera_state_profile=f->payload[20];
         camera_state_profile_active=f->payload[21];
+        if (f->payload_len >= 36u) {
+            camera_state_entry_ready=f->payload[26];
+            camera_state_entry_state=f->payload[27];
+            camera_state_entry_calibration_ready=f->payload[28];
+            camera_state_entry_match_frames=f->payload[29];
+            camera_state_entry_transition=f->payload[30];
+            camera_state_ring_confirmed=f->payload[31];
+            camera_state_entry_far_y=f->payload[32];
+            camera_state_entry_near_y=f->payload[33];
+            camera_state_entry_reason=f->payload[34];
+            camera_state_entry_gate_side=f->payload[35];
+        }
     }
     if(f->type==CAR_WIRELESS_CONFIG && f->payload_len>=12u){
         /* Camera CONFIG is version/generation/P/D/CRC; the camera's ACK is

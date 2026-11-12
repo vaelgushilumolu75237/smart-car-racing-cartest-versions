@@ -140,8 +140,8 @@ static void test_ring_authority_and_invalid_route(void)
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "entry evidence selects gyro ENTRY phase");
     check(fixture.control.gyro.outer_target_millirps ==
-              CAR_GYRO_RING_OUTER_TARGET_MILLIRPS,
-          "entry uses profile outer wheel target");
+              CAR_GYRO_RING_ENTRY_ORBIT_OUTER_TARGET_MILLIRPS,
+          "entry uses 75 percent profile outer wheel target");
     check(fixture.control.vision_hold_active == 0u &&
               fixture.control.vision_hold_entries == 0u,
           "entry does not enter visual hold");
@@ -152,6 +152,153 @@ static void test_ring_authority_and_invalid_route(void)
               fixture.control.vision_hold_active == 0u &&
               fixture.control.vision_hold_entries == 0u,
           "fresh invalid route keeps gyro authority without visual hold");
+#endif
+}
+
+static void test_entry_servo_gain_is_ring_only(void)
+{
+#if CARTEST_TRACK_PROFILE >= 2
+    authority_fixture_t fixture;
+    int32_t error;
+    int32_t endpoint_delta;
+    int32_t base_offset;
+    int32_t ring_offset;
+    uint16_t base_pulse;
+    uint16_t ring_pulse;
+
+    fixture_init(&fixture);
+    start_ring(&fixture);
+    error = fixture.control.gyro.control_error_norm;
+    endpoint_delta = error < 0
+        ? (int32_t)fixture.config.follow_servo_left_us -
+              (int32_t)fixture.config.servo_center_us
+        : (int32_t)fixture.config.follow_servo_right_us -
+              (int32_t)fixture.config.servo_center_us;
+    base_offset = (int32_t)(((int64_t)endpoint_delta *
+        (error < 0 ? -error : error) * fixture.config.follow_kp_permille) /
+        1000000);
+    ring_offset = (int32_t)(((int64_t)endpoint_delta *
+        (error < 0 ? -error : error) *
+        ((fixture.config.follow_kp_permille *
+          CAR_GYRO350_ENTRY_ORBIT_SERVO_GAIN_PERMILLE + 500u) / 1000u)) /
+        1000000);
+    base_pulse = (uint16_t)((int32_t)fixture.config.servo_center_us +
+                            base_offset);
+    ring_pulse = (uint16_t)((int32_t)fixture.config.servo_center_us +
+                            ring_offset);
+    check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
+          "servo gain test starts in entry");
+    check(fixture.control.gyro_servo_us == ring_pulse,
+          "entry servo offset uses 130 percent gain");
+    check((fixture.control.gyro_servo_us < fixture.config.servo_center_us) ==
+              (base_pulse < fixture.config.servo_center_us) &&
+              fixture.control.gyro_servo_us != base_pulse,
+          "entry servo boost preserves direction and changes offset");
+#endif
+}
+
+static uint16_t expected_ring_servo(const authority_fixture_t *fixture,
+                                    int32_t error)
+{
+    int32_t endpoint;
+    int32_t value;
+    uint32_t gain_permille =
+        (fixture->config.follow_kp_permille *
+         CAR_GYRO350_ENTRY_ORBIT_SERVO_GAIN_PERMILLE + 500u) / 1000u;
+
+    if (error < -1000) error = -1000;
+    if (error > 1000) error = 1000;
+    endpoint = error < 0 ? (int32_t)fixture->config.follow_servo_left_us
+                         : (int32_t)fixture->config.follow_servo_right_us;
+    value = (int32_t)fixture->config.servo_center_us + (int32_t)(
+        (int64_t)(endpoint - (int32_t)fixture->config.servo_center_us) *
+        (error < 0 ? -error : error) * gain_permille / 1000000);
+    if (value < (int32_t)fixture->config.servo_min_us) {
+        value = fixture->config.servo_min_us;
+    } else if (value > (int32_t)fixture->config.servo_max_us) {
+        value = fixture->config.servo_max_us;
+    }
+    return (uint16_t)value;
+}
+
+static void test_entry_orbit_servo_authority_and_limits(void)
+{
+#if CARTEST_TRACK_PROFILE >= 2
+    authority_fixture_t fixture;
+    int32_t entry_error;
+    int32_t orbit_error;
+
+    fixture_init(&fixture);
+    start_ring(&fixture);
+    entry_error = fixture.control.gyro.control_error_norm;
+    check(entry_error != 0,
+          "entry output is driven by a nonzero state-machine control input");
+    check(fixture.control.gyro_servo_us ==
+              expected_ring_servo(&fixture, entry_error),
+          "entry output applies the 130 percent servo authority");
+
+    fixture.control.imu_z_mdps = 30000;
+    send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
+               fixture.now_ms + 10u);
+    orbit_error = fixture.control.gyro.control_error_norm;
+    check(fixture.control.gyro.phase == CAR_GYRO_RING_ORBIT,
+          "fresh orbit evidence selects gyro ORBIT phase");
+    check(orbit_error != 0,
+          "orbit output is driven by a nonzero state-machine control input");
+    check(fixture.control.gyro_servo_us ==
+              expected_ring_servo(&fixture, orbit_error),
+          "orbit output applies the 130 percent servo authority");
+
+    fixture_init(&fixture);
+    start_ring(&fixture);
+    fixture.control.imu_z_mdps = -1000000;
+    fixture.now_ms += 1u;
+    fixture.control.imu_sample_us = fixture.now_ms * 1000u;
+    car_control_update_gyro(&fixture.control, &fixture.config,
+                            fixture.now_ms);
+    check(fixture.control.gyro.control_error_norm == -1000,
+          "large negative entry error clamps at -1000");
+    check(fixture.control.gyro_servo_us ==
+              expected_ring_servo(&fixture,
+                                  fixture.control.gyro.control_error_norm) &&
+              fixture.control.gyro_servo_us >= fixture.config.servo_min_us &&
+              fixture.control.gyro_servo_us <= fixture.config.servo_max_us,
+          "large negative entry error stays within servo limits");
+
+    fixture_init(&fixture);
+    start_ring(&fixture);
+    fixture.control.imu_z_mdps = 1000000;
+    fixture.now_ms += 1u;
+    fixture.control.imu_sample_us = fixture.now_ms * 1000u;
+    car_control_update_gyro(&fixture.control, &fixture.config,
+                            fixture.now_ms);
+    check(fixture.control.gyro.control_error_norm == 1000,
+          "large positive entry error clamps at +1000");
+    check(fixture.control.gyro_servo_us ==
+              expected_ring_servo(&fixture,
+                                  fixture.control.gyro.control_error_norm) &&
+              fixture.control.gyro_servo_us >= fixture.config.servo_min_us &&
+              fixture.control.gyro_servo_us <= fixture.config.servo_max_us,
+          "large positive entry error stays within servo limits");
+
+    fixture_init(&fixture);
+    start_ring(&fixture);
+    fixture.control.imu_yaw_mdeg = 1000000;
+    send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
+               fixture.now_ms + 10u);
+    fixture.control.imu_yaw_mdeg = 1350000;
+    send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
+               fixture.now_ms + 10u);
+    check(fixture.control.gyro.phase == CAR_GYRO_RING_CENTER,
+          "350 degree progress enters CENTER");
+    check(fixture.control.gyro_servo_us == fixture.config.servo_center_us,
+          "CENTER keeps the servo at center without ring gain");
+    send_frame(&fixture, 1u, VP_VERSION_V4, 0u, 0, 1u,
+               fixture.now_ms + 10u);
+    check(fixture.control.gyro.phase == CAR_GYRO_RING_EXIT_STRAIGHT,
+          "centered servo hands control to EXIT_STRAIGHT");
+    check(fixture.control.gyro_servo_us == fixture.config.servo_center_us,
+          "EXIT_STRAIGHT keeps the servo at center without ring gain");
 #endif
 }
 
@@ -226,6 +373,8 @@ int main(void)
     test_profile_gate();
 #if CARTEST_GYRO350_ENABLED && CARTEST_TRACK_PROFILE >= 2
     test_ring_authority_and_invalid_route();
+    test_entry_servo_gain_is_ring_only();
+    test_entry_orbit_servo_authority_and_limits();
     test_invalid_image_cannot_advance_ring_phase();
     test_manual_stop_and_faults();
 #endif

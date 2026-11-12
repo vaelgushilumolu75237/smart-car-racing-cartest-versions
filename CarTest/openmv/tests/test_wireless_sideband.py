@@ -92,8 +92,19 @@ class WirelessTests(unittest.TestCase):
         self.assertEqual(self.link.cached_ack[0], w.ACK_OK)
 
     def test_images_and_motor_commands_are_unsupported(self):
-        for sequence, op in enumerate((7, 8, 11), 2):
+        for sequence, op in enumerate((7, 8), 2):
             self.assertEqual(self.command(op, sequence), w.ACK_UNSUPPORTED)
+        # 0x0b is now the target-camera visual-entry calibration extension;
+        # the four-byte legacy image-capture shape is rejected as malformed.
+        self.assertEqual(self.command(11, sequence=4), w.ACK_BAD_PARAM)
+
+    def test_visual_entry_marker_command_is_forwarded(self):
+        self.assertEqual(self.command(11, sequence=2,
+                                      extra=bytes((1, 1, 2))), w.ACK_PENDING)
+        request = self.link.visual_entry_request
+        self.assertEqual(request["action"], w.VISUAL_ENTRY_MARK)
+        self.assertEqual(request["side"], 1)
+        self.assertEqual(request["marker"], 2)
 
     def test_outer_payload_cannot_forge_reverse_keep(self):
         reset = r.pack_frame(r.COMMAND_RESET, 10)

@@ -32,6 +32,7 @@ OP_SET_PARAMS=4
 OP_SAVE=5
 OP_DEFAULT=6
 OP_CAMERA_CAL=10
+OP_VISUAL_ENTRY_CAL=11
 OP_GET_PARAMS=14
 ACK_OK=0
 ACK_PENDING=1
@@ -49,6 +50,17 @@ ACK_BAD_PARAM=12
 ACK_NOT_READY=15
 PARAM_VISION_P=3
 PARAM_VISION_D=17
+VISUAL_ENTRY_RESET=0
+VISUAL_ENTRY_MARK=1
+VISUAL_ENTRY_COMMIT=2
+# VISUAL_ENTRY_COMMIT ACK detail is a result bitmask.  Bit 0 means the
+# visual document was written and read back; bit 1 means the independent
+# encoder companion was written and read back.  A partial commit therefore
+# remains observable as 1 or 2 instead of being reported as full success.
+VISUAL_ENTRY_RESULT_VISUAL_READY = 1
+VISUAL_ENTRY_RESULT_ENCODER_READY = 2
+VISUAL_ENTRY_RESULT_MASK = (VISUAL_ENTRY_RESULT_VISUAL_READY |
+                            VISUAL_ENTRY_RESULT_ENCODER_READY)
 
 def _u16(data, offset):
     return (int(data[offset]) | (int(data[offset + 1]) << 8))
@@ -94,6 +106,17 @@ def _code(value, table):
     if value is None:
         return 0
     return table.get(str(value), 0)
+
+
+_VISUAL_ENTRY_REASON_CODES = {
+    "MISSING": 1, "READY": 2, "READY_PREVIOUS": 3,
+    "CALIBRATION_RESET": 4, "CALIBRATION_UPDATED": 5,
+    "WAITING_FOR_INSIDE": 6, "ENTRY_GEOMETRY_WAIT": 7,
+    "ENTRY_GEOMETRY_MATCH": 8, "ENTRY_GEOMETRY_CONFIRMING": 9,
+    "ENTRY_ACCEPTED": 10, "FRAME_INVALID": 11,
+    "SIDE_INVALID": 12, "SIDE_NOT_CALIBRATED": 13,
+    "RING_OBSERVATION_RESET": 14,
+}
 
 
 def crc32(data, length=None):
@@ -369,6 +392,8 @@ class WirelessSideband:
         self.calibration_requested = False
         self.calibration_sequence = None
         self.last_calibration_progress_ms = None
+        self.visual_entry_request = None
+        self.visual_entry_sequence = None
         self.last_scaled_output = None
 
     def apply_control(self, info, limit):
@@ -434,6 +459,8 @@ class WirelessSideband:
             self.queue[:] = []
             self.calibration_requested = False
             self.calibration_sequence = None
+            self.visual_entry_request = None
+            self.visual_entry_sequence = None
             self.vision_p, self.vision_d = (self.store.rows[self.key]
                                             if self.store else (1000, 1000))
             self.generation = self.store.generation if self.store else 0
@@ -467,7 +494,8 @@ class WirelessSideband:
         status = ACK_OK
         if len(p) < 4 or p[1] != TARGET_CAMERA or p[2] or p[3]:
             status = ACK_BAD_FRAME
-        elif op in (OP_SAVE, OP_DEFAULT, OP_CAMERA_CAL) and not self.parked(now):
+        elif op in (OP_SAVE, OP_DEFAULT, OP_CAMERA_CAL,
+                    OP_VISUAL_ENTRY_CAL) and not self.parked(now):
             status = ACK_NOT_PARKED
         elif op == OP_SET_PARAMS:
             if len(p) < 6 or p[4] not in (1, 2) or not 1 <= p[5] <= 2 or len(p) != 6 + p[5] * 5:
@@ -508,6 +536,22 @@ class WirelessSideband:
             else:
                 self.calibration_requested = True
                 self.calibration_sequence = seq
+                status = ACK_PENDING
+        elif op == OP_VISUAL_ENTRY_CAL:
+            # Payload: action, side, marker.  RESET and COMMIT use side/marker
+            # zero; MARK captures the current camera geometry at that marker.
+            if len(p) != 7 or p[4] not in (VISUAL_ENTRY_RESET,
+                                           VISUAL_ENTRY_MARK,
+                                           VISUAL_ENTRY_COMMIT) or \
+                    p[5] not in (0, 1) or p[6] not in (0, 1, 2):
+                status = ACK_BAD_PARAM
+            elif self.visual_entry_sequence is not None:
+                status = ACK_BUSY
+            else:
+                self.visual_entry_request = {
+                    "action": p[4], "side": p[5], "marker": p[6],
+                    "sequence": seq}
+                self.visual_entry_sequence = seq
                 status = ACK_PENDING
         elif op != OP_GET_PARAMS:
             status = ACK_UNSUPPORTED
@@ -559,6 +603,15 @@ class WirelessSideband:
         else:
             self._send(TYPE_EVENT, payload, now, priority=False)
 
+    def visual_entry_complete(self, now, status, detail=0):
+        """Complete one parked three-marker visual entrance command."""
+        if self.visual_entry_sequence is None:
+            return
+        sequence = self.visual_entry_sequence
+        self._ack(status, OP_VISUAL_ENTRY_CAL, sequence, now, detail)
+        self.visual_entry_sequence = None
+        self.visual_entry_request = None
+
     def publish(self, now, frame_id, valid, quality, source, ring_info,
                 lateral, control, processing_ms, fps_x10, curve, slowdown):
         if not self._fresh(now) or (self.last_state_ms is not None and
@@ -581,6 +634,22 @@ class WirelessSideband:
         p[20] = self.reverse.profile_id
         p[21] = int(self.reverse.profile_session_active)
         _put_u32(p, 22, self.reverse.session_token)
+        # The remaining bytes are a compact visual-entry gate diagnostic.  It
+        # is deliberately additive so older H743 firmware can continue to
+        # parse the first 26 bytes of STATE frames.
+        p[26] = int(bool(ring_info.get("entry_ready")))
+        p[27] = _code(ring_info.get("entry_gate_state"), {})
+        p[28] = int(bool(ring_info.get("entry_gate_calibration_ready")))
+        p[29] = min(255, max(0, int(ring_info.get("entry_gate_match_frames", 0))))
+        p[30] = int(bool(ring_info.get("entry_transition")))
+        p[31] = int(bool(ring_info.get("ring_confirmed")))
+        far_y = ring_info.get("entry_transition_far_y", -1)
+        near_y = ring_info.get("entry_transition_near_y", -1)
+        p[32] = 255 if far_y is None or int(far_y) < 0 else min(119, int(far_y))
+        p[33] = 255 if near_y is None or int(near_y) < 0 else min(119, int(near_y))
+        p[34] = _code(ring_info.get("entry_gate_reason"),
+                      _VISUAL_ENTRY_REASON_CODES)
+        p[35] = min(255, max(0, int(ring_info.get("entry_gate_side", -1) + 1)))
         self._send(TYPE_STATE, p, now, priority=False)
 
     def service_tx(self, uart, now):

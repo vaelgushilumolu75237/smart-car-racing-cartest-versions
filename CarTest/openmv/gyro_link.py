@@ -48,6 +48,8 @@ class GyroLink:
         self._phase = PHASE_OFF
         self._side = TRACK_SIDE_NONE
         self._post_entry_frames = 0
+        self._entry_transition_seen = False
+        self._entry_transition_ended = False
         self._identity_valid = False
         self._profile_id = 0
         self._session_active = False
@@ -63,6 +65,8 @@ class GyroLink:
         self._phase = PHASE_OFF
         self._side = TRACK_SIDE_NONE
         self._post_entry_frames = 0
+        self._entry_transition_seen = False
+        self._entry_transition_ended = False
 
     def _clear_session(self):
         self._clear_event()
@@ -111,7 +115,7 @@ class GyroLink:
     @staticmethod
     def _ring_observation(ring_info):
         if not isinstance(ring_info, dict):
-            return False, False, TRACK_SIDE_NONE
+            return False, False, TRACK_SIDE_NONE, False
         state_id = ring_info.get("state_id", -1)
         state = ring_info.get("state")
         try:
@@ -119,19 +123,29 @@ class GyroLink:
         except (TypeError, ValueError):
             state_id = -1
         inside = state_id == STATE_INSIDE or state == "INSIDE"
-        confirmed = bool(ring_info.get("ring_confirmed"))
+        # The tracker can confirm a ring before the vehicle reaches the
+        # physical entrance.  The visual-entry gate is the authority that
+        # decides when that observation may become gyro evidence.
+        confirmed = bool(ring_info.get("ring_confirmed")) and \
+            bool(ring_info.get("entry_ready"))
         try:
             side = int(ring_info.get("side", TRACK_SIDE_NONE))
         except (TypeError, ValueError):
             side = TRACK_SIDE_NONE
         side_valid = side in (TRACK_SIDE_LEFT, TRACK_SIDE_RIGHT)
         entry_transition = bool(ring_info.get("entry_transition"))
-        return bool(confirmed and inside and side_valid), entry_transition, side
+        # The lease is only a physical-entry certificate when the current
+        # frame also carries a fresh transition geometry.  A stale INSIDE
+        # frame must not be able to arm ENTRY merely by echoing a prior gate
+        # result.
+        entry_evidence = bool(confirmed and entry_transition and
+                              ring_info.get("entry_evidence"))
+        return bool(confirmed and inside and side_valid), entry_transition, side, entry_evidence
 
     @staticmethod
     def _has_confirmed_ring(ring_info):
-        confirmed, _, _ = GyroLink._ring_observation(ring_info)
-        return confirmed
+        confirmed, _, _, evidence = GyroLink._ring_observation(ring_info)
+        return bool(confirmed and evidence)
 
     @staticmethod
     def _safe_ordinary(valid, ordinary_valid, ring_info):
@@ -223,17 +237,31 @@ class GyroLink:
             self._clear_event()
             return self._sync_result(bool(valid and ordinary_valid))
 
+        if (not isinstance(ring_info, dict) or
+                not bool(ring_info.get("entry_ready"))):
+            self._clear_event()
+            return self._sync_result(bool(valid and ordinary_valid))
+
         if not valid:
             if self._phase == PHASE_ENTRY:
                 self._post_entry_frames = 0
             return self._sync_result(False)
 
-        confirmed, entry_transition, side = self._ring_observation(ring_info)
+        confirmed, entry_transition, side, entry_evidence = \
+            self._ring_observation(ring_info)
         if confirmed:
             if self._phase == PHASE_OFF:
+                # The first calibrated frame only arms the visual gate.  The
+                # next fresh transition certificate is required to start the
+                # physical entry phase; an old INSIDE state cannot advance
+                # the yaw origin into ORBIT.
+                if not entry_evidence:
+                    return self._sync_result(bool(valid and ordinary_valid))
                 self._phase = PHASE_ENTRY
                 self._side = side
                 self._post_entry_frames = 0
+                self._entry_transition_seen = True
+                self._entry_transition_ended = False
             elif self._phase == PHASE_ENTRY:
                 if side != self._side:
                     # A new confirmed direction cannot advance the old entry
@@ -241,11 +269,17 @@ class GyroLink:
                     self._phase = PHASE_ENTRY
                     self._side = side
                     self._post_entry_frames = 0
+                    self._entry_transition_seen = True
+                    self._entry_transition_ended = False
                 elif entry_transition:
+                    self._entry_transition_seen = True
+                    self._entry_transition_ended = False
                     self._post_entry_frames = 0
-                else:
+                elif self._entry_transition_seen:
+                    self._entry_transition_ended = True
                     self._post_entry_frames += 1
-                    if self._post_entry_frames >= 3:
+                    if (self._entry_transition_ended and
+                            self._post_entry_frames >= 3):
                         self._phase = PHASE_ORBIT
             # Once orbit is established, a transient opposite-side frame does
             # not revoke the gyro side; the H743 keeps its independent orbit.

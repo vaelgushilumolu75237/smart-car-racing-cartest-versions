@@ -21,7 +21,8 @@ typedef struct {
     uint32_t camera_uart_overflows, camera_uart_tx_bytes;
 } car_wireless_snapshot_t;
 typedef enum { CAR_WIRELESS_EFFECT_NONE=0, CAR_WIRELESS_EFFECT_START=1,
-    CAR_WIRELESS_EFFECT_STOP=2, CAR_WIRELESS_EFFECT_IMU_CAL=3 } car_wireless_effect_t;
+    CAR_WIRELESS_EFFECT_STOP=2, CAR_WIRELESS_EFFECT_IMU_CAL=3,
+    CAR_WIRELESS_EFFECT_ENTRY_RESET=4 } car_wireless_effect_t;
 void car_wireless_init(uint32_t now_ms, uint32_t boot_seed);
 void car_wireless_uart_rx_isr(uint8_t byte, uint32_t now_ms);
 void car_wireless_uart_error_isr(void);

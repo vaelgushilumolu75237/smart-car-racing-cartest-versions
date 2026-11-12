@@ -27,6 +27,11 @@ typedef enum {
     WIRELESS_OP_IMU_CAL = 0x09u,
     WIRELESS_OP_CAMERA_CAL = 0x0au,
     WIRELESS_OP_CAPTURE = 0x0bu,
+    /* Target-camera visual entrance calibration uses the capture opcode
+       number as a target-specific extension.  Image transfer remains
+       unsupported; this keeps the already deployed 0x0b command slot while
+       avoiding a protocol-number drift between H743 and OpenMV. */
+    WIRELESS_OP_VISUAL_ENTRY_CAL = WIRELESS_OP_CAPTURE,
     WIRELESS_OP_MODE = 0x0cu,
     WIRELESS_OP_PAGE = 0x0du,
     WIRELESS_OP_GET_PARAMS = 0x0eu,

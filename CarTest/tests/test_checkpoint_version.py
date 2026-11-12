@@ -23,6 +23,24 @@ def write_json(path: Path, value):
 
 
 class CheckpointAllowlistTests(unittest.TestCase):
+    def test_vehicle_calibration_and_marker_evidence_stay_private(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "source"
+            destination = Path(temp) / "public"
+            source.mkdir()
+            (source / "main.py").write_text("# public source\n", encoding="utf-8")
+            for name in checkpoint.PRIVATE_RUNTIME_BASENAMES:
+                for suffix in ("", ".previous", ".previous.old", ".new"):
+                    (source / (name + suffix)).write_text("private calibration", encoding="utf-8")
+            marks = source / "ring_entry_marks"
+            marks.mkdir()
+            (marks / "side1_mark0.json").write_text("private odometry", encoding="utf-8")
+            (marks / "side1_mark0.pgm").write_bytes(b"private pixels")
+            (source / "compiler.pdb").write_bytes(b"debug cache")
+            checkpoint.copy_tree(source, destination,
+                excluded_subtrees=checkpoint.PUBLIC_COPY_EXCLUDED_SUBTREES["openmv"])
+            self.assertEqual([p.name for p in destination.rglob("*") if p.is_file()], ["main.py"])
+
     def test_public_copy_excludes_only_tools_experiments_subtree(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
