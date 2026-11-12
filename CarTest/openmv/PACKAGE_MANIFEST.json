@@ -205,9 +205,9 @@
     },
     {
       "file": "wireless_sideband.py",
-      "source_sha256": "3f2b17468538d084d90025d652276b1d35172bd02a81a9a80d7beaf2d1cfa840",
+      "source_sha256": "ab65cf9961692d3bd3adc0f84db0a2c8d21cfd64056cff54ce56ac4e26854bc9",
       "exit_code": 0,
-      "mpy_sha256": "858d05bd4fb7dc9e19d1bcfc7ce4349eb62aa942f3e4ea38a5e9f6c1233b950d"
+      "mpy_sha256": "071c3671ffc06e00f228f9448efc483365a477925a684d56fc8765c6477b8fc5"
     }
   ],
   "entry_variant": "encoder_gate_pending_calibration",
@@ -243,6 +243,6 @@
     "entry_calibration_common.py": "6abead6b41eea8c9d7d0e40c7671c2afd514cd2fe625591723f76cf94a48b779",
     "encoder_entry_gate.py": "85b3d90fdf406178bb53691874f5d7ce84f3381a7f8749e992f74fa05543d8ea",
     "visual_entry_gate.py": "e557420d29c2885201af3ee31ee6fe116511f8d4a7ad15bb94bb7e106016d821",
-    "wireless_sideband.py": "3f2b17468538d084d90025d652276b1d35172bd02a81a9a80d7beaf2d1cfa840"
+    "wireless_sideband.py": "ab65cf9961692d3bd3adc0f84db0a2c8d21cfd64056cff54ce56ac4e26854bc9"
   }
 }

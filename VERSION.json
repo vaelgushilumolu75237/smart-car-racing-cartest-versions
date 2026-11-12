@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-openmv-encoder-fifo-reply-fix",
+  "version": "v20261112-openmv-encoder-fifo-busy-fix",
   "status": "experimental-software-tested",
   "branch": "experimental/encoder-entry",
-  "files": 948,
+  "files": 949,
   "hardware_actions": "none"
 }
