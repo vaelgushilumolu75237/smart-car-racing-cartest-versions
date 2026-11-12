@@ -13,7 +13,7 @@
   "entry_variant": "original_confirmed_ring_delay150",
   "ring_rate_mdps": 64935,
   "gyro_authority": true,
-  "elf_sha256": "6216422a6b1dd72940e3c5dd5fef1d481d156eda2e01f62645783f530b0a8144",
-  "build_id": "1322ba45ffdbf5bd4d707a6bdafdc2fd",
+  "elf_sha256": "be74481a480c0d7ecccabe008c6a38ac7a9307f66eac47b6b46ab30deb77910a",
+  "build_id": "f8a9a711f4ddd63f0f9af9eaa72ce71f",
   "hardware_acceptance": "pending_manual_tests"
 }

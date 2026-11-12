@@ -1030,7 +1030,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
         self.assertIn("pos_weighted=-63", log)
         self.assertEqual(cache_commits, [])
 
-    def test_ring_calibration_gate_blocks_only_profiles_b_and_c(self):
+    def test_missing_ring_width_preserves_valid_ordinary_route_in_all_profiles(self):
         frame_a, _log_a, _cache_a = self._run_profile_element_case(
             _UnreadyCalibrationElements, config.VEHICLE_PROFILE_A)
         self.assertEqual(frame_a[11], config.VEHICLE_PROFILE_A)
@@ -1042,9 +1042,13 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             with self.subTest(profile_id=profile_id):
                 frame, log, _cache = self._run_profile_element_case(
                     _UnreadyCalibrationElements, profile_id)
-                self.assertEqual(frame[11], 0)
-                self.assertEqual(frame[6] & vision_protocol.FLAG_VALID, 0)
-                self.assertIn("RING_CALIBRATION_REQUIRED", log)
+                self.assertEqual(frame[11], profile_id)
+                self.assertEqual(frame[6] & vision_protocol.FLAG_VALID,
+                                 vision_protocol.FLAG_VALID)
+                self.assertTrue(frame[10] & 0x40)  # genuine ordinary V4 flag
+                self.assertNotIn("RING_CALIBRATION_REQUIRED", log)
+                self.assertFalse(main._ring_calibration_gate_blocked(
+                    profile_id, False, ordinary_route_usable=True))
 
         self.assertFalse(main._ring_calibration_gate_blocked(
             config.VEHICLE_PROFILE_A, False))

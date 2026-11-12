@@ -1470,10 +1470,11 @@ def _ring_slowdown_request(profile_id, state_id, entry_transition=False):
     return 1000
 
 
-def _ring_calibration_gate_blocked(profile_id, calibration_passed):
-    """Keep ring calibration gating limited to the two ring profiles."""
+def _ring_calibration_gate_blocked(profile_id, calibration_passed,
+                                   ordinary_route_usable=False):
+    """Missing ring width must not invalidate a real ordinary road."""
     return bool(profile_id in config.RING_ENABLED_PROFILE_IDS and
-                not calibration_passed)
+                not calibration_passed and not ordinary_route_usable)
 
 
 _STEERING_DIAG = _make_steering_diag(
@@ -8475,8 +8476,13 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         reverse_parser.poll(profile_check_ms, time.ticks_diff)
         profile_ack = reverse_parser.profile_ack(
             profile_check_ms, time.ticks_diff)
+        ordinary_route_usable = bool(
+            valid and control_source in ("road", "single_left", "single_right") and
+            not element_route_selected and not (
+                element_result.get("ring_confirmed") and
+                element_result.get("entry_ready")))
         ring_calibration_gate_blocked = _ring_calibration_gate_blocked(
-            profile_id, ring_calibration_passed)
+            profile_id, ring_calibration_passed, ordinary_route_usable)
         if ring_calibration_gate_blocked:
             profile_ack = config.VEHICLE_PROFILE_UNKNOWN
             if valid:
@@ -8560,9 +8566,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
         try:
             gyro_state = gyro_evidence.update(
                 reverse_parser, element_result, valid, profile_check_ms,
-                time.ticks_diff, ordinary_valid=bool(
-                    valid and control_source in ("road", "single_left", "single_right") and
-                    not element_route_selected and not element_result.get("ring_confirmed")))
+                time.ticks_diff, ordinary_valid=bool(valid and ordinary_route_usable))
             vision_protocol.pack_into_v4(
                 packet, sequence, 1 if valid else 0,
                 quality if valid else 0,
@@ -9219,7 +9223,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                         (4 if reverse_keep_fresh else 0) |
                         (8 if profile_fresh else 0) |
                         (16 if _ring_calibration_gate_blocked(
-                            raw_profile_ack, ring_calibration_passed) else 0) |
+                            raw_profile_ack, ring_calibration_passed,
+                            valid and ordinary_route_usable) else 0) |
                         (32 if packet[6] & vision_protocol.FLAG_VALID else 0) |
                         (64 if uart_tx_mode == "FIFO_QUEUED" else 0))
                     calibration_code = camera_diag_calibration_code(

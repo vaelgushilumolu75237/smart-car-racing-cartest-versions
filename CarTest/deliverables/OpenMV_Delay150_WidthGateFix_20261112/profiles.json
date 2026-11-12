@@ -1,6 +1,6 @@
 {
   "delivery_kind": "openmv_gyro_wireless",
-  "variant": "v20261112-openmv-timed150-startdiag",
+  "variant": "v20261112-delay150-widthgate-fix",
   "entry_variant": "original_confirmed_ring_delay150",
   "calibration_status": "entry_calibration_not_required",
   "profiles": [
@@ -19,8 +19,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 0,
       "gyro_authority": false,
-      "elf_sha256": "650b7fa345437b951eba621ff94f52ec11fd79d96698bb6ede7dbd8c09735177",
-      "build_id": "b6b5cd2661005ec0a75199843756791f",
+      "elf_sha256": "938fa42c74726b149fcf068540fdf61f73634a7664d6fe497d9d81d760c4349e",
+      "build_id": "9d96c09dbf24492e8c8a783c593b0d2c",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -38,8 +38,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 64935,
       "gyro_authority": true,
-      "elf_sha256": "6216422a6b1dd72940e3c5dd5fef1d481d156eda2e01f62645783f530b0a8144",
-      "build_id": "1322ba45ffdbf5bd4d707a6bdafdc2fd",
+      "elf_sha256": "be74481a480c0d7ecccabe008c6a38ac7a9307f66eac47b6b46ab30deb77910a",
+      "build_id": "f8a9a711f4ddd63f0f9af9eaa72ce71f",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -57,8 +57,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 85714,
       "gyro_authority": true,
-      "elf_sha256": "6e9fbcb54e08770a55d7cb81e21e58e3cd876019b6c41f03de5573227208ae4a",
-      "build_id": "d0c1caf8604532f6b9c4ed1ccd0bf551",
+      "elf_sha256": "fb8079510c4b2f7e18c81d9f20965715c027c615cc8fa43d7f946f647d7b8e8c",
+      "build_id": "e69fe4ff64468f811b8a8a74508c7ac0",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -76,8 +76,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 102857,
       "gyro_authority": true,
-      "elf_sha256": "4010c5e37fc04d27f67e8c47fad4cabcfe99bd2fd1e29a076b29ba0b2881a6fd",
-      "build_id": "353ae1cf81d5b0c7a94452a2ca6bfbb5",
+      "elf_sha256": "7ae5f089a309b2467a9bd7b2988fd6c83794bafc01930243d35e4a4c6dab4a7b",
+      "build_id": "ef050c6a25900551a8cdd9b207fd5a6a",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -95,8 +95,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 111429,
       "gyro_authority": true,
-      "elf_sha256": "cef0edd12ea9c31df65054c1f4e26a2f8177ee823aa3d4e4336daefbe6bcf665",
-      "build_id": "5ec98404e626501bb7cc63cea4520eed",
+      "elf_sha256": "541da78fe84413fe5d5a4f17091dc729c743d4c3da0b1a211ed24aa09ef5b3d3",
+      "build_id": "0cb9e60abc8d1f3b329b13a916ab3dfe",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -114,8 +114,8 @@
       "entry_variant": "original_confirmed_ring_delay150",
       "ring_rate_mdps": 120000,
       "gyro_authority": true,
-      "elf_sha256": "8e4b08c3a1a84b985460f9f07c1937baa8429921d4a7ed7ba3c9c6f0039b6f8b",
-      "build_id": "3c95a2098624a4e81ef31f7c9084bbb2",
+      "elf_sha256": "7de428c447e08ac671a11e92579951b07680be675e2a612c71ec486e0dddd820",
+      "build_id": "2260659c0fa15bb067a5d54dbc57cbb0",
       "hardware_acceptance": "pending_manual_tests"
     }
   ],

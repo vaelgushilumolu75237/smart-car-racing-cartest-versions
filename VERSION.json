@@ -1,7 +1,7 @@
 {
-  "version": "v20261112-delay150-startdiag",
+  "version": "v20261112-delay150-widthgate-fix",
   "status": "experimental-software-tested",
   "branch": "experimental/timed150-entry",
-  "files": 946,
+  "files": 947,
   "hardware_actions": "none"
 }

@@ -40,6 +40,8 @@ const wireless_settings_t *car_wireless_settings(void);
 wireless_control_test_t car_wireless_test(void);
 uint8_t car_wireless_test_allowed(uint32_t now_ms);
 uint8_t car_wireless_capture_busy(void);
+uint8_t car_wireless_parked_camera_keep_allowed(uint32_t now_ms,
+    uint8_t prepared, uint8_t manual_stop_holdoff);
 extern volatile uint32_t car_wireless_rx_overflow, car_wireless_uart_errors;
 extern volatile uint32_t car_wireless_tx_dropped, car_wireless_camera_dropped;
 extern volatile uint32_t car_wireless_session, car_wireless_packets;

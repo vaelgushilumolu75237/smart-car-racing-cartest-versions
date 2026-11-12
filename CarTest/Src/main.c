@@ -3531,6 +3531,20 @@ static void service_reverse_control(uint32_t now_ms)
          (manual_run_button.run_request != 0u &&
           soft_session_fault != 0u)));
 
+#if CARTEST_WIRELESS_ENABLED
+    /* Missing camera width calibration deliberately masks its profile ACK.
+       Do not make parked cache KEEP depend on that ACK: the width learner
+       itself needs KEEP. A fresh separate handshake and parked safeguards
+       break this cycle without opening any vehicle actuation gate. */
+    if (car_wireless_parked_camera_keep_allowed(now_ms, prepared,
+                                               reverse_manual_stop_holdoff) &&
+        !car_control_state.follow_session_active &&
+        !manual_run_button.run_request && !motor_outputs_active &&
+        !manual_run_button.stop_pending && !manual_run_button.start_pending &&
+        !car_control_state.fault_latched && car_control_state.fault == CAR_FAULT_NONE)
+        keep_permitted = 1u;
+#endif
+
     /* With FIFOEN, TXE_TXFNF means "FIFO has space". One byte per main
        loop starves profile/HELLO frames when eight loop periods exceed the
        50ms V1 interval. Fill a bounded burst, checking space for each byte.

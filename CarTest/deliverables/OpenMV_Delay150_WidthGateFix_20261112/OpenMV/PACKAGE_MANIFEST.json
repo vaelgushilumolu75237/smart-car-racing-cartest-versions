@@ -1,5 +1,5 @@
 {
-  "extension_version": "v20261112-openmv-timed150-startdiag",
+  "extension_version": "v20261112-delay150-widthgate-fix",
   "entry_variant": "original_confirmed_ring_delay150",
   "entry_calibration_schema": "NONE_TIMED150",
   "entry_calibration_required": false,
@@ -109,9 +109,9 @@
     },
     {
       "file": "main.py",
-      "source_sha256": "0dd1eee17caec042de761b4a86a770d750f6e1f0394a1dbe15fdf082c7bbfc7c",
+      "source_sha256": "76a03b808ff9d13f7ef9c80ec72f9b5e0c964966e53ffc448662bc7dceda6968",
       "exit_code": 0,
-      "mpy_sha256": "648b8bd2007dc7ec186c451c06b7db00be8e4356f6f1995eb318efb61de3f335"
+      "mpy_sha256": "dde6048f8526a8e1a08067a69c73e20fede3d6869c7714822bf1a01b89f33498"
     },
     {
       "file": "reverse_control.py",

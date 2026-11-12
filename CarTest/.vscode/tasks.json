@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build: Delay150 + StartDiag | C 原速 | 入环绕环 3.960 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | C 原速 | 入环绕环 3.960 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -25,7 +25,7 @@
       }
     },
     {
-      "label": "Build: Delay150 + StartDiag | C +40% | 入环绕环 5.544 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | C +40% | 入环绕环 5.544 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -48,7 +48,7 @@
       }
     },
     {
-      "label": "Build: Delay150 + StartDiag | C +20% | 入环绕环 4.752 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | C +20% | 入环绕环 4.752 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -71,7 +71,7 @@
       }
     },
     {
-      "label": "Build: Delay150 + StartDiag | C +30% | 入环绕环 5.148 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | C +30% | 入环绕环 5.148 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -94,7 +94,7 @@
       }
     },
     {
-      "label": "Build: Delay150 + StartDiag | A 快速无环岛 | 入环绕环 0.000 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | A 快速无环岛 | 入环绕环 0.000 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -117,7 +117,7 @@
       }
     },
     {
-      "label": "Build: Delay150 + StartDiag | B 环岛基础 | 入环绕环 3.000 rps | 舵量130% | STARTCHECK / No entrance calibration",
+      "label": "Build: Delay150 + WidthBootFix | B 环岛基础 | 入环绕环 3.000 rps | 舵量130% | STARTCHECK / No entrance calibration",
       "type": "process",
       "command": "powershell.exe",
       "args": [

@@ -541,6 +541,19 @@ uint8_t car_wireless_capture_busy(void){
          pending[i].opcode==WIRELESS_OP_VISUAL_ENTRY_CAL))return 1;
     return wireless_flash_busy(&flash_writer);
 }
+/* Cache lifecycle only: lets a parked camera create missing width data.
+   It must never grant a Follow session or write any actuator output. */
+uint8_t car_wireless_parked_camera_keep_allowed(uint32_t now,
+    uint8_t prepared, uint8_t manual_stop_holdoff)
+{
+    return initialized && prepared && !manual_stop_holdoff &&
+        camera_ready && now-camera_last_ms < 1000u &&
+        now-last_snapshot.now_ms < 20u && engine.runtime.parked &&
+        engine.runtime.local_button_released && engine.runtime.startup_release_confirmed &&
+        !engine.runtime.follow_active && !engine.runtime.hard_fault &&
+        !engine.runtime.command_inhibited && !engine.test.active &&
+        !last_snapshot.outputs_active && !local_stop_latched;
+}
 uint8_t car_wireless_test_allowed(uint32_t now){return initialized && !local_stop_latched &&
     now-last_snapshot.now_ms<20u && engine.test.active && engine.runtime.parked &&
     engine.runtime.local_button_released && engine.runtime.startup_release_confirmed &&

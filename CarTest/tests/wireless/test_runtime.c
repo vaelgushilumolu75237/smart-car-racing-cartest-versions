@@ -392,8 +392,36 @@ static void test_startcheck_is_read_only_and_failed_start_exposes_detail(void)
     assert(!control.road_drive_allowed);
 }
 
+static void test_parked_width_bootstrap_keep_never_authorizes_drive(void)
+{
+    memset(&control,0,sizeof(control));memset(&config,0,sizeof(config));
+    memset(&snapshot,0,sizeof(snapshot));
+    config.motor_hardware_accepted=1u;
+    snapshot.button_released=snapshot.startup_released=1u;
+    car_wireless_init(100u,0x12345678u);service(100u);
+    assert(!car_wireless_parked_camera_keep_allowed(100u,1u,0u));
+    make_camera_ready(101u);service(102u);
+    /* No vision, no profile ACK, no ARM session: only the fresh handshake. */
+    assert(!control.vision_valid && !control.latest_rx_have_frame);
+    assert(car_wireless_parked_camera_keep_allowed(103u,1u,0u));
+    assert(!control.road_drive_allowed && !control.follow_session_active);
+    assert(car_wireless_take_effect()==CAR_WIRELESS_EFFECT_NONE);
+    assert(!car_wireless_parked_camera_keep_allowed(103u,0u,0u));
+    assert(!car_wireless_parked_camera_keep_allowed(103u,1u,1u));
+    assert(!car_wireless_parked_camera_keep_allowed(1300u,1u,0u));
+    snapshot.outputs_active=1u;service(104u);
+    assert(!car_wireless_parked_camera_keep_allowed(105u,1u,0u));
+    snapshot.outputs_active=0u;control.fault=CAR_FAULT_UART;service(106u);
+    assert(!car_wireless_parked_camera_keep_allowed(107u,1u,0u));
+    control.fault=CAR_FAULT_NONE;control.follow_session_active=1u;service(108u);
+    assert(!car_wireless_parked_camera_keep_allowed(109u,1u,0u));
+    control.follow_session_active=0u;service(110u);car_wireless_local_stop(111u);
+    assert(!car_wireless_parked_camera_keep_allowed(111u,1u,0u));
+}
+
 int main(void)
 {
+    test_parked_width_bootstrap_keep_never_authorizes_drive();
     test_startcheck_is_read_only_and_failed_start_exposes_detail();
     test_assistant_camera_read_and_explicit_save();
     test_assistant_visual_entry_calibration_forward();
