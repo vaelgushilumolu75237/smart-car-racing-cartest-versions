@@ -1,7 +1,7 @@
 {
-  "version": "20261113-r24-ring150-speed75-steer125",
+  "version": "20261113-r24-ring150-six-debug",
   "status": "experimental-software-tested",
   "branch": "experimental/r24-independent-cal",
-  "files": 934,
+  "files": 929,
   "hardware_actions": "none"
 }

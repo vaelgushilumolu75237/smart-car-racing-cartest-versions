@@ -147,11 +147,11 @@
       }
     },
     {
-      "name": "r24 ExitCoexistence (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms] | 自动标定 | 陀螺仪350° + 逐飞无线",
+      "name": "r24 B | straight 4.800 / ring 3.000 rps | entry 150ms / steer +25% | ???? | ???350? + ????",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r24 ExitCoexistence (r20改版) 新B - 环岛 4.8/4.0 rps [2s/200ms] | 自动标定 | 陀螺仪350° + 逐飞无线",
+      "preLaunchTask": "Build: r24 B | straight 4.800 / ring 3.000 rps | entry 150ms / steer +25% | ???? | ???350? + ????",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "1000",
       "serverReset": "Software system reset",
