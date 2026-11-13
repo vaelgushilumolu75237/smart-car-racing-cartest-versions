@@ -1,5 +1,8 @@
 #include "obstacle_bypass.h"
 #include <limits.h>
+#ifndef CARTEST_VISION_HOLD_MS
+#define CARTEST_VISION_HOLD_MS 3000u
+#endif
 #include <stddef.h>
 #include <string.h>
 /* Reuse the original gyro controller's proportional rate gain and turn
@@ -12,7 +15,6 @@ static int32_t clamp(int64_t v, int32_t limit) {
 }
 uint8_t car_obstacle_config_valid(const car_obstacle_config_t *c) {
     uint32_t i;
-    int64_t heading = 0;
     if (!c || !c->heading_kp_permille) return 0;
     for (i = 0; i < 7; ++i) {
         const car_obstacle_segment_t *s = &c->segment[i];
@@ -21,10 +23,9 @@ uint8_t car_obstacle_config_valid(const car_obstacle_config_t *c) {
             s->timeout_ms > INT32_MAX) return 0;
         if (turn_direction[i]) {
             if (!s->angle_mdeg || s->angle_mdeg > INT32_MAX || s->distance_millirev) return 0;
-            heading += (int64_t)turn_direction[i] * s->angle_mdeg;
         } else if (!s->distance_millirev || s->angle_mdeg) return 0;
     }
-    return heading == 0; /* Seven stages must restore the initial heading. */
+    return 1; /* Independently configured relative turns need not sum to zero. */
 }
 void car_obstacle_init(car_obstacle_t *s) {
     if (s) memset(s, 0, sizeof(*s));
@@ -39,7 +40,8 @@ static uint8_t enter_stage(car_obstacle_t *s, const car_obstacle_config_t *c,
     s->state = stage; s->stage_started_ms = in->now_ms;
     s->stage_start_millirev = in->forward_millirev; s->distance_millirev = 0;
     if (stage == CAR_OBSTACLE_REACQUIRE) {
-        s->outer_target_millirps = 0; s->control_error_norm = 0;
+        /* Keep the last segment speed while collecting normal route frames. */
+        s->control_error_norm = 0;
         s->recovery_count = 0; s->recovery_have_sequence = 1;
         s->recovery_sequence = in->camera_sequence; s->recovery_last_ms = in->now_ms;
         return 1;
@@ -102,7 +104,13 @@ void car_obstacle_step(car_obstacle_t *s, const car_obstacle_config_t *c,
         (uint32_t)(in->now_ms * 1000u - in->imu_sample_us) >= IMU_MAX_AGE_US) {
         fail(s, CAR_OBSTACLE_ERROR_IMU); return;
     }
-    if (s->state == CAR_OBSTACLE_REACQUIRE) { recovery(s, in); return; }
+    if (s->state == CAR_OBSTACLE_REACQUIRE) {
+        if (!in->odometry_valid) { fail(s, CAR_OBSTACLE_ERROR_ENCODER); return; }
+        if ((uint32_t)(in->now_ms - s->stage_started_ms) >= CARTEST_VISION_HOLD_MS) {
+            fail(s, CAR_OBSTACLE_ERROR_TIMEOUT); return;
+        }
+        recovery(s, in); return;
+    }
     if (!in->odometry_valid || in->forward_millirev < s->stage_start_millirev) {
         fail(s, CAR_OBSTACLE_ERROR_ENCODER); return;
     }

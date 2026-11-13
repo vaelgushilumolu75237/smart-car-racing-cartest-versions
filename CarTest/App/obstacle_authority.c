@@ -49,12 +49,6 @@ void car_control_update_obstacle(car_control_t *control, const car_config_t *con
             control->obstacle.error == CAR_OBSTACLE_ERROR_ENCODER ? CAR_FAULT_ENCODER_INIT :
             CAR_FAULT_OBSTACLE);
     }
-    if (control->obstacle.resumed) {
-        /* Existing motor path sees zero output while waiting for the three
-           ordinary frames. Its normal servo-frame/startup ramp resumes. */
-        control->vision_hold_restart_required = 1u;
-        control->follow_last_ramp_ms = now_ms;
-        control->follow_output_duty_permille = 0u;
-    }
+    /* Preserve the existing motor PI and ramp across the moving handover. */
 }
 #endif

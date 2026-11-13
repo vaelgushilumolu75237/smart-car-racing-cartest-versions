@@ -1,4 +1,4 @@
-"""Compile and exercise the actual protocol/control path in all seven profiles."""
+"""Compile and exercise the actual protocol/control path in all six profiles."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -20,13 +20,13 @@ def main():
         protocol = Path(temp) / 'protocol.o'
         run([args.zig, 'c++', '-std=c++11', '-Wall', '-Wextra', '-Werror', '-I', 'Inc',
              '-c', 'App/vision_protocol.cpp', '-o', protocol])
-        for profile, percent, variant in ((1, 100, 0), (2, 100, 0), (3, 100, 0), (3, 120, 0), (3, 130, 0), (3, 140, 0), (3, 100, 1)):
+        for profile, percent in ((1, 100), (2, 100), (3, 100), (3, 120), (3, 130), (3, 140)):
             fast, slow = (4800, 4000) if profile == 2 else (5600, 4400)
-            exe = Path(temp) / f'marker-{profile}-{percent}-{variant}.exe'
+            exe = Path(temp) / f'marker-{profile}-{percent}.exe'
             run([args.zig, 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
                  '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections', '-I', 'Inc',
                  '-DCARTEST_GYRO350_ENABLED=1', '-DCARTEST_RED_OBSTACLE_ENABLED=1',
-                 f'-DCARTEST_PREVIEW95_BEND110={variant}', f'-DCARTEST_TRACK_PROFILE={profile}', f'-DCARTEST_SPEED_PERCENT={percent}',
+                 f'-DCARTEST_TRACK_PROFILE={profile}', f'-DCARTEST_SPEED_PERCENT={percent}',
                  f'-DCARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS={fast}',
                  f'-DCARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS={slow}',
                  'App/commissioning.c', 'App/gyro350_authority.c', 'App/gyro_ring.c',

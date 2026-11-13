@@ -1,0 +1,65 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "hardware_actions": "none",
+  "tests": [
+    {
+      "name": "openmv",
+      "exit_code": 0
+    },
+    {
+      "name": "delivery",
+      "exit_code": 0
+    },
+    {
+      "name": "obstacle",
+      "exit_code": 0
+    },
+    {
+      "name": "marker",
+      "exit_code": 0
+    },
+    {
+      "name": "wireless",
+      "exit_code": 0
+    }
+  ],
+  "arm_builds": [
+    {
+      "preset": "DebugFastNoRing",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingBase",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFast",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed120",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed130",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed140",
+      "exit_code": 0
+    }
+  ],
+  "openmv_tests": 571,
+  "openmv_skipped": 4,
+  "red_pixels_strictly_greater_than": 1536,
+  "relative_turn_degrees": [
+    30,
+    -45,
+    -45,
+    45
+  ],
+  "final_heading_right_degrees": 15,
+  "moving_recovery": true,
+  "profiles": 6
+}

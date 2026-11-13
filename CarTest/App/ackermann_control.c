@@ -105,7 +105,7 @@ static uint16_t requested_fastest_target(uint16_t request_permille)
        exact +20/+30/+40% of r23's 5280 milli-RPS ring target, including rounding. */
     uint32_t reduction =
         ((uint32_t)(CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS -
-                    CARTEST_ORDINARY_BEND_BASE_MILLIRPS) *
+                    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS) *
          request_permille + 500u) / CAR_ACKERMANN_REQUEST_MAX_PERMILLE;
     uint32_t base_target = CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS - reduction;
     return (uint16_t)CARTEST_SCALE_WHEEL_TARGET(base_target);

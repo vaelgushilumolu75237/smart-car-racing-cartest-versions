@@ -26,16 +26,16 @@ int main(void) {
  f.control.manual_run_request=0;car_control_update_obstacle(&f.control,&f.config,f.now_ms);assert(!f.control.obstacle.active);
  obstacle_seed(&f);f.control.imu_ready=0;car_control_update_obstacle(&f.control,&f.config,f.now_ms);
  assert(f.control.fault==CAR_FAULT_IMU && f.control.fault_latched);
- obstacle_seed(&f);f.control.obstacle.state=CAR_OBSTACLE_REACQUIRE;f.control.obstacle.outer_target_millirps=0;
+ obstacle_seed(&f);f.control.obstacle.state=CAR_OBSTACLE_REACQUIRE;f.control.obstacle.outer_target_millirps=4400;
  for(int i=0;i<3;i++){send_frame(&f,1,VP_VERSION_V4,0,0,1,f.now_ms+10);car_control_update_obstacle(&f.control,&f.config,f.now_ms);}
- assert(!f.control.obstacle.active && f.control.vision_hold_restart_required);
+ assert(!f.control.obstacle.active && !f.control.vision_hold_restart_required);
  obstacle_seed(&f);send_frame(&f,0,VP_VERSION_V4,0,0,0,f.now_ms+10);
  obstacle_tick(&f,f.now_ms,1);
  assert(f.control.road_drive_allowed && f.control.fault==CAR_FAULT_NONE);
  obstacle_tick(&f,f.now_ms+300,1);
  assert(!f.control.road_drive_allowed && f.control.fault!=CAR_FAULT_NONE);
- obstacle_seed(&f);f.control.obstacle.state=CAR_OBSTACLE_REACQUIRE;f.control.obstacle.outer_target_millirps=0;
- obstacle_tick(&f,f.now_ms,1);assert(!f.control.road_drive_allowed && !f.control.follow_output_duty_permille);
+ obstacle_seed(&f);f.control.obstacle.state=CAR_OBSTACLE_REACQUIRE;f.control.obstacle.outer_target_millirps=4400;
+ obstacle_tick(&f,f.now_ms,1);assert(f.control.road_drive_allowed);
  obstacle_seed(&f);obstacle_tick(&f,f.now_ms,0);assert(!f.control.road_drive_allowed);
  /* Keep IMU fresh to isolate the route timeout from IMU health. */
  obstacle_seed(&f);f.control.imu_sample_us=(f.now_ms+8000)*1000u;

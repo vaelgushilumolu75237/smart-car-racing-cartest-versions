@@ -38,7 +38,6 @@ option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profi
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
 set(CARTEST_SPEED_PERCENT "100" CACHE STRING "C wheel-target percentage: 100, 120, 130, 140")
-option(CARTEST_PREVIEW95_BEND110 "Independent C profile: preview amplitude 95%, ordinary bend target 110%" OFF)
 if(NOT CARTEST_SPEED_PERCENT MATCHES "^(100|120|130|140)$")
   message(FATAL_ERROR "CARTEST_SPEED_PERCENT must be 100, 120, 130, or 140.")
 endif()
@@ -65,10 +64,6 @@ if(NOT CARTEST_TRACK_PROFILE MATCHES "^(0|1|2|3)$")
 endif()
 if(NOT CARTEST_SPEED_PERCENT STREQUAL "100" AND NOT CARTEST_TRACK_PROFILE STREQUAL "3")
   message(FATAL_ERROR "Speed variants require C pairing; A/B/legacy must stay at 100 percent.")
-endif()
-if(CARTEST_PREVIEW95_BEND110 AND
-   (NOT CARTEST_TRACK_PROFILE STREQUAL "3" OR NOT CARTEST_SPEED_PERCENT STREQUAL "100"))
-  message(FATAL_ERROR "Preview95/Bend110 requires the original C profile at 100 percent.")
 endif()
 if(CARTEST_TRACK_PROFILE MATCHES "^(1|3)$")
   if(NOT CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS STREQUAL "5600" OR
@@ -209,7 +204,7 @@ set(_cartest_build_id_material
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
   "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
   "gyro350=${CARTEST_ENABLE_GYRO350};wireless=${CARTEST_ENABLE_WIRELESS};red_obstacle=${CARTEST_ENABLE_RED_OBSTACLE}\n"
-  "speed_percent=${CARTEST_SPEED_PERCENT};track_profile=${CARTEST_TRACK_PROFILE};preview95_bend110=${CARTEST_PREVIEW95_BEND110};ackermann_fastest_straight_millirps=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS};ackermann_slowest_request_millirps=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}\n"
+  "speed_percent=${CARTEST_SPEED_PERCENT};track_profile=${CARTEST_TRACK_PROFILE};ackermann_fastest_straight_millirps=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS};ackermann_slowest_request_millirps=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}\n"
   "ackermann_coordination_profile=${_cartest_enable_ackermann_coordination}\n"
   "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=1000;tracking_ms=200\n"
   "vision_hold_ms=${CARTEST_VISION_HOLD_MS};vision_hold_ramp_ms=${CARTEST_VISION_HOLD_RAMP_MS}\n"
@@ -328,7 +323,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_ACKERMANN_COORDINATION_ENABLED=$<BOOL:${_cartest_enable_ackermann_coordination}>
   CARTEST_SPEED_PERCENT=${CARTEST_SPEED_PERCENT}
   CARTEST_TRACK_PROFILE=${CARTEST_TRACK_PROFILE}
-  CARTEST_PREVIEW95_BEND110=$<BOOL:${CARTEST_PREVIEW95_BEND110}>
   CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS}
   CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}
   CARTEST_VISION_HOLD_MS=${CARTEST_VISION_HOLD_MS}

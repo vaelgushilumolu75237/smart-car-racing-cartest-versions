@@ -27,8 +27,8 @@ class UART:
     def write(self, b): self.writes.append(b); return self.result
 class Tests(unittest.TestCase):
     def test_all_components_and_holes(self):
-        self.assertEqual(m.count_red_pixels(Frame([2688,1]), (0,100,25,127,-20,127)),2689)
-        self.assertEqual(m.count_red_pixels(Frame([1]*2689), (0,100,25,127,-20,127)),2689)
+        self.assertEqual(m.count_red_pixels(Frame([1536,1]), (0,100,25,127,-20,127)),1537)
+        self.assertEqual(m.count_red_pixels(Frame([1]*1537), (0,100,25,127,-20,127)),1537)
         self.assertEqual(m.count_red_pixels(Frame([]), (0,100,25,127,-20,127)),0)
     def test_geometry(self):
         old = Frame([]); old.height = lambda: 240
@@ -36,22 +36,22 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError): m.count_red_pixels(Frame([],640), ())
     def test_strict_threshold_once_rearm(self):
         event, uart = m.RedEvent(), UART()
-        for count, result in [(0,False),(2688,False),(2689,True),(38400,False),(2689,False),(2688,False),(2689,True)]:
+        for count, result in [(0,False),(1536,False),(1537,True),(38400,False),(1537,False),(1536,False),(1537,True)]:
             self.assertEqual(event.update(count,uart),result)
         self.assertEqual(uart.writes,[b"R",b"R"])
     def test_failed_write_not_latched(self):
         event, uart = m.RedEvent(), UART(); uart.result=0
-        self.assertFalse(event.update(2689,uart)); uart.result=1
-        self.assertTrue(event.update(2689,uart))
+        self.assertFalse(event.update(1537,uart)); uart.result=1
+        self.assertTrue(event.update(1537,uart))
 
 class BoxTests(unittest.TestCase):
     def test_threshold_color_and_coordinates(self):
         class Preview:
             def draw_rectangle(self,*a,**kw):self.args=a;self.kw=kw
         p=Preview()
-        m.draw_red_boxes(p,[Blob(2688)],2688,2,0,0)
+        m.draw_red_boxes(p,[Blob(1536)],1536,2,0,0)
         self.assertEqual(p.args,(20,40,60,80));self.assertEqual(p.kw['color'],(0,0,255))
-        m.draw_red_boxes(p,[Blob(2689)],2689,2,0,0)
+        m.draw_red_boxes(p,[Blob(1537)],1537,2,0,0)
         self.assertEqual(p.kw['color'],(0,255,0))
 
 class StartupTests(unittest.TestCase):
@@ -81,7 +81,7 @@ class StartupTests(unittest.TestCase):
             def snapshot(self):
                 self.snapshots+=1
                 if self.snapshots>1:raise StopTest()
-                return Frame([2689])
+                return Frame([1537])
             def stop(self): calls.append("stop")
         class Preview:
             def __init__(self,*args): calls.append(("preview",args))
