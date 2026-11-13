@@ -17,7 +17,7 @@ class Blob:
 class Frame:
     def __init__(self, counts, width=320): self.counts, self.w = counts, width
     def width(self): return self.w
-    def height(self): return 240
+    def height(self): return 120
     def find_blobs(self, thresholds, **kw):
         assert kw == dict(x_stride=1, y_stride=1, pixels_threshold=1, area_threshold=1, merge=False)
         assert thresholds == [(0,100,25,127,-20,127)]
@@ -27,29 +27,31 @@ class UART:
     def write(self, b): self.writes.append(b); return self.result
 class Tests(unittest.TestCase):
     def test_all_components_and_holes(self):
-        self.assertEqual(m.count_red_pixels(Frame([768,1]), (0,100,25,127,-20,127)),769)
-        self.assertEqual(m.count_red_pixels(Frame([1]*769), (0,100,25,127,-20,127)),769)
+        self.assertEqual(m.count_red_pixels(Frame([3456,1]), (0,100,25,127,-20,127)),3457)
+        self.assertEqual(m.count_red_pixels(Frame([1]*3457), (0,100,25,127,-20,127)),3457)
         self.assertEqual(m.count_red_pixels(Frame([]), (0,100,25,127,-20,127)),0)
     def test_geometry(self):
+        old = Frame([]); old.height = lambda: 240
+        with self.assertRaises(ValueError): m.count_red_pixels(old, ())
         with self.assertRaises(ValueError): m.count_red_pixels(Frame([],640), ())
     def test_strict_threshold_once_rearm(self):
         event, uart = m.RedEvent(), UART()
-        for count, result in [(0,False),(768,False),(769,True),(76800,False),(769,False),(768,False),(769,True)]:
+        for count, result in [(0,False),(3456,False),(3457,True),(38400,False),(3457,False),(3456,False),(3457,True)]:
             self.assertEqual(event.update(count,uart),result)
         self.assertEqual(uart.writes,[b"R",b"R"])
     def test_failed_write_not_latched(self):
         event, uart = m.RedEvent(), UART(); uart.result=0
-        self.assertFalse(event.update(769,uart)); uart.result=1
-        self.assertTrue(event.update(769,uart))
+        self.assertFalse(event.update(3457,uart)); uart.result=1
+        self.assertTrue(event.update(3457,uart))
 
 class BoxTests(unittest.TestCase):
     def test_threshold_color_and_coordinates(self):
         class Preview:
             def draw_rectangle(self,*a,**kw):self.args=a;self.kw=kw
         p=Preview()
-        m.draw_red_boxes(p,[Blob(768)],768,2,0,0)
+        m.draw_red_boxes(p,[Blob(3456)],3456,2,0,0)
         self.assertEqual(p.args,(20,40,60,80));self.assertEqual(p.kw['color'],(0,0,255))
-        m.draw_red_boxes(p,[Blob(769)],769,2,0,0)
+        m.draw_red_boxes(p,[Blob(3457)],3457,2,0,0)
         self.assertEqual(p.kw['color'],(0,255,0))
 
 class StartupTests(unittest.TestCase):
@@ -79,14 +81,14 @@ class StartupTests(unittest.TestCase):
             def snapshot(self):
                 self.snapshots+=1
                 if self.snapshots>1:raise StopTest()
-                return Frame([769])
+                return Frame([3457])
             def stop(self): calls.append("stop")
         class Preview:
             def __init__(self,*args): calls.append(("preview",args))
             def clear(self): calls.append("clear")
             def draw_rectangle(self,*a,**kw): calls.append(("box",a,kw))
             def draw_image(self,frame,x,y,**kw):
-                assert frame.width()==320 and frame.height()==240
+                assert frame.width()==320 and frame.height()==120
                 calls.append(("draw",x,y,kw))
         def display_init(mode,**kw):
             calls.append(("display-init",mode,kw))
@@ -111,14 +113,14 @@ class StartupTests(unittest.TestCase):
 
     def test_lcd_and_uart_factory_firmware(self):
         calls=self.exercise()
-        self.assertIn(("size",dict(width=320,height=240)),calls)
+        self.assertIn(("size",dict(width=320,height=120)),calls)
         self.assertIn(("pin",(9,123),dict(ie=0,oe=1)),calls)
         self.assertIn(("uart",(1,),dict(baudrate=115200,bits=8,parity=None,stop=0)),calls)
         init=("display-init",99,dict(width=640,height=480,to_ide=True,fps=30))
         self.assertIn(init,calls)
         self.assertLess(calls.index(init),calls.index("media-init"))
         self.assertIn(("preview",(640,480,17)),calls)
-        draw=("draw",0,0,dict(x_scale=2.0,y_scale=2.0))
+        draw=("draw",0,120,dict(x_scale=2.0,y_scale=2.0))
         self.assertIn(draw,calls)
         self.assertLess(calls.index(("write",b"R")),calls.index(draw))
         self.assertIn(("show",dict(x=0,y=0)),calls)

@@ -31,7 +31,7 @@ def run():
         sensor.reset()
         sensor.set_framesize(width=WIDTH, height=HEIGHT)
         sensor.set_pixformat(Sensor.RGB565)
-        # Display is independent of capture: detection always sees 320x240.
+        # Display is independent of capture: detection always sees 320x120.
         display_ready = True
         Display.init(Display.ST7701, width=DISPLAY_WIDTH, height=DISPLAY_HEIGHT,
                      to_ide=True, fps=DISPLAY_FPS)

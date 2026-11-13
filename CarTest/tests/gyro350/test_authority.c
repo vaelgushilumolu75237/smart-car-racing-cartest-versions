@@ -174,7 +174,7 @@ static void test_invalid_image_cannot_advance_ring_phase(void)
                fixture.now_ms + 10u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "invalid orbit event cannot reset yaw origin");
-    for (int i=0;i<5;i++)
+    for (int i=0;i<15;i++)
         send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u, fixture.now_ms + 100u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ORBIT,
           "fresh valid orbit event advances entry");
@@ -190,7 +190,7 @@ static void test_ring_servo_gain(void)
         fixture_init(&fixture);
         start_ring(&fixture);
         check(fixture.control.gyro_servo_us == 1530u, "delay commands center");
-        for (int i=0;i<5;i++)
+        for (int i=0;i<15;i++)
             send_frame(&fixture, 1u, VP_VERSION_V4, 1u, -1, 0u, fixture.now_ms + 100u);
         fixture.control.imu_sample_us = fixture.now_ms * 1000u;
         fixture.control.gyro.entry_side = (int8_t)side;

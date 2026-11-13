@@ -1,6 +1,6 @@
 # Yahboom K230 auxiliary camera. LAB red classification is a tuning candidate.
 WIDTH = 320
-HEIGHT = 240
+HEIGHT = 120
 UART_ID = 1
 UART_TX_PIN = 9
 UART_RX_PIN = 10  # Required by UART initialization, even with no RX wire.

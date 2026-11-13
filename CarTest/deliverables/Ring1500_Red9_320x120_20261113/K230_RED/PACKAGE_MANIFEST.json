@@ -1,0 +1,41 @@
+{
+  "runtime_files": [
+    "main.py",
+    "settings.py",
+    "red_detector.py",
+    "startup.py"
+  ],
+  "compilation": [
+    {
+      "file": "main.py",
+      "source_sha256": "7ba342682771259e7797f1715829835168df4e79d6f7e93d2e084918ffb56612",
+      "exit_code": 0,
+      "mpy_sha256": "a5c5b9768ea6e4b7e6c52264690d51f891dcbc67ee8b95c4a6f2bd5b6eebf6e4"
+    },
+    {
+      "file": "settings.py",
+      "source_sha256": "d0ab815e533985c2adf7cd8c409abc10f3b4f24c49c5e62e9905df7c513c4657",
+      "exit_code": 0,
+      "mpy_sha256": "78fcd8dad0ab4667779c1de956d0b0ca5dbe68c9043adefe5ad5a4429c8f6633"
+    },
+    {
+      "file": "red_detector.py",
+      "source_sha256": "47579475425fb216cfc4f838613846e4e60f11a6229ebf949dbf3752c7629bc9",
+      "exit_code": 0,
+      "mpy_sha256": "231f8a88d42e8ebd004beaeeffa1e36098cef2a5859572a3dbee3badd7768f1b"
+    },
+    {
+      "file": "startup.py",
+      "source_sha256": "f0017cfb32628f8cf0a692d8b2407f3f081377430e72cdaeb895e8f1b3160ad3",
+      "exit_code": 0,
+      "mpy_sha256": "1f93ee84e7e2e0a4ac530bcde587e351d4802803ad6d622eb29af751a0e39caa"
+    }
+  ],
+  "compiler_target": "portable-bytecode",
+  "image_width": 320,
+  "image_height": 120,
+  "trigger": "red_pixels > 3456",
+  "uart": "UART1 GPIO9 TX, 115200 8N1",
+  "route_parameters": "user_authorized_unmeasured_candidates",
+  "hardware_tested": false
+}

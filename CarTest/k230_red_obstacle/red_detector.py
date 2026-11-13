@@ -1,12 +1,12 @@
-"""Exact whole-frame red count; one R per continuous >1% event."""
+"""Exact whole-frame red count; one R per continuous >9% event."""
 WIDTH = 320
-HEIGHT = 240
-RED_PIXEL_LIMIT = 768
+HEIGHT = 120
+RED_PIXEL_LIMIT = 3456
 
 
 def red_regions(frame, threshold):
     if frame.width() != WIDTH or frame.height() != HEIGHT:
-        raise ValueError("red detector requires 320x240")
+        raise ValueError("red detector requires 320x120")
     # Unit stride visits all pixels; retain every component, including 1 pixel.
     # pixels() counts classified pixels, never bounding-box area.
     blobs = frame.find_blobs(
