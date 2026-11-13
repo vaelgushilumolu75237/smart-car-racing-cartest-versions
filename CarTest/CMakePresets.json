@@ -23,7 +23,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugFastNoRing",
       "displayName": "DebugFastNoRing - paired profile A; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann"
@@ -50,7 +51,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "4800",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugRingBase",
       "displayName": "DebugRingBase - paired profile B; 4800/4000 milli-RPS; 160us/20ms servo; incremental PI + Ackermann"
@@ -77,7 +79,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugRingFast",
       "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann; r22 vision hold 3000ms / ramp 300ms"
@@ -104,7 +107,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugRingFastSpeed120",
       "displayName": "r23 C +20% overall wheel targets"
@@ -131,7 +135,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugRingFastSpeed130",
       "displayName": "r23 C +30% overall wheel targets"
@@ -158,7 +163,8 @@
         "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
-        "CARTEST_ENABLE_WIRELESS": "ON"
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
       },
       "name": "DebugRingFastSpeed140",
       "displayName": "r23 C +40% overall wheel targets"

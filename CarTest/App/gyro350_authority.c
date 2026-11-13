@@ -21,6 +21,12 @@ void car_control_update_gyro(car_control_t *control, const car_config_t *config,
     car_gyro_ring_input_t input = {0};
     uint8_t was_active;
     if (!control || !config || !config->gyro_enabled) return;
+#if CARTEST_RED_OBSTACLE_ENABLED
+    if (control->obstacle.active) {
+        car_gyro_ring_init(&control->gyro);
+        return;
+    }
+#endif
     /* Keep the reason visible while the controller's hard fault is latched.
        Its own revoked run request must not erase the ring fault next tick.
        The normal physical acknowledgement clears the latch, then OFF resets. */

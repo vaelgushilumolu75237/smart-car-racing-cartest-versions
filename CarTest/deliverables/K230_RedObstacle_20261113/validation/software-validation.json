@@ -1,0 +1,147 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "hardware_actions": "none",
+  "tests": {
+    "openmv": {
+      "exit_code": 0,
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "openmv/tests"
+      ],
+      "summary": "....................................................................................................................................................................................................................................................................................................................................................................................................\n----------------------------------------------------------------------\nRan 563 tests in 4.798s\n\nOK (skipped=4)\n"
+    },
+    "wireless": {
+      "exit_code": 0,
+      "command": [
+        "python",
+        "tests/wireless/run_runtime_test.py"
+      ],
+      "summary": "wireless runtime profile/assistant/camera diagnostics tests passed\n"
+    },
+    "gyro": {
+      "exit_code": 0,
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-File",
+        "tests/gyro350/run.ps1"
+      ],
+      "summary": "gyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 authority tests: PASS\ngyro350 authority tests: PASS\ngyro350 authority tests: PASS\n"
+    },
+    "obstacle": {
+      "exit_code": 0,
+      "command": [
+        "python",
+        "tests/obstacle/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "summary": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.002s\n\nOK\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\n"
+    },
+    "checkpoint": {
+      "exit_code": 0,
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_checkpoint_version.py"
+      ],
+      "summary": "........s.............\n----------------------------------------------------------------------\nRan 22 tests in 0.493s\n\nOK (skipped=1)\n"
+    },
+    "paired_delivery": {
+      "exit_code": 0,
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_openmv_gyro_wireless_delivery.py"
+      ],
+      "summary": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.026s\n\nOK\n"
+    },
+    "ackermann": {
+      "exit_code": 0,
+      "profiles": 4,
+      "summary": "TRACK_PROFILE_TARGETS profile=0 fastest=4800 slowest=4000 snapshot_v=1 checks=25 failures=0\nAckermann control host checks: 10067; failures: 0\nTRACK_PROFILE_TARGETS profile=1 fastest=5600 slowest=4400 snapshot_v=2 checks=25 failures=0\nTRACK_PROFILE_TARGETS profile=2 fastest=4800 slowest=4000 snapshot_v=2 checks=25 failures=0\nTRACK_PROFILE_TARGETS profile=3 fastest=5600 slowest=4400 snapshot_v=2 checks=25 failures=0\n"
+    }
+  },
+  "h743_builds": [
+    {
+      "preset": "DebugFastNoRing",
+      "exit_code": 0,
+      "elf_sha256": "ddbaa5a91b93d86a735cba648e1d70fe9746fe68c4f4a359e757a61425a052c5",
+      "build_id": "71960b8771dbc3e7ebb4b15bc044fbdf"
+    },
+    {
+      "preset": "DebugRingBase",
+      "exit_code": 0,
+      "elf_sha256": "c5f822042436cf0e31c565dca05d34abfda1c7f67f01bba3a17caa90fa2e200f",
+      "build_id": "463d520702f7b32c956028b119ed10d6"
+    },
+    {
+      "preset": "DebugRingFast",
+      "exit_code": 0,
+      "elf_sha256": "c375cb99629dcf1d95bab49b2d014e0ceb019f66dee23808c63b505ffc2794e0",
+      "build_id": "0802aae7fa0641a705f760be0d2fe879"
+    },
+    {
+      "preset": "DebugRingFastSpeed120",
+      "exit_code": 0,
+      "elf_sha256": "b0635d530323e55d132dc2a08727a65b6ba468152818a1359b7616f0657972c5",
+      "build_id": "5de80beb5bfea613ae9270d236d9fa09"
+    },
+    {
+      "preset": "DebugRingFastSpeed130",
+      "exit_code": 0,
+      "elf_sha256": "44dd3b2c5ef2cbae6ce3d2fcf98b552cf808341731c00a23cbef1d629b55c532",
+      "build_id": "ac24a39418695bdfeb86bc8f11db1070"
+    },
+    {
+      "preset": "DebugRingFastSpeed140",
+      "exit_code": 0,
+      "elf_sha256": "ed404701eb7c3bdc2f73b36ad78f8b808574c861941a5bcb086c2a7c8832773b",
+      "build_id": "b46f6613e125bcab96ca99d5c61dd2da"
+    }
+  ],
+  "unchanged_original_camera": {
+    "compared_files": 143,
+    "changed_files": 0
+  },
+  "skipped_tests": {
+    "openmv": 4,
+    "checkpoint_historical_optional_evidence": 1
+  },
+  "candidate_route": {
+    "turn_angle_mdeg": [
+      30000,
+      30000,
+      30000,
+      30000
+    ],
+    "straight_wheel_millirev": [
+      2000,
+      3000,
+      2000
+    ],
+    "speed": "existing_profile_straight_and_bend_targets",
+    "measured": false
+  },
+  "limitations": [
+    "No K230 device run or UART electrical test",
+    "No H743 flash/reset or motor start",
+    "No track validation"
+  ],
+  "review": "Bounded interrupt mailbox; seven nonblocking stages; preserve motor PI/output gates; hard fault on route timeout; require three new ordinary V4 frames to resume"
+}

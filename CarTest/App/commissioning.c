@@ -218,6 +218,7 @@ static uint8_t is_hard_fault(car_fault_t fault)
     case CAR_FAULT_CONFIG:
     case CAR_FAULT_IMU:
     case CAR_FAULT_GYRO_RING:
+    case CAR_FAULT_OBSTACLE:
     case CAR_FAULT_WATCHDOG_INIT:
         return 1u;
     default:
@@ -346,6 +347,9 @@ uint16_t car_control_follow_servo_output_target_us(
     if (control == 0) {
         return 0u;
     }
+#if CARTEST_RED_OBSTACLE_ENABLED
+    if (control->obstacle.active && !control->obstacle.error) return control->obstacle_servo_us;
+#endif
 #if CARTEST_GYRO350_ENABLED
     if (control->gyro.active && !control->gyro.fault) return control->gyro_servo_us;
 #endif
@@ -1051,7 +1055,11 @@ void car_control_on_vision_frame_at_with_ring(
         control->vision_slope_hint = 0u;
         control->vision_timeout = 0u;
 #if CARTEST_GYRO350_ENABLED
-        if (config->gyro_enabled && control->gyro.active) {
+        if ((config->gyro_enabled && control->gyro.active)
+#if CARTEST_RED_OBSTACLE_ENABLED
+            || control->obstacle.active
+#endif
+            ) {
             /* Fresh invalid-route frames remain invalid. Independent IMU
                authority, not a fake visual observation, owns the ring. */
             return;
@@ -1839,6 +1847,18 @@ void car_control_tick(car_control_t *control,
         car_control_note_fault(control, CAR_FAULT_VISION_TIMEOUT);
     }
 
+#if CARTEST_RED_OBSTACLE_ENABLED
+    car_control_update_obstacle(control, config, inputs->now_ms);
+    if (control->obstacle.active && control->fault == CAR_FAULT_NONE) {
+        finish_vision_hold(control, CAR_VISION_HOLD_EXIT_NONE);
+        control->mode = CAR_MODE_FOLLOW_RUNNING;
+        if (!control->obstacle.outer_target_millirps) {
+            control->road_drive_allowed = 0u;
+            control->follow_output_duty_permille = 0u;
+            return;
+        }
+    }
+#endif
 #if CARTEST_GYRO350_ENABLED
     car_control_update_gyro(control, config, inputs->now_ms);
     if (config->gyro_enabled && control->gyro.active &&
@@ -1989,6 +2009,18 @@ uint8_t car_control_follow_authority_ready(const car_control_t *control,
     const car_config_t *config, uint32_t now_ms)
 {
     if (!control || !config) return 0u;
+#if CARTEST_RED_OBSTACLE_ENABLED
+    if (control->obstacle.active) {
+        return !control->obstacle.error && control->obstacle.outer_target_millirps &&
+            control->imu_ready && !control->imu_fault &&
+            (uint32_t)(now_ms * 1000u - control->imu_sample_us) < 50000u &&
+            control->follow_session_active && control->manual_run_request &&
+            !control->fault_latched && control->fault == CAR_FAULT_NONE &&
+            control->vision_have_frame_sequence &&
+            (uint32_t)(now_ms - control->vision_last_frame_alive_ms) < config->vision_timeout_ms &&
+            car_control_camera_profile_ack_ready(control, config, now_ms);
+    }
+#endif
 #if CARTEST_GYRO350_ENABLED
     if (config->gyro_enabled) {
         if (!control->imu_ready || control->imu_fault ||

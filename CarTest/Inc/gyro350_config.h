@@ -3,6 +3,12 @@
 #ifndef CARTEST_GYRO350_ENABLED
 #define CARTEST_GYRO350_ENABLED 0
 #endif
+#ifndef CARTEST_RED_OBSTACLE_ENABLED
+#define CARTEST_RED_OBSTACLE_ENABLED 0
+#endif
+#if CARTEST_RED_OBSTACLE_ENABLED && !CARTEST_GYRO350_ENABLED
+#error "Red obstacle bypass requires the existing IMU driver"
+#endif
 #ifndef CARTEST_WIRELESS_ENABLED
 #define CARTEST_WIRELESS_ENABLED 0
 #endif

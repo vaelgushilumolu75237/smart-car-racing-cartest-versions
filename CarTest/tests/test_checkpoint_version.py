@@ -475,6 +475,8 @@ class CheckpointAllowlistTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "patch manifest does not match"):
                     checkpoint.verify_openmv_uart_fifo_firmware_delivery(source)
 
+    @unittest.skipUnless((PROJECT / checkpoint.OPENMV_UART_FIFO_FIRMWARE_ROOT / "EVIDENCE.md").is_file(),
+                         "Historical optional UART FIFO evidence is not part of this checkout")
     def test_uart_fifo_evidence_records_frame_units_and_six_complete_windows(self):
         hardware = checkpoint.OPENMV_UART_FIFO_EXPECTED_ARTIFACT_MANIFEST[
             "reported_hardware_evidence"]

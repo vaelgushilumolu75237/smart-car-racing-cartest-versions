@@ -26,6 +26,7 @@ class GyroWirelessDeliveryTests(unittest.TestCase):
             cache.parent.mkdir(parents=True)
             values = dict(CARTEST_TRACK_PROFILE="3", CARTEST_SPEED_PERCENT="140",
                           CARTEST_ENABLE_GYRO350="ON", CARTEST_ENABLE_WIRELESS="ON",
+                          CARTEST_ENABLE_RED_OBSTACLE="ON",
                           CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI="ON", CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
                           CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS="5600", CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS="4400")
             def write(data):
@@ -33,7 +34,7 @@ class GyroWirelessDeliveryTests(unittest.TestCase):
             write(values)
             verify_cache(root, row)
             for key, wrong in (("CARTEST_SPEED_PERCENT", "100"), ("CARTEST_ENABLE_GYRO350", "OFF"),
-                               ("CARTEST_ENABLE_WIRELESS", "OFF"), ("CARTEST_TRACK_PROFILE", "2")):
+                               ("CARTEST_ENABLE_WIRELESS", "OFF"), ("CARTEST_ENABLE_RED_OBSTACLE", "OFF"), ("CARTEST_TRACK_PROFILE", "2")):
                 with self.subTest(key=key):
                     write(dict(values, **{key: wrong}))
                     with self.assertRaises(ValueError):

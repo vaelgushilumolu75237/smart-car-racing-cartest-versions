@@ -20,7 +20,7 @@ import urllib.request
 PROJECT = Path(__file__).resolve().parents[1]
 STORE = PROJECT / "deliverables" / "github-checkpoints" / "worktree"
 REPO_NAME = "smart-car-racing-cartest-versions"
-DIRS = ("App", "Inc", "Src", "Drivers", "cmake", "tools", "tests", "docs", ".vscode", "openmv")
+DIRS = ("App", "Inc", "Src", "Drivers", "cmake", "tools", "tests", "docs", ".vscode", "openmv", "k230_red_obstacle")
 ROOT_FILES = ("CMakeLists.txt", "CMakePresets.json", "CarTest.code-workspace",
               "project-description.json", "stm32h743xi_flash.ld", "README.md", "AGENTS.md",
               "README-恢复说明.md", "origin-manifest.json", "SHA256SUMS.txt")
@@ -1512,7 +1512,7 @@ def main():
             args.openmv_native_v501 is None):
         parser.error("--openmv-native-v501-runtime-root requires --openmv-native-v501")
     for value in (args.version, args.branch):
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", value) or ".." in value or value.endswith("/"):
+        if not re.fullmatch(r"[A-Za-z0-9\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff._/-]*", value) or ".." in value or value.endswith("/"):
             raise ValueError("Use a plain version/branch name without traversal or Git special syntax.")
     source = args.source.resolve()
     if source == STORE.resolve() or STORE.resolve() in source.parents:
@@ -1638,7 +1638,7 @@ def main():
             "add", "--all")
     run_git("-c", "user.name=" + user["login"], "-c",
             f"user.email={user['id']}+{user['login']}@users.noreply.github.com",
-            "commit", "-m", f"Checkpoint {args.version}: {args.status}")
+            "commit", "-m", f"\u7248\u672c\u5907\u4efd\uff1a{args.version}")
     run_git("tag", args.version)
     commit = run_git("rev-parse", "HEAD")
     if args.publish:

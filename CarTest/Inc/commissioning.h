@@ -6,6 +6,9 @@
 #include "gyro350_config.h"
 #if CARTEST_GYRO350_ENABLED
 #include "gyro_ring.h"
+#if CARTEST_RED_OBSTACLE_ENABLED
+#include "obstacle_bypass.h"
+#endif
 #endif
 
 #ifndef CARTEST_VISION_HOLD_MS
@@ -69,7 +72,8 @@ typedef enum {
     CAR_FAULT_CONFIG,
     CAR_FAULT_WATCHDOG_INIT,
     CAR_FAULT_IMU,
-    CAR_FAULT_GYRO_RING
+    CAR_FAULT_GYRO_RING,
+    CAR_FAULT_OBSTACLE
 } car_fault_t;
 
 typedef enum {
@@ -291,6 +295,12 @@ typedef struct {
     int64_t imu_yaw_mdeg;
     uint16_t gyro_servo_us;
     uint8_t gyro_last_phase;
+#if CARTEST_RED_OBSTACLE_ENABLED
+    car_obstacle_t obstacle;
+    uint8_t obstacle_trigger, obstacle_odometry_valid;
+    uint64_t obstacle_forward_millirev;
+    uint16_t obstacle_servo_us;
+#endif
 #endif
 } car_control_t;
 
@@ -313,6 +323,10 @@ uint8_t car_control_follow_authority_ready(const car_control_t *control,
     const car_config_t *config, uint32_t now_ms);
 #if CARTEST_GYRO350_ENABLED
 void car_control_update_gyro(car_control_t *control, const car_config_t *config, uint32_t now_ms);
+#endif
+
+#if CARTEST_RED_OBSTACLE_ENABLED
+void car_control_update_obstacle(car_control_t *control, const car_config_t *config, uint32_t now_ms);
 #endif
 
 /* P0.7 asymmetric image-error mapping, clamped to the measured servo span. */

@@ -18,6 +18,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "openmv_gyro_wireless"
+RED_NAMES = ("main.py", "settings.py", "red_detector.py")
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),
@@ -58,6 +59,7 @@ def verify_cache(source, row):
     cache = read_cache(source, preset)
     required = dict(CARTEST_TRACK_PROFILE=str(profile), CARTEST_SPEED_PERCENT=str(percent),
                     CARTEST_ENABLE_GYRO350="ON", CARTEST_ENABLE_WIRELESS="ON",
+                    CARTEST_ENABLE_RED_OBSTACLE="ON",
                     CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI="ON",
                     CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
                     CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS="4800" if profile == 2 else "5600",
@@ -77,6 +79,8 @@ def public_delivery_files(source, relative_directory):
     metadata = json.loads((directory / "profiles.json").read_text(encoding="utf-8"))
     if metadata.get("delivery_kind") != KIND or metadata.get("profiles") is None:
         raise ValueError("Wrong delivery kind")
+    if metadata.get("red_obstacle") is not True:
+        raise ValueError("Missing red obstacle feature metadata")
     profiles = metadata["profiles"]
     if len(profiles) != len(PROFILES):
         raise ValueError("Expected six paired profiles")
@@ -99,6 +103,23 @@ def public_delivery_files(source, relative_directory):
             raise ValueError("Camera source/compiler evidence mismatch: " + name)
         files.update(("OpenMV/" + name, "validation/mpy/" + Path(name).stem + ".mpy",
                       "validation/mpy/" + name + ".log", "validation/mpy/" + name + ".exitcode"))
+    red = json.loads((directory / "K230_RED/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
+    if red.get("runtime_files") != list(RED_NAMES) or red.get("compiler_target") != "portable-bytecode":
+        raise ValueError("Wrong auxiliary K230 manifest")
+    evidence = red.get("compilation", [])
+    if len(evidence) != len(RED_NAMES) or {r.get("file") for r in evidence} != set(RED_NAMES):
+        raise ValueError("Incomplete K230 compiler evidence")
+    for name in RED_NAMES:
+        src = source / "k230_red_obstacle" / name
+        frozen = directory / "K230_RED" / name
+        mpy = directory / "validation/k230-mpy" / (Path(name).stem + ".mpy")
+        row = next(r for r in evidence if r["file"] == name)
+        if (sha256(src) != sha256(frozen) or row.get("source_sha256") != sha256(frozen)
+                or row.get("exit_code") != 0 or row.get("mpy_sha256") != sha256(mpy)):
+            raise ValueError("K230 compiler/source evidence mismatch: " + name)
+        files.update(("K230_RED/" + name, "validation/k230-mpy/" + Path(name).stem + ".mpy",
+                      "validation/k230-mpy/" + name + ".log", "validation/k230-mpy/" + name + ".exitcode"))
+    files.add("K230_RED/PACKAGE_MANIFEST.json")
     for row, actual in zip(PROFILES, profiles):
         expected = expected_profile(row)
         if any(actual.get(k) != v for k, v in expected.items()):
@@ -144,6 +165,24 @@ def build(source, output, compiler, validation, readme):
         if result.returncode:
             raise RuntimeError("OpenMV cross-compile failed: " + name)
         compilation.append(dict(file=name, source_sha256=sha256(src), exit_code=0, mpy_sha256=sha256(mpy)))
+    red_dir, red_compiled = output / "K230_RED", output / "validation/k230-mpy"
+    red_dir.mkdir(); red_compiled.mkdir()
+    red_evidence = []
+    for name in RED_NAMES:
+        src = source / "k230_red_obstacle" / name
+        shutil.copy2(src, red_dir / name)
+        mpy = red_compiled / (Path(name).stem + ".mpy")
+        # Portable bytecode: K230 is not the OpenMV ARM target.
+        result = subprocess.run([str(compiler), "-o", str(mpy), str(src)], capture_output=True, text=True)
+        (red_compiled / (name + ".log")).write_text(result.stdout + result.stderr, encoding="utf-8")
+        (red_compiled / (name + ".exitcode")).write_text(str(result.returncode) + "\n", encoding="utf-8")
+        if result.returncode:
+            raise RuntimeError("K230 syntax compilation failed: " + name)
+        red_evidence.append(dict(file=name, source_sha256=sha256(src), exit_code=0, mpy_sha256=sha256(mpy)))
+    write_json(red_dir / "PACKAGE_MANIFEST.json", dict(runtime_files=list(RED_NAMES),
+               compilation=red_evidence, compiler_target="portable-bytecode", image_width=320,
+               image_height=240, trigger="red_pixels > 11520", uart="UART1 GPIO9 TX, 115200 8N1",
+               route_parameters="user_authorized_unmeasured_candidates", hardware_tested=False))
     profiles = []
     for row in PROFILES:
         meta = expected_profile(row)
@@ -159,7 +198,7 @@ def build(source, output, compiler, validation, readme):
                compiler_sha256=sha256(compiler), compiler_target="armv7emsp", sensor="MT9V034",
                image_width=320, image_height=120, forward_wire="V4/16-byte", shared_profile_selection=True,
                camera_firmware_policy="retain_current_vendor_firmware", image_transfer=False))
-    write_json(output / "profiles.json", dict(delivery_kind=KIND, profiles=profiles, hardware_tested=False))
+    write_json(output / "profiles.json", dict(delivery_kind=KIND, profiles=profiles, red_obstacle=True, hardware_tested=False))
     shutil.copy2(validation, output / "validation/software-validation.json")
     shutil.copy2(readme, output / "README.md")
     shutil.copy2(source / "tests/wireless/PROTOCOL.md", output / "WIRELESS_PROTOCOL.md")

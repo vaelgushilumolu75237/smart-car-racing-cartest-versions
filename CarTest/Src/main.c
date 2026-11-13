@@ -2771,6 +2771,15 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         car_follow_incremental_pi_reset(&follow_incremental_pi_state);
         return;
     }
+#if CARTEST_RED_OBSTACLE_ENABLED
+    if (car_control_state.obstacle.active) {
+        uint16_t outer = car_control_state.obstacle.outer_target_millirps;
+        int32_t inner = (int32_t)(((uint32_t)outer * ackermann_control_output.ratio_q15 + 16384u) / 32768u);
+        ackermann_control_output.fastest_target_millirps = outer;
+        ackermann_control_output.left_target_millirps = ackermann_control_output.model_angle_cdeg < 0 ? inner : outer;
+        ackermann_control_output.right_target_millirps = ackermann_control_output.model_angle_cdeg > 0 ? inner : outer;
+    } else
+#endif
 #if CARTEST_GYRO350_ENABLED
     if (car_control_state.gyro.active) {
         uint16_t outer = car_control_state.gyro.outer_target_millirps;
@@ -4219,6 +4228,98 @@ static HAL_StatusTypeDef speed_pi_trace_sram_enable(void)
     return (enabled & RCC_AHB2ENR_D2SRAM1EN) != 0u ? HAL_OK : HAL_ERROR;
 }
 
+#if CARTEST_RED_OBSTACLE_ENABLED
+/* New, independent receive-only UART4: PC11 RX, AF8. PC10 TX is reserved
+   but not configured because this protocol only receives one-byte R events.
+   USART1 (PA9/PA10), USART2 (PA2/PA3) and SPI2 pins are unchanged. */
+volatile uint32_t car_obstacle_uart_received, car_obstacle_uart_errors;
+volatile uint32_t car_obstacle_uart_ignored;
+static volatile uint8_t obstacle_rx_pending;
+static volatile uint32_t obstacle_rx_ms;
+volatile uint8_t car_obstacle_uart_accepting;
+volatile uint32_t car_obstacle_phase, car_obstacle_error;
+volatile uint64_t car_obstacle_distance_millirev;
+volatile int64_t car_obstacle_heading_target_mdeg;
+static HAL_StatusTypeDef obstacle_uart4_init(void)
+{
+    GPIO_InitTypeDef gpio = {0};
+    uint32_t clock;
+    __HAL_RCC_GPIOC_CLK_ENABLE(); __HAL_RCC_UART4_CLK_ENABLE();
+    /* Same PCLK1 selector already used by USART2. */
+    RCC->D2CCIP2R &= ~RCC_D2CCIP2R_USART28SEL;
+    gpio.Pin = GPIO_PIN_11; gpio.Mode = GPIO_MODE_AF_PP;
+    gpio.Pull = GPIO_PULLUP; gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Alternate = GPIO_AF8_UART4;
+    HAL_GPIO_Init(GPIOC, &gpio);
+    clock = HAL_RCC_GetPCLK1Freq();
+    if (!clock || clock / 115200u < 16u) return HAL_ERROR;
+    UART4->CR1 = 0; UART4->CR2 = 0; UART4->CR3 = 0; UART4->PRESC = 0;
+    UART4->BRR = (clock + 57600u) / 115200u;
+    UART4->ICR = USART_ICR_PECF | USART_ICR_FECF | USART_ICR_NECF | USART_ICR_ORECF;
+    UART4->CR1 = USART_CR1_FIFOEN | USART_CR1_RE | USART_CR1_RXNEIE_RXFNEIE | USART_CR1_UE;
+    NVIC_ClearPendingIRQ(UART4_IRQn);
+    NVIC_SetPriority(UART4_IRQn, 2u); NVIC_EnableIRQ(UART4_IRQn);
+    return HAL_OK;
+}
+static void service_obstacle_input(uint32_t now_ms)
+{
+    uint8_t pending;
+    uint32_t timestamp, primask = __get_PRIMASK();
+    __disable_irq();
+    pending = obstacle_rx_pending; timestamp = obstacle_rx_ms;
+    obstacle_rx_pending = 0;
+    __set_PRIMASK(primask);
+    car_obstacle_uart_accepting = car_control_state.follow_session_active &&
+        car_control_state.manual_run_request &&
+        car_control_state.mode == CAR_MODE_FOLLOW_RUNNING &&
+        !car_control_state.obstacle.active && !car_control_state.fault_latched &&
+        car_control_state.fault == CAR_FAULT_NONE &&
+        !car_control_state.isr_stop_request && !car_control_state.isr_release_seen &&
+        !manual_run_button.stop_pending;
+    if (pending && car_obstacle_uart_accepting &&
+        (uint32_t)(now_ms - timestamp) < app_config.vision_timeout_ms) {
+        car_control_state.obstacle_trigger = 1;
+        /* Close immediately, including the interval before the next tick. */
+        car_obstacle_uart_accepting = 0;
+    }
+    car_control_state.obstacle_forward_millirev = session_mean_forward_millirev;
+    car_control_state.obstacle_odometry_valid = odometry_have_baseline &&
+        speed_observer_result.valid &&
+        (uint32_t)(now_ms - speed_observer_result.sample_ms) <= CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS;
+    car_obstacle_phase = car_control_state.obstacle.state;
+    car_obstacle_error = car_control_state.obstacle.error;
+    car_obstacle_distance_millirev = car_control_state.obstacle.distance_millirev;
+    car_obstacle_heading_target_mdeg = car_control_state.obstacle.heading_target_mdeg;
+}
+void UART4_IRQHandler(void)
+{
+    uint8_t budget = 16;
+    while (budget--) {
+        uint32_t status = UART4->ISR;
+        uint8_t byte;
+        if (status & (USART_ISR_PE | USART_ISR_FE | USART_ISR_NE | USART_ISR_ORE)) {
+            UART4->ICR = USART_ICR_PECF | USART_ICR_FECF | USART_ICR_NECF | USART_ICR_ORECF;
+            UART4->RQR = USART_RQR_RXFRQ;
+            ++car_obstacle_uart_errors;
+            break;
+        }
+        if (!(status & USART_ISR_RXNE_RXFNE)) break;
+        byte = (uint8_t)UART4->RDR;
+        if (byte != (uint8_t)'R') continue;
+        ++car_obstacle_uart_received;
+        if (!car_obstacle_uart_accepting || obstacle_rx_pending ||
+            car_control_state.obstacle.active || !car_control_state.manual_run_request ||
+            !car_control_state.follow_session_active || car_control_state.fault_latched ||
+            car_control_state.fault != CAR_FAULT_NONE || car_control_state.isr_stop_request ||
+            car_control_state.isr_release_seen || manual_run_button.stop_pending) {
+            ++car_obstacle_uart_ignored; continue;
+        }
+        obstacle_rx_ms = HAL_GetTick();
+        __DMB(); obstacle_rx_pending = 1;
+    }
+}
+#endif
+
 #if CARTEST_WIRELESS_ENABLED
 static uint32_t wireless_last_cpr_left, wireless_last_cpr_right;
 static int8_t wireless_last_sign_left, wireless_last_sign_right;
@@ -4421,6 +4522,10 @@ int main(void)
     if(wireless_uart2_init()!=HAL_OK) init_failure(CAR_FAULT_UART,CAR_INIT_ERROR_USART1_VERIFY,HAL_ERROR);
     car_wireless_init(HAL_GetTick(),HAL_GetUIDw0()^HAL_GetUIDw1()^SysTick->VAL^DWT->CYCCNT);
 #endif
+#if CARTEST_RED_OBSTACLE_ENABLED
+    if (obstacle_uart4_init() != HAL_OK)
+        init_failure(CAR_FAULT_UART, CAR_INIT_ERROR_USART1_VERIFY, HAL_ERROR);
+#endif
     car_reverse_control_init(&reverse_control_tx, HAL_GetTick());
     reverse_control_ready = 1u;
     reverse_control_seen_generation =
@@ -4546,6 +4651,9 @@ int main(void)
         cancel_manual_request_on_fault();
         consume_manual_stop_request(&inputs);
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
+#if CARTEST_RED_OBSTACLE_ENABLED
+        service_obstacle_input(now_ms);
+#endif
 #if CARTEST_RUNTIME_LOG_ENABLED
         uint8_t servo_ack_before_tick = car_control_state.fault_latched;
         mode_before_tick = car_control_state.mode;
@@ -4590,6 +4698,9 @@ int main(void)
         cancel_manual_request_on_fault();
         consume_manual_stop_request(&inputs);
         inputs = make_inputs(now_ms, raw_high, loop_gap_fault);
+#if CARTEST_RED_OBSTACLE_ENABLED
+        service_obstacle_input(now_ms);
+#endif
         servo_ack_before_tick = car_control_state.fault_latched;
 #if CARTEST_RUNTIME_LOG_ENABLED
         mode_before_tick = car_control_state.mode;
