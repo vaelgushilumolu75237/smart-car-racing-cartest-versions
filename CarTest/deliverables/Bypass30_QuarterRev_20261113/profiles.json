@@ -15,8 +15,8 @@
       "ring_turn_servo_percent": 100,
       "ring_exit_progress_mdeg": 0,
       "gyro_authority": false,
-      "elf_sha256": "27993e399bd255e1b9fe84ad1d84c083439b50ac0bc2a91075c8359b46fb564d",
-      "build_id": "2d4b492792a72bcfdeaa6afb1e7814b9",
+      "elf_sha256": "40211a1275578ccd1a33f18dabe065066e5dae4c8fc81bab8221a1f023c76321",
+      "build_id": "cd53d76b270848901fd979ad1d0d9d91",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -33,8 +33,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 340000,
       "gyro_authority": true,
-      "elf_sha256": "ef0f881f748728cca679991f32cfa6cf6426568a46e6d0d33c878411542b7e6d",
-      "build_id": "60ec870e4bec4ae7fcb64e63fe8768e6",
+      "elf_sha256": "6aa582b164755844541dadbf3f952f22675523c676add20a9c2164da1b0feff6",
+      "build_id": "5fc7bda180e29d4ee18a663f63b90a25",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -51,8 +51,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 340000,
       "gyro_authority": true,
-      "elf_sha256": "1211f146a8c5ef4dc92a36d286e812dfb77d35dd517891ca867892dd381efebe",
-      "build_id": "ecc2a499f8990e34b1a3b4accffb1c12",
+      "elf_sha256": "5718991a94be0ea364d62f95aadc43f68f315cd4e4a6442eec2279d92c49dda9",
+      "build_id": "6cd2fe05e49c4c4b7e14d666c868ed9c",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -69,8 +69,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 340000,
       "gyro_authority": true,
-      "elf_sha256": "0423eac6ceef319b8eeaf3d776cfaff089c3d9a4ad3e4ed33ef9bbcbbfc4e241",
-      "build_id": "3bc78d3c1713b450b9c8b4c8368224ea",
+      "elf_sha256": "8d51bef9647988ae9b0790f39fd3b64508487fda8101f87238966a5ec397f89b",
+      "build_id": "6b4da60b0b420938dda50e933f7968e5",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -87,8 +87,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 340000,
       "gyro_authority": true,
-      "elf_sha256": "4ab14e3e29788c9d3742de1aa2ceb76f32550147a96ebeae9264fb19f3b0c50c",
-      "build_id": "9c54a6de8962fec238fabb96a45a90a0",
+      "elf_sha256": "b775e30e9a60aa24519ba75df88e5414019742c75b7f8fc8e85e6d3dd8c0062a",
+      "build_id": "092aa53b270e7d62c736e7858df39f56",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -105,8 +105,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 340000,
       "gyro_authority": true,
-      "elf_sha256": "dff1ad2f2e0c6f88f99d097d6abcb443543e9d4bdedc1fda59eb6512aef6186f",
-      "build_id": "7ec26246fcdd7aec1d9612d1251afcfa",
+      "elf_sha256": "d61770efb59d00bbe1c3fa77904b0d18ca099c7392c0cd9a90ad4cae24fd82d0",
+      "build_id": "62f5eb3a78b37f6e307c6d459a45abbc",
       "hardware_acceptance": "pending_manual_tests"
     }
   ],

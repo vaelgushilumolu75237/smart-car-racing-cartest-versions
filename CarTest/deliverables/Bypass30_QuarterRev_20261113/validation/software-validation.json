@@ -2,6 +2,7 @@
   "all_required_checks_passed": true,
   "hardware_tested": false,
   "hardware_actions": "none",
+  "publication": "local_only_user_requested",
   "arm_builds": [
     {
       "preset": "DebugFastNoRing",
@@ -31,18 +32,17 @@
   "obstacle_tests": {
     "exit_code": 0,
     "python_cases": 8,
-    "c_profiles": 6,
-    "actual_state_and_authority": true
+    "c_profiles": 6
   },
   "relative_turn_degrees": [
-    45,
-    -45,
-    -45,
-    45
+    30,
+    -30,
+    -30,
+    30
   ],
   "diagonal_mean_wheel_revolutions": [
-    0.5,
-    0.5
+    0.25,
+    0.25
   ],
   "red_pixels_strictly_greater_than": 1536,
   "moving_recovery": true
