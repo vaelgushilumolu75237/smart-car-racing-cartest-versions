@@ -3,15 +3,18 @@
 namespace {
 
 uint8_t valid_fields(const vp_frame* frame,
-                     uint8_t validate_profile_ack) {
+                     uint8_t version) {
+    const uint8_t allowed = VP_FLAG_ALLOWED_MASK |
+        (version == VP_VERSION_V4 ? VP_FLAG_MARKER_MASK : 0u);
     if (frame == 0 ||
-        (frame->flags & static_cast<uint8_t>(~VP_FLAG_ALLOWED_MASK)) != 0u ||
-        (validate_profile_ack != 0u &&
-         frame->profile_ack > VP_PROFILE_ACK_MAX))
+        (frame->flags & static_cast<uint8_t>(~allowed)) != 0u ||
+        (version >= VP_VERSION_V3 && frame->profile_ack > VP_PROFILE_ACK_MAX) ||
+        ((frame->flags & VP_FLAG_MARKER_PRESENT) &&
+         !(frame->flags & VP_FLAG_MARKER_KNOWN)))
         return 0u;
 
     if ((frame->flags & VP_FLAG_VALID) == 0u) {
-        return frame->flags == 0u && frame->confidence == 0u &&
+        return (frame->flags & VP_FLAG_ALLOWED_MASK) == 0u && frame->confidence == 0u &&
                        frame->lateral_error == 0 &&
                        frame->curve_phase == VP_CURVE_PHASE_STRAIGHT &&
                        frame->slowdown_request_permille == 0u
@@ -45,7 +48,7 @@ void write_crc(uint8_t bytes[VP_FRAME_SIZE]) {
 uint8_t pack_version(const vp_frame* frame, uint8_t version,
                      uint8_t out[VP_FRAME_SIZE]) {
     if (frame == 0 || out == 0 ||
-        !valid_fields(frame, version >= VP_VERSION_V3 ? 1u : 0u) ||
+        !valid_fields(frame, version) ||
         (version != VP_VERSION_V2 && version != VP_VERSION_V3 && version != VP_VERSION_V4))
         return 0u;
 
@@ -189,7 +192,7 @@ vp_status vp_unpack_ex(const uint8_t in[VP_FRAME_SIZE], vp_frame* frame) {
                                 ? in[11] : VP_PROFILE_ACK_UNKNOWN;
     candidate.slowdown_request_permille = static_cast<uint16_t>(in[12]) |
         (static_cast<uint16_t>(in[13]) << 8);
-    if (!valid_fields(&candidate, in[2] >= VP_VERSION_V3 ? 1u : 0u))
+    if (!valid_fields(&candidate, in[2]))
         return VP_STATUS_BAD_FIELDS;
 
     *frame = candidate;

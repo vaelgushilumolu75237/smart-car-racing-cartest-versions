@@ -127,6 +127,9 @@ CONTOUR_RECOVERY_ENABLED = True  # Bounded Python fallback for eligible path mis
 FRAME_SIZE_NAME = "QVGA"
 IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 120
+# Existing 80x60 min-pooled luma: raw x=48..271, y=96..119.
+# Four horizontal bands test dark/white texture, never count individual bars.
+BLACK_MARKER_GRID_ROI = (12, 48, 56, 12)
 SENSOR_WINDOW_X = 0
 SENSOR_WINDOW_Y = 60
 AUTO_EXPOSURE = True

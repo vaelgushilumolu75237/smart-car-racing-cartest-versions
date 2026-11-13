@@ -1,0 +1,70 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "hardware_actions": "none",
+  "marker_stop": {
+    "passes": 3,
+    "absent_frames": 3,
+    "delay_ms": 1000,
+    "scan_max_grid_cells": 672,
+    "latch_clear": "H743 reset or power cycle only"
+  },
+  "h743_builds": [
+    {
+      "preset": "DebugFastNoRing",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingBase",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFast",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed120",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed130",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed140",
+      "exit_code": 0
+    }
+  ],
+  "tests": {
+    "marker_control_protocol": {
+      "profiles": 6,
+      "exit_code": 0
+    },
+    "openmv": {
+      "tests": 571,
+      "skipped": 4,
+      "exit_code": 0
+    },
+    "obstacle": {
+      "profiles": 6,
+      "exit_code": 0
+    },
+    "wireless_runtime": {
+      "exit_code": 0
+    },
+    "legacy_host": {
+      "cases": 72,
+      "assertions": 7713,
+      "failures": 0,
+      "vectors": 13,
+      "exit_code": 0,
+      "runner_note": "Existing ASCII batch runner cannot encode live Chinese workspace path; regenerated its private temporary batch in UTF-8 and successfully replayed original assertions. Live runner source unchanged."
+    }
+  },
+  "fps": {
+    "new_frame_rate_limit": false,
+    "extra_full_frame_scan": false,
+    "hardware_before_after_measured": false
+  },
+  "preserved_source_zip": "logs\\restoration\\before-third-marker-20261113-201210\\source-config-paired-elf.zip"
+}

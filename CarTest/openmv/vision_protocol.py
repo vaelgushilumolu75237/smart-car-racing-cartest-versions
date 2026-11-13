@@ -10,6 +10,8 @@ VERSION_DIAGNOSTIC = 0xD1
 PAYLOAD_LENGTH = 8
 FLAG_VALID = 0x01
 FLAG_SLOPE_HINT = 0x02
+FLAG_MARKER_KNOWN = 0x04
+FLAG_MARKER_PRESENT = 0x08
 KNOWN_FLAGS_MASK = FLAG_VALID | FLAG_SLOPE_HINT
 MAX_CONFIDENCE = 100
 MIN_LATERAL_ERROR = -1000
@@ -190,15 +192,22 @@ def pack_into_v3(out, sequence, valid, confidence, lateral_error,
 
 def pack_into_v4(out, sequence, valid, confidence, lateral_error,
                  slope_hint=0, curve_phase=0, slowdown_request_permille=0,
-                 profile_ack=0, ring_phase=0, ring_side=0, ordinary_route=0):
+                 profile_ack=0, ring_phase=0, ring_side=0, ordinary_route=0,
+                 marker_present=None):
     """V4 retains V3 fields and packs gyro evidence in the unused byte-10 bits."""
     if (ring_phase not in (0, 1, 2) or ring_side not in (-1, 0, 1) or
             (ring_phase == 0) != (ring_side == 0) or
             ordinary_route not in (0, 1) or (ordinary_route and not valid)):
         raise ValueError("invalid gyro evidence")
+    if marker_present is not None and marker_present not in (0, 1):
+        raise ValueError("marker_present must be None, 0 or 1")
     pack_into_v3(out, sequence, valid, confidence, lateral_error,
                  slope_hint, curve_phase, slowdown_request_permille, profile_ack)
     out[2] = VERSION_V4
+    if marker_present is not None:
+        out[6] |= FLAG_MARKER_KNOWN
+        if marker_present:
+            out[6] |= FLAG_MARKER_PRESENT
     side_code = 1 if ring_side < 0 else 2 if ring_side > 0 else 0
     out[10] = curve_phase | (ring_phase << 2) | (side_code << 4) | (ordinary_route << 6)
     crc = _crc16_ccitt_false_range(out, 2, 14)

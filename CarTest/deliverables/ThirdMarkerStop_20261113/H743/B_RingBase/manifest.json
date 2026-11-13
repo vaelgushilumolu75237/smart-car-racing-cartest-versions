@@ -1,0 +1,18 @@
+{
+  "label": "B_RingBase",
+  "preset": "DebugRingBase",
+  "profile_id": 2,
+  "speed_percent": 100,
+  "straight_target_millirps": 4800,
+  "curve_outer_target_millirps": 4000,
+  "ring_outer_target_millirps": 1500,
+  "ring_rate_mdps": 64935,
+  "ring_exit_outer_target_millirps": 4000,
+  "ring_entry_straight_ms": 1100,
+  "ring_turn_servo_percent": 187.5,
+  "ring_exit_progress_mdeg": 340000,
+  "gyro_authority": true,
+  "elf_sha256": "ec3dd1b43a92835e4de57060af87b80fecfb88098a72cee773750962bec8efa4",
+  "build_id": "f9b60ec997b7e7743283d5d9a019eafb",
+  "hardware_acceptance": "pending_manual_tests"
+}

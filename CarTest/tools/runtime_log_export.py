@@ -103,6 +103,7 @@ FAULT_NAMES = {
     16: "imu",
     17: "gyro_ring",
     18: "obstacle",
+    19: "finish_marker",
 }
 STOP_REASON_NAMES = {
     1: "manual_stop",

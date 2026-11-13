@@ -7495,10 +7495,12 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
 
         masks_start_us = time.ticks_us()
         mask_info = None
+        marker_present = None
         detector_error = None
         if image_size_valid:
             try:
                 mask_info = gray_builder.build(img)
+                marker_present = gray_builder.black_marker_present()
                 prior_ring = element_tracker.result
                 if (reverse_fresh and reverse_parser.profile_session_active and
                         prior_ring.get("profile_id") in (2, 3) and
@@ -8309,7 +8311,7 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 0, curve_phase if valid else 0,
                 slowdown_request_permille if valid else 0,
                 profile_ack, gyro_state["phase"], gyro_state["side"],
-                gyro_state["ordinary"])
+                gyro_state["ordinary"], marker_present=marker_present)
             packet_ready_us = time.ticks_us()
             packet_ready_age_us = time.ticks_diff(
                 packet_ready_us, cycle_start_us)
@@ -8365,7 +8367,8 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
                 weight_info["steering_error"] = 0
                 weight_info["heading_contribution"] = 0
                 vision_protocol.pack_into_v4(
-                    packet, sequence, 0, 0, 0, 0, 0, 0, profile_ack)
+                    packet, sequence, 0, 0, 0, 0, 0, 0, profile_ack,
+                    marker_present=marker_present)
             if len(packet) < vision_protocol.FRAME_SIZE:
                 raise ValueError("vision_protocol returned a short V4 frame")
             write_attempts = 1

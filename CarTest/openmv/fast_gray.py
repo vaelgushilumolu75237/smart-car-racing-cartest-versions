@@ -31,7 +31,8 @@ except ImportError:
     micropython = _MicroPythonHostShim()
     # Names used in Viper signatures are builtins on MicroPython.  The host
     # shim needs placeholders only so CPython can import these definitions.
-    ptr8 = int
+    def ptr8(buffer):
+        return buffer
     ptr32 = int
 
 try:
@@ -1042,6 +1043,30 @@ def _pixel_luma(pixel):
     return value
 
 
+@micropython.viper
+def _black_marker_scan(luma_object, threshold: int, x0: int, y0: int,
+                       width: int, height: int) -> int:
+    """At most 672 existing grid cells; no image processing or allocation."""
+    luma = ptr8(luma_object)
+    band_width = width // 4
+    for y in range(y0, y0 + height):
+        band = 0
+        while band < 4:
+            dark = 0
+            start = y * 80 + x0 + band * band_width
+            for x in range(start, start + band_width):
+                if luma[x] <= threshold:
+                    dark += 1
+            # Distributed short dark marks with intervening white gaps.
+            # Reject ordinary edge lines, uniform shadows and solid bars.
+            if dark < 2 or dark > band_width - 2:
+                break
+            band += 1
+        if band == 4:
+            return 1
+    return 0
+
+
 class FastGrayMasks:
     """Build reusable Otsu masks from one fixed grayscale camera frame.
 
@@ -1053,6 +1078,13 @@ class FastGrayMasks:
     """
 
     def __init__(self, settings, debug=False):
+        self._marker_roi = getattr(settings, "BLACK_MARKER_GRID_ROI",
+                                   (12, 48, 56, 12))
+        mx, my, mw, mh = self._marker_roi
+        if (mx < 0 or my < 46 or mw < 16 or mw > 56 or mw % 4 or
+                mh < 1 or mh > 12 or mx + mw > 80 or my + mh > 60):
+            raise ValueError("black marker ROI must fit the bottom threshold block")
+        self._marker_fallback = getattr(settings, "LEGACY_BLACK_THRESHOLD", 55)
         self.width = getattr(settings, "SURFACE_GRID_WIDTH", 80)
         self.height = getattr(settings, "SURFACE_GRID_HEIGHT", 60)
         self.floor = getattr(settings, "SURFACE_ROI_FLOOR_Y", 8)
@@ -1528,6 +1560,15 @@ class FastGrayMasks:
                 self.width, self.height, self._block_count)
 
     @micropython.native
+    def black_marker_present(self):
+        """Reuse this frame's luma and bottom-block Otsu threshold."""
+        threshold = self.thresholds[-1]
+        if threshold is None:
+            threshold = self._marker_fallback
+        x, y, width, height = self._marker_roi
+        return _black_marker_scan(self.luma, int(threshold),
+                                  x, y, width, height)
+
     def build(self, image):
         """Return a single mask-info dictionary, reusing all large buffers."""
         sampling_source = self._read_frame(image)

@@ -73,7 +73,8 @@ typedef enum {
     CAR_FAULT_WATCHDOG_INIT,
     CAR_FAULT_IMU,
     CAR_FAULT_GYRO_RING,
-    CAR_FAULT_OBSTACLE
+    CAR_FAULT_OBSTACLE,
+    CAR_FAULT_FINISH_MARKER
 } car_fault_t;
 
 typedef enum {
@@ -286,6 +287,10 @@ typedef struct {
     uint16_t reverse_transport_last_sequence;
     uint32_t reverse_transport_last_arrival_ms;
     uint8_t reverse_transport_have_sequence;
+    /* Retained through stops/recovery; cleared only by controller init/reset. */
+    uint8_t marker_count, marker_present, marker_absent_frames;
+    uint8_t marker_stop_pending, marker_stop_latched;
+    uint32_t marker_left_ms;
 #if CARTEST_GYRO350_ENABLED
     car_gyro_ring_t gyro;
     uint8_t imu_ready, imu_fault, gyro_camera_phase, gyro_ordinary;

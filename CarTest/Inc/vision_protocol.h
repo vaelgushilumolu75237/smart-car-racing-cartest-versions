@@ -20,6 +20,10 @@ extern "C" {
 #define VP_FLAG_VALID 0x01u
 #define VP_FLAG_SLOPE_HINT 0x02u
 #define VP_FLAG_ALLOWED_MASK (VP_FLAG_VALID | VP_FLAG_SLOPE_HINT)
+/* V4 only: independent image observation, including invalid-route frames. */
+#define VP_FLAG_MARKER_KNOWN 0x04u
+#define VP_FLAG_MARKER_PRESENT 0x08u
+#define VP_FLAG_MARKER_MASK (VP_FLAG_MARKER_KNOWN | VP_FLAG_MARKER_PRESENT)
 #define VP_MAX_CONFIDENCE 100u
 #define VP_MIN_LATERAL_ERROR (-1000)
 #define VP_MAX_LATERAL_ERROR 1000

@@ -963,6 +963,8 @@ class SteeringDiagAlgorithmFreezeTests(unittest.TestCase):
             "USB_PREVIEW_BUILD_ID", "PREVIEW_FPS_MARKER_ENABLED",
             "AUTO_BOOT_WIDTH_CALIBRATION",
             "AUTO_BOOT_WIDTH_CALIBRATION_PROFILE_IDS",
+            # Additive finish-marker ROI; all existing vision settings frozen.
+            "BLACK_MARKER_GRID_ROI",
         }
         changed_assignments = {
             "BUILD_ID", "FRAME_SIZE_NAME", "IMAGE_WIDTH",

@@ -219,6 +219,7 @@ static uint8_t is_hard_fault(car_fault_t fault)
     case CAR_FAULT_IMU:
     case CAR_FAULT_GYRO_RING:
     case CAR_FAULT_OBSTACLE:
+    case CAR_FAULT_FINISH_MARKER:
     case CAR_FAULT_WATCHDOG_INIT:
         return 1u;
     default:
@@ -910,6 +911,35 @@ void car_control_on_vision_frame_at_with_flags_curve_and_profile(
         protocol_version, profile_ack, arrival_ms, now_ms, pe7_raw_high, 0u, 0, 0u);
 }
 
+/* Called once per fresh CRC/sequence/age-validated camera frame. Route
+   validity is independent: black paint may temporarily hide normal borders. */
+static void observe_finish_marker(car_control_t *control, uint8_t flags,
+                                  uint32_t arrival_ms, uint8_t consecutive)
+{
+    if (control->marker_stop_pending || control->marker_stop_latched) return;
+    if (!control->follow_session_active || !control->manual_run_request ||
+        !(flags & VP_FLAG_MARKER_KNOWN)) {
+        control->marker_absent_frames = 0u;
+        return;
+    }
+    if (flags & VP_FLAG_MARKER_PRESENT) {
+        if (!control->marker_present && control->marker_count < 3u)
+            ++control->marker_count;
+        control->marker_present = 1u;
+        control->marker_absent_frames = 0u;
+    } else if (control->marker_present) {
+        if (!consecutive) control->marker_absent_frames = 0u;
+        if (++control->marker_absent_frames >= 3u) {
+            control->marker_present = 0u;
+            control->marker_absent_frames = 0u;
+            if (control->marker_count == 3u) {
+                control->marker_stop_pending = 1u;
+                control->marker_left_ms = arrival_ms;
+            }
+        }
+    }
+}
+
 void car_control_on_vision_frame_at_with_ring(
     car_control_t *control,
     const car_config_t *config,
@@ -925,7 +955,7 @@ void car_control_on_vision_frame_at_with_ring(
     uint32_t now_ms,
     uint8_t pe7_raw_high, uint8_t ring_phase, int8_t ring_side, uint8_t ordinary_route)
 {
-    uint16_t delta;
+    uint16_t delta = 1u;
     uint32_t interval;
     uint32_t queue_age;
     uint8_t valid = (flags & VP_FLAG_VALID) != 0u ? 1u : 0u;
@@ -1010,6 +1040,8 @@ void car_control_on_vision_frame_at_with_ring(
     control->vision_have_frame_sequence = 1u;
     control->vision_last_frame_sequence = sequence;
     control->vision_last_frame_alive_ms = arrival_ms;
+    observe_finish_marker(control, protocol_version == VP_VERSION_V4 ? flags : 0u,
+                          arrival_ms, delta == 1u);
 #if CARTEST_GYRO350_ENABLED
     control->gyro_camera_phase = protocol_version == VP_VERSION_V4 ? ring_phase : 0u;
     control->gyro_camera_side = protocol_version == VP_VERSION_V4 ? ring_side : 0;
@@ -1591,7 +1623,8 @@ static void acknowledge_hard_fault(car_control_t *control,
                                    const car_config_t *config,
                                    const car_inputs_t *inputs)
 {
-    if (hard_inputs_clear(control, config, inputs) == 0u ||
+    if (control->marker_stop_latched ||
+        hard_inputs_clear(control, config, inputs) == 0u ||
         inputs->pe7_raw_high == 0u || inputs->pe7_high_stable == 0u) {
         control->hard_ack_press_seen = 0u;
         return;
@@ -1655,6 +1688,12 @@ void car_control_tick(car_control_t *control,
     uint32_t ramped;
 
     if (control == 0 || inputs == 0) {
+        return;
+    }
+    if (control->marker_stop_latched || (control->marker_stop_pending &&
+        (uint32_t)(inputs->now_ms - control->marker_left_ms) >= 1000u)) {
+        control->marker_stop_latched = 1u;
+        enter_hard_fault(control, CAR_FAULT_FINISH_MARKER);
         return;
     }
     control->manual_run_request = inputs->manual_run_request != 0u ? 1u : 0u;
