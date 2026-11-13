@@ -104,7 +104,7 @@ static uint8_t car_control_follow_authority_ready(const car_control_state_t *s,
             exe = temp / f"test{tune}.exe"
             defines = dict(CARTEST_RING_TUNE=tune, CARTEST_TRACK_PROFILE=3,
                 CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS=5600,
-                CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS=4400,
+                CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS=5100 if tune == 4 else 4400,
                 CARTEST_FOLLOW_SPEED_PI_ENABLED=1, CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=1,
                 CARTEST_ACKERMANN_COORDINATION_ENABLED=1, CARTEST_GYRO350_ENABLED=1,
                 CARTEST_RED_OBSTACLE_ENABLED=1, CARTEST_FOLLOW_TURN_PROFILE_COMPILED=1,

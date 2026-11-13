@@ -15,10 +15,16 @@
 #error "CARTEST_TRACK_PROFILE must be 0 (legacy) or 1, 2, 3 (paired profiles)."
 #endif
 
+#if defined(CARTEST_RING_TUNE) && CARTEST_RING_TUNE == 4
+#define CARTEST_EXPECTED_CURVE_MILLIRPS 5100u
+#else
+#define CARTEST_EXPECTED_CURVE_MILLIRPS 4400u
+#endif
+
 #if (CARTEST_TRACK_PROFILE == 1 || CARTEST_TRACK_PROFILE == 3)
 #if CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS != 5600u || \
-    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS != 4400u
-#error "Track profiles A and C require 5600/4400 milli-RPS targets."
+    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS != CARTEST_EXPECTED_CURVE_MILLIRPS
+#error "Track profiles A and C require 5600 and the selected curve target."
 #endif
 #else
 #if CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS != 4800u || \

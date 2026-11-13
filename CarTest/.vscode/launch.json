@@ -2,11 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "7.6直道提速完赛版 | 7.6rps | 282deg/s | exit280deg",
+      "name": "7.6终极版 | 直道7.6 / 弯道5.1 | 282deg/s | exit280deg",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: 7.6直道提速完赛版 | 7.6rps | 282deg/s | exit280deg",
+      "preLaunchTask": "Build: 7.6终极版 | 直道7.6 / 弯道5.1 | 282deg/s | exit280deg",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "1000",
       "serverReset": "Software system reset",

@@ -275,7 +275,7 @@ try {
         $expectedProfileFlags[$trackPreset]['CARTEST_ENABLE_GYRO350'] = 'ON'
         $expectedProfileFlags[$trackPreset]['CARTEST_ENABLE_WIRELESS'] = 'ON'
         $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4800' } else { '5600' }
-        $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } else { '4400' }
+        $expectedProfileFlags[$trackPreset]['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($trackPreset -eq 'DebugRingBase') { '4000' } elseif ($trackPreset -eq 'DebugRingFastLimit2') { '5100' } else { '4400' }
     }
     $expectedProfileFlags['DebugMotorMaxSpeed'] = @{
         CARTEST_ENABLE_MOTOR_MAX_TEST = 'ON'; CARTEST_ENABLE_BENCH = 'OFF';
@@ -351,7 +351,7 @@ try {
     $expectedDefines['CARTEST_SPEED_PERCENT'] = $expectedSpeedPercent
     $expectedDefines['CARTEST_TRACK_PROFILE'] = if ($trackProfileIds.ContainsKey($Preset)) { $trackProfileIds[$Preset] } else { '0' }
     $expectedDefines['CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS'] = if ($Preset -in @('DebugRingFast', 'DebugRingFastLimit', 'DebugRingFastLimit2')) { '5600' } else { '4800' }
-    $expectedDefines['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($Preset -in @('DebugRingFast', 'DebugRingFastLimit', 'DebugRingFastLimit2')) { '4400' } else { '4000' }
+    $expectedDefines['CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS'] = if ($Preset -eq 'DebugRingFastLimit2') { '5100' } elseif ($Preset -in @('DebugRingFast', 'DebugRingFastLimit')) { '4400' } else { '4000' }
     foreach ($defineName in $expectedDefines.Keys) {
         $expectedDefine = "-D$defineName=$($expectedDefines[$defineName])"
         if (-not ([string]$mainCompile.command).Contains($expectedDefine)) {

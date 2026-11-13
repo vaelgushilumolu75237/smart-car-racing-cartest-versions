@@ -15,8 +15,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 280000,
       "gyro_authority": true,
-      "elf_sha256": "0081e8743bc6e5b49fb458e3ebcaf82097e26172f657d5e30eb5ff7d25fa3715",
-      "build_id": "30a9f74a2f847d91275f3ffbcadf3a83",
+      "elf_sha256": "064a1f2e5e2669e9cd7a1fc49c93f5e919c95b6965780d7a0892b54ca33060af",
+      "build_id": "b89db47bb2ed5eee5778a488190a9e4d",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -33,8 +33,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 280000,
       "gyro_authority": true,
-      "elf_sha256": "54dfba45a3e365178c9c4939de27af747901bf0b1c1bf142436901ded7c095bf",
-      "build_id": "c197ca9529f7dcb984a2fb5ec243e918",
+      "elf_sha256": "235eebbd9c016cb377fe298b9fe1df0a7edd2836d5c9be9121c5f94e07f043d2",
+      "build_id": "e0955d6c188ba6b56cce5ea6e4b34a4c",
       "hardware_acceptance": "pending_manual_tests"
     },
     {
@@ -43,7 +43,7 @@
       "profile_id": 3,
       "speed_percent": 100,
       "straight_target_millirps": 7600,
-      "curve_outer_target_millirps": 4400,
+      "curve_outer_target_millirps": 5100,
       "ring_outer_target_millirps": 7600,
       "ring_rate_mdps": 282000,
       "ring_exit_outer_target_millirps": 5280,
@@ -51,8 +51,8 @@
       "ring_turn_servo_percent": 187.5,
       "ring_exit_progress_mdeg": 280000,
       "gyro_authority": true,
-      "elf_sha256": "0646a0808602849c8cf22535dfa0717e10ad82aedfe1698e6e9ff3bea696b352",
-      "build_id": "a223d71e824169d3e9a0f2f913ed0113",
+      "elf_sha256": "8634d900c6cbafc2edea19a31704cd00d197d12ec89b81b8ed7caa05f77698c5",
+      "build_id": "ebb5902f8587e30506256c2153c52b3e",
       "hardware_acceptance": "pending_manual_tests"
     }
   ],

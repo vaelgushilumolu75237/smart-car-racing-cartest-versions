@@ -46,7 +46,7 @@ int main(void) {
     assert(out.left_target_millirps==EXPECTED_STRAIGHT);
     assert(car_ackermann_control_update(&ack,10,2,1000,1530,1530,1100,2500,&out));
     assert(car_ackermann_control_update(&ack,210,2,1000,1530,1530,1100,2500,&out));
-    assert(out.left_target_millirps==4400);
+    assert(out.left_target_millirps==EXPECTED_BEND);
     assert(car_ackermann_control_update(&ack,220,0,0,1530,1530,1100,2500,&out));
     assert(car_ackermann_control_update(&ack,1020,0,0,1530,1530,1100,2500,&out));
     assert(out.left_target_millirps==EXPECTED_STRAIGHT);

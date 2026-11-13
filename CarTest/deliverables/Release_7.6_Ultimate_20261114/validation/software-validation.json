@@ -1,0 +1,86 @@
+{
+  "hardware_tested": false,
+  "all_required_checks_passed": true,
+  "checks": [
+    {
+      "command": [
+        "python",
+        "tests/straight_start/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "python",
+        "tests/ring_profiles/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "tests.test_openmv_gyro_wireless_delivery"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build.ps1",
+        "-Preset",
+        "DebugRingFast"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build.ps1",
+        "-Preset",
+        "DebugRingFastLimit"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build.ps1",
+        "-Preset",
+        "DebugRingFastLimit2"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/build.ps1",
+        "-Preset",
+        "DebugMotorMaxSpeed"
+      ],
+      "exitcode": 0
+    }
+  ],
+  "user_report": "Current fastest vehicle result; lap time not provided"
+}

@@ -23,7 +23,7 @@ RED_NAMES = ("main.py", "settings.py", "red_detector.py", "startup.py")
 PROFILES = (
     ("C_RingFast", "DebugRingFast", 3, 100, 5600, 4400, 5280, 100000),
     ("C_Limit", "DebugRingFastLimit", 3, 100, 5600, 4400, 5280, 145000),
-    ("C_Limit2", "DebugRingFastLimit2", 3, 100, 7600, 4400, 5280, 282000),
+    ("C_Limit2", "DebugRingFastLimit2", 3, 100, 7600, 5100, 5280, 282000),
 )
 RING_TUNES = {"DebugRingFast": 0, "DebugRingFastLimit": 3, "DebugRingFastLimit2": 4}
 RING_SPEEDS = (2800, 3400, 3800, 4200, 7600)
@@ -74,7 +74,7 @@ def verify_cache(source, row):
                     CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI="ON",
                     CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
                     CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS="4800" if profile == 2 else "5600",
-                    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS="4000" if profile == 2 else "4400")
+                    CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS="5100" if preset == "DebugRingFastLimit2" else ("4000" if profile == 2 else "4400"))
     required["CARTEST_RING_TUNE"] = str(RING_TUNES[preset])
     if any(cache.get(k) != v for k, v in required.items()):
         raise ValueError("Wrong feature/profile build cache: " + preset)

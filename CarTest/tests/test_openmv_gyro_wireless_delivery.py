@@ -13,7 +13,7 @@ class GyroWirelessDeliveryTests(unittest.TestCase):
         self.assertEqual([r["ring_rate_mdps"] for r in rows], [100000,145000,282000])
         for row in rows:
             self.assertEqual(row["straight_target_millirps"], 7600 if row["preset"] == "DebugRingFastLimit2" else 5600)
-            self.assertEqual(row["curve_outer_target_millirps"], 4400)
+            self.assertEqual(row["curve_outer_target_millirps"], 5100 if row["preset"] == "DebugRingFastLimit2" else 4400)
             self.assertEqual(row["ring_exit_outer_target_millirps"], 5280)
             self.assertEqual(row["ring_entry_straight_ms"], {"DebugRingFast":1100,"DebugRingFastLimit":800,"DebugRingFastLimit2":700}[row["preset"]])
             self.assertEqual(row["ring_exit_progress_mdeg"], 280000)
