@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "patch_file": "0004-cartest-path-accel-module.patch",
+  "patch_sha256": "68ACFE9DE1DA89D03DBAF95C373EA0FA549B7D5C5146F8B0C3EFF08D31988524",
+  "series_position": 4,
+  "applies_after": {
+    "patch_file": "0003-cartest-accel-module.patch",
+    "patch_sha256": "D534F87231DFE87D4B200A3D8AA794367C506512485815D51E3B30757418D4F4"
+  },
+  "base": {
+    "repository": "https://github.com/openmv/openmv",
+    "tag": "v5.0.1",
+    "openmv_commit": "631681e5ac5ab332c920b6bf9cd3dba5cf299eac",
+    "micropython_commit": "dd984559aa42841908b78397b7dac32f57da803f",
+    "target": "OPENMV4P"
+  },
+  "module_linkage": {
+    "source_glob": "modules/micropython.mk: SRC_USERMOD += $(wildcard $(OMV_MOD_DIR)/*.c)",
+    "build_change": "none; the existing wildcard compiles the path accelerator C files and scans the binding QSTR/module registration"
+  },
+  "api": {
+    "module": "cartest_path_accel",
+    "API_VERSION": 1,
+    "exports": [
+      "extract_rows",
+      "connect_rows"
+    ]
+  },
+  "geometry": {
+    "width": 80,
+    "height": 60,
+    "candidate_stride": 4,
+    "state_stride": 10,
+    "max_per_row": 8,
+    "max_gap": 2
+  },
+  "files": {
+    "modules/cartest_path_accel_core.c": {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.c",
+      "source_sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1"
+    },
+    "modules/cartest_path_accel_core.h": {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.h",
+      "source_sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237"
+    },
+    "modules/py_cartest_path_accel.c": {
+      "source": "cartest_path_accel/binding/py_cartest_path_accel.c",
+      "source_sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78"
+    }
+  },
+  "deployment_eligible": false,
+  "hardware_validation": false
+}

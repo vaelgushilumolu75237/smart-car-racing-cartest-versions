@@ -1,0 +1,29 @@
+{
+  "baseline_tag": "v20261031-ring-exit-v26-r20",
+  "baseline_commit": "3cf91729c2670d3e721e9344a68bea3f9b464110",
+  "personal_review": "Primary model reviewed state admission, session/calibration/topology gates, current target certificate, invalid output path, C hold macro guards and build/pairing identity. No agents used.",
+  "changed_existing_runtime_or_tests": [
+    "Src/main.c",
+    "openmv/config.py",
+    "openmv/main.py",
+    "openmv/track_elements.py",
+    "openmv/tests/test_fast_main_ring_slope.py",
+    "openmv/tests/test_main_fast_duration_deadline.py",
+    "openmv/tests/test_ring_c_speed_request.py",
+    "openmv/tests/test_ring_exit_guidance.py",
+    "openmv/tests/test_ring_exit_single.py"
+  ],
+  "PE7_and_PI_implementation": "byte-identical to r20",
+  "camera_tests": {
+    "run": 509,
+    "skipped": 4,
+    "failures": 0,
+    "ground_raw_replay": "private raw fixture absent; not verified"
+  },
+  "H743_tests": "72 cases / 7713 assertions pass; separate actual C 3000ms / 300ms harness pass",
+  "build_presets": 15,
+  "camera_modules_cross_compiled": 23,
+  "road_acceptance": false,
+  "actual_IDE_60FPS_acceptance": false,
+  "hardware_actions": "none"
+}

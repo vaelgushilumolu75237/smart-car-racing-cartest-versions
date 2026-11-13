@@ -1,0 +1,10 @@
+{
+    "artifact":  "H743 uphill A baseline",
+    "profile":  "DebugFollowTurn",
+    "provenance":  "Byte-for-byte copy from the frozen pre-change uphill baseline snapshot; this artifact is not rebuilt by the A launch configuration.",
+    "source":  "test-data/uphill-20261019-baseline/source/build/DebugFollowTurn/CarTest.elf",
+    "file":  "CarTest.elf",
+    "size_bytes":  1951748,
+    "sha256":  "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d",
+    "hardware_validation":  "No new hardware validation was performed during packaging."
+}

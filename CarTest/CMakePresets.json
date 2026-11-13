@@ -1,0 +1,308 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "OFF",
+        "CARTEST_ENABLE_FOLLOW_TURN": "OFF",
+        "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "OFF",
+        "CARTEST_ENABLE_ACKERMANN_COORDINATION": "ON",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300",
+        "CARTEST_SPEED_PERCENT": "100"
+      }
+    },
+    {
+      "name": "Debug",
+      "displayName": "Debug - motors and servo PWM off",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CARTEST_ENABLE_BENCH": "OFF",
+        "CARTEST_ENABLE_FOLLOW": "OFF",
+        "CARTEST_ENABLE_STEERING": "OFF",
+        "CARTEST_HARDWARE_ACCEPTED": "OFF",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "0"
+      }
+    },
+    {
+      "name": "DebugSteering",
+      "displayName": "DebugSteering - motors off, vision auto-steering",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CARTEST_ENABLE_BENCH": "OFF",
+        "CARTEST_ENABLE_FOLLOW": "OFF",
+        "CARTEST_ENABLE_STEERING": "ON",
+        "CARTEST_HARDWARE_ACCEPTED": "OFF",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "0"
+      }
+    },
+    {
+      "name": "DebugBench",
+      "displayName": "DebugBench - motor output locked pending hardware acceptance",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CARTEST_ENABLE_BENCH": "ON",
+        "CARTEST_ENABLE_FOLLOW": "OFF",
+        "CARTEST_ENABLE_STEERING": "OFF",
+        "CARTEST_HARDWARE_ACCEPTED": "OFF",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "0"
+      }
+    },
+    {
+      "name": "DebugFollow",
+      "displayName": "DebugFollow - base 500; normal and hard 1000; diff 0; hold 2000 ms; decel 200 ms",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CARTEST_ENABLE_BENCH": "OFF",
+        "CARTEST_ENABLE_FOLLOW": "ON",
+        "CARTEST_ENABLE_STEERING": "OFF",
+        "CARTEST_HARDWARE_ACCEPTED": "ON",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "0",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200"
+      }
+    },
+    {
+      "name": "DebugFollowNoLog",
+      "displayName": "DebugFollowNoLog - base 500; normal and hard 1000; diff 0; hold 2000 ms; RAM log off",
+      "inherits": "DebugFollow",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_RUNTIME_LOG_ENABLED": "OFF"
+      }
+    },
+    {
+      "name": "DebugFollowDiff5",
+      "displayName": "DebugFollowDiff5 - base 500; d=50 permille; 1000 cap; 2000/200 ms hold/decel",
+      "inherits": "DebugFollow",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "50"
+      }
+    },
+    {
+      "name": "DebugFollowDiff10",
+      "displayName": "DebugFollowDiff10 - base 500; d=100 permille; 1000 cap; 2000/200 ms hold/decel",
+      "inherits": "DebugFollow",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "100"
+      }
+    },
+    {
+      "name": "DebugFollowTurn",
+      "displayName": "DebugFollowTurn - 70/30 target; 1000 cap; servo 120us/20ms; motor 40/10ms; hold 2000/200ms",
+      "inherits": "DebugFollow",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_TURN": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "200"
+      }
+    },
+    {
+      "name": "DebugFollowSpeedPI",
+      "displayName": "DebugFollowSpeedPI - positional encoder PI; target 2400 milli-RPS; 1000 cap; RAM log ON",
+      "inherits": "DebugFollowTurn",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "DebugFollowTurn65",
+      "displayName": "DebugFollowTurn65 - 65/35 turn target; base 500; servo 120 us; motor ramp 40/10 ms; hold 2000 ms; decel 200 ms; RAM log ON",
+      "inherits": "DebugFollowTurn",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "DebugFollowIncrementalPI",
+      "displayName": "DebugFollowIncrementalPI - Ackermann from applied PWM; vision slowdown; incremental encoder PI; servo 160us/20ms",
+      "inherits": "DebugFollowTurn65",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
+        "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "ON",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON"
+      }
+    },
+    {
+      "name": "DebugFollowIncrementalPIBaseline",
+      "displayName": "DebugFollowIncrementalPIBaseline - legacy 65/35 incremental encoder PI; coordination OFF; servo 120us/20ms",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_ACKERMANN_COORDINATION": "OFF"
+      }
+    },
+    {
+      "name": "DebugFastNoRing",
+      "displayName": "DebugFastNoRing - paired profile A; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "1",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
+      }
+    },
+    {
+      "name": "DebugRingBase",
+      "displayName": "DebugRingBase - paired profile B; 4800/4000 milli-RPS; 160us/20ms servo; incremental PI + Ackermann",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "2",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "4800",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
+      }
+    },
+    {
+      "name": "DebugRingFast",
+      "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann; r22 vision hold 3000ms / ramp 300ms",
+      "inherits": "DebugFollowIncrementalPI",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_TRACK_PROFILE": "3",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON"
+      }
+    },
+    {
+      "name": "DebugRingFastSpeed120",
+      "displayName": "r23 C +20% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "120"
+      }
+    },
+    {
+      "name": "DebugRingFastSpeed130",
+      "displayName": "r23 C +30% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "130"
+      }
+    },
+    {
+      "name": "DebugRingFastSpeed140",
+      "displayName": "r23 C +40% overall wheel targets",
+      "inherits": "DebugRingFast",
+      "cacheVariables": {
+        "CARTEST_SPEED_PERCENT": "140"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "Debug",
+      "configurePreset": "Debug",
+      "hidden": true
+    },
+    {
+      "name": "DebugSteering",
+      "configurePreset": "DebugSteering",
+      "hidden": true
+    },
+    {
+      "name": "DebugBench",
+      "configurePreset": "DebugBench",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollow",
+      "configurePreset": "DebugFollow",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowNoLog",
+      "configurePreset": "DebugFollowNoLog",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowDiff5",
+      "configurePreset": "DebugFollowDiff5",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowDiff10",
+      "configurePreset": "DebugFollowDiff10",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowTurn",
+      "configurePreset": "DebugFollowTurn",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowSpeedPI",
+      "configurePreset": "DebugFollowSpeedPI",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowTurn65",
+      "configurePreset": "DebugFollowTurn65",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowIncrementalPI",
+      "configurePreset": "DebugFollowIncrementalPI",
+      "hidden": true
+    },
+    {
+      "name": "DebugFollowIncrementalPIBaseline",
+      "configurePreset": "DebugFollowIncrementalPIBaseline",
+      "hidden": true
+    },
+    {
+      "name": "DebugFastNoRing",
+      "configurePreset": "DebugFastNoRing"
+    },
+    {
+      "name": "DebugRingBase",
+      "configurePreset": "DebugRingBase"
+    },
+    {
+      "name": "DebugRingFast",
+      "configurePreset": "DebugRingFast"
+    },
+    {
+      "name": "DebugRingFastSpeed120",
+      "configurePreset": "DebugRingFastSpeed120"
+    },
+    {
+      "name": "DebugRingFastSpeed130",
+      "configurePreset": "DebugRingFastSpeed130"
+    },
+    {
+      "name": "DebugRingFastSpeed140",
+      "configurePreset": "DebugRingFastSpeed140"
+    }
+  ]
+}

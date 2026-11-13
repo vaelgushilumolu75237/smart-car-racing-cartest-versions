@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "patch_file": "0004-cartest-path-accel-module.patch",
+  "patch_sha256": "68ACFE9DE1DA89D03DBAF95C373EA0FA549B7D5C5146F8B0C3EFF08D31988524",
+  "series_position": 4,
+  "applies_after": "0003-cartest-accel-module.patch",
+  "base": {
+    "repository": "https://github.com/openmv/openmv",
+    "tag": "v5.0.1",
+    "target": "OPENMV4P"
+  },
+  "sources": [
+    {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.c",
+      "destination": "modules/cartest_path_accel_core.c",
+      "bytes": 20735,
+      "sha256": "EA2562C2CCA191AF1524D1982F2037145708BDA8F7215AB725AC27BF35F5FBC1"
+    },
+    {
+      "source": "cartest_path_accel/core/cartest_path_accel_core.h",
+      "destination": "modules/cartest_path_accel_core.h",
+      "bytes": 1517,
+      "sha256": "970145189AB81A9432E5DE219FEE06F6D21860CDB9CF9280A70F06D947DA7237"
+    },
+    {
+      "source": "cartest_path_accel/binding/py_cartest_path_accel.c",
+      "destination": "modules/py_cartest_path_accel.c",
+      "bytes": 8242,
+      "sha256": "3AD6929E4E42039FD1DB02C778F4D91CBD94DAA5D4F0807EE8EBD29CC358AA78"
+    }
+  ],
+  "destination_files_are_new": true,
+  "deployment_eligible": false,
+  "hardware_validation": false
+}

@@ -1,0 +1,31 @@
+# Camera UART diagnostics v21 - wire contract
+
+Scope: paired with the PE7 three-state 1ms change; retain control parameters, V3 observation wire layout and profile ACK safety checks. Add compact diagnostic records via the already wired forward UART. No full images or V7DBG text forwarding. Hardware/FPS acceptance remains pending until separately measured.
+
+## Capability negotiation
+
+Reverse profile-state V2 revision1 byte7 gets optional bit1 (0x02): H743 supports camera diagnostics. Bit0 remains Follow-session-active; all other bits remain invalid. Keep the public legacy `car_reverse_profile_state_encode` boolean-session-active encoder byte-for-byte compatible with old vectors; production profile emission ORs bit1 and recomputes CRC. New cameras accept flags0..3, preserving bit0 session logic and freshness checks, and send diagnostic packets only while a recognized revision1 profile is fresh and capability bit1 is set. Old H743 never enables new-camera diagnostics. Old cameras reject new H743 capability flags and thus fail profile pairing closed; deploy this candidate as a paired update.
+
+## Forward frame
+
+Same fixed16byte framing as observations: A5 5A D1 08 seq_le16 payload8 crc_le16. CRC16/CCITT-FALSE covers bytes2..13. D1 is diagnostic-only; it must never reach commissioning observation handling, receive-FPS counts, control sequence handling, profile ACK confirmation, or vision/communication freshness. Independent diagnostic sequence. Invalid D1 CRC/fields increment a diagnostic reject counter; no diagnostic frame may authorize motion or clear a fault. Valid normal V2/V3 corruption retains existing fault handling.
+
+Payload kind1 STATUS: [1,flags,calibration_reason,observation_reason,reverse_reason,profiles,vision_sequence_lo,vision_sequence_hi]. Status flags: bit0 calibration map ready; bit1 parked check passed; bit2 reverse KEEP fresh; bit3 recognized profile fresh; bit4 calibration gate blocks actual transmission; bit5 actual transmitted observation valid; bit6 FIFO-writer API available; bit7 reserved0. profiles high nibble=raw recognized profile ACK0..3, low nibble=ACK actually sent0..3.
+
+Calibration codes: 0 UNKNOWN, 1 CALIBRATION_READY, 2 FILE_NOT_FOUND, 3 CRC_MISMATCH, 4 GEOMETRY_MISMATCH, 5 INVALID_CALIBRATION_DATA, 6 SENSOR_ID_MISMATCH, 7 NO_CALIBRATION, 8 INSUFFICIENT_SUPPORT, 9 OTHER. The passed flag independently reports successful parked width check.
+Observation codes: 0 UNKNOWN, 1 OK, 2 RING_CALIBRATION_REQUIRED, 3 DETECTOR_EXCEPTION, 4 FRAME_BUDGET, 5 NO_ROUTE, 6 SESSION_EXPIRED, 7 OTHER_REJECTED.
+Reverse codes: 0 STARTUP, 1 RESET, 2 KEEP, 3 CONTROL_TIMEOUT, 4 KEEP_WITHOUT_RESET, 5 UART_ERROR, 6 BAD_FRAME, 7 OTHER.
+
+Payload kind2 COUNTERS: [2,flags,vision_tx_errors_le16,detector_errors_le16,reverse_rejects_le16]. Counters saturate65535; flags bit0 signals at least one saturation; all other bits0. Include rejected reverse control/profile frames in reverse_rejects; never renew reverse leases from diagnostics.
+
+Payload kind3 IDENTITY: [3,1,build_code_le32,features_le16]. build_code=0x20261029, schema byte=1, features=1 (compact UART diagnostics), other feature bits reserved. This is a diagnostic build marker, not a cryptographic proof of all camera files or flashed firmware.
+
+## Camera scheduling
+
+The send opportunity is late in the cycle after normal overlay/debug/GC work; primary V3 completion timestamps stay unchanged. FIFO mode checks idle once and never waits; synchronous fallback requires22000us remaining (existing20ms write timeout plus2ms margin), FIFO mode1000us. State-change priority is bounded so counters cannot starve beyond three slots. One preallocated16byte packet at most once per1000ms; identity first, then alternate status/counters, preferring status on a state change without exceeding1Hz. A normal V3 frame must have been fully written first. No new sensor reads, no formatted text, no per-frame allocations for diagnostics. Use fresh actual outgoing ACK and observation validity (not raw reverse ACK). Skip diagnostics rather than delaying a failed/late primary frame. Check the existing cycle budget and UART mode. FIFO mode may send only when fifo_txdone is true, and must skip if busy; synchronous fallback adds one16byte serial write on sparse eligible cycles and must be reported honestly as nonzero overhead (nominal wire occupancy1.39ms at115200/8N1). No retry or busy wait. A diagnostic short write/exception counts/skips without changing normal control fields; next normal write still uses the existing control error handling. Include elapsed overhead in total-cycle timing. Record hardware performance as unverified.
+
+## H743 snapshot
+
+Define `g_camera_diag_snapshot` aligned32 in .bss as352 raw bytes; sole main-context writer inside car_vision diagnostics. Header96 + ring16records*16bytes. LE header offsets:0 magic0x47444943 ('CIDG');4 version_u16=1;6 size_u16=352;8 generation_u32 (odd while updating, even committed);12 CRC32_u32 (IEEE, this field treated zero, computed over all352bytes);16 accepted_count_u32;20 rejected_count_u32;24 latest_arrival_ms_u32;28 status_arrival_ms_u32;32 counters_arrival_ms_u32;36 latest_status_payload8;44 latest_counter_payload8;52 latest_sequence_u16;54 ring_count_u16<=16;56 ring_next_u16<16;58 seen_flags_u16 (bit0 status,bit1 counters,bit2 identity);60 overwritten_count_u32;64 latest_identity_payload8;72 identity_arrival_ms_u32;76..95 reserved0. Ring offset96; each record: arrival_ms_u32, diag_sequence_u16, reserved_u16=0, payload8. Latest state freshness is computed from current H743 heartbeat minus the relevant arrival time; stale at5000ms, no records means unavailable. Reject duplicate/rollback diagnostic sequence without refreshing; allow sequence baseline reset after>=5000ms absence or a receiver recovery flush while preserving record ages/history. Init creates coherent header/CRC with counts0. Publication is generation+CRC checked, bounded, and never used for control permission.
+
+ST-Link reader must retain strict selected-ELF ROM descriptor matching, read snapshot only if symbol is present, tolerate old ELFs without the symbol, verify size/version/even-generation/CRC/reserved/ring bounds and flag stale or unavailable explicitly. It should show both latest status and chronological bounded records. No fabricated sensor FPS or full-text-log claims.

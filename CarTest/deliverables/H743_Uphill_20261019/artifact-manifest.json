@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "batch_date": "2026-10-19",
+  "completed_date": "2026-10-20",
+  "generated_utc": "2026-10-19T23:15:04.308928+00:00",
+  "project": "CarTest STM32H743VIT6",
+  "source_inputs_sha256": "bae60e61c828a7a3640bc8d20e7230bafc8b4b3426ce1846daac47d2b18f97c2",
+  "build_summary": "build-summary.json",
+  "artifacts": {
+    "A": {
+      "profile": "DebugFollowTurn",
+      "delivery_path": "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+      "sha256": "667c95a7aef79b2630486faf7421a87e067ee582439dbcfad166d2203222718d",
+      "size_bytes": 1951748,
+      "build_id": "e50eb013247cb64999b512e9ad6e289e",
+      "configuration": {
+        "turn_profile": true,
+        "left_right_diff_permille": 200,
+        "inner_diff_permille": 200,
+        "base_speed_permille": 500,
+        "vision_hold_ms": 3000,
+        "vision_hold_decel_ramp_ms": 300,
+        "runtime_log_enabled": true,
+        "speed_pi_enabled": false,
+        "incremental_pi_enabled": false
+      },
+      "effective_compile_defines": null,
+      "launch": {
+        "name": "A - 当前基线 70%/30%（日志开启）",
+        "image_file": "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+        "symbol_file": "${workspaceFolder}/deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+        "preLaunchTask": null
+      },
+      "export_elf": "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+      "inspect_command": "python tools/runtime_log_export.py inspect --elf deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+      "decode_command_template": "python tools/runtime_log_export.py decode --elf deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf --raw <RAM_DUMP.bin> --out-csv <RUN.csv> --metadata <RUN.json>",
+      "runtime_log": {
+        "descriptor_sha256": "6b8d058da13ee01097702c2316b1a99ada7165eba910402d9fe8fd436aaeee55",
+        "descriptor_address": "0x0800EBF4",
+        "storage_address": "0x24001220",
+        "storage_size": 393280
+      },
+      "linker_sections": {
+        ".runtime_diag": {
+          "type": "NOBITS",
+          "address": 603984352,
+          "size": 64,
+          "alignment": 32
+        },
+        ".runtime_log": {
+          "type": "NOBITS",
+          "address": 603984416,
+          "size": 393280,
+          "alignment": 32
+        }
+      },
+      "provenance": "Byte-for-byte frozen pre-change baseline snapshot; never rebuilt by the A launch configuration.",
+      "hardware_validation": "No hardware validation was performed during packaging."
+    },
+    "B": {
+      "profile": "DebugFollowTurn65",
+      "delivery_path": "deliverables/H743_Uphill_20261019/B_65_35/CarTest.elf",
+      "sha256": "f50336905ea5a072f687a2a0edaa74412f115ed5e21f40ced85c0dd378e0866c",
+      "size_bytes": 1971400,
+      "build_id": "588d783c08984cb608d3c294fd00d0a9",
+      "configuration": {
+        "turn_profile": true,
+        "left_right_diff_permille": 150,
+        "inner_diff_permille": 150,
+        "base_speed_permille": 500,
+        "servo_slew_step_us": 120,
+        "motor_ramp_step_permille": 40,
+        "motor_ramp_interval_ms": 10,
+        "startup_ramp_step_permille": 10,
+        "vision_hold_ms": 2000,
+        "vision_hold_decel_ramp_ms": 200,
+        "normal_speed_cap_permille": 700,
+        "hard_speed_cap_permille": 700,
+        "runtime_log_enabled": true,
+        "speed_pi_enabled": false,
+        "incremental_pi_enabled": false
+      },
+      "effective_compile_defines": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+        "CARTEST_FOLLOW_INNER_DIFF_PERMILLE": "150",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200",
+        "CARTEST_FOLLOW_SPEED_PI_ENABLED": "0",
+        "CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED": "0"
+      },
+      "launch": {
+        "name": "B - 65%/35% 开环对照（2秒丢线截止）",
+        "image_file": "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf",
+        "symbol_file": "${workspaceFolder}/build/DebugFollowTurn65/CarTest.elf",
+        "preLaunchTask": "CarTest: Build DebugFollowTurn65 (65/35 turn; hold 2000 ms; decel 200 ms; RAM log ON)"
+      },
+      "export_elf": "deliverables/H743_Uphill_20261019/B_65_35/CarTest.elf",
+      "inspect_command": "python tools/runtime_log_export.py inspect --elf deliverables/H743_Uphill_20261019/B_65_35/CarTest.elf",
+      "decode_command_template": "python tools/runtime_log_export.py decode --elf deliverables/H743_Uphill_20261019/B_65_35/CarTest.elf --raw <RAM_DUMP.bin> --out-csv <RUN.csv> --metadata <RUN.json>",
+      "runtime_log": {
+        "descriptor_sha256": "7d33910fa7912db79753c790ce484539c91f9e2133031c04be407b841f66d5ad",
+        "descriptor_address": "0x0800EF60",
+        "storage_address": "0x24001320",
+        "storage_size": 393280
+      },
+      "linker_sections": {
+        ".runtime_diag": {
+          "type": "NOBITS",
+          "address": 603984480,
+          "size": 64,
+          "alignment": 32
+        },
+        ".speed_pi_diag": {
+          "type": "NOBITS",
+          "address": 603984544,
+          "size": 128,
+          "alignment": 32
+        },
+        ".runtime_log": {
+          "type": "NOBITS",
+          "address": 603984672,
+          "size": 393280,
+          "alignment": 32
+        }
+      },
+      "provenance": "Snapshot copied from the final ordinary all-profile build; SHA matches the corresponding build ELF.",
+      "hardware_validation": "No hardware validation was performed during packaging."
+    },
+    "C": {
+      "profile": "DebugFollowIncrementalPI",
+      "delivery_path": "deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf",
+      "sha256": "3c7da3c26054764bec0949753212272d37857c015d5f351d13b4a0b085755d4f",
+      "size_bytes": 1983176,
+      "build_id": "64dbbdc95b2f280d3a80eca085c1ced9",
+      "configuration": {
+        "turn_profile": true,
+        "left_right_diff_permille": 150,
+        "inner_diff_permille": 150,
+        "base_speed_permille": 500,
+        "servo_slew_step_us": 120,
+        "motor_ramp_step_permille": 40,
+        "motor_ramp_interval_ms": 10,
+        "startup_ramp_step_permille": 10,
+        "vision_hold_ms": 2000,
+        "vision_hold_decel_ramp_ms": 200,
+        "normal_speed_cap_permille": 700,
+        "hard_speed_cap_permille": 700,
+        "runtime_log_enabled": true,
+        "speed_pi_enabled": true,
+        "incremental_pi_enabled": true
+      },
+      "effective_compile_defines": {
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+        "CARTEST_FOLLOW_INNER_DIFF_PERMILLE": "150",
+        "CARTEST_VISION_HOLD_MS": "2000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "200",
+        "CARTEST_FOLLOW_SPEED_PI_ENABLED": "1",
+        "CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED": "1"
+      },
+      "launch": {
+        "name": "C - 增量式PI上坡保速试验（65%/35%基础差速）",
+        "image_file": "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf",
+        "symbol_file": "${workspaceFolder}/build/DebugFollowIncrementalPI/CarTest.elf",
+        "preLaunchTask": "CarTest: Build DebugFollowIncrementalPI (65/35 turn; incremental encoder PI; RAM log ON)"
+      },
+      "export_elf": "deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf",
+      "inspect_command": "python tools/runtime_log_export.py inspect --elf deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf",
+      "decode_command_template": "python tools/runtime_log_export.py decode --elf deliverables/H743_Uphill_20261019/C_IncrementalPI/CarTest.elf --raw <RAM_DUMP.bin> --out-csv <RUN.csv> --metadata <RUN.json>",
+      "runtime_log": {
+        "descriptor_sha256": "8ee1f3d42bbdaa2ff77ff01f1d8f71cdfc4a422afba044e4e3b7e71e317aaacc",
+        "descriptor_address": "0x08010558",
+        "storage_address": "0x24001320",
+        "storage_size": 393280
+      },
+      "linker_sections": {
+        ".runtime_diag": {
+          "type": "NOBITS",
+          "address": 603984480,
+          "size": 64,
+          "alignment": 32
+        },
+        ".speed_pi_diag": {
+          "type": "NOBITS",
+          "address": 603984544,
+          "size": 128,
+          "alignment": 32
+        },
+        ".runtime_log": {
+          "type": "NOBITS",
+          "address": 603984672,
+          "size": 393280,
+          "alignment": 32
+        }
+      },
+      "provenance": "Snapshot copied from the final ordinary all-profile build; SHA matches the corresponding build ELF.",
+      "hardware_validation": "No hardware validation was performed during packaging."
+    }
+  },
+  "delivery_rules": {
+    "A_is_frozen_baseline": true,
+    "A_is_rebuilt_by_launch": false,
+    "A_export_elf": "deliverables/H743_Uphill_20261019/A_Baseline/CarTest.elf",
+    "B_C_launch_from_build_profiles": true,
+    "B_C_delivery_snapshots_are_separate": true
+  }
+}

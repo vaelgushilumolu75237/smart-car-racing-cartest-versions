@@ -1,0 +1,14 @@
+{
+  "label": "C_Speed130",
+  "preset": "DebugRingFastSpeed130",
+  "profile_id": 3,
+  "speed_percent": 130,
+  "straight_target_millirps": 7280,
+  "curve_outer_target_millirps": 5720,
+  "ring_outer_target_millirps": 6864,
+  "ring_rate_mdps": 111429,
+  "gyro_authority": true,
+  "elf_sha256": "fabbe609d912645cab813158b5b74cc495cbecb048aae4ec1d189a4846599765",
+  "build_id": "4a0cfee2988e514dc4b7f91f91b77686",
+  "hardware_acceptance": "pending_manual_tests"
+}
