@@ -1,4 +1,4 @@
-"""Freeze and verify six paired OpenMV/gyro/SeekFree builds; no device access."""
+"""Freeze and verify paired OpenMV/gyro/SeekFree builds; no device access."""
 from __future__ import annotations
 
 import argparse
@@ -27,6 +27,7 @@ PROFILES = (
     ("C_Speed120", "DebugRingFastSpeed120", 3, 120, 6720, 5280, 6336, 102857),
     ("C_Speed130", "DebugRingFastSpeed130", 3, 130, 7280, 5720, 6864, 111429),
     ("C_Speed140", "DebugRingFastSpeed140", 3, 140, 7840, 6160, 7392, 120000),
+    ("C_Preview95_Bend110", "DebugCPreview95Bend110", 3, 100, 5600, 4840, 5280, 100000),
 )
 
 
@@ -45,6 +46,7 @@ def read_cache(source, preset):
 
 def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
+    variant = preset == "DebugCPreview95Bend110"
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
                 ring_outer_target_millirps=(2800 if profile == 3 and percent == 100 else orbit * 75 // 100 // 2), ring_rate_mdps=yaw,
@@ -52,6 +54,8 @@ def expected_profile(row):
                 ring_entry_straight_ms=1100 if profile != 1 else 0,
                 ring_turn_servo_percent=187.5 if profile != 1 else 100,
                 ring_exit_progress_mdeg=340000 if profile != 1 else 0,
+                preview_amplitude_percent=95 if variant else 100,
+                ordinary_bend_percent=110 if variant else 100,
                 gyro_authority=profile != 1)
 
 
@@ -65,6 +69,7 @@ def verify_cache(source, row):
                     CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
                     CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS="4800" if profile == 2 else "5600",
                     CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS="4000" if profile == 2 else "4400")
+    required["CARTEST_PREVIEW95_BEND110"] = "ON" if row[1] == "DebugCPreview95Bend110" else "OFF"
     if any(cache.get(k) != v for k, v in required.items()):
         raise ValueError("Wrong feature/profile build cache: " + preset)
     return required
@@ -84,7 +89,7 @@ def public_delivery_files(source, relative_directory):
         raise ValueError("Missing red obstacle feature metadata")
     profiles = metadata["profiles"]
     if len(profiles) != len(PROFILES):
-        raise ValueError("Expected six paired profiles")
+        raise ValueError("Incomplete paired profiles")
     camera = json.loads((directory / "OpenMV/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     names = runtime_names()
     if camera.get("runtime_files") != list(names):

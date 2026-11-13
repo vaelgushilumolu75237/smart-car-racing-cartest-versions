@@ -1,4 +1,4 @@
-"""Host-only red detector, six-profile bypass and control-authority tests."""
+"""Host-only red detector, seven-profile bypass and control-authority tests."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -14,9 +14,9 @@ def main():
         if r.returncode: raise SystemExit(r.returncode)
     run(["python","-m","unittest","discover","-s","tests/obstacle","-p","test_*.py"])
     with tempfile.TemporaryDirectory(prefix="cartest-obstacle-") as tmp:
-        for profile,percent in [(1,100),(2,100),(3,100),(3,120),(3,130),(3,140)]:
+        for profile,percent,variant in [(1,100,0),(2,100,0),(3,100,0),(3,120,0),(3,130,0),(3,140,0),(3,100,1)]:
             fast,slow=(4800,4000) if profile==2 else (5600,4400)
-            flags=[f"-DCARTEST_TRACK_PROFILE={profile}",f"-DCARTEST_SPEED_PERCENT={percent}",
+            flags=[f"-DCARTEST_PREVIEW95_BEND110={variant}",f"-DCARTEST_TRACK_PROFILE={profile}",f"-DCARTEST_SPEED_PERCENT={percent}",
                    f"-DCARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS={fast}",
                    f"-DCARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS={slow}"]
             for name,sources,extra in [
@@ -25,7 +25,7 @@ def main():
                               "App/obstacle_authority.c","App/obstacle_bypass.c","tests/obstacle/test_authority.c"],
                  ["-DCARTEST_GYRO350_ENABLED=1","-DCARTEST_RED_OBSTACLE_ENABLED=1",
                   "-ffunction-sections","-fdata-sections","-Wl,--gc-sections"])]:
-                exe=Path(tmp)/f"{name}-{profile}-{percent}.exe"
+                exe=Path(tmp)/f"{name}-{profile}-{percent}-{variant}.exe"
                 run([args.zig,"cc","-std=c11","-Wall","-Wextra","-Werror","-I","Inc",*flags,*extra,*sources,"-o",exe])
                 run([exe])
 if __name__=="__main__":main()

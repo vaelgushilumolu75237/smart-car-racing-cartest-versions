@@ -24,7 +24,8 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugFastNoRing",
       "displayName": "DebugFastNoRing - paired profile A; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann"
@@ -52,7 +53,8 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4000",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugRingBase",
       "displayName": "DebugRingBase - paired profile B; 4800/4000 milli-RPS; 160us/20ms servo; incremental PI + Ackermann"
@@ -80,7 +82,8 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugRingFast",
       "displayName": "DebugRingFast - paired profile C; 5600/4400 milli-RPS; 160us/20ms servo; incremental PI + Ackermann; r22 vision hold 3000ms / ramp 300ms"
@@ -108,7 +111,8 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugRingFastSpeed120",
       "displayName": "r23 C +20% overall wheel targets"
@@ -136,7 +140,8 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugRingFastSpeed130",
       "displayName": "r23 C +30% overall wheel targets"
@@ -164,10 +169,40 @@
         "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
         "CARTEST_ENABLE_GYRO350": "ON",
         "CARTEST_ENABLE_WIRELESS": "ON",
-        "CARTEST_ENABLE_RED_OBSTACLE": "ON"
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "OFF"
       },
       "name": "DebugRingFastSpeed140",
       "displayName": "r23 C +40% overall wheel targets"
+    },
+    {
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CARTEST_ENABLE_FOLLOW_SPEED_PI": "ON",
+        "CARTEST_ENABLE_FOLLOW_TURN": "ON",
+        "CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI": "ON",
+        "CARTEST_ENABLE_ACKERMANN_COORDINATION": "ON",
+        "CARTEST_VISION_HOLD_MS": "3000",
+        "CARTEST_VISION_HOLD_RAMP_MS": "300",
+        "CARTEST_SPEED_PERCENT": "100",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CARTEST_ENABLE_BENCH": "OFF",
+        "CARTEST_ENABLE_FOLLOW": "ON",
+        "CARTEST_ENABLE_STEERING": "OFF",
+        "CARTEST_HARDWARE_ACCEPTED": "ON",
+        "CARTEST_RUNTIME_LOG_ENABLED": "ON",
+        "CARTEST_FOLLOW_DIFF_PERMILLE": "150",
+        "CARTEST_TRACK_PROFILE": "3",
+        "CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS": "5600",
+        "CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS": "4400",
+        "CARTEST_ENABLE_GYRO350": "ON",
+        "CARTEST_ENABLE_WIRELESS": "ON",
+        "CARTEST_ENABLE_RED_OBSTACLE": "ON",
+        "CARTEST_PREVIEW95_BEND110": "ON"
+      },
+      "name": "DebugCPreview95Bend110",
+      "displayName": "C independent: preview amplitude -5%, ordinary bend wheel target +10%"
     }
   ],
   "buildPresets": [
@@ -194,6 +229,10 @@
     {
       "name": "DebugRingFastSpeed140",
       "configurePreset": "DebugRingFastSpeed140"
+    },
+    {
+      "name": "DebugCPreview95Bend110",
+      "configurePreset": "DebugCPreview95Bend110"
     }
   ]
 }

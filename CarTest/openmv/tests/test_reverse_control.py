@@ -24,6 +24,16 @@ class ReverseControlTests(unittest.TestCase):
         buffer = bytearray(frame)
         return self.parser.feed(buffer, len(buffer), now_ms)
 
+    def test_preview95_flag_uses_existing_crc_and_profile_lease(self):
+        flags = reverse_control.PROFILE_SESSION_ACTIVE | reverse_control.PROFILE_PREVIEW95
+        frame = reverse_control.pack_profile_state(1, reverse_control.PROFILE_C, flags, session_token=5)
+        self._feed(frame, 100)
+        self.assertEqual(self.parser.profile_flags, flags)
+        self.assertEqual(self.parser.profile_id, reverse_control.PROFILE_C)
+        frame[7] ^= reverse_control.PROFILE_PREVIEW95
+        self._feed(frame, 101)
+        self.assertEqual(self.parser.profile_flags, flags)
+
     def test_vectors_match_exact_reset_keep_and_wrap_frames(self):
         commands = {
             "RESET": reverse_control.COMMAND_RESET,
@@ -262,7 +272,7 @@ class ReverseControlTests(unittest.TestCase):
         self.assertTrue(parser.single_enabled)
 
         bad_flags = bytearray(reverse_control.pack_profile_state(
-            11, reverse_control.PROFILE_C, 0x10))
+            11, reverse_control.PROFILE_C, 0x20))
         parser.feed(bad_flags, len(bad_flags), 5)
         self.assertEqual(parser.last_profile_event, "BAD_PROFILE_FLAGS")
         self.assertTrue(parser.single_enabled)

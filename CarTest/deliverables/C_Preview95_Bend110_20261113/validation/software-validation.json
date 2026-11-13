@@ -1,0 +1,121 @@
+{
+  "version": "C_Preview95_Bend110_20261113",
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "hardware_actions": "none",
+  "openmv_test_count": 573,
+  "openmv_skipped": 4,
+  "tests": [
+    {
+      "name": "openmv",
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "openmv/tests"
+      ],
+      "exit_code": 0,
+      "elapsed": 6.96
+    },
+    {
+      "name": "delivery",
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "tests.test_openmv_gyro_wireless_delivery"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.32
+    },
+    {
+      "name": "preview",
+      "command": [
+        "python",
+        "tests/preview95/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.5
+    },
+    {
+      "name": "marker",
+      "command": [
+        "python",
+        "tests/marker_stop/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "exit_code": 0,
+      "elapsed": 2.8
+    },
+    {
+      "name": "obstacle",
+      "command": [
+        "python",
+        "tests/obstacle/run.py",
+        "--zig",
+        "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
+      ],
+      "exit_code": 0,
+      "elapsed": 4.91
+    },
+    {
+      "name": "wireless",
+      "command": [
+        "python",
+        "tests/wireless/run_runtime_test.py"
+      ],
+      "exit_code": 0,
+      "elapsed": 0.28
+    }
+  ],
+  "arm_builds": [
+    {
+      "preset": "DebugCPreview95Bend110",
+      "exit_code": 0,
+      "elapsed": 3.44
+    },
+    {
+      "preset": "DebugFastNoRing",
+      "exit_code": 0,
+      "elapsed": 2.2
+    },
+    {
+      "preset": "DebugRingBase",
+      "exit_code": 0,
+      "elapsed": 2.19
+    },
+    {
+      "preset": "DebugRingFast",
+      "exit_code": 0,
+      "elapsed": 2.63
+    },
+    {
+      "preset": "DebugRingFastSpeed120",
+      "exit_code": 0,
+      "elapsed": 2.44
+    },
+    {
+      "preset": "DebugRingFastSpeed130",
+      "exit_code": 0,
+      "elapsed": 2.51
+    },
+    {
+      "preset": "DebugRingFastSpeed140",
+      "exit_code": 0,
+      "elapsed": 2.18
+    }
+  ],
+  "scope": {
+    "base_preset": "DebugRingFast",
+    "new_preset": "DebugCPreview95Bend110",
+    "preview_percent": 95,
+    "ordinary_bend_millirps": 4840,
+    "straight_millirps": 5600,
+    "ring_red_marker_unchanged": true
+  }
+}

@@ -8160,6 +8160,12 @@ def _main_fast(duration_s=None, run_id=0, frame_source=None, uart_sink=None,
             # suppresses the vision-side extra slowdown request.
             curve_phase = 0
             slowdown_request_permille = 0
+        if (reverse_parser.profile_flags & reverse_control.PROFILE_PREVIEW95 and
+                profile_id == reverse_control.PROFILE_C and
+                preview_eligible_source and not element_route_selected):
+            # Scale only the preview contribution; position PD and all element
+            # controllers keep their original gains and geometry.
+            preview_applied = _rounded_local(preview_applied * 0.95)
         final_control = control_info.get("pd_output", 0) + preview_applied
         if final_control < -config.STEERING_OUTPUT_LIMIT:
             final_control = -config.STEERING_OUTPUT_LIMIT

@@ -451,7 +451,7 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                                   fixture_sensor_id=None,
                                   fixture_mode=False,
                                   single_edge_result=None,
-                                  pair_diagnostic_record=None):
+                                  pair_diagnostic_record=None, profile_flags=None):
         main._load_fast_runtime()
         main._load_singleedge_runtime()
         main._load_track_elements_runtime()
@@ -460,7 +460,8 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
             bytes(main.reverse_control.pack_frame(0, 100)) +
             bytes(main.reverse_control.pack_frame(1, 101)) +
             bytes(main.reverse_control.pack_profile_state(
-                11, profile_id, main.reverse_control.PROFILE_SESSION_ACTIVE,
+                11, profile_id, (main.reverse_control.PROFILE_SESSION_ACTIVE
+                                 if profile_flags is None else profile_flags),
                 session_token=1)))
         fake_uart = _UART(fake_time, rx_data=profile_bytes)
         fake_sensor = _Sensor()
@@ -512,6 +513,34 @@ class FastMainRingSlopeWireTests(unittest.TestCase):
                     fixture_sensor_id=fixture_sensor_id)
         self.assertEqual(len(fake_uart.frames), 1)
         return fake_uart.frames[0], output.getvalue(), cache_commits
+
+    def test_c_independent_preview_scales_only_ordinary_contribution(self):
+        main._load_fast_runtime()
+        main._load_singleedge_runtime()
+        flags = main.reverse_control.PROFILE_SESSION_ACTIVE
+        class CRingElements(_ActiveRingElements):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.result["profile_id"] = 3
+
+        for profile, elements, expected in (
+                (3, _FixedElementState, 95),
+                (2, _FixedElementState, 100),
+                (1, _CrossStraightElements, 100),
+                (3, CRingElements, 100)):
+            with self.subTest(profile=profile, elements=elements.__name__):
+                samples = []
+                for extra in (0, main.reverse_control.PROFILE_PREVIEW95):
+                    with patch.object(main._FastAdaptivePreview, "update", return_value=100):
+                        frame, log, _ = self._run_profile_element_case(
+                            elements, profile, profile_flags=flags | extra)
+                    line = next(line for line in log.splitlines()
+                                if line.startswith("V7CTRL "))
+                    fields = dict(token.split("=", 1) for token in line.split()[1:]
+                                  if "=" in token)
+                    samples.append((int.from_bytes(frame[8:10], "little", signed=True), fields))
+                self.assertEqual(samples[0][1]["pd"], samples[1][1]["pd"])
+                self.assertEqual(samples[0][0] - samples[1][0], 100 - expected)
 
     def _run_main_fast(self, ring_route, slope_hint):
         main._load_fast_runtime()

@@ -129,6 +129,9 @@ static void car_reverse_profile_state_encode_production(
         return;
     }
     frame[7] |= CAR_REVERSE_PROFILE_CAP_CAMERA_DIAGNOSTICS;
+#if CARTEST_PREVIEW95_BEND110
+    frame[7] |= CAR_REVERSE_PROFILE_PREVIEW95; /* C-only 95% preview amplitude; existing 20-byte frame. */
+#endif
 #if CARTEST_GYRO350_ENABLED
     frame[7] |= CAR_GYRO350_REVERSE_CAP;
 #endif

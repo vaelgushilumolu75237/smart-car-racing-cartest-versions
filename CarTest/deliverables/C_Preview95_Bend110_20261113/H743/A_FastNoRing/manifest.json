@@ -1,0 +1,20 @@
+{
+  "label": "A_FastNoRing",
+  "preset": "DebugFastNoRing",
+  "profile_id": 1,
+  "speed_percent": 100,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_outer_target_millirps": 0,
+  "ring_rate_mdps": 0,
+  "ring_exit_outer_target_millirps": 0,
+  "ring_entry_straight_ms": 0,
+  "ring_turn_servo_percent": 100,
+  "ring_exit_progress_mdeg": 0,
+  "preview_amplitude_percent": 100,
+  "ordinary_bend_percent": 100,
+  "gyro_authority": false,
+  "elf_sha256": "25ef70affb0a799060865b9d19c7677086caab3937a72e0303ba7e197d7bbb91",
+  "build_id": "92a6e8939f1b12a947fe86ed01f09c19",
+  "hardware_acceptance": "pending_manual_tests"
+}

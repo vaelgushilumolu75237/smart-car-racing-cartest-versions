@@ -2,6 +2,35 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "C独立档 | 预瞄-5% | 弯道+10% 4.840rps | 第三次黑标停车",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Build: C独立档 | 预瞄-5% | 弯道+10% 4.840rps | 第三次黑标停车",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "1000",
+      "serverReset": "Software system reset",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/DebugCPreview95Bend110/CarTest.elf",
+          "symbolFileName": "${workspaceFolder}/build/DebugCPreview95Bend110/CarTest.elf"
+        }
+      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      },
+      "preBuild": "",
+      "gdb": "C:/Users/Overseas/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "serverExe": "ST-LINK_gdbserver.exe",
+      "serverCwd": "C:/Users/Overseas/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.14.0+st.2/bin",
+      "serverCubeProgPath": "C:/Users/Overseas/AppData/Local/stm32cube/bundles/programmer/2.23.0/bin",
+      "serverShared": false,
+      "serverRtos": {
+        "enabled": false
+      }
+    },
+    {
       "name": "r24 C Base | straight 5.600 / ring 2.800 rps | entry 1100ms / steer +87.5% | hold 3s / 300ms | 自动标定 | 陀螺仪350° + 逐飞无线",
       "type": "stlinkgdbtarget",
       "request": "launch",
