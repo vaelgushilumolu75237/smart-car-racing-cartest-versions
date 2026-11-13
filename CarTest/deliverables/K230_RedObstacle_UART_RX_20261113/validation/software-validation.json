@@ -1,7 +1,7 @@
 {
   "all_required_checks_passed": true,
   "hardware_tested": false,
-  "hardware_actions": "none",
+  "hardware_actions": "K230 startup and main/settings update with readback; user power cycle; no H743 flash or motor start",
   "tests": {
     "openmv": {
       "exit_code": 0,
@@ -143,7 +143,7 @@
     "measured": false
   },
   "limitations": [
-    "No K230 device run or UART electrical test",
+    "LCD startup observed by user; detector accuracy and R electrical transfer remain untested",
     "No H743 flash/reset or motor start",
     "No track validation"
   ],
@@ -157,5 +157,13 @@
     "uart_function": "TXD with TX fallback",
     "h743_source_changed": false,
     "hardware_tested": false
+  },
+  "hardware_observations": {
+    "boot_lcd_confirmed_by_user": true,
+    "live_image_changes": true,
+    "uart_rx_assertion_fixed": true,
+    "red_pixel_accuracy_tested": false,
+    "R_uart_electrical_tested": false,
+    "vehicle_bypass_tested": false
   }
 }

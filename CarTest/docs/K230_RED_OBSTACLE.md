@@ -14,6 +14,14 @@ LCD 修正版默认初始化板载 ST7701 屏幕，显示 640×480 的放大实�
 
 上一版红障程序没有初始化屏幕，且固定使用 `UART1_TX` 可能使亚博固件在进入采集前报错。请使用新的 `K230_RedObstacle_LCD_20261113/K230_RED` 内三个文件整体替换，运行 `main.py`。若 H743 已烧录上一版红障固件，本次 LCD 修正不需要重复烧录 H743。
 
+### 实机 UART 初始化修正版
+
+实机启动记录显示 `AssertionError: UART(1) rx not configured, see machine.FPIOA`。这款固件要求在创建 UART 前同时映射 TX 和 RX，即使业务只发送。本修正版映射 GPIO9=UART1_TXD、GPIO10=UART1_RXD（兼容无 D 后缀名称），GPIO10 无需外接 RX 线，单向 `R` 协议不变。
+
+最新修正包为 `K230_RedObstacle_UART_RX_20261113`。安装结构：`K230_RED` 中 `main.py`、`settings.py`、`red_detector.py` 放到 `/sdcard/cartest-k230/`；`startup.py` 复制到 SD 卡根目录并改名为 `main.py`，用于开机调用子目录内程序的 `run()`。不要把两个 `main.py` 混放到同一目录。根目录 `boot.py` 保留。
+
+2026-11-13 现场已写入上述启动入口与 RX 修正版两个程序文件，均读回校验通过。是否完整开机、显示和检测正常，仍需断电上电后的实机记录确认；软件测试不能代替该确认。
+
 ## UART 接线
 
 | K230 | H743 | 说明 |

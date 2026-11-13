@@ -18,7 +18,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 KIND = "openmv_gyro_wireless"
-RED_NAMES = ("main.py", "settings.py", "red_detector.py")
+RED_NAMES = ("main.py", "settings.py", "red_detector.py", "startup.py")
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),

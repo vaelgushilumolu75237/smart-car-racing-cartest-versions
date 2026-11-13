@@ -48,10 +48,14 @@ class StartupTests(unittest.TestCase):
         class FPIOA:
             def set_function(self,*a,**kw): calls.append(("pin",a,kw))
         setattr(FPIOA,"UART1_TX" if legacy_tx else "UART1_TXD",123)
+        setattr(FPIOA,"UART1_RX" if legacy_tx else "UART1_RXD",124)
         class FakeUART(UART):
             EIGHTBITS=8;PARITY_NONE=None;STOPBITS_ONE=0
             def __init__(self,*a,**kw):
-                super().__init__();calls.append(("uart",a,kw))
+                super().__init__()
+                assert ("pin",(9,123),dict(ie=0,oe=1)) in calls
+                assert ("pin",(10,124),dict(ie=1,oe=0)) in calls
+                calls.append(("uart",a,kw))
             def write(self,b): calls.append(("write",b));return 1
             def deinit(self): calls.append("uart-close")
         class Sensor:

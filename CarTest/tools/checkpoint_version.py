@@ -1500,6 +1500,7 @@ def main():
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--hardware-actions", default="none",
                         choices=("none",
+                                 "stationary-camera-python-upload-no-h743-flash-no-motor-start",
                                  "stationary-camera-upload-h743-flash-no-motor-start",
                                  "stationary-camera-app-flash-no-python-upload-no-h743-flash-no-motor-start",
                                  "stationary-camera-app-flash-python-upload-no-h743-flash-no-motor-start"),

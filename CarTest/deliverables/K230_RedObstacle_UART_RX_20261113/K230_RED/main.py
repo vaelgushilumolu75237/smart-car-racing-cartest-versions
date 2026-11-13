@@ -4,7 +4,7 @@ from media.sensor import Sensor
 from media.media import MediaManager
 from media.display import Display
 import image
-from settings import (WIDTH, HEIGHT, UART_ID, UART_TX_PIN, UART_BAUDRATE,
+from settings import (WIDTH, HEIGHT, UART_ID, UART_TX_PIN, UART_RX_PIN, UART_BAUDRATE,
                       RED_LAB_THRESHOLD, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                       DISPLAY_FPS)
 from red_detector import RedEvent, count_red_pixels
@@ -17,6 +17,11 @@ def run():
     if tx_function is None:
         tx_function = getattr(FPIOA, "UART%d_TX" % UART_ID)
     fpioa.set_function(UART_TX_PIN, tx_function, ie=0, oe=1)
+    # Factory UART asserts if RX is unmapped, even for a transmit-only protocol.
+    rx_function = getattr(FPIOA, "UART%d_RXD" % UART_ID, None)
+    if rx_function is None:
+        rx_function = getattr(FPIOA, "UART%d_RX" % UART_ID)
+    fpioa.set_function(UART_RX_PIN, rx_function, ie=1, oe=0)
     uart = UART(UART_ID, baudrate=UART_BAUDRATE, bits=UART.EIGHTBITS,
                 parity=UART.PARITY_NONE, stop=UART.STOPBITS_ONE)
     sensor = Sensor()
