@@ -10,8 +10,8 @@ class GyroWirelessDeliveryTests(unittest.TestCase):
     def test_six_profiles_keep_independent_gyro_speeds(self):
         rows = [expected_profile(row) for row in PROFILES]
         self.assertEqual(len({(r["profile_id"], r["speed_percent"]) for r in rows}), 6)
-        self.assertEqual([r["ring_outer_target_millirps"] for r in rows], [0, 1500, 2178, 2376, 2574, 2772])
-        self.assertEqual([r["ring_rate_mdps"] for r in rows], [0, 64935, 85714, 102857, 111429, 120000])
+        self.assertEqual([r["ring_outer_target_millirps"] for r in rows], [0, 1500, 2800, 2376, 2574, 2772])
+        self.assertEqual([r["ring_rate_mdps"] for r in rows], [0, 64935, 100000, 102857, 111429, 120000])
         self.assertEqual([r["ring_exit_outer_target_millirps"] for r in rows], [0, 4000, 5280, 6336, 6864, 7392])
         self.assertEqual([r["ring_entry_straight_ms"] for r in rows], [0, 1100, 1100, 1100, 1100, 1100])
         self.assertEqual([r["ring_turn_servo_percent"] for r in rows], [100, 187.5, 187.5, 187.5, 187.5, 187.5])

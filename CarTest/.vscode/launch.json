@@ -2,11 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "r24 C Base | straight 5.600 / ring 2.178 rps | entry 1100ms / steer +87.5% | hold 3s / 300ms | 自动标定 | 陀螺仪350° + 逐飞无线",
+      "name": "r24 C Base | straight 5.600 / ring 2.800 rps | entry 1100ms / steer +87.5% | hold 3s / 300ms | 自动标定 | 陀螺仪350° + 逐飞无线",
       "type": "stlinkgdbtarget",
       "request": "launch",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "Build: r24 C Base | straight 5.600 / ring 2.178 rps | entry 1100ms / steer +87.5% | hold 3s / 300ms | 自动标定 | 陀螺仪350° + 逐飞无线",
+      "preLaunchTask": "Build: r24 C Base | straight 5.600 / ring 2.800 rps | entry 1100ms / steer +87.5% | hold 3s / 300ms | 自动标定 | 陀螺仪350° + 逐飞无线",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "1000",
       "serverReset": "Software system reset",

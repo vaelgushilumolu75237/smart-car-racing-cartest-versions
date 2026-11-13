@@ -23,7 +23,7 @@ RED_NAMES = ("main.py", "settings.py", "red_detector.py", "startup.py")
 PROFILES = (
     ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),
     ("B_RingBase", "DebugRingBase", 2, 100, 4800, 4000, 4000, 64935),
-    ("C_RingFast", "DebugRingFast", 3, 100, 5600, 4400, 5280, 85714),
+    ("C_RingFast", "DebugRingFast", 3, 100, 5600, 4400, 5280, 100000),
     ("C_Speed120", "DebugRingFastSpeed120", 3, 120, 6720, 5280, 6336, 102857),
     ("C_Speed130", "DebugRingFastSpeed130", 3, 130, 7280, 5720, 6864, 111429),
     ("C_Speed140", "DebugRingFastSpeed140", 3, 140, 7840, 6160, 7392, 120000),
@@ -47,7 +47,7 @@ def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
-                ring_outer_target_millirps=(orbit * 75 // 100 // 2 * 110 // 100 if profile == 3 and percent == 100 else orbit * 75 // 100 // 2), ring_rate_mdps=yaw,
+                ring_outer_target_millirps=(2800 if profile == 3 and percent == 100 else orbit * 75 // 100 // 2), ring_rate_mdps=yaw,
                 ring_exit_outer_target_millirps=orbit,
                 ring_entry_straight_ms=1100 if profile != 1 else 0,
                 ring_turn_servo_percent=187.5 if profile != 1 else 100,
@@ -182,7 +182,7 @@ def build(source, output, compiler, validation, readme):
         red_evidence.append(dict(file=name, source_sha256=sha256(src), exit_code=0, mpy_sha256=sha256(mpy)))
     write_json(red_dir / "PACKAGE_MANIFEST.json", dict(runtime_files=list(RED_NAMES),
                compilation=red_evidence, compiler_target="portable-bytecode", image_width=320,
-               image_height=120, trigger="red_pixels > 4608", uart="UART1 GPIO9 TX, 115200 8N1",
+               image_height=120, trigger="red_pixels > 2688", uart="UART1 GPIO9 TX, 115200 8N1",
                route_parameters="user_authorized_unmeasured_candidates", hardware_tested=False))
     profiles = []
     for row in PROFILES:
