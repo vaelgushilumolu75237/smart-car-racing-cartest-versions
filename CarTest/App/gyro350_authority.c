@@ -54,6 +54,16 @@ void car_control_update_gyro(car_control_t *control, const car_config_t *config,
     car_gyro_ring_step(&control->gyro, &input);
     control->gyro_servo_us = control->gyro.servo_target_us ? control->gyro.servo_target_us :
         map_error(config, control->gyro.control_error_norm);
+    if (control->gyro.active &&
+        ((control->gyro.phase == CAR_GYRO_RING_ENTRY && control->gyro.entry_straight_done) ||
+         control->gyro.phase == CAR_GYRO_RING_ORBIT)) {
+        int32_t pulse = CAR_GYRO_RING_CENTER_SERVO_US +
+            ((int32_t)control->gyro_servo_us - CAR_GYRO_RING_CENTER_SERVO_US) *
+            CAR_GYRO_RING_TURN_SERVO_PERCENT / 100;
+        if (pulse < config->servo_min_us) pulse = config->servo_min_us;
+        if (pulse > config->servo_max_us) pulse = config->servo_max_us;
+        control->gyro_servo_us = (uint16_t)pulse;
+    }
     if (control->gyro.fault) {
         car_control_note_fault(control, input.imu_fault ? CAR_FAULT_IMU : CAR_FAULT_GYRO_RING);
     }

@@ -370,7 +370,7 @@ static void ring_ordinary_frame(ring_fixture_t *fixture, uint32_t now_ms)
     fixture->input.ordinary_fresh = 0u;
 }
 
-static void ring_arm(ring_fixture_t *fixture, uint32_t start_ms,
+static void ring_trigger(ring_fixture_t *fixture, uint32_t start_ms,
                      uint16_t sequence, int8_t side)
 {
     /* Three ordinary frames precede the entry marker. Keep the marker a
@@ -390,6 +390,15 @@ static void ring_arm(ring_fixture_t *fixture, uint32_t start_ms,
     ring_step(fixture);
     assert(fixture->state.phase == CAR_GYRO_RING_ENTRY);
     fixture->input.camera_fresh = 0u;
+}
+
+static void ring_arm(ring_fixture_t *fixture, uint32_t start_ms,
+                     uint16_t sequence, int8_t side)
+{
+    ring_trigger(fixture, start_ms - CAR_GYRO_RING_ENTRY_STRAIGHT_MS, sequence, side);
+    ring_set_time(fixture, start_ms + 40u);
+    ring_step(fixture);
+    assert(fixture->state.entry_straight_done == 1u);
 }
 
 static void ring_phase2(ring_fixture_t *fixture, uint32_t now_ms,
@@ -507,6 +516,38 @@ static void test_ring_search_wait_and_recovery(void)
     assert(fixture.state.phase == CAR_GYRO_RING_REARM);
     assert(fixture.state.active == 0u);
     assert(fixture.state.allow_rearm == 1u);
+}
+
+static void test_entry_straight_delay(int8_t side, uint32_t start)
+{
+    ring_fixture_t fixture;
+    uint32_t trigger;
+    ring_trigger(&fixture, start, 50u, side);
+    trigger = fixture.input.now_ms;
+    assert(fixture.state.servo_target_us == 1530u);
+    assert(fixture.state.control_error_norm == 0);
+    assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS);
+    /* Early valid phase2 is retained but cannot shorten the straight. */
+    ring_phase2(&fixture, trigger + 1u, side, 1000);
+    ring_quiet_step(&fixture, trigger + 149u, 2000);
+    assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
+    assert(fixture.state.servo_target_us == 1530u);
+    assert(fixture.state.control_error_norm == 0);
+    /* No fresh image or new marker is required at expiry. */
+    ring_quiet_step(&fixture, trigger + 150u, 3000);
+    assert(fixture.state.phase == CAR_GYRO_RING_ORBIT);
+    assert(fixture.state.servo_target_us == 0u);
+    assert(fixture.state.control_error_norm * side > 0);
+    assert(fixture.state.progress_mdeg == 0);
+    assert(fixture.state.yaw_origin_mdeg == 3000);
+    assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_OUTER_TARGET_MILLIRPS * 3u / 4u);
+
+    ring_trigger(&fixture, start, 50u, side);
+    trigger = fixture.input.now_ms;
+    ring_quiet_step(&fixture, trigger + 150u, 0);
+    assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
+    assert(fixture.state.entry_straight_done == 1u);
+    assert(fixture.state.control_error_norm * side > 0);
 }
 
 static void test_profile_targets(void)
@@ -762,6 +803,8 @@ static void test_ring_phase_timeouts(void)
 int main(void)
 {
     test_profile_targets();
+    test_entry_straight_delay(-1, 100u);
+    test_entry_straight_delay(1, UINT32_MAX - 100u);
     test_imu_init_calibration_and_variable_dt();
     test_imu_whoami_diagnostics();
     test_imu_faults();

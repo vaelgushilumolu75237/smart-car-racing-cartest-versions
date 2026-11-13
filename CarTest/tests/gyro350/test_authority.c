@@ -140,7 +140,7 @@ static void test_ring_authority_and_invalid_route(void)
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "entry evidence selects gyro ENTRY phase");
     check(fixture.control.gyro.outer_target_millirps ==
-              CAR_GYRO_RING_OUTER_TARGET_MILLIRPS,
+              CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS,
           "entry uses profile outer wheel target");
     check(fixture.control.vision_hold_active == 0u &&
               fixture.control.vision_hold_entries == 0u,
@@ -175,10 +175,45 @@ static void test_invalid_image_cannot_advance_ring_phase(void)
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "invalid orbit event cannot reset yaw origin");
     send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
-               fixture.now_ms + 10u);
+               fixture.now_ms + CAR_GYRO_RING_ENTRY_STRAIGHT_MS);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ORBIT,
           "fresh valid orbit event advances entry");
 #endif
+}
+
+static void test_ring_servo_gain(void)
+{
+    authority_fixture_t fixture;
+    int side;
+    for (side = -1; side <= 1; side += 2) {
+        int32_t error, endpoint, before, expected;
+        fixture_init(&fixture);
+        start_ring(&fixture);
+        check(fixture.control.gyro_servo_us == 1530u, "delay commands center");
+        fixture.now_ms += CAR_GYRO_RING_ENTRY_STRAIGHT_MS;
+        fixture.control.imu_sample_us = fixture.now_ms * 1000u;
+        fixture.control.gyro.entry_side = (int8_t)side;
+        car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
+        error = fixture.control.gyro.control_error_norm;
+        endpoint = error < 0 ? fixture.config.follow_servo_left_us : fixture.config.follow_servo_right_us;
+        before = fixture.config.servo_center_us + (int32_t)((int64_t)(endpoint - fixture.config.servo_center_us) *
+            (error < 0 ? -error : error) * fixture.config.follow_kp_permille / 1000000);
+        if (before < fixture.config.servo_min_us) before = fixture.config.servo_min_us;
+        if (before > fixture.config.servo_max_us) before = fixture.config.servo_max_us;
+        expected = 1530 + (before - 1530) * 125 / 100;
+        if (expected < fixture.config.servo_min_us) expected = fixture.config.servo_min_us;
+        if (expected > fixture.config.servo_max_us) expected = fixture.config.servo_max_us;
+        check(fixture.control.gyro_servo_us == expected, "turn offset grows 25 percent within original limits");
+        fixture.control.gyro.state = CAR_GYRO_RING_ORBIT;
+        fixture.control.gyro.yaw_origin_mdeg = fixture.control.imu_yaw_mdeg;
+        car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
+        check(fixture.control.gyro_servo_us == expected, "orbit uses same 25 percent gain");
+        fixture.control.gyro.state = CAR_GYRO_RING_CENTER;
+        car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
+        check(fixture.control.gyro_servo_us == 1530u, "exit remains centered");
+        check(fixture.control.gyro.outer_target_millirps == CAR_GYRO_RING_OUTER_TARGET_MILLIRPS,
+              "exit speed remains original");
+    }
 }
 
 static void test_manual_stop_and_faults(void)
@@ -228,6 +263,7 @@ int main(void)
     test_ring_authority_and_invalid_route();
     test_invalid_image_cannot_advance_ring_phase();
     test_manual_stop_and_faults();
+    test_ring_servo_gain();
 #endif
     (void)puts("gyro350 authority tests: PASS");
     return 0;

@@ -1,7 +1,7 @@
 {
-  "version": "v20261113-r24-continuous-cal",
+  "version": "20261113-r24-ring150-speed75-steer125",
   "status": "experimental-software-tested",
   "branch": "experimental/r24-independent-cal",
-  "files": 933,
+  "files": 934,
   "hardware_actions": "none"
 }

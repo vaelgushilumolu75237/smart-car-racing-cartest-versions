@@ -31,6 +31,10 @@ enum {
 enum {
     CAR_GYRO_RING_CENTER_SERVO_US = 1530u,
     CAR_GYRO_RING_OUTER_TARGET_MILLIRPS = CAR_GYRO350_OUTER_TARGET_MILLIRPS,
+    CAR_GYRO_RING_ENTRY_STRAIGHT_MS = 150u,
+    CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS =
+        CAR_GYRO_RING_OUTER_TARGET_MILLIRPS * 75u / 100u,
+    CAR_GYRO_RING_TURN_SERVO_PERCENT = 125u,
     CAR_GYRO_RING_EXIT_STRAIGHT_MS = 300u,
     CAR_GYRO_RING_SEARCH_LIMIT_MS = 3000u,
     CAR_GYRO_RING_ENTRY_LIMIT_MS = 4000u,
@@ -76,6 +80,8 @@ typedef struct {
 
     /* Private, allocation-free state. */
     int8_t entry_side;
+    uint8_t entry_straight_done;
+    uint8_t pending_orbit;
     uint8_t recovery_count;
     uint8_t have_camera_sequence;
     uint8_t have_ordinary_sequence;

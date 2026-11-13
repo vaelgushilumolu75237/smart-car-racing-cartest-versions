@@ -5,10 +5,13 @@
   "speed_percent": 130,
   "straight_target_millirps": 7280,
   "curve_outer_target_millirps": 5720,
-  "ring_outer_target_millirps": 6864,
+  "ring_outer_target_millirps": 5148,
   "ring_rate_mdps": 111429,
+  "ring_exit_outer_target_millirps": 6864,
+  "ring_entry_straight_ms": 150,
+  "ring_turn_servo_percent": 125,
   "gyro_authority": true,
-  "elf_sha256": "fabbe609d912645cab813158b5b74cc495cbecb048aae4ec1d189a4846599765",
-  "build_id": "4a0cfee2988e514dc4b7f91f91b77686",
+  "elf_sha256": "28c6b46fd8ffc3547eeed2ba0c42425ac5e919c9a54a1c0a22a37362976f5a4e",
+  "build_id": "66fbd6ba428b9c20d6172e25ed6c2ccb",
   "hardware_acceptance": "pending_manual_tests"
 }

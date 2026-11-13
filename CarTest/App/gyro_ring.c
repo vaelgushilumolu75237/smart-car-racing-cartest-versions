@@ -210,6 +210,8 @@ static void start_entry(car_gyro_ring_t *ring,
     ring->fault_latched = 0u;
     ring->allow_rearm = 0u;
     ring->entry_side = input->camera_side;
+    ring->entry_straight_done = 0u;
+    ring->pending_orbit = 0u;
     ring->control_error_norm = 0;
     ring->servo_target_us = 0u;
     ring->outer_target_millirps = CAR_GYRO_RING_OUTER_TARGET_MILLIRPS;
@@ -308,13 +310,18 @@ static void apply_state_outputs(car_gyro_ring_t *ring,
 
     switch (ring->state) {
     case CAR_GYRO_RING_ENTRY:
+        ring->outer_target_millirps = CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS;
+        if (ring->entry_straight_done == 0u) {
+            ring->servo_target_us = CAR_GYRO_RING_CENTER_SERVO_US;
+            ring->control_error_norm = 0;
+            break;
+        }
         ring->servo_target_us = 0u;
-        ring->outer_target_millirps = CAR_GYRO_RING_OUTER_TARGET_MILLIRPS;
         update_entry_pi(ring, input);
         break;
     case CAR_GYRO_RING_ORBIT:
         ring->servo_target_us = 0u;
-        ring->outer_target_millirps = CAR_GYRO_RING_OUTER_TARGET_MILLIRPS;
+        ring->outer_target_millirps = CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS;
         update_entry_pi(ring, input);
         ring->progress_mdeg = progress_for_side(
             ring->entry_side, input->yaw_mdeg, ring->yaw_origin_mdeg);
@@ -424,14 +431,32 @@ void car_gyro_ring_step(car_gyro_ring_t *ring,
         break;
 
     case CAR_GYRO_RING_ENTRY:
+        /* Once the original entry event fires, only elapsed MCU time ends
+           this centered straight segment. Camera events cannot skip it. */
+        if (ring->entry_straight_done == 0u) {
+            if (new_sequence != 0u && input->camera_fresh != 0u &&
+                input->camera_phase == 2u &&
+                input->camera_side == ring->entry_side) {
+                ring->pending_orbit = 1u;
+            }
+            if ((uint32_t)(input->now_ms - ring->state_started_ms) <
+                CAR_GYRO_RING_ENTRY_STRAIGHT_MS) {
+                break;
+            }
+            ring->entry_straight_done = 1u;
+            /* Preserve the original four-second turning allowance. */
+            set_state(ring, CAR_GYRO_RING_ENTRY, input->now_ms);
+        }
         if ((uint32_t)(input->now_ms - ring->state_started_ms) >=
             CAR_GYRO_RING_ENTRY_LIMIT_MS) {
             latch_fault(ring, CAR_GYRO_RING_FAULT_TIMEOUT, input->now_ms);
             return;
         }
-        if (new_sequence != 0u && input->camera_fresh != 0u &&
-            input->camera_phase == 2u &&
-            input->camera_side == ring->entry_side) {
+        if (ring->pending_orbit != 0u ||
+            (new_sequence != 0u && input->camera_fresh != 0u &&
+             input->camera_phase == 2u &&
+             input->camera_side == ring->entry_side)) {
+            ring->pending_orbit = 0u;
             ring->yaw_origin_mdeg = input->yaw_mdeg;
             ring->progress_mdeg = 0;
             clear_integrator(ring);

@@ -46,7 +46,10 @@ def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
-                ring_outer_target_millirps=orbit, ring_rate_mdps=yaw,
+                ring_outer_target_millirps=orbit * 75 // 100, ring_rate_mdps=yaw,
+                ring_exit_outer_target_millirps=orbit,
+                ring_entry_straight_ms=150 if profile != 1 else 0,
+                ring_turn_servo_percent=125 if profile != 1 else 100,
                 gyro_authority=profile != 1)
 
 
