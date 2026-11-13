@@ -75,6 +75,10 @@
       "exit_code": 0,
       "profiles": 4,
       "summary": "TRACK_PROFILE_TARGETS profile=0 fastest=4800 slowest=4000 snapshot_v=1 checks=25 failures=0\nAckermann control host checks: 10067; failures: 0\nTRACK_PROFILE_TARGETS profile=1 fastest=5600 slowest=4400 snapshot_v=2 checks=25 failures=0\nTRACK_PROFILE_TARGETS profile=2 fastest=4800 slowest=4000 snapshot_v=2 checks=25 failures=0\nTRACK_PROFILE_TARGETS profile=3 fastest=5600 slowest=4400 snapshot_v=2 checks=25 failures=0\n"
+    },
+    "k230_lcd": {
+      "exit_code": 0,
+      "summary": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.005s\n\nOK\n"
     }
   },
   "h743_builds": [
@@ -143,5 +147,15 @@
     "No H743 flash/reset or motor start",
     "No track validation"
   ],
-  "review": "Bounded interrupt mailbox; seven nonblocking stages; preserve motor PI/output gates; hard fault on route timeout; require three new ordinary V4 frames to resume"
+  "review": "Bounded interrupt mailbox; seven nonblocking stages; preserve motor PI/output gates; hard fault on route timeout; require three new ordinary V4 frames to resume",
+  "k230_lcd_update": {
+    "display": "ST7701",
+    "width": 640,
+    "height": 480,
+    "recognition_width": 320,
+    "recognition_height": 240,
+    "uart_function": "TXD with TX fallback",
+    "h743_source_changed": false,
+    "hardware_tested": false
+  }
 }

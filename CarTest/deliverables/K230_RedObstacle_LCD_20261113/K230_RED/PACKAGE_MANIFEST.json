@@ -7,15 +7,15 @@
   "compilation": [
     {
       "file": "main.py",
-      "source_sha256": "13c3d52e538939f204f77f4845fb6d9421fd7d448d4653550c5167cb025c77f2",
+      "source_sha256": "1ac4a7f3dd42a62212f5036ccb9c2cbf0ea623be156d7a73c2104e761d94aec7",
       "exit_code": 0,
-      "mpy_sha256": "e3d9aa83c017ee39db4f784b5da4d50154ceff84b83d42e5316b7ab0735bf144"
+      "mpy_sha256": "053d953fe3a1a675c931a2d454b008d2969451b28f97766d47dc99c757ff7004"
     },
     {
       "file": "settings.py",
-      "source_sha256": "d831b9b01fb8512332e9061168df9fa2b451253e7b35a1a6d3fe0b1d5db15fb2",
+      "source_sha256": "92e6798e7b01609d1c2c62afb28c400285b878832398e0fe00b372df7acfa856",
       "exit_code": 0,
-      "mpy_sha256": "2f1a138109c77a9429f24d4592eb7ffbdd81faa2c8e3803d1f66db3ed86d2fed"
+      "mpy_sha256": "7cb94ace47cf8ab95b91a1f10fee0a25342c38e5e0b21423140b1a2ee466bd2c"
     },
     {
       "file": "red_detector.py",

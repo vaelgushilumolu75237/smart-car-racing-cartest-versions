@@ -42,29 +42,48 @@ class Tests(unittest.TestCase):
         self.assertTrue(event.update(11521,uart))
 
 class StartupTests(unittest.TestCase):
-    def test_sensor_uart_and_cleanup(self):
+    def exercise(self, legacy_tx=False, fail_display=False):
         calls=[]
         class StopTest(Exception): pass
         class FPIOA:
-            UART1_TX=123
             def set_function(self,*a,**kw): calls.append(("pin",a,kw))
+        setattr(FPIOA,"UART1_TX" if legacy_tx else "UART1_TXD",123)
         class FakeUART(UART):
             EIGHTBITS=8;PARITY_NONE=None;STOPBITS_ONE=0
             def __init__(self,*a,**kw):
                 super().__init__();calls.append(("uart",a,kw))
+            def write(self,b): calls.append(("write",b));return 1
             def deinit(self): calls.append("uart-close")
         class Sensor:
             RGB565=17
+            def __init__(self):self.snapshots=0
             def reset(self): calls.append("reset")
             def set_framesize(self,**kw): calls.append(("size",kw))
             def set_pixformat(self,p): calls.append(("format",p))
             def run(self): calls.append("run")
-            def snapshot(self): raise StopTest()
+            def snapshot(self):
+                self.snapshots+=1
+                if self.snapshots>1:raise StopTest()
+                return Frame([11521])
             def stop(self): calls.append("stop")
+        class Preview:
+            def __init__(self,*args): calls.append(("preview",args))
+            def clear(self): calls.append("clear")
+            def draw_image(self,frame,x,y,**kw):
+                assert frame.width()==320 and frame.height()==240
+                calls.append(("draw",x,y,kw))
+        def display_init(mode,**kw):
+            calls.append(("display-init",mode,kw))
+            if fail_display:raise StopTest()
+        def show_image(frame,**kw):calls.append(("show",kw))
+        display=types.SimpleNamespace(ST7701=99,init=display_init,show_image=show_image,
+                                      deinit=lambda:calls.append("display-close"))
         media=types.SimpleNamespace(init=lambda:calls.append("media-init"),deinit=lambda:calls.append("media-close"))
         modules={"machine":types.SimpleNamespace(UART=FakeUART,FPIOA=FPIOA),
                  "media.sensor":types.SimpleNamespace(Sensor=Sensor),
-                 "media.media":types.SimpleNamespace(MediaManager=media),"red_detector":m}
+                 "media.media":types.SimpleNamespace(MediaManager=media),
+                 "media.display":types.SimpleNamespace(Display=display),
+                 "image":types.SimpleNamespace(Image=Preview,RGB565=17),"red_detector":m}
         settings_spec=importlib.util.spec_from_file_location("settings",ROOT/"k230_red_obstacle/settings.py")
         settings=importlib.util.module_from_spec(settings_spec);settings_spec.loader.exec_module(settings)
         modules["settings"]=settings
@@ -72,9 +91,29 @@ class StartupTests(unittest.TestCase):
             entry_spec=importlib.util.spec_from_file_location("k230_entry",ROOT/"k230_red_obstacle/main.py")
             entry=importlib.util.module_from_spec(entry_spec);entry_spec.loader.exec_module(entry)
             with self.assertRaises(StopTest):entry.run()
+        return calls
+
+    def test_lcd_and_uart_factory_firmware(self):
+        calls=self.exercise()
         self.assertIn(("size",dict(width=320,height=240)),calls)
         self.assertIn(("pin",(9,123),dict(ie=0,oe=1)),calls)
         self.assertIn(("uart",(1,),dict(baudrate=115200,bits=8,parity=None,stop=0)),calls)
-        self.assertEqual(calls[-3:],["stop","media-close","uart-close"])
+        init=("display-init",99,dict(width=640,height=480,to_ide=True,fps=30))
+        self.assertIn(init,calls)
+        self.assertLess(calls.index(init),calls.index("media-init"))
+        self.assertIn(("preview",(640,480,17)),calls)
+        draw=("draw",0,0,dict(x_scale=2.0,y_scale=2.0))
+        self.assertIn(draw,calls)
+        self.assertLess(calls.index(("write",b"R")),calls.index(draw))
+        self.assertIn(("show",dict(x=0,y=0)),calls)
+        self.assertEqual(calls[-4:],["stop","display-close","media-close","uart-close"])
+
+    def test_legacy_tx_name_supported(self):
+        self.assertIn(("pin",(9,123),dict(ie=0,oe=1)),self.exercise(legacy_tx=True))
+
+    def test_partial_display_initialization_cleanup(self):
+        calls=self.exercise(fail_display=True)
+        self.assertNotIn("media-init",calls)
+        self.assertEqual(calls[-3:],["stop","display-close","uart-close"])
 
 if __name__ == "__main__": unittest.main()
