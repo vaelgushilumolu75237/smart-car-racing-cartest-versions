@@ -121,7 +121,11 @@ void car_obstacle_step(car_obstacle_t *s, const car_obstacle_config_t *c,
     done = direction ? (direction > 0 ? heading_error <= 0 : heading_error >= 0) :
         s->distance_millirev >= segment->distance_millirev;
     if (done) {
-        if (!enter_stage(s, c, in, (uint8_t)(s->state + 1))) return;
+        /* User route: after stage 3 immediately turn inward at stage 5.
+         * Stage 4 (pass-forward) is deliberately never entered. */
+        uint8_t next = s->state == CAR_OBSTACLE_RIGHT_FORWARD ?
+            CAR_OBSTACLE_RIGHT_IN : (uint8_t)(s->state + 1);
+        if (!enter_stage(s, c, in, next)) return;
         /* One stage transition per tick. New setpoint applies this tick. */
         if (s->state == CAR_OBSTACLE_REACQUIRE) return;
         segment = &c->segment[s->state - 1];

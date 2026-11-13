@@ -47,10 +47,11 @@ def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
-                ring_outer_target_millirps=orbit * 75 // 100 // 2, ring_rate_mdps=yaw,
+                ring_outer_target_millirps=(orbit * 75 // 100 // 2 * 110 // 100 if profile == 3 and percent == 100 else orbit * 75 // 100 // 2), ring_rate_mdps=yaw,
                 ring_exit_outer_target_millirps=orbit,
-                ring_entry_straight_ms=1500 if profile != 1 else 0,
+                ring_entry_straight_ms=1100 if profile != 1 else 0,
                 ring_turn_servo_percent=187.5 if profile != 1 else 100,
+                ring_exit_progress_mdeg=340000 if profile != 1 else 0,
                 gyro_authority=profile != 1)
 
 
@@ -181,7 +182,7 @@ def build(source, output, compiler, validation, readme):
         red_evidence.append(dict(file=name, source_sha256=sha256(src), exit_code=0, mpy_sha256=sha256(mpy)))
     write_json(red_dir / "PACKAGE_MANIFEST.json", dict(runtime_files=list(RED_NAMES),
                compilation=red_evidence, compiler_target="portable-bytecode", image_width=320,
-               image_height=120, trigger="red_pixels > 3456", uart="UART1 GPIO9 TX, 115200 8N1",
+               image_height=120, trigger="red_pixels > 4608", uart="UART1 GPIO9 TX, 115200 8N1",
                route_parameters="user_authorized_unmeasured_candidates", hardware_tested=False))
     profiles = []
     for row in PROFILES:

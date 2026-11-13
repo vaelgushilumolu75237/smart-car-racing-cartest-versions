@@ -8,10 +8,11 @@
   "ring_outer_target_millirps": 2574,
   "ring_rate_mdps": 111429,
   "ring_exit_outer_target_millirps": 6864,
-  "ring_entry_straight_ms": 1500,
+  "ring_entry_straight_ms": 1100,
   "ring_turn_servo_percent": 187.5,
+  "ring_exit_progress_mdeg": 340000,
   "gyro_authority": true,
-  "elf_sha256": "6204d56c12146782e39a44d51d62f0a189eddd5a0b93ffc2030adcc72be296ac",
-  "build_id": "3d5e501e7a7b63989dbeb51d32dd9d79",
+  "elf_sha256": "d9a56ae6a0a75839e494cc25f92c7fcd6fe93cf916c6a4cabd64ab1c66cd0ca6",
+  "build_id": "04225cb432297d58c125cc5f7f9cc014",
   "hardware_acceptance": "pending_manual_tests"
 }

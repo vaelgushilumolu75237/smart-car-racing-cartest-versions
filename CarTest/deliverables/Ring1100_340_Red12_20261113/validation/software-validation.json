@@ -43,25 +43,27 @@
     },
     "openmv": {
       "exit_code": 0,
-      "summary": "ION SAVE_FAILED calibration readback: NO_CALIBRATION\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION TIMEOUT\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION SAVE_FAILED read only\nARRAY_COMPAT_LEGACY_FIXTURE_REPRO: unsupported types for __mul__: array, int\nRING_DIAG_PERSIST_FAILED error=RuntimeError:raw evidence retained in RAM: Follow still active\nRING_DIAG_PERSISTED path=C:\\Users\\Overseas\\AppData\\Local\\Temp\\tmpmq41hjm8/ring_000001.bin episodes=2 crc32=1\n...................................................................................................ss.s....s.......................................................................................................................................................................................................................................................................................................................................................................................................................................................................\n----------------------------------------------------------------------\nRan 563 tests in 4.879s\n\nOK (skipped=4)\n"
+      "summary": "ION SAVE_FAILED calibration readback: NO_CALIBRATION\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION TIMEOUT\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION SAVE_FAILED read only\nARRAY_COMPAT_LEGACY_FIXTURE_REPRO: unsupported types for __mul__: array, int\nRING_DIAG_PERSIST_FAILED error=RuntimeError:raw evidence retained in RAM: Follow still active\nRING_DIAG_PERSISTED path=C:\\Users\\Overseas\\AppData\\Local\\Temp\\tmpedl71ybk/ring_000001.bin episodes=2 crc32=1\n...................................................................................................ss.s....s.......................................................................................................................................................................................................................................................................................................................................................................................................................................................................\n----------------------------------------------------------------------\nRan 563 tests in 4.706s\n\nOK (skipped=4)\n"
     },
     "package": {
       "exit_code": 0,
-      "summary": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.013s\n\nOK\n"
+      "summary": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.009s\n\nOK\n"
     }
   },
   "parameters": {
-    "entry_straight_ms": 1500,
+    "entry_straight_ms": 1100,
+    "ring_progress_mdeg": 340000,
+    "C100_ring_outer_millirps": 2178,
     "ring_servo_permille": 1875,
-    "red_limit_exclusive": 3456,
+    "red_limit_exclusive": 4608,
     "image_width": 320,
     "image_height": 120,
     "left_diagonal_millirev": 1000,
-    "pass_forward_millirev": 1000,
-    "right_diagonal_millirev": 3000
+    "pass_forward_skipped": true,
+    "right_diagonal_millirev": 1500
   },
   "limitations": [
     "No camera upload or H743 flash/reset",
-    "No hardware verification of changed capture geometry or route"
+    "No hardware validation of changed route/threshold"
   ]
 }

@@ -443,25 +443,25 @@ static void test_ring_direction_zero_and_progress_boundary(int8_t side)
     assert(fixture.state.yaw_origin_mdeg == origin);
 
     ring_quiet_step(&fixture, start + 60u,
-                    origin + signed_progress * 349999);
+                    origin + signed_progress * 339999);
     assert(fixture.state.phase == CAR_GYRO_RING_ORBIT);
-    assert(fixture.state.progress_mdeg == 349999);
+    assert(fixture.state.progress_mdeg == 339999);
 
     ring_quiet_step(&fixture, start + 70u,
-                    origin + signed_progress * 350000);
+                    origin + signed_progress * 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_CENTER);
-    assert(fixture.state.progress_mdeg == 350000);
+    assert(fixture.state.progress_mdeg == 340000);
     assert(fixture.state.servo_target_us == 1530u);
 
     fixture.input.applied_servo_us = 1500u;
     ring_quiet_step(&fixture, start + 80u,
-                    origin + signed_progress * 350000);
+                    origin + signed_progress * 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_CENTER);
     assert(fixture.state.last_event_ms == start + 70u);
 
     fixture.input.applied_servo_us = 1530u;
     ring_quiet_step(&fixture, start + 90u,
-                    origin + signed_progress * 350000);
+                    origin + signed_progress * 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_EXIT_STRAIGHT);
     assert(fixture.state.last_event_ms == start + 90u);
 
@@ -482,17 +482,17 @@ static void test_ring_search_wait_and_recovery(void)
 
     ring_arm(&fixture, 1000u, 100u, -1);
     ring_phase2(&fixture, 1050u, -1, origin);
-    ring_quiet_step(&fixture, 1060u, origin + 350000);
+    ring_quiet_step(&fixture, 1060u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_CENTER);
     fixture.input.applied_servo_us = 1530u;
-    ring_quiet_step(&fixture, 1070u, origin + 350000);
+    ring_quiet_step(&fixture, 1070u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_EXIT_STRAIGHT);
     exit_start = fixture.state.last_event_ms;
     sequence = fixture.input.camera_sequence;
 
-    ring_quiet_step(&fixture, exit_start + 299u, origin + 350000);
+    ring_quiet_step(&fixture, exit_start + 299u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_EXIT_STRAIGHT);
-    ring_quiet_step(&fixture, exit_start + 300u, origin + 350000);
+    ring_quiet_step(&fixture, exit_start + 300u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_SEARCH);
     assert(fixture.state.search_elapsed_ms == 0u);
     assert(fixture.state.hold_ramp == 1u);
@@ -500,10 +500,10 @@ static void test_ring_search_wait_and_recovery(void)
     assert(fixture.state.outer_target_millirps ==
            CAR_GYRO_RING_OUTER_TARGET_MILLIRPS);
 
-    ring_quiet_step(&fixture, exit_start + 3299u, origin + 350000);
+    ring_quiet_step(&fixture, exit_start + 3299u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_SEARCH);
     assert(fixture.state.search_elapsed_ms == 2999u);
-    ring_quiet_step(&fixture, exit_start + 3300u, origin + 350000);
+    ring_quiet_step(&fixture, exit_start + 3300u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_WAIT_ROUTE);
     assert(fixture.state.search_elapsed_ms == 0u);
     assert(fixture.state.hold_ramp == 0u);
@@ -529,22 +529,22 @@ static void test_entry_straight_delay(int8_t side, uint32_t start)
     assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS);
     /* Early valid phase2 is retained but cannot shorten the straight. */
     ring_phase2(&fixture, trigger + 1u, side, 1000);
-    ring_quiet_step(&fixture, trigger + 1499u, 2000);
+    ring_quiet_step(&fixture, trigger + 1099u, 2000);
     assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
     assert(fixture.state.servo_target_us == 1530u);
     assert(fixture.state.control_error_norm == 0);
     /* No fresh image or new marker is required at expiry. */
-    ring_quiet_step(&fixture, trigger + 1500u, 3000);
+    ring_quiet_step(&fixture, trigger + 1100u, 3000);
     assert(fixture.state.phase == CAR_GYRO_RING_ORBIT);
     assert(fixture.state.servo_target_us == 0u);
     assert(fixture.state.control_error_norm * side > 0);
     assert(fixture.state.progress_mdeg == 0);
     assert(fixture.state.yaw_origin_mdeg == 3000);
-    assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_OUTER_TARGET_MILLIRPS * 3u / 8u);
+    assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS);
 
     ring_trigger(&fixture, start, 50u, side);
     trigger = fixture.input.now_ms;
-    ring_quiet_step(&fixture, trigger + 1500u, 0);
+    ring_quiet_step(&fixture, trigger + 1100u, 0);
     assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
     assert(fixture.state.entry_straight_done == 1u);
     assert(fixture.state.control_error_norm * side > 0);
@@ -552,6 +552,10 @@ static void test_entry_straight_delay(int8_t side, uint32_t start)
 
 static void test_profile_targets(void)
 {
+    assert(CAR_GYRO_RING_TARGET_PROGRESS_MDEG == 340000);
+#if CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
+    assert(CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS == 2178u);
+#endif
 #if CARTEST_TRACK_PROFILE == 2
     assert(CAR_GYRO_RING_OUTER_TARGET_MILLIRPS == 4000u);
     assert(CAR_GYRO_RING_TARGET_YAW_RATE_MDPS == 64935);
@@ -625,9 +629,9 @@ static void test_ring_backward_sway_and_sequence_wrap(void)
     assert(fixture.state.progress_mdeg == 200000);
     ring_quiet_step(&fixture, 570u, origin + 100000);
     assert(fixture.state.progress_mdeg == 100000);
-    ring_quiet_step(&fixture, 580u, origin + 349999);
+    ring_quiet_step(&fixture, 580u, origin + 339999);
     assert(fixture.state.phase == CAR_GYRO_RING_ORBIT);
-    ring_quiet_step(&fixture, 590u, origin + 350000);
+    ring_quiet_step(&fixture, 590u, origin + 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_CENTER);
 
     /* A subsequent entry sequence advancing through uint16 wrap is forward. */
@@ -791,12 +795,12 @@ static void test_ring_phase_timeouts(void)
 
     ring_arm(&fixture, 30000u, 200u, -1);
     ring_phase2(&fixture, 30050u, -1, 0);
-    ring_quiet_step(&fixture, 30060u, 350000);
+    ring_quiet_step(&fixture, 30060u, 340000);
     fixture.input.applied_servo_us = 1500u;
     start = fixture.state.last_event_ms;
-    ring_quiet_step(&fixture, start + 999u, 350000);
+    ring_quiet_step(&fixture, start + 999u, 340000);
     assert(fixture.state.phase == CAR_GYRO_RING_CENTER);
-    ring_quiet_step(&fixture, start + 1000u, 350000);
+    ring_quiet_step(&fixture, start + 1000u, 340000);
     assert(fixture.state.fault == CAR_GYRO_RING_FAULT_TIMEOUT);
 }
 
