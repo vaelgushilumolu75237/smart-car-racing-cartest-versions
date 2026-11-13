@@ -2647,6 +2647,9 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
 {
     uint8_t fault_or_stop;
     uint8_t follow_ramp_due;
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED && CARTEST_FOLLOW_SPEED_PI_ENABLED && CARTEST_RING_TUNE == 4
+    uint8_t direct_straight_start;
+#endif
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
     uint8_t startup_qualified_before_update;
 #endif
@@ -2816,6 +2819,33 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
     }
 #endif
 
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED && CARTEST_FOLLOW_SPEED_PI_ENABLED && CARTEST_RING_TUNE == 4
+    /* Limit2: after the ordinary straight and hardware gates qualify, skip
+       the legacy 0-to-500 startup ramp. The selected wheel target still goes
+       through the encoder PI; this does not command full PWM. */
+    direct_straight_start = follow_output_state.startup_qualified == 0u &&
+        car_control_state.vision_curve_phase == CAR_ACKERMANN_PHASE_STRAIGHT &&
+        car_control_state.vision_slowdown_request_permille == 0u &&
+        servo_output_active != 0u && servo_safety.frame_ready != 0u &&
+        speed_observer_result.valid != 0u &&
+        speed_observer_result.status < CAR_SPEED_OBSERVER_STATUS_INVALID_CONFIG &&
+        (uint32_t)(now_ms - speed_observer_result.sample_ms) <=
+            CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS;
+#if CARTEST_GYRO350_ENABLED
+    direct_straight_start = direct_straight_start &&
+        car_control_state.gyro.active == 0u;
+#endif
+#if CARTEST_RED_OBSTACLE_ENABLED
+    direct_straight_start = direct_straight_start &&
+        car_control_state.obstacle.active == 0u;
+#endif
+    if (direct_straight_start != 0u) {
+        car_control_state.follow_output_duty_permille =
+            CAR_FOLLOW_BASE_TARGET_PERMILLE;
+        car_control_state.follow_last_ramp_ms = now_ms;
+    }
+#endif
+
     if (car_follow_output_update(
             &follow_output_state, now_ms,
             car_control_state.follow_output_duty_permille,
@@ -2841,6 +2871,17 @@ static void prepare_follow_motor_targets(uint32_t now_ms)
         follow_speed_pi_reset_pending = 0u;
         return;
     }
+
+#if CARTEST_ACKERMANN_COORDINATION_ENABLED && CARTEST_FOLLOW_SPEED_PI_ENABLED && CARTEST_RING_TUNE == 4
+    if (direct_straight_start != 0u) {
+        follow_output_state.command_left_permille =
+            follow_output_state.target_left_permille;
+        follow_output_state.command_right_permille =
+            follow_output_state.target_right_permille;
+        follow_output_state.last_ramp_ms = now_ms;
+        follow_output_state.have_ramp_time = 1u;
+    }
+#endif
 
 #if CARTEST_FOLLOW_SPEED_PI_ENABLED
     {

@@ -1,0 +1,11 @@
+{
+  "hardware_tested": false,
+  "all_required_checks_passed": true,
+  "checks": [
+    "48 production output startup assertions",
+    "three ring tune host suites",
+    "3 paired delivery unit tests",
+    "four actual ARM builds"
+  ],
+  "known_issue": "wireless START runtime logging incomplete"
+}

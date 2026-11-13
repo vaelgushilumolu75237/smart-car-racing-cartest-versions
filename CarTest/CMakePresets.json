@@ -86,7 +86,7 @@
         "CARTEST_RING_TUNE": "4"
       },
       "name": "DebugRingFastLimit2",
-      "displayName": "7.6完赛版 | 直道环岛7.6圈/秒 | 282度/秒 | 出环280度"
+      "displayName": "7.6直道提速完赛版 | 7.6rps | 282deg/s | exit280deg"
     },
     {
       "name": "DebugMotorMaxSpeed",
