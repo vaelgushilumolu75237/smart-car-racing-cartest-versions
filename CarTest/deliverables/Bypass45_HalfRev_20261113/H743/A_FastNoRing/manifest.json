@@ -12,7 +12,7 @@
   "ring_turn_servo_percent": 100,
   "ring_exit_progress_mdeg": 0,
   "gyro_authority": false,
-  "elf_sha256": "fb3b2ed214ffe223d635d57f6676f9dd31979656a3cef0e1e27fedff7aae6df4",
-  "build_id": "4799b7b554095f0c882c9b47f0fae68c",
+  "elf_sha256": "27993e399bd255e1b9fe84ad1d84c083439b50ac0bc2a91075c8359b46fb564d",
+  "build_id": "2d4b492792a72bcfdeaa6afb1e7814b9",
   "hardware_acceptance": "pending_manual_tests"
 }
