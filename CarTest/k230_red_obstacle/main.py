@@ -7,7 +7,7 @@ import image
 from settings import (WIDTH, HEIGHT, UART_ID, UART_TX_PIN, UART_RX_PIN, UART_BAUDRATE,
                       RED_LAB_THRESHOLD, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                       DISPLAY_FPS)
-from red_detector import RedEvent, count_red_pixels
+from red_detector import RedEvent, red_regions, draw_red_boxes
 
 
 def run():
@@ -45,10 +45,13 @@ def run():
         event = RedEvent()
         while True:
             frame = sensor.snapshot()
-            event.update(count_red_pixels(frame, RED_LAB_THRESHOLD), uart)
+            blobs = red_regions(frame, RED_LAB_THRESHOLD)
+            pixels = sum(blob.pixels() for blob in blobs)
+            event.update(pixels, uart)
             # Count and transmit before rendering; never draw on detection data.
             preview.clear()
             preview.draw_image(frame, x, y, x_scale=scale, y_scale=scale)
+            draw_red_boxes(preview, blobs, pixels, scale, x, y)
             Display.show_image(preview, x=0, y=0)
     finally:
         try:

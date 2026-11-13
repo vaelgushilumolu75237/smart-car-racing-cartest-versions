@@ -1,0 +1,65 @@
+{
+  "all_required_checks_passed": true,
+  "hardware_tested": false,
+  "hardware_actions": "none",
+  "h743_builds": [
+    {
+      "preset": "DebugFastNoRing",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingBase",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFast",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed120",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed130",
+      "exit_code": 0
+    },
+    {
+      "preset": "DebugRingFastSpeed140",
+      "exit_code": 0
+    }
+  ],
+  "tests": {
+    "obstacle": {
+      "exit_code": 0,
+      "summary": "........\n----------------------------------------------------------------------\nRan 8 tests in 0.004s\n\nOK\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\nobstacle state/threshold/stop/timeout/recovery tests passed\ngyro350 authority tests: PASS\nobstacle integration authority tests passed\n"
+    },
+    "gyro": {
+      "exit_code": 0,
+      "summary": "gyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 pure-C tests: PASS\ngyro350 authority tests: PASS\ngyro350 authority tests: PASS\ngyro350 authority tests: PASS\n"
+    },
+    "wireless": {
+      "exit_code": 0,
+      "summary": "wireless runtime profile/assistant/camera diagnostics tests passed\n"
+    },
+    "openmv": {
+      "exit_code": 0,
+      "summary": "ION SAVE_FAILED calibration readback: NO_CALIBRATION\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION TIMEOUT\nAUTO_WIDTH_CALIBRATION BEGIN required=64 timeout_ms=60000\nAUTO_WIDTH_CALIBRATION SAVE_FAILED read only\nARRAY_COMPAT_LEGACY_FIXTURE_REPRO: unsupported types for __mul__: array, int\nRING_DIAG_PERSIST_FAILED error=RuntimeError:raw evidence retained in RAM: Follow still active\nRING_DIAG_PERSISTED path=C:\\Users\\Overseas\\AppData\\Local\\Temp\\tmp1ug473zl/ring_000001.bin episodes=2 crc32=1\n...................................................................................................ss.s....s.......................................................................................................................................................................................................................................................................................................................................................................................................................................................................\n----------------------------------------------------------------------\nRan 563 tests in 4.749s\n\nOK (skipped=4)\n"
+    },
+    "package": {
+      "exit_code": 0,
+      "summary": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.026s\n\nOK\n"
+    }
+  },
+  "parameters": {
+    "entry_straight_ms": 500,
+    "ring_turn_speed_multiplier_of_previous": 0.5,
+    "ring_servo_multiplier_of_previous": 1.5,
+    "ring_servo_permille": 1875,
+    "red_limit_exclusive": 3840,
+    "pass_forward_wheel_millirev": 1000
+  },
+  "limitations": [
+    "No new camera upload or H743 flash/reset",
+    "Box drawing and changed route not yet hardware-tested"
+  ]
+}

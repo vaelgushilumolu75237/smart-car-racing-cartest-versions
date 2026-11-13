@@ -13,6 +13,7 @@ spec.loader.exec_module(m)
 class Blob:
     def __init__(self, pixels): self.n = pixels
     def pixels(self): return self.n
+    def rect(self): return (10,20,30,40)
 class Frame:
     def __init__(self, counts, width=320): self.counts, self.w = counts, width
     def width(self): return self.w
@@ -26,20 +27,30 @@ class UART:
     def write(self, b): self.writes.append(b); return self.result
 class Tests(unittest.TestCase):
     def test_all_components_and_holes(self):
-        self.assertEqual(m.count_red_pixels(Frame([11520,1]), (0,100,25,127,-20,127)),11521)
-        self.assertEqual(m.count_red_pixels(Frame([1]*11521), (0,100,25,127,-20,127)),11521)
+        self.assertEqual(m.count_red_pixels(Frame([3840,1]), (0,100,25,127,-20,127)),3841)
+        self.assertEqual(m.count_red_pixels(Frame([1]*3841), (0,100,25,127,-20,127)),3841)
         self.assertEqual(m.count_red_pixels(Frame([]), (0,100,25,127,-20,127)),0)
     def test_geometry(self):
         with self.assertRaises(ValueError): m.count_red_pixels(Frame([],640), ())
     def test_strict_threshold_once_rearm(self):
         event, uart = m.RedEvent(), UART()
-        for count, result in [(0,False),(11520,False),(11521,True),(76800,False),(11521,False),(11520,False),(11521,True)]:
+        for count, result in [(0,False),(3840,False),(3841,True),(76800,False),(3841,False),(3840,False),(3841,True)]:
             self.assertEqual(event.update(count,uart),result)
         self.assertEqual(uart.writes,[b"R",b"R"])
     def test_failed_write_not_latched(self):
         event, uart = m.RedEvent(), UART(); uart.result=0
-        self.assertFalse(event.update(11521,uart)); uart.result=1
-        self.assertTrue(event.update(11521,uart))
+        self.assertFalse(event.update(3841,uart)); uart.result=1
+        self.assertTrue(event.update(3841,uart))
+
+class BoxTests(unittest.TestCase):
+    def test_threshold_color_and_coordinates(self):
+        class Preview:
+            def draw_rectangle(self,*a,**kw):self.args=a;self.kw=kw
+        p=Preview()
+        m.draw_red_boxes(p,[Blob(3840)],3840,2,0,0)
+        self.assertEqual(p.args,(20,40,60,80));self.assertEqual(p.kw['color'],(0,0,255))
+        m.draw_red_boxes(p,[Blob(3841)],3841,2,0,0)
+        self.assertEqual(p.kw['color'],(0,255,0))
 
 class StartupTests(unittest.TestCase):
     def exercise(self, legacy_tx=False, fail_display=False):
@@ -68,11 +79,12 @@ class StartupTests(unittest.TestCase):
             def snapshot(self):
                 self.snapshots+=1
                 if self.snapshots>1:raise StopTest()
-                return Frame([11521])
+                return Frame([3841])
             def stop(self): calls.append("stop")
         class Preview:
             def __init__(self,*args): calls.append(("preview",args))
             def clear(self): calls.append("clear")
+            def draw_rectangle(self,*a,**kw): calls.append(("box",a,kw))
             def draw_image(self,frame,x,y,**kw):
                 assert frame.width()==320 and frame.height()==240
                 calls.append(("draw",x,y,kw))

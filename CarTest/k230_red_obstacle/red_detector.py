@@ -1,17 +1,31 @@
-"""Exact whole-frame red count; one R per continuous >15% event."""
+"""Exact whole-frame red count; one R per continuous >5% event."""
 WIDTH = 320
 HEIGHT = 240
-RED_PIXEL_LIMIT = 11520
+RED_PIXEL_LIMIT = 3840
 
 
-def count_red_pixels(frame, threshold):
+def red_regions(frame, threshold):
     if frame.width() != WIDTH or frame.height() != HEIGHT:
         raise ValueError("red detector requires 320x240")
     # Unit stride visits all pixels; retain every component, including 1 pixel.
     # pixels() counts classified pixels, never bounding-box area.
-    return sum(blob.pixels() for blob in frame.find_blobs(
+    blobs = frame.find_blobs(
         [threshold], x_stride=1, y_stride=1, pixels_threshold=1,
-        area_threshold=1, merge=False))
+        area_threshold=1, merge=False)
+    return blobs
+
+
+def count_red_pixels(frame, threshold):
+    return sum(blob.pixels() for blob in red_regions(frame, threshold))
+
+
+def draw_red_boxes(preview, blobs, pixels, scale, x, y):
+    color = (0, 255, 0) if pixels > RED_PIXEL_LIMIT else (0, 0, 255)
+    for blob in blobs:
+        bx, by, bw, bh = blob.rect()
+        preview.draw_rectangle(int(x + bx * scale), int(y + by * scale),
+                               max(1, int(bw * scale)), max(1, int(bh * scale)),
+                               color=color, thickness=2)
 
 
 class RedEvent:

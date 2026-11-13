@@ -174,8 +174,8 @@ static void test_invalid_image_cannot_advance_ring_phase(void)
                fixture.now_ms + 10u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ENTRY,
           "invalid orbit event cannot reset yaw origin");
-    send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u,
-               fixture.now_ms + CAR_GYRO_RING_ENTRY_STRAIGHT_MS);
+    for (int i=0;i<5;i++)
+        send_frame(&fixture, 1u, VP_VERSION_V4, 2u, -1, 0u, fixture.now_ms + 100u);
     check(fixture.control.gyro.phase == CAR_GYRO_RING_ORBIT,
           "fresh valid orbit event advances entry");
 #endif
@@ -190,7 +190,8 @@ static void test_ring_servo_gain(void)
         fixture_init(&fixture);
         start_ring(&fixture);
         check(fixture.control.gyro_servo_us == 1530u, "delay commands center");
-        fixture.now_ms += CAR_GYRO_RING_ENTRY_STRAIGHT_MS;
+        for (int i=0;i<5;i++)
+            send_frame(&fixture, 1u, VP_VERSION_V4, 1u, -1, 0u, fixture.now_ms + 100u);
         fixture.control.imu_sample_us = fixture.now_ms * 1000u;
         fixture.control.gyro.entry_side = (int8_t)side;
         car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
@@ -200,14 +201,14 @@ static void test_ring_servo_gain(void)
             (error < 0 ? -error : error) * fixture.config.follow_kp_permille / 1000000);
         if (before < fixture.config.servo_min_us) before = fixture.config.servo_min_us;
         if (before > fixture.config.servo_max_us) before = fixture.config.servo_max_us;
-        expected = 1530 + (before - 1530) * 125 / 100;
+        expected = 1530 + (before - 1530) * 1875 / 1000;
         if (expected < fixture.config.servo_min_us) expected = fixture.config.servo_min_us;
         if (expected > fixture.config.servo_max_us) expected = fixture.config.servo_max_us;
-        check(fixture.control.gyro_servo_us == expected, "turn offset grows 25 percent within original limits");
+        check(fixture.control.gyro_servo_us == expected, "turn offset grows 87.5 percent within original limits");
         fixture.control.gyro.state = CAR_GYRO_RING_ORBIT;
         fixture.control.gyro.yaw_origin_mdeg = fixture.control.imu_yaw_mdeg;
         car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
-        check(fixture.control.gyro_servo_us == expected, "orbit uses same 25 percent gain");
+        check(fixture.control.gyro_servo_us == expected, "orbit uses same 87.5 percent gain");
         fixture.control.gyro.state = CAR_GYRO_RING_CENTER;
         car_control_update_gyro(&fixture.control, &fixture.config, fixture.now_ms);
         check(fixture.control.gyro_servo_us == 1530u, "exit remains centered");

@@ -65,7 +65,7 @@ void car_control_update_gyro(car_control_t *control, const car_config_t *config,
          control->gyro.phase == CAR_GYRO_RING_ORBIT)) {
         int32_t pulse = CAR_GYRO_RING_CENTER_SERVO_US +
             ((int32_t)control->gyro_servo_us - CAR_GYRO_RING_CENTER_SERVO_US) *
-            CAR_GYRO_RING_TURN_SERVO_PERCENT / 100;
+            CAR_GYRO_RING_TURN_SERVO_PERMILLE / 1000;
         if (pulse < config->servo_min_us) pulse = config->servo_min_us;
         if (pulse > config->servo_max_us) pulse = config->servo_max_us;
         control->gyro_servo_us = (uint16_t)pulse;

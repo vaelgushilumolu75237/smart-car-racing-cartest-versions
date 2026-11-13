@@ -1,7 +1,7 @@
 {
-  "version": "20261113-\u7ea2\u8272\u969c\u788d-K230\u542f\u52a8\u663e\u793a\u5b9e\u673a\u4fee\u590d",
+  "version": "20261113-\u73af\u5c9b500\u6beb\u79d2-\u7ea2\u969c5\u767e\u5206\u6bd4\u84dd\u7eff\u6846",
   "status": "experimental-software-tested",
   "branch": "experimental/r24-independent-cal",
-  "files": 959,
-  "hardware_actions": "stationary-camera-python-upload-no-h743-flash-no-motor-start"
+  "files": 960,
+  "hardware_actions": "none"
 }
