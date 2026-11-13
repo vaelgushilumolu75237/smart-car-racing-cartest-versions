@@ -97,6 +97,7 @@ class AutoBootCalibration:
         self.identity = None
         self.collector = None
         self.done = False
+        self.save_retry_ms = None
         self.reason = "WAIT_PARKED" if self.enabled else "NOT_REQUIRED"
 
     def step(self, now_ms, ticks_diff, eligible, identity, rows, count, stride):
@@ -120,9 +121,16 @@ class AutoBootCalibration:
         if self.collector is None or self.identity != identity:
             self.collector = RingWidthCalibration()
             self.identity = identity
+        if (self.timeout_ms is None and
+                self.collector.attempted_frames >= MAX_ATTEMPTS and
+                not self.collector.collection_complete):
+            self.collector = RingWidthCalibration()
         self.collector.accept_rows(rows, count, stride)
         self.reason = self.collector.reason
         if not self.collector.collection_complete:
+            return None
+        if (self.save_retry_ms is not None and
+                ticks_diff(now_ms, self.save_retry_ms) < 1000):
             return None
         try:
             self.collector.save(self.path)
@@ -130,8 +138,11 @@ class AutoBootCalibration:
             if not loaded.ready:
                 raise ValueError("calibration readback: " + loaded.reason)
         except Exception as exc:
-            self.done = True
-            self.collector = None
+            if self.timeout_ms is None:
+                self.save_retry_ms = now_ms
+            else:
+                self.done = True
+                self.collector = None
             self.reason = "SAVE_FAILED"
             print("AUTO_WIDTH_CALIBRATION SAVE_FAILED %s" % str(exc))
             return None

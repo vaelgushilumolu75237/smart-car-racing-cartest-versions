@@ -149,9 +149,9 @@
     },
     {
       "file": "ring_width_calibration.py",
-      "source_sha256": "3f69af7945a956ce47f3d901042a5205b56692481a21ccaa08ad2197dde0de88",
+      "source_sha256": "c4319a72034fa67ffedb2d48ea2acda3e98a77a97e691548f0ae9a89fb24ac7a",
       "exit_code": 0,
-      "mpy_sha256": "61e877e36ddb8631a424403f01ba7b91eb14d75286b86f1c5a51b7b0e08d8fe3"
+      "mpy_sha256": "9157f6e9fe5fe341f770abb3a7428898181837f6de33f6234793008482d2e50b"
     },
     {
       "file": "ring_diagnostics.py",

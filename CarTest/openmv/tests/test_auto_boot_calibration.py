@@ -79,6 +79,20 @@ class AutoBootTests(unittest.TestCase):
             self.assertNotIn(forbidden, block)
         self.assertIn("time.ticks_diff, True", block)
 
+    def test_independent_retries_after_600_bad_frames(self):
+        self.controller = AutoBootCalibration(RingWidthCalibration(), self.path, timeout_ms=None)
+        for i in range(650):
+            self.controller.step(i*10, lambda a,b:a-b, True, (320,120), None,0,0)
+        self.assertFalse(self.controller.done)
+        self.assertTrue(self.feed(start=700, identity=(320,120)).ready)
+
+    def test_independent_save_failure_retries_without_reboot(self):
+        self.controller = AutoBootCalibration(RingWidthCalibration(), self.path, timeout_ms=None)
+        with patch.object(RingWidthCalibration, "save", side_effect=OSError("read only")):
+            self.feed(identity=(320,120))
+        self.assertFalse(self.controller.done)
+        self.assertTrue(self.feed(start=200, identity=(320,120)).ready)
+
     def test_existing_map_not_overwritten(self):
         self.feed()
         before = Path(self.path).read_bytes()

@@ -149,9 +149,9 @@
     },
     {
       "file": "ring_width_calibration.py",
-      "source_sha256": "3f69af7945a956ce47f3d901042a5205b56692481a21ccaa08ad2197dde0de88",
+      "source_sha256": "c4319a72034fa67ffedb2d48ea2acda3e98a77a97e691548f0ae9a89fb24ac7a",
       "exit_code": 0,
-      "mpy_sha256": "61e877e36ddb8631a424403f01ba7b91eb14d75286b86f1c5a51b7b0e08d8fe3"
+      "mpy_sha256": "9157f6e9fe5fe341f770abb3a7428898181837f6de33f6234793008482d2e50b"
     },
     {
       "file": "ring_diagnostics.py",
@@ -208,7 +208,7 @@
     "thresholding.py": "0a64949ffe3bab59972bfc0439dff5fd4c88dce452d9e882375ca02960cd9706",
     "vision_protocol.py": "d9d765186a92ea7dc38a62db58caeeb2b8f361de617d1a89e2904de343894e14",
     "track_elements.py": "4e47ecde68cb3b19a2c3076a755305ffe985593a426250f499b6aa7477bd9c70",
-    "ring_width_calibration.py": "3f69af7945a956ce47f3d901042a5205b56692481a21ccaa08ad2197dde0de88",
+    "ring_width_calibration.py": "c4319a72034fa67ffedb2d48ea2acda3e98a77a97e691548f0ae9a89fb24ac7a",
     "ring_diagnostics.py": "081179080acdc046cb4f9cb2702ed4b7e7480edeafff3df31d2a81936ff48e94",
     "fast_ring_slope.py": "9340d79ad113a751c6fb4e610e06e4cfb949770fc74be211989b1c44faad4cb6",
     "gyro_link.py": "cc93d0bf3d9a8c3124d14966e3cabf124eccf2f460828ce8282c93bd920e0a56",

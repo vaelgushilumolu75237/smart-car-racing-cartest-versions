@@ -1,7 +1,7 @@
 {
-  "version": "v20261113-r24-independent-cal",
+  "version": "v20261113-r24-continuous-cal",
   "status": "experimental-software-tested",
   "branch": "experimental/r24-independent-cal",
-  "files": 932,
+  "files": 933,
   "hardware_actions": "none"
 }
