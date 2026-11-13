@@ -1,7 +1,7 @@
-"""Exact whole-frame red count; one R per continuous >5% event."""
+"""Exact whole-frame red count; one R per continuous >1% event."""
 WIDTH = 320
 HEIGHT = 240
-RED_PIXEL_LIMIT = 3840
+RED_PIXEL_LIMIT = 768
 
 
 def red_regions(frame, threshold):

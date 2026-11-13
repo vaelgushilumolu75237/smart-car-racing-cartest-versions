@@ -181,7 +181,7 @@ def build(source, output, compiler, validation, readme):
         red_evidence.append(dict(file=name, source_sha256=sha256(src), exit_code=0, mpy_sha256=sha256(mpy)))
     write_json(red_dir / "PACKAGE_MANIFEST.json", dict(runtime_files=list(RED_NAMES),
                compilation=red_evidence, compiler_target="portable-bytecode", image_width=320,
-               image_height=240, trigger="red_pixels > 3840", uart="UART1 GPIO9 TX, 115200 8N1",
+               image_height=240, trigger="red_pixels > 768", uart="UART1 GPIO9 TX, 115200 8N1",
                route_parameters="user_authorized_unmeasured_candidates", hardware_tested=False))
     profiles = []
     for row in PROFILES:

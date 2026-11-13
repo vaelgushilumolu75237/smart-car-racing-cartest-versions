@@ -27,29 +27,29 @@ class UART:
     def write(self, b): self.writes.append(b); return self.result
 class Tests(unittest.TestCase):
     def test_all_components_and_holes(self):
-        self.assertEqual(m.count_red_pixels(Frame([3840,1]), (0,100,25,127,-20,127)),3841)
-        self.assertEqual(m.count_red_pixels(Frame([1]*3841), (0,100,25,127,-20,127)),3841)
+        self.assertEqual(m.count_red_pixels(Frame([768,1]), (0,100,25,127,-20,127)),769)
+        self.assertEqual(m.count_red_pixels(Frame([1]*769), (0,100,25,127,-20,127)),769)
         self.assertEqual(m.count_red_pixels(Frame([]), (0,100,25,127,-20,127)),0)
     def test_geometry(self):
         with self.assertRaises(ValueError): m.count_red_pixels(Frame([],640), ())
     def test_strict_threshold_once_rearm(self):
         event, uart = m.RedEvent(), UART()
-        for count, result in [(0,False),(3840,False),(3841,True),(76800,False),(3841,False),(3840,False),(3841,True)]:
+        for count, result in [(0,False),(768,False),(769,True),(76800,False),(769,False),(768,False),(769,True)]:
             self.assertEqual(event.update(count,uart),result)
         self.assertEqual(uart.writes,[b"R",b"R"])
     def test_failed_write_not_latched(self):
         event, uart = m.RedEvent(), UART(); uart.result=0
-        self.assertFalse(event.update(3841,uart)); uart.result=1
-        self.assertTrue(event.update(3841,uart))
+        self.assertFalse(event.update(769,uart)); uart.result=1
+        self.assertTrue(event.update(769,uart))
 
 class BoxTests(unittest.TestCase):
     def test_threshold_color_and_coordinates(self):
         class Preview:
             def draw_rectangle(self,*a,**kw):self.args=a;self.kw=kw
         p=Preview()
-        m.draw_red_boxes(p,[Blob(3840)],3840,2,0,0)
+        m.draw_red_boxes(p,[Blob(768)],768,2,0,0)
         self.assertEqual(p.args,(20,40,60,80));self.assertEqual(p.kw['color'],(0,0,255))
-        m.draw_red_boxes(p,[Blob(3841)],3841,2,0,0)
+        m.draw_red_boxes(p,[Blob(769)],769,2,0,0)
         self.assertEqual(p.kw['color'],(0,255,0))
 
 class StartupTests(unittest.TestCase):
@@ -79,7 +79,7 @@ class StartupTests(unittest.TestCase):
             def snapshot(self):
                 self.snapshots+=1
                 if self.snapshots>1:raise StopTest()
-                return Frame([3841])
+                return Frame([769])
             def stop(self): calls.append("stop")
         class Preview:
             def __init__(self,*args): calls.append(("preview",args))

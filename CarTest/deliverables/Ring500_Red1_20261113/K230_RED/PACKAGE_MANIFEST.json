@@ -20,9 +20,9 @@
     },
     {
       "file": "red_detector.py",
-      "source_sha256": "967e6f990911e899263c0bd242e775fb3e01eaa46d2ae0210ec9c77a1615c4e3",
+      "source_sha256": "db75cc39c0edc10a029728163f6f94db6a7867da9ba3ad24cbccfd5c654976b9",
       "exit_code": 0,
-      "mpy_sha256": "1b3cc788f76273d33d999c1bb14361aa31b6d69d79040055960c996e4422b510"
+      "mpy_sha256": "2e16b989581b4d6f1745ac46ecf7fe790b93fe45c4e96f23c943a828ebe41829"
     },
     {
       "file": "startup.py",
@@ -34,7 +34,7 @@
   "compiler_target": "portable-bytecode",
   "image_width": 320,
   "image_height": 240,
-  "trigger": "red_pixels > 3840",
+  "trigger": "red_pixels > 768",
   "uart": "UART1 GPIO9 TX, 115200 8N1",
   "route_parameters": "user_authorized_unmeasured_candidates",
   "hardware_tested": false
