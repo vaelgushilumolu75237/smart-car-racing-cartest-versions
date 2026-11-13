@@ -436,6 +436,13 @@ void car_wireless_init(uint32_t now,uint32_t boot_seed) {
     /* Adapter validates both slots before returning any persistent settings. */
     flash_selected_slot=1u;
     (void)wireless_flash_load_profile(profile_key,&settings,&gen,&flash_selected_slot);
+    /* Source-defined ring rate wins at boot, including after a firmware-only
+       update. Keep all other validated saved settings. Wireless rate changes
+       remain live RAM tuning; reboot restores the source-selected rate. */
+#if CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
+    settings.gyro_rate_mdps=defaults.gyro_rate_mdps;
+    settings.ring_progress_mdeg=defaults.ring_progress_mdeg;
+#endif
     flash_generation=gen;wireless_flash_writer_init(&flash_writer);
     wireless_control_init(&engine,&settings,gen);
     wireless_control_set_defaults(&engine,&defaults);

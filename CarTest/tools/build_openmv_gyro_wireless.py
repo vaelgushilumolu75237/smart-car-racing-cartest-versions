@@ -1,4 +1,4 @@
-"""Freeze and verify six paired OpenMV/gyro/SeekFree builds; no device access."""
+"""Freeze and verify three paired OpenMV/gyro/SeekFree builds; no device access."""
 from __future__ import annotations
 
 import argparse
@@ -21,13 +21,23 @@ KIND = "openmv_gyro_wireless"
 RED_NAMES = ("main.py", "settings.py", "red_detector.py", "startup.py")
 # The shared camera changes profile only after a valid reverse-state handshake.
 PROFILES = (
-    ("A_FastNoRing", "DebugFastNoRing", 1, 100, 5600, 4400, 0, 0),
-    ("B_RingBase", "DebugRingBase", 2, 100, 4800, 4000, 4000, 64935),
     ("C_RingFast", "DebugRingFast", 3, 100, 5600, 4400, 5280, 100000),
-    ("C_Speed120", "DebugRingFastSpeed120", 3, 120, 6720, 5280, 6336, 102857),
-    ("C_Speed130", "DebugRingFastSpeed130", 3, 130, 7280, 5720, 6864, 111429),
-    ("C_Speed140", "DebugRingFastSpeed140", 3, 140, 7840, 6160, 7392, 120000),
+    ("C_Limit", "DebugRingFastLimit", 3, 100, 5600, 4400, 5280, 145000),
+    ("C_Limit2", "DebugRingFastLimit2", 3, 100, 7600, 4400, 5280, 282000),
 )
+RING_TUNES = {"DebugRingFast": 0, "DebugRingFastLimit": 3, "DebugRingFastLimit2": 4}
+RING_SPEEDS = (2800, 3400, 3800, 4200, 7600)
+
+
+CALIBRATION_NAME = "ring_width_calibration.json"
+CALIBRATION_SHA256 = "fa83b9b079dc8555365aa8f77b7fdc06f78955889eb2f0056788429c7d782f6c"
+
+
+def require_calibration(source):
+    path = Path(source) / "openmv" / CALIBRATION_NAME
+    if not path.is_file() or sha256(path) != CALIBRATION_SHA256:
+        raise ValueError("Required existing OpenMV calibration missing or changed: " + str(path))
+    return path
 
 
 def runtime_names():
@@ -47,11 +57,11 @@ def expected_profile(row):
     label, preset, profile, percent, straight, bend, orbit, yaw = row
     return dict(label=label, preset=preset, profile_id=profile, speed_percent=percent,
                 straight_target_millirps=straight, curve_outer_target_millirps=bend,
-                ring_outer_target_millirps=(2800 if profile == 3 and percent == 100 else orbit * 75 // 100 // 2), ring_rate_mdps=yaw,
+                ring_outer_target_millirps=RING_SPEEDS[RING_TUNES[preset]], ring_rate_mdps=yaw,
                 ring_exit_outer_target_millirps=orbit,
-                ring_entry_straight_ms=1100 if profile != 1 else 0,
+                ring_entry_straight_ms={"DebugRingFast": 1100, "DebugRingFastLimit": 800, "DebugRingFastLimit2": 700}[preset],
                 ring_turn_servo_percent=187.5 if profile != 1 else 100,
-                ring_exit_progress_mdeg=340000 if profile != 1 else 0,
+                ring_exit_progress_mdeg=280000 if profile != 1 else 0,
                 gyro_authority=profile != 1)
 
 
@@ -65,6 +75,7 @@ def verify_cache(source, row):
                     CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
                     CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS="4800" if profile == 2 else "5600",
                     CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS="4000" if profile == 2 else "4400")
+    required["CARTEST_RING_TUNE"] = str(RING_TUNES[preset])
     if any(cache.get(k) != v for k, v in required.items()):
         raise ValueError("Wrong feature/profile build cache: " + preset)
     return required
@@ -84,7 +95,7 @@ def public_delivery_files(source, relative_directory):
         raise ValueError("Missing red obstacle feature metadata")
     profiles = metadata["profiles"]
     if len(profiles) != len(PROFILES):
-        raise ValueError("Expected six paired profiles")
+        raise ValueError("Expected three paired profiles")
     camera = json.loads((directory / "OpenMV/PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
     names = runtime_names()
     if camera.get("runtime_files") != list(names):
@@ -136,18 +147,24 @@ def public_delivery_files(source, relative_directory):
         if frozen_meta != actual:
             raise ValueError("Profile manifest differs from delivery metadata")
         files.update(("H743/" + label + "/CarTest.elf", "H743/" + label + "/manifest.json"))
+    private_calibration = "OpenMV/" + CALIBRATION_NAME
+    if private_calibration in manifest:
+        if sha256(directory / private_calibration) != CALIBRATION_SHA256:
+            raise ValueError("Wrong existing OpenMV calibration")
+        files.add(private_calibration)
     if set(manifest) != files:
         raise ValueError("Unreviewed delivery payload membership")
     validation = json.loads((directory / "validation/software-validation.json").read_text(encoding="utf-8"))
     if validation.get("hardware_tested") is not False or validation.get("all_required_checks_passed") is not True:
         raise ValueError("Software validation evidence is incomplete")
-    return [(relative / name).as_posix() for name in sorted(files | {"SHA256SUMS.json"})]
+    return [(relative / name).as_posix() for name in sorted((files - {private_calibration}) | {"SHA256SUMS.json"})]
 
 
 def build(source, output, compiler, validation, readme):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output.exists():
         raise FileExistsError("Refusing to overwrite immutable delivery")
+    calibration = require_calibration(source)
     compiler = resolve_compiler(compiler)
     for row in PROFILES:
         verify_cache(source, row)
@@ -184,6 +201,7 @@ def build(source, output, compiler, validation, readme):
                compilation=red_evidence, compiler_target="portable-bytecode", image_width=320,
                image_height=120, trigger="red_pixels > 1536", uart="UART1 GPIO9 TX, 115200 8N1",
                route_parameters="user_authorized_unmeasured_candidates", hardware_tested=False))
+    shutil.copy2(calibration, camera / CALIBRATION_NAME)
     profiles = []
     for row in PROFILES:
         meta = expected_profile(row)

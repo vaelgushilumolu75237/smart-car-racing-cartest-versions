@@ -28,6 +28,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 option(CARTEST_ENABLE_RED_OBSTACLE "Enable independent K230 red-trigger left obstacle bypass" OFF)
 option(CARTEST_ENABLE_GYRO350 "Enable ICM42688 gyro ring and diagnostics" OFF)
 option(CARTEST_ENABLE_WIRELESS "Enable SeekFree UART2 telemetry and commands" OFF)
+option(CARTEST_ENABLE_MOTOR_MAX_TEST "Isolated overhead 100 percent PWM wheel-speed measurement" OFF)
 option(CARTEST_ENABLE_BENCH "Compile the isolated overhead single-motor diagnostic path" OFF)
 option(CARTEST_ENABLE_FOLLOW "Compile the vision-follow runtime profile" OFF)
 option(CARTEST_ENABLE_FOLLOW_TURN "Compile the enhanced Follow turn-response profile" OFF)
@@ -37,6 +38,10 @@ option(CARTEST_ENABLE_ACKERMANN_COORDINATION "Coordinate Follow incremental PI t
 option(CARTEST_ENABLE_STEERING "Compile the motor-disabled vision steering profile" OFF)
 option(CARTEST_HARDWARE_ACCEPTED "Permit motor and servo output; software permission only, not hardware acceptance" OFF)
 option(CARTEST_RUNTIME_LOG_ENABLED "Record bounded runtime telemetry in RAM" ON)
+set(CARTEST_RING_TUNE "0" CACHE STRING "C ring-only tune: 0 base, 3 limit, 4 limit2")
+if(NOT CARTEST_RING_TUNE MATCHES "^[034]$")
+  message(FATAL_ERROR "CARTEST_RING_TUNE must be 0, 3 or 4")
+endif()
 set(CARTEST_SPEED_PERCENT "100" CACHE STRING "C wheel-target percentage: 100, 120, 130, 140")
 if(NOT CARTEST_SPEED_PERCENT MATCHES "^(100|120|130|140)$")
   message(FATAL_ERROR "CARTEST_SPEED_PERCENT must be 100, 120, 130, or 140.")
@@ -170,6 +175,12 @@ if(_cartest_profile_count GREATER 1)
   message(FATAL_ERROR "Select at most one active CarTest profile; bench, follow, and vision-steering modes cannot be combined.")
 endif()
 
+if(CARTEST_ENABLE_MOTOR_MAX_TEST AND
+   (_cartest_profile_count GREATER 0 OR NOT CARTEST_HARDWARE_ACCEPTED OR
+    CARTEST_ENABLE_GYRO350 OR CARTEST_ENABLE_WIRELESS OR CARTEST_ENABLE_RED_OBSTACLE))
+  message(FATAL_ERROR "Motor max test must be isolated from all road profiles and camera/gyro commands.")
+endif()
+
 # Embed a build ID that identifies the source inputs and compile profile. The
 # RAM logger header is matched against this ROM descriptor before export; this
 # is deliberately not an ELF self-hash.
@@ -204,11 +215,12 @@ set(_cartest_build_id_material
   "follow_speed_pi_profile=${CARTEST_ENABLE_FOLLOW_SPEED_PI}\n"
   "follow_incremental_pi_profile=${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}\n"
   "gyro350=${CARTEST_ENABLE_GYRO350};wireless=${CARTEST_ENABLE_WIRELESS};red_obstacle=${CARTEST_ENABLE_RED_OBSTACLE}\n"
-  "speed_percent=${CARTEST_SPEED_PERCENT};track_profile=${CARTEST_TRACK_PROFILE};ackermann_fastest_straight_millirps=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS};ackermann_slowest_request_millirps=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}\n"
+  "ring_tune=${CARTEST_RING_TUNE};speed_percent=${CARTEST_SPEED_PERCENT};track_profile=${CARTEST_TRACK_PROFILE};ackermann_fastest_straight_millirps=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS};ackermann_slowest_request_millirps=${CARTEST_ACKERMANN_SLOWEST_REQUEST_MILLIRPS}\n"
   "ackermann_coordination_profile=${_cartest_enable_ackermann_coordination}\n"
   "follow_speed_pi_target_millirps=2400;kp_q16=13107;ki_q16=26214;cap_permille=1000;tracking_ms=200\n"
   "vision_hold_ms=${CARTEST_VISION_HOLD_MS};vision_hold_ramp_ms=${CARTEST_VISION_HOLD_RAMP_MS}\n"
   "runtime_log_enabled=${CARTEST_RUNTIME_LOG_ENABLED}\n"
+  "motor_max_test=${CARTEST_ENABLE_MOTOR_MAX_TEST}\n"
   "follow_diff_permille=${CARTEST_FOLLOW_DIFF_PERMILLE}\n"
   "follow_inner_diff_permille=${_cartest_follow_inner_diff_permille}\n"
   "follow_base_permille=500;follow_normal_cap_permille=${_cartest_follow_normal_limit_permille};follow_hard_cap_permille=${_cartest_follow_hard_limit_permille}\n"
@@ -257,6 +269,7 @@ configure_file(
 # Add sources to executable/library
 target_sources(${PROJECT_NAME} PRIVATE
   # User defined sources
+  "${CMAKE_CURRENT_SOURCE_DIR}/App/motor_max_test.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/icm42688.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/icm42688_stm32.c"
   "${CMAKE_CURRENT_SOURCE_DIR}/App/gyro_ring.c"
@@ -305,6 +318,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+  CARTEST_MOTOR_MAX_TEST_ENABLED=$<BOOL:${CARTEST_ENABLE_MOTOR_MAX_TEST}>
   CARTEST_RED_OBSTACLE_ENABLED=$<BOOL:${CARTEST_ENABLE_RED_OBSTACLE}>
   CARTEST_GYRO350_ENABLED=$<BOOL:${CARTEST_ENABLE_GYRO350}>
   CARTEST_WIRELESS_ENABLED=$<BOOL:${CARTEST_ENABLE_WIRELESS}>
@@ -321,6 +335,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
   CARTEST_FOLLOW_SPEED_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_SPEED_PI}>
   CARTEST_FOLLOW_INCREMENTAL_PI_ENABLED=$<BOOL:${CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI}>
   CARTEST_ACKERMANN_COORDINATION_ENABLED=$<BOOL:${_cartest_enable_ackermann_coordination}>
+  CARTEST_RING_TUNE=${CARTEST_RING_TUNE}
   CARTEST_SPEED_PERCENT=${CARTEST_SPEED_PERCENT}
   CARTEST_TRACK_PROFILE=${CARTEST_TRACK_PROFILE}
   CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS=${CARTEST_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS}

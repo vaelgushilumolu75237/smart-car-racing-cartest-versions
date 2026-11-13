@@ -533,6 +533,8 @@ def copy_tree(source: Path, destination: Path, *, excluded_subtrees=()):
         if any(relative == subtree or subtree in relative.parents
                for subtree in excluded):
             continue
+        if item.name == "ring_width_calibration.json":
+            continue  # Actual vehicle calibration stays in local OpenMV packages.
         if any(part in SKIP_DIRS for part in relative.parts):
             continue
         if item.is_symlink():
@@ -1610,6 +1612,15 @@ def main():
         copy_allowlisted_file(source, target, name)
     for name in track_profile_files:
         copy_allowlisted_file(source, target, name)
+    if args.track_profiles is not None:
+        # Public package omits the private measured calibration. Recompute its
+        # manifest from the copied payload rather than retaining a missing file.
+        paired = target / args.track_profiles
+        sums = paired / "SHA256SUMS.json"
+        if sums.exists():
+            sums.write_text(json.dumps({p.relative_to(paired).as_posix():
+                hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in paired.rglob("*") if p.is_file() and p != sums}, indent=2), encoding="utf-8")
     for profile in profile_names:
         elf = source / "build" / profile / "CarTest.elf"
         output = target / "build" / elf.parent.name / elf.name

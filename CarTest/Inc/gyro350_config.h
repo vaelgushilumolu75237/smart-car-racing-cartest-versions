@@ -13,6 +13,26 @@
 #define CARTEST_WIRELESS_ENABLED 0
 #endif
 
+#ifndef CARTEST_RING_TUNE
+#define CARTEST_RING_TUNE 0
+#endif
+#if CARTEST_RING_TUNE != 0 && CARTEST_RING_TUNE != 3 && CARTEST_RING_TUNE != 4
+#error "Only base, limit and limit2 ring tunes are available"
+#endif
+#if CARTEST_RING_TUNE && (CARTEST_TRACK_PROFILE != 3 || CARTEST_SPEED_PERCENT != 100)
+#error "Ring-only variants require original C speed"
+#endif
+#if CARTEST_RING_TUNE == 4
+#define CARTEST_RING_TURN_MILLIRPS 7600u
+#define CARTEST_RING_RATE_MDPS 282000
+#elif CARTEST_RING_TUNE == 3
+#define CARTEST_RING_TURN_MILLIRPS 4200u
+#define CARTEST_RING_RATE_MDPS 145000
+#else
+#define CARTEST_RING_TURN_MILLIRPS 2800u
+#define CARTEST_RING_RATE_MDPS 100000
+#endif
+
 /* The gyro ring profile follows the same track/speed selectors as the
    paired H743 build. A build may override either value explicitly. */
 #ifndef CARTEST_TRACK_PROFILE
@@ -40,7 +60,7 @@
 #if CARTEST_TRACK_PROFILE == 2
 #define CAR_GYRO350_TARGET_YAW_RATE_MDPS 64935
 #elif CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
-#define CAR_GYRO350_TARGET_YAW_RATE_MDPS 100000
+#define CAR_GYRO350_TARGET_YAW_RATE_MDPS CARTEST_RING_RATE_MDPS
 #elif CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 120
 #define CAR_GYRO350_TARGET_YAW_RATE_MDPS 102857
 #elif CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 130

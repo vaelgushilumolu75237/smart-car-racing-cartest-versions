@@ -29,3 +29,5 @@ Publishing example, after code review, tests and actual ELF builds are complete:
 ```powershell
 python .\tools\checkpoint_version.py --version <unique-version> --branch experimental/pi-trial --status experimental-software-tested --publish
 ```
+
+- All future local production OpenMV packages MUST include openmv/ring_width_calibration.json, SHA256 fa83b9b079dc8555365aa8f77b7fdc06f78955889eb2f0056788429c7d782f6c. Use the existing private original; fail packaging if absent or changed. Keep this actual calibration out of public checkpoints.

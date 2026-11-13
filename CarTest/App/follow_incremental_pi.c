@@ -88,10 +88,10 @@ static uint8_t valid_input(const car_follow_speed_pi_input_t *input)
            (input->target_override_valid == 0u ||
             (input->target_left_millirps >= 0 &&
              input->target_left_millirps <=
-                 CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS &&
+                 CAR_FOLLOW_INCREMENTAL_PI_MAX_TARGET_MILLIRPS &&
              input->target_right_millirps >= 0 &&
              input->target_right_millirps <=
-                 CAR_FOLLOW_INCREMENTAL_PI_TARGET_MILLIRPS));
+                 CAR_FOLLOW_INCREMENTAL_PI_MAX_TARGET_MILLIRPS));
 }
 
 static void input_to_target_millirps(

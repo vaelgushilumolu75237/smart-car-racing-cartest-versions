@@ -1,0 +1,18 @@
+{
+  "label": "C_Limit",
+  "preset": "DebugRingFastLimit",
+  "profile_id": 3,
+  "speed_percent": 100,
+  "straight_target_millirps": 5600,
+  "curve_outer_target_millirps": 4400,
+  "ring_outer_target_millirps": 4200,
+  "ring_rate_mdps": 145000,
+  "ring_exit_outer_target_millirps": 5280,
+  "ring_entry_straight_ms": 800,
+  "ring_turn_servo_percent": 187.5,
+  "ring_exit_progress_mdeg": 280000,
+  "gyro_authority": true,
+  "elf_sha256": "404819bfcd54e3b410c8b657b2e5c81200e86ea45ac1f35739a4dfdd841db78a",
+  "build_id": "3d97ec8da13c88c47e2b8671b9bd7eac",
+  "hardware_acceptance": "pending_manual_tests"
+}

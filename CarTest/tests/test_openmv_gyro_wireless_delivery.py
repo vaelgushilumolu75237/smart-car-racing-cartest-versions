@@ -7,24 +7,25 @@ from tools.build_openmv_gyro_wireless import PROFILES, expected_profile, verify_
 
 
 class GyroWirelessDeliveryTests(unittest.TestCase):
-    def test_six_profiles_keep_independent_gyro_speeds(self):
+    def test_three_profiles_change_only_ring_parameters(self):
         rows = [expected_profile(row) for row in PROFILES]
-        self.assertEqual(len({(r["profile_id"], r["speed_percent"]) for r in rows}), 6)
-        self.assertEqual([r["ring_outer_target_millirps"] for r in rows], [0, 1500, 2800, 2376, 2574, 2772])
-        self.assertEqual([r["ring_rate_mdps"] for r in rows], [0, 64935, 100000, 102857, 111429, 120000])
-        self.assertEqual([r["ring_exit_outer_target_millirps"] for r in rows], [0, 4000, 5280, 6336, 6864, 7392])
-        self.assertEqual([r["ring_entry_straight_ms"] for r in rows], [0, 1100, 1100, 1100, 1100, 1100])
-        self.assertEqual([r["ring_turn_servo_percent"] for r in rows], [100, 187.5, 187.5, 187.5, 187.5, 187.5])
-        self.assertFalse(rows[0]["gyro_authority"])
-        self.assertTrue(all(row["gyro_authority"] for row in rows[1:]))
+        self.assertEqual([r["ring_outer_target_millirps"] for r in rows], [2800,4200,7600])
+        self.assertEqual([r["ring_rate_mdps"] for r in rows], [100000,145000,282000])
+        for row in rows:
+            self.assertEqual(row["straight_target_millirps"], 7600 if row["preset"] == "DebugRingFastLimit2" else 5600)
+            self.assertEqual(row["curve_outer_target_millirps"], 4400)
+            self.assertEqual(row["ring_exit_outer_target_millirps"], 5280)
+            self.assertEqual(row["ring_entry_straight_ms"], {"DebugRingFast":1100,"DebugRingFastLimit":800,"DebugRingFastLimit2":700}[row["preset"]])
+            self.assertEqual(row["ring_exit_progress_mdeg"], 280000)
+            self.assertEqual(row["ring_turn_servo_percent"], 187.5)
 
     def test_cache_requires_both_feature_flags_and_exact_speed(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            row = PROFILES[-1]
+            row = PROFILES[0]
             cache = root / "build" / row[1] / "CMakeCache.txt"
             cache.parent.mkdir(parents=True)
-            values = dict(CARTEST_TRACK_PROFILE="3", CARTEST_SPEED_PERCENT="140",
+            values = dict(CARTEST_TRACK_PROFILE="3", CARTEST_SPEED_PERCENT="100", CARTEST_RING_TUNE="0",
                           CARTEST_ENABLE_GYRO350="ON", CARTEST_ENABLE_WIRELESS="ON",
                           CARTEST_ENABLE_RED_OBSTACLE="ON",
                           CARTEST_ENABLE_FOLLOW_INCREMENTAL_PI="ON", CARTEST_ENABLE_ACKERMANN_COORDINATION="ON",
@@ -33,7 +34,7 @@ class GyroWirelessDeliveryTests(unittest.TestCase):
                 cache.write_text("\n".join(k + ":STRING=" + v for k, v in data.items()), encoding="utf-8")
             write(values)
             verify_cache(root, row)
-            for key, wrong in (("CARTEST_SPEED_PERCENT", "100"), ("CARTEST_ENABLE_GYRO350", "OFF"),
+            for key, wrong in (("CARTEST_SPEED_PERCENT", "140"), ("CARTEST_ENABLE_GYRO350", "OFF"),
                                ("CARTEST_ENABLE_WIRELESS", "OFF"), ("CARTEST_ENABLE_RED_OBSTACLE", "OFF"), ("CARTEST_TRACK_PROFILE", "2")):
                 with self.subTest(key=key):
                     write(dict(values, **{key: wrong}))

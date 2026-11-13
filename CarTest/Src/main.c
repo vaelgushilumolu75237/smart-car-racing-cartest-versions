@@ -1,3 +1,7 @@
+#include "motor_max_test.h"
+#if CARTEST_MOTOR_MAX_TEST_ENABLED
+extern volatile motor_max_test_t car_motor_max_test;
+#endif
 #include "gyro350_config.h"
 #if CARTEST_WIRELESS_ENABLED
 #include "wireless_runtime.h"
@@ -1365,11 +1369,14 @@ void UsageFault_Handler(void)
 void SysTick_Handler(void)
 {
     uint32_t now_ms;
+    #if !CARTEST_MOTOR_MAX_TEST_ENABLED
     uint8_t follow_active;
     uint8_t bench_active;
     uint8_t steering_active;
+    #endif
     HAL_IncTick();
     now_ms = HAL_GetTick();
+    #if !CARTEST_MOTOR_MAX_TEST_ENABLED
     follow_active = app_config.follow_mode_compiled != 0u &&
         (manual_run_button.run_request != 0u ||
          car_control_state.follow_session_active != 0u ||
@@ -1381,6 +1388,16 @@ void SysTick_Handler(void)
     steering_active =
         app_config.debug_steering_mode_compiled != 0u &&
         car_control_state.steering_session_active != 0u;
+    #endif
+#if CARTEST_MOTOR_MAX_TEST_ENABLED
+    if (motor_outputs_active) {
+        if (!manual_run_button.run_request || manual_run_button.stop_pending ||
+            (uint32_t)(now_ms - car_main_loop_heartbeat_ms) >= APP_MAIN_LOOP_GAP_LIMIT_MS ||
+            (uint32_t)(now_ms - car_motor_max_test.started_ms) >= MOTOR_MAX_RUN_MS) {
+            stop_motor_outputs_hardware();
+        }
+    }
+#else
     if (follow_active != 0u) {
         if (manual_run_button.run_request == 0u ||
             manual_run_button.stop_pending != 0u) {
@@ -1411,6 +1428,7 @@ void SysTick_Handler(void)
             emergency_stop_hardware();
         }
     }
+#endif
     HAL_SYSTICK_IRQHandler();
 }
 
@@ -1735,7 +1753,7 @@ static HAL_StatusTypeDef switch_init(void)
     __HAL_RCC_GPIOE_CLK_ENABLE();
     __HAL_RCC_SYSCFG_CLK_ENABLE();
     gpio.Pin = APP_SWITCH_GPIO_PIN;
-    gpio.Mode = app_config.follow_mode_compiled != 0u
+    gpio.Mode = (app_config.follow_mode_compiled != 0u || CARTEST_MOTOR_MAX_TEST_ENABLED)
                     ? GPIO_MODE_IT_RISING_FALLING : GPIO_MODE_IT_RISING;
     gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1943,7 +1961,7 @@ static car_manual_button_event_t manual_button_sample(uint8_t raw_high,
     uint32_t primask;
     car_manual_button_event_t event = CAR_MANUAL_BUTTON_EVENT_NONE;
 
-    if (app_config.follow_mode_compiled == 0u) {
+    if (app_config.follow_mode_compiled == 0u && !CARTEST_MOTOR_MAX_TEST_ENABLED) {
         return event;
     }
 
@@ -4413,6 +4431,10 @@ static void service_wireless_target(uint32_t now,uint8_t loop_gap_fault)
 }
 #endif
 
+#if CARTEST_MOTOR_MAX_TEST_ENABLED
+#include "motor_max_test_target.h"
+#endif
+
 int main(void)
 {
     uint8_t watchdog_reset;
@@ -4514,6 +4536,7 @@ int main(void)
     enforce_motor_hardware_lock();
     (void)init_status_record(CAR_INIT_ERROR_NONE, HAL_OK);
 
+    #if !CARTEST_MOTOR_MAX_TEST_ENABLED
     init_status = usart1_init();
     if (init_status != HAL_OK) {
         init_failure(CAR_FAULT_UART, CAR_INIT_ERROR_USART1_VERIFY, init_status);
@@ -4533,6 +4556,7 @@ int main(void)
     reverse_control_seen_rx_fault_generation =
         car_control_state.rx_fault_generation;
     car_control_reverse_control_reset_started(&car_control_state);
+    #endif
     car_iwdg_reset_seen = watchdog_reset;
     init_status = iwdg_start();
     if (init_status != HAL_OK) {
@@ -4560,6 +4584,9 @@ int main(void)
     car_init_error = (uint32_t)CAR_INIT_ERROR_NONE;
     previous_loop_ms = HAL_GetTick();
     car_main_loop_heartbeat_ms = previous_loop_ms;
+#if CARTEST_MOTOR_MAX_TEST_ENABLED
+    motor_max_run();
+#endif
     for (;;) {
         uint8_t follow_start_event = 0u;
 #if CARTEST_RUNTIME_LOG_ENABLED
@@ -4828,7 +4855,7 @@ void EXTI9_5_IRQHandler(void)
 {
     if ((EXTI->PR1 & APP_SWITCH_GPIO_PIN) != 0u) {
         EXTI->PR1 = APP_SWITCH_GPIO_PIN;
-        if (app_config.follow_mode_compiled != 0u) {
+        if (app_config.follow_mode_compiled != 0u || CARTEST_MOTOR_MAX_TEST_ENABLED) {
             (void)manual_button_sample(pe7_is_high(), HAL_GetTick());
         } else if (app_config.debug_steering_mode_compiled == 0u &&
                    (car_control_state.mode == CAR_MODE_BENCH_RUNNING ||

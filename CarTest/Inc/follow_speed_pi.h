@@ -5,6 +5,7 @@
 
 #include "speed_pi.h"
 #include "ackermann_control.h"
+#include "gyro350_config.h"
 
 #ifndef CARTEST_FOLLOW_SPEED_PI_ENABLED
 #define CARTEST_FOLLOW_SPEED_PI_ENABLED 0
@@ -22,8 +23,15 @@ extern "C" {
 
 enum {
     CAR_FOLLOW_SPEED_PI_TARGET_MILLIRPS = 2400u,
+    /* Explicit ring targets can exceed the ordinary straight target.
+       Keep nominal targets unchanged; bound overrides by this build's route. */
     CAR_FOLLOW_SPEED_PI_MAX_TARGET_MILLIRPS =
+#if CARTEST_GYRO350_ENABLED
+        CARTEST_RING_TURN_MILLIRPS > CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS
+            ? CARTEST_RING_TURN_MILLIRPS : CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+#else
         CAR_ACKERMANN_FASTEST_STRAIGHT_MILLIRPS,
+#endif
     CAR_FOLLOW_SPEED_PI_MAX_OUTPUT_PERMILLE =
         CARTEST_FOLLOW_SPEED_PI_OUTPUT_CAP_PERMILLE,
     CAR_FOLLOW_SPEED_PI_MAX_SAMPLE_AGE_MS = 100u,

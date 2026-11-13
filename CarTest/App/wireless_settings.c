@@ -3,6 +3,11 @@
 #include <string.h>
 
 #include "car_track_profile.h"
+#include "gyro350_config.h"
+
+#define BUILD_GYRO_RATE_MAX_MDPS \
+    (CAR_GYRO350_TARGET_YAW_RATE_MDPS > 180000 ? \
+     CAR_GYRO350_TARGET_YAW_RATE_MDPS : 180000)
 
 enum {
     SETTINGS_MAGIC = 0x31534757u, /* WGS1 */
@@ -93,7 +98,7 @@ void wireless_settings_defaults(wireless_settings_t *settings)
         .speed_i_gain_permille = 1000u,
         .gyro_p_gain_permille = 1000u,
         .gyro_i_gain_permille = 1000u,
-        .ring_progress_mdeg = 350000u,
+        .ring_progress_mdeg = 280000u,
         .ring_exit_ms = 300u,
         .ring_search_ms = 3000u,
         .servo_left_us = 1100u,
@@ -112,15 +117,19 @@ void wireless_settings_defaults_for_profile(wireless_settings_t *settings,
 
     if (settings == NULL) return;
     wireless_settings_defaults(settings);
-    /* The +40% C profile is the 120 deg/s reference.  Keep the yaw target
-       proportional to the compiled wheel-speed variant while retaining the
-       30..180 deg/s live tuning bounds. */
+    /* Current C builds use their source-selected ring rate. Legacy speed
+       profiles retain their original defaults. The runtime rebases the rate
+       after loading Flash so saved legacy values cannot mask source edits. */
     switch (profile_key) {
     case WIRELESS_PROFILE_B_RING_BASE:
         yaw_mdps = 64935u;
         break;
     case WIRELESS_PROFILE_C_RING:
+#if CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
+        yaw_mdps = CAR_GYRO350_TARGET_YAW_RATE_MDPS;
+#else
         yaw_mdps = 85714u;
+#endif
         break;
     case WIRELESS_PROFILE_C_RING_SPEED120:
         yaw_mdps = 102857u;
@@ -176,7 +185,7 @@ uint8_t wireless_settings_is_valid(const wireless_settings_t *settings)
 {
     if (settings == NULL) return 0u;
     return (u16_range(settings->wheel_scale_permille, 250u, 1000u) &&
-            u32_range(settings->gyro_rate_mdps, 30000u, 180000u) &&
+            u32_range(settings->gyro_rate_mdps, 30000u, BUILD_GYRO_RATE_MAX_MDPS) &&
             u16_range(settings->vision_gain_permille, 500u, 1500u) &&
             u16_range(settings->vision_d_gain_permille, 500u, 1500u) &&
             u16_range(settings->speed_p_gain_permille, 500u, 1500u) &&
@@ -237,7 +246,7 @@ static uint8_t raw_value_is_valid(uint8_t id, int32_t value)
 {
     switch (id) {
     case WIRELESS_PARAM_WHEEL_SCALE_PERMILLE: return value>=250 && value<=1000;
-    case WIRELESS_PARAM_GYRO_RATE_MDPS: return value>=30000 && value<=180000;
+    case WIRELESS_PARAM_GYRO_RATE_MDPS: return value>=30000 && value<=BUILD_GYRO_RATE_MAX_MDPS;
     case WIRELESS_PARAM_VISION_GAIN_PERMILLE:
     case WIRELESS_PARAM_VISION_D_GAIN_PERMILLE:
     case WIRELESS_PARAM_SPEED_P_GAIN_PERMILLE:

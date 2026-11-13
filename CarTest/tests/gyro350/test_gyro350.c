@@ -529,12 +529,12 @@ static void test_entry_straight_delay(int8_t side, uint32_t start)
     assert(fixture.state.outer_target_millirps == CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS);
     /* Early valid phase2 is retained but cannot shorten the straight. */
     ring_phase2(&fixture, trigger + 1u, side, 1000);
-    ring_quiet_step(&fixture, trigger + 1099u, 2000);
+    ring_quiet_step(&fixture, trigger + CAR_GYRO_RING_ENTRY_STRAIGHT_MS - 1u, 2000);
     assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
     assert(fixture.state.servo_target_us == 1530u);
     assert(fixture.state.control_error_norm == 0);
     /* No fresh image or new marker is required at expiry. */
-    ring_quiet_step(&fixture, trigger + 1100u, 3000);
+    ring_quiet_step(&fixture, trigger + CAR_GYRO_RING_ENTRY_STRAIGHT_MS, 3000);
     assert(fixture.state.phase == CAR_GYRO_RING_ORBIT);
     assert(fixture.state.servo_target_us == 0u);
     assert(fixture.state.control_error_norm * side > 0);
@@ -544,7 +544,7 @@ static void test_entry_straight_delay(int8_t side, uint32_t start)
 
     ring_trigger(&fixture, start, 50u, side);
     trigger = fixture.input.now_ms;
-    ring_quiet_step(&fixture, trigger + 1100u, 0);
+    ring_quiet_step(&fixture, trigger + CAR_GYRO_RING_ENTRY_STRAIGHT_MS, 0);
     assert(fixture.state.phase == CAR_GYRO_RING_ENTRY);
     assert(fixture.state.entry_straight_done == 1u);
     assert(fixture.state.control_error_norm * side > 0);
@@ -554,14 +554,14 @@ static void test_profile_targets(void)
 {
     assert(CAR_GYRO_RING_TARGET_PROGRESS_MDEG == 340000);
 #if CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
-    assert(CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS == 2800u);
+    assert(CAR_GYRO_RING_TURN_OUTER_TARGET_MILLIRPS == CARTEST_RING_TURN_MILLIRPS);
 #endif
 #if CARTEST_TRACK_PROFILE == 2
     assert(CAR_GYRO_RING_OUTER_TARGET_MILLIRPS == 4000u);
     assert(CAR_GYRO_RING_TARGET_YAW_RATE_MDPS == 64935);
 #elif CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 100
     assert(CAR_GYRO_RING_OUTER_TARGET_MILLIRPS == 5280u);
-    assert(CAR_GYRO_RING_TARGET_YAW_RATE_MDPS == 100000);
+    assert(CAR_GYRO_RING_TARGET_YAW_RATE_MDPS == CARTEST_RING_RATE_MDPS);
 #elif CARTEST_TRACK_PROFILE == 3 && CARTEST_SPEED_PERCENT == 120
     assert(CAR_GYRO_RING_OUTER_TARGET_MILLIRPS == 6336u);
     assert(CAR_GYRO_RING_TARGET_YAW_RATE_MDPS == 102857);
