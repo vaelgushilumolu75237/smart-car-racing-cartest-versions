@@ -5,6 +5,27 @@
     {
       "command": [
         "python",
+        "tests/wireless/run_core_test.py"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "python",
+        "tests/wireless/run_runtime_test.py"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "python",
+        "tests/wireless/run_flash_test.py"
+      ],
+      "exitcode": 0
+    },
+    {
+      "command": [
+        "python",
         "tests/straight_start/run.py",
         "--zig",
         "D:\\Codex\\T2\\T2\\CarTest\\logs\\diagnostics\\host-compiler\\ziglang\\zig.exe"
@@ -82,5 +103,5 @@
       "exitcode": 0
     }
   ],
-  "user_report": "Current fastest vehicle result; lap time not provided"
+  "regression_old_implementation_failed": true
 }

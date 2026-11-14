@@ -196,8 +196,18 @@ void wireless_control_set_runtime(wireless_control_t *control,
 {
     if (control == NULL || runtime == NULL) return;
     control->runtime = *runtime;
-    if (runtime->hard_fault != 0u || runtime->local_button_released == 0u)
+    if (runtime->hard_fault != 0u)
         wireless_control_revoke_outputs(control, 0u);
+    else if (runtime->local_button_released == 0u ||
+             runtime->startup_release_confirmed == 0u) {
+        /* PE7 is a local START/STOP toggle, not a level-triggered STOP.
+           Main owns its edge. Only an active wireless bench test needs an
+           extra stop here; otherwise cancel wireless START without revoking
+           the local request or repeatedly resetting the camera lease. */
+        if (control->test.active != 0u)
+            wireless_control_revoke_outputs(control, 0u);
+        control->start_requested = 0u;
+    }
     else if (runtime->command_inhibited != 0u) {
         control->test = (wireless_control_test_t){.servo_us = SERVO_CENTER_US};
         control->start_requested = 0u;
@@ -233,10 +243,15 @@ void wireless_control_revoke_outputs(wireless_control_t *control, uint32_t now_m
 void wireless_control_tick(wireless_control_t *control, uint32_t now_ms)
 {
     if (control == NULL) return;
-    if (control->runtime.hard_fault != 0u ||
-        control->runtime.local_button_released == 0u ||
-        control->runtime.startup_release_confirmed == 0u) {
+    if (control->runtime.hard_fault != 0u) {
         wireless_control_revoke_outputs(control, now_ms);
+        return;
+    }
+    if (control->runtime.local_button_released == 0u ||
+        control->runtime.startup_release_confirmed == 0u) {
+        if (control->test.active != 0u)
+            wireless_control_revoke_outputs(control, now_ms);
+        control->start_requested = 0u;
         return;
     }
     if (control->runtime.command_inhibited != 0u) {

@@ -127,6 +127,41 @@ static void test_control_gates(void)
     assert(command(&control, 3u, 104u, stop, sizeof(stop), &ack) == WIRELESS_ACK_OK);
 }
 
+static void test_local_button_does_not_synthesize_wireless_stop(void)
+{
+    wireless_control_t c;
+    wireless_control_runtime_t r = {0};
+    unsigned i;
+    wireless_control_init(&c, NULL, 0u);
+    /* Boot with PE7 held, then a local start press: neither is a STOP. */
+    for (i = 0; i < 2; ++i) {
+        r.startup_release_confirmed = (uint8_t)i;
+        c.start_requested = 1u;
+        wireless_control_set_runtime(&c, &r);
+        wireless_control_tick(&c, i);
+        assert(!wireless_control_take_stop(&c));
+        assert(!wireless_control_take_start(&c));
+    }
+    /* A held local start must not reset the camera every service tick. */
+    for (i = 0; i < 100; ++i) {
+        wireless_control_set_runtime(&c, &r);
+        wireless_control_tick(&c, i);
+        assert(!wireless_control_take_stop(&c));
+    }
+    /* PE7 still cancels a wireless actuator test immediately, once. */
+    c.test.active = 1u;
+    c.test.kind = WIRELESS_TEST_MOTOR;
+    c.test.duty_permille = 400u;
+    wireless_control_set_runtime(&c, &r);
+    assert(wireless_control_take_stop(&c));
+    assert(!c.test.active && !c.test.duty_permille);
+    wireless_control_tick(&c, 101u);
+    assert(!wireless_control_take_stop(&c));
+    r.hard_fault = 1u;
+    wireless_control_set_runtime(&c, &r);
+    assert(wireless_control_take_stop(&c));
+}
+
 static void test_parameter_narrowing_cannot_bypass_limits(void)
 {
     wireless_settings_t settings, original;
@@ -152,6 +187,7 @@ int main(void)
     test_seekfree();
     test_settings();
     test_control_gates();
+    test_local_button_does_not_synthesize_wireless_stop();
     test_parameter_narrowing_cannot_bypass_limits();
     return 0;
 }

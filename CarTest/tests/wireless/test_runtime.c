@@ -333,8 +333,36 @@ static void test_parked_width_bootstrap_keep_never_authorizes_drive(void)
     assert(!car_wireless_parked_camera_keep_allowed(111u,1u,0u));
 }
 
+static void test_pe7_start_coexists_with_wireless_service(void)
+{
+    uint32_t now;
+    memset(&control, 0, sizeof(control));
+    memset(&config, 0, sizeof(config));
+    memset(&snapshot, 0, sizeof(snapshot));
+    car_wireless_init(0u, 0x12345678u);
+    /* A held button at boot must not generate a repeated NORMAL_STOP. */
+    service(1u);
+    assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE);
+    snapshot.startup_released = 1u;
+    control.manual_run_request = 1u; /* The real PE7 edge owns this request. */
+    for (now = 2u; now < 102u; ++now) {
+        service(now);
+        assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE);
+        assert(control.manual_run_request == 1u);
+    }
+    snapshot.button_released = 1u;
+    service(102u);
+    assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE);
+    car_wireless_local_stop(103u); /* The second PE7 press is still STOP. */
+    service(103u);
+    assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_STOP);
+    service(104u);
+    assert(car_wireless_take_effect() == CAR_WIRELESS_EFFECT_NONE);
+}
+
 int main(void)
 {
+    test_pe7_start_coexists_with_wireless_service();
     test_parked_width_bootstrap_keep_never_authorizes_drive();
     test_assistant_camera_read_and_explicit_save();
     test_runtime_link();

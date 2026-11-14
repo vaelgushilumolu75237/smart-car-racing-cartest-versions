@@ -71,7 +71,7 @@
       }
     },
     {
-      "label": "Build: 7.6终极版 | 直道7.6 / 弯道5.1 | 282deg/s | exit280deg",
+      "label": "Build: 7.6终极版双启动修复 | 7.6 / 5.1rps | 282deg/s | exit280deg",
       "type": "process",
       "command": "powershell.exe",
       "args": [

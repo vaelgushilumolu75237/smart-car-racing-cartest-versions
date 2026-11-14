@@ -1,7 +1,7 @@
 {
-  "version": "20261114-7.6\u7ec8\u6781\u7248",
+  "version": "20261114-7.6\u7ec8\u6781\u7248\u53cc\u542f\u52a8\u4fee\u590d",
   "status": "experimental-software-tested",
   "branch": "experimental/r24-independent-cal",
-  "files": 984,
+  "files": 986,
   "hardware_actions": "none"
 }
