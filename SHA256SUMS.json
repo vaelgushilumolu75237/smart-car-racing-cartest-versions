@@ -1,7 +1,7 @@
 {
   ".vscode/c_cpp_properties.json": "fc3fbda575281e0bb47da3b57aeaac1fa20118b7cdeddadc654c791b07664ac8",
   ".vscode/launch.json": "75ca34d2b532789012cd68465e8bef2b6b09958973dd71e2fb05f4869e42f938",
-  ".vscode/settings.json": "74b2aaee72124201f29760352c4900bbfc285c36fbf072991397e7a932ba069c",
+  ".vscode/settings.json": "dafe31afa654ce6c5ffdf9692a05c82655cae75fa5beb1cb1c48e57815053c4b",
   ".vscode/tasks.json": "ac566ef6be49115de64463d6d1d4c17f84227702d9729a0f270b3d0f72b88217",
   "AGENTS.md": "905de3e7a959bed18119c0036d8aae7b5674694bbb027041ca16fd07f3719d94",
   "App/ackermann_control.c": "304a6a223f0bb6d8f39355b908652f754a305dfda310a7057b9c01db8e590633",
@@ -401,6 +401,7 @@
   "docs/STEERING_HOLD3S_20261016_CN.md": "620a20e6e1f1b9a3ace11559ce91b1ce2469f9b9d235dd08d833f1e4a91f9dc8",
   "docs/STEERING_PRIORITY_20261015_CN.md": "3b4a8a2a013abbd379689a0e06111a7fa6eb0c70b8104f0b1803e40695d19c26",
   "docs/STEERING_SINGLEEDGE_BRINGUP_CN.md": "86b099c10ce83e4a1255c53579828852a7bc3a974282324c0ef528f76a90127d",
+  "docs/STM32_LOCAL_ONLY.md": "2757b5aa8cc2b90643db282fe3dcfb36e6324a83b25e7cb102eba75b1a037304",
   "docs/THIRD_MARKER_STOP_20261113.md": "94b9e1a56e67679ecc6c2d050d33c8526fa823e6e8b5f6a90072f3379f4e42e6",
   "docs/TrackElements-20261025.md": "bc2b5eea9d31032db04b3993db685b03fd4ac5abe71891f7a3f9473cce4affdc",
   "docs/TrackProfiles-H743-20261025.md": "3b52d3ae607d751741001dddcfeb2f88c26dae0f56e3fa3d990ef5f01b11458b",
